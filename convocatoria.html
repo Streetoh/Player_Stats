@@ -72,16 +72,11 @@
     </div>
 
     <div id="send-channels" style="display: none; margin-top: 16px; background: var(--bg2); padding: 14px; border-radius: 14px; border: 1px solid var(--border);">
-      <div style="font-size: 12px; font-weight: 800; color: #a855f7; margin-bottom: 8px;">💜 REDIRECCIONANDO A VIBER...</div>
-      <p style="font-size: 12px; color: var(--muted); margin-bottom: 10px;">Si no se abre automáticamente tu aplicación Viber, pulsa el botón morado o envíalo por WhatsApp:</p>
-      <div style="display: flex; gap: 8px;">
-        <button type="button" class="choice-btn doubt" style="flex: 1.2; padding: 10px; justify-content: center; gap: 6px; border-color: rgba(168, 85, 247, 0.4); background: rgba(168, 85, 247, 0.15); color: #d8b4fe;" onclick="sendVia('viber')">
-          <span>💜 Abrir Viber</span>
-        </button>
-        <button type="button" class="choice-btn yes" style="flex: 1; padding: 10px; justify-content: center; gap: 6px;" onclick="sendVia('wa')">
-          <span>📲 WhatsApp</span>
-        </button>
-      </div>
+      <div style="font-size: 12px; font-weight: 800; color: #a855f7; margin-bottom: 8px;">💜 ENVIANDO POR VIBER...</div>
+      <p style="font-size: 12px; color: var(--muted); margin-bottom: 10px;">Si no se abre automáticamente tu aplicación Viber, pulsa el botón morado:</p>
+      <button type="button" class="choice-btn doubt" style="width: 100%; padding: 12px; justify-content: center; gap: 8px; border-color: rgba(168, 85, 247, 0.4); background: rgba(168, 85, 247, 0.2); color: #d8b4fe;" onclick="sendVia('viber')">
+        <span>💜 Abrir Viber y Confirmar</span>
+      </button>
     </div>
 
     <div class="foot">
@@ -91,13 +86,29 @@
 
   <script>
     const params = new URLSearchParams(window.location.search);
-    const title = params.get('title') || 'Match Convocation';
-    const team = params.get('team') || '';
-    const rival = params.get('rival') || '';
-    const date = params.get('date') || '';
-    const time = params.get('time') || '';
-    const venue = params.get('venue') || '';
-    const playersParam = params.get('players') || '';
+    const title = params.get('t') || params.get('title') || 'Match Convocation';
+    const team = params.get('tm') || params.get('team') || '';
+    const rival = params.get('r') || params.get('rival') || '';
+    const date = params.get('d') || params.get('date') || '';
+    const time = params.get('h') || params.get('time') || '';
+    const venue = params.get('v') || params.get('venue') || '';
+    const playersParam = params.get('p') || params.get('players') || '';
+    const lang = (params.get('lang') || 'es').toLowerCase();
+    const isEn = (lang === 'en');
+
+    if (isEn) {
+      document.getElementById('c-badge').textContent = 'OFFICIAL CALL-UP';
+      const lblName = document.querySelector('label[for="player-name"]');
+      if (lblName) lblName.textContent = 'Select or type your name:';
+      const inpName = document.getElementById('player-name');
+      if (inpName) inpName.placeholder = 'e.g. John Smith (#10)';
+      const lblNotes = document.querySelector('label[for="player-notes"]');
+      if (lblNotes) lblNotes.textContent = 'Comments / Notes (optional):';
+      const inpNotes = document.getElementById('player-notes');
+      if (inpNotes) inpNotes.placeholder = 'e.g. Arriving 10 min early / own transport...';
+      const foot = document.querySelector('.foot');
+      if (foot) foot.textContent = '⚽ Player Stats • Squad Attendance System';
+    }
 
     const squadList = playersParam ? playersParam.split(',').map(s => s.trim()).filter(Boolean) : [];
 
@@ -116,7 +127,7 @@
     if (date) metaParts.push(`📅 ${date}`);
     if (time) metaParts.push(`⏰ ${time}`);
     if (venue) metaParts.push(`📍 ${venue}`);
-    document.getElementById('c-meta').textContent = metaParts.join(' • ') || 'Match Details';
+    document.getElementById('c-meta').textContent = metaParts.join(' • ') || (isEn ? 'Match Details' : 'Detalles del evento');
 
     if (squadList.length > 0) {
       const dl = document.getElementById('players-datalist');
@@ -209,33 +220,27 @@
       const name = inputName.value.trim();
       const notes = document.getElementById('player-notes').value.trim();
       const isAttending = currentSelectedStatus === 'yes';
-      const statusText = isAttending ? '🟢 ATTENDING (YES)' : '❌ NOT ATTENDING (NO)';
+      const statusText = isAttending 
+        ? (isEn ? '🟢 ATTENDING (YES)' : '🟢 CONFIRMO ASISTENCIA (SÍ)') 
+        : (isEn ? '❌ NOT ATTENDING (NO)' : '❌ NO PUEDO ASISTIR (NO)');
 
-      const msg = `📋 *Match Convocation Confirmation*\n` +
-        `👤 *Player:* ${name}\n` +
-        `📢 *Status:* ${statusText}\n` +
-        `🏆 *Match:* ${matchDisplay}\n` +
-        (team ? `🛡️ *Team:* ${team}\n` : '') +
-        (rival ? `⚔️ *Opponent:* ${rival}\n` : '') +
-        (date ? `📅 *Date:* ${date}\n` : '') +
-        (time ? `⏰ *Time:* ${time}\n` : '') +
-        (venue ? `📍 *Venue:* ${venue}\n` : '') +
-        (notes ? `📝 *Notes:* ${notes}\n` : '') +
-        `\n⚽ _Sent via Soccer Player Stats_`;
+      const msg = (isEn ? `📋 *Match Convocation Confirmation*\n` : `📋 *Confirmación de Convocatoria*\n`) +
+        (isEn ? `👤 *Player:* ${name}\n` : `👤 *Jugador:* ${name}\n`) +
+        (isEn ? `📢 *Status:* ${statusText}\n` : `📢 *Estado:* ${statusText}\n`) +
+        (isEn ? `🏆 *Match:* ${matchDisplay}\n` : `🏆 *Partido:* ${matchDisplay}\n`) +
+        (team ? (isEn ? `🛡️ *Team:* ${team}\n` : `🛡️ *Equipo:* ${team}\n`) : '') +
+        (rival ? (isEn ? `⚔️ *Opponent:* ${rival}\n` : `⚔️ *Rival:* ${rival}\n`) : '') +
+        (date ? (isEn ? `📅 *Date:* ${date}\n` : `📅 *Fecha:* ${date}\n`) : '') +
+        (time ? (isEn ? `⏰ *Time:* ${time}\n` : `⏰ *Hora:* ${time}\n`) : '') +
+        (venue ? (isEn ? `📍 *Venue:* ${venue}\n` : `📍 *Lugar:* ${venue}\n`) : '') +
+        (notes ? (isEn ? `📝 *Notes:* ${notes}\n` : `📝 *Notas:* ${notes}\n`) : '') +
+        (isEn ? `\n⚽ _Sent via Player Stats_` : `\n⚽ _Enviado desde Estadísticas Jugadores_`);
 
-      if (channel === 'viber') {
-        const viberUrl = `viber://forward?text=${encodeURIComponent(msg)}`;
-        window.location.href = viberUrl;
-        setTimeout(() => {
-          window.open(viberUrl, '_blank');
-        }, 500);
-      } else {
-        const waUrl = `whatsapp://send?text=${encodeURIComponent(msg)}`;
-        window.location.href = waUrl;
-        setTimeout(() => {
-          window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`, '_blank');
-        }, 500);
-      }
+      const viberUrl = `viber://forward?text=${encodeURIComponent(msg)}`;
+      window.location.href = viberUrl;
+      setTimeout(() => {
+        window.open(viberUrl, '_blank');
+      }, 400);
     }
   </script>
 </body>
