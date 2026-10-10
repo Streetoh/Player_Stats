@@ -47,8 +47,11 @@
 
     <div class="field">
       <label for="player-name">Selecciona tu nombre o escríbelo:</label>
-      <input type="text" id="player-name" list="players-datalist" placeholder="Ej: Juan Pérez (#10)" />
+      <input type="text" id="player-name" list="players-datalist" placeholder="Ej: Juan Pérez (#10)" autocomplete="off" />
       <datalist id="players-datalist"></datalist>
+      <div id="fuzzy-suggestion" style="display: none; margin-top: 6px; font-size: 12px; background: rgba(34, 211, 238, 0.12); border: 1px dashed var(--cyan); padding: 7px 10px; border-radius: 10px; color: #bae6fd; cursor: pointer;">
+        💡 ¿Quisiste decir: <b id="fuzzy-name" style="text-decoration: underline; color: #fff;"></b>? <span style="color: var(--cyan);">(Toca aquí para seleccionar)</span>
+      </div>
     </div>
 
     <div class="field">
@@ -56,20 +59,29 @@
       <input type="text" id="player-notes" placeholder="Ej: Llego 10 min antes / Coche propio..." />
     </div>
 
-    <div style="font-size: 12px; font-weight: 800; color: var(--muted); margin-top: 14px;">CONFIRMA TU ASISTENCIA:</div>
+    <div style="font-size: 12px; font-weight: 800; color: var(--muted); margin-top: 14px;">CONFIRMA TU ASISTENCIA / CONFIRM ATTENDANCE:</div>
     <div class="choices">
-      <button class="choice-btn yes" onclick="submitAttendance('🟢 CONFIRMO ASISTENCIA')">
-        <span>🟢 Asistiré a la convocatoria</span>
+      <button class="choice-btn yes" onclick="handleChoice('yes')">
+        <span>🟢 Yes • Attending / Asistiré</span>
         <span>✓</span>
       </button>
-      <button class="choice-btn doubt" onclick="submitAttendance('🟡 DUDA / PENDIENTE')">
-        <span>🟡 Duda / Pendiente</span>
-        <span>?</span>
-      </button>
-      <button class="choice-btn no" onclick="submitAttendance('❌ NO PUEDO ASISTIR')">
-        <span>❌ No podré asistir (Baja)</span>
+      <button class="choice-btn no" onclick="handleChoice('no')">
+        <span>❌ No • Not attending / Baja</span>
         <span>✕</span>
       </button>
+    </div>
+
+    <div id="send-channels" style="display: none; margin-top: 16px; background: var(--bg2); padding: 14px; border-radius: 14px; border: 1px solid var(--border);">
+      <div style="font-size: 12px; font-weight: 800; color: #a855f7; margin-bottom: 8px;">💜 REDIRECCIONANDO A VIBER...</div>
+      <p style="font-size: 12px; color: var(--muted); margin-bottom: 10px;">Si no se abre automáticamente tu aplicación Viber, pulsa el botón morado o envíalo por WhatsApp:</p>
+      <div style="display: flex; gap: 8px;">
+        <button type="button" class="choice-btn doubt" style="flex: 1.2; padding: 10px; justify-content: center; gap: 6px; border-color: rgba(168, 85, 247, 0.4); background: rgba(168, 85, 247, 0.15); color: #d8b4fe;" onclick="sendVia('viber')">
+          <span>💜 Abrir Viber</span>
+        </button>
+        <button type="button" class="choice-btn yes" style="flex: 1; padding: 10px; justify-content: center; gap: 6px;" onclick="sendVia('wa')">
+          <span>📲 WhatsApp</span>
+        </button>
+      </div>
     </div>
 
     <div class="foot">
@@ -79,49 +91,151 @@
 
   <script>
     const params = new URLSearchParams(window.location.search);
-    const title = params.get('title') || 'Convocatoria';
+    const title = params.get('title') || 'Match Convocation';
+    const team = params.get('team') || '';
+    const rival = params.get('rival') || '';
     const date = params.get('date') || '';
     const time = params.get('time') || '';
     const venue = params.get('venue') || '';
-    const rival = params.get('rival') || '';
     const playersParam = params.get('players') || '';
 
-    document.getElementById('c-title').textContent = title + (rival ? ' vs ' + rival : '');
-    document.getElementById('c-meta').textContent = `${date ? '📅 ' + date : ''} ${time ? '• ⏰ ' + time : ''} ${venue ? '• 📍 ' + venue : ''}`.trim();
+    const squadList = playersParam ? playersParam.split(',').map(s => s.trim()).filter(Boolean) : [];
 
-    if (playersParam) {
+    let matchDisplay = '';
+    if (team && rival) {
+      matchDisplay = `${team} vs ${rival}`;
+    } else if (rival) {
+      matchDisplay = `${title} vs ${rival}`;
+    } else {
+      matchDisplay = title;
+    }
+    document.getElementById('c-title').textContent = matchDisplay;
+
+    const metaParts = [];
+    if (team) metaParts.push(`🛡️ ${team}`);
+    if (date) metaParts.push(`📅 ${date}`);
+    if (time) metaParts.push(`⏰ ${time}`);
+    if (venue) metaParts.push(`📍 ${venue}`);
+    document.getElementById('c-meta').textContent = metaParts.join(' • ') || 'Match Details';
+
+    if (squadList.length > 0) {
       const dl = document.getElementById('players-datalist');
-      playersParam.split(',').forEach(p => {
-        const name = p.trim();
-        if (name) {
-          const opt = document.createElement('option');
-          opt.value = name;
-          dl.appendChild(opt);
-        }
+      squadList.forEach(name => {
+        const opt = document.createElement('option');
+        opt.value = name;
+        dl.appendChild(opt);
       });
     }
 
-    function submitAttendance(status) {
-      const name = document.getElementById('player-name').value.trim();
-      const notes = document.getElementById('player-notes').value.trim();
-      if (!name) {
-        alert('Por favor, introduce tu nombre para confirmar.');
+    // Algoritmo de similitud Levenshtein para sugerir nombres mal escritos
+    function levenshtein(a, b) {
+      const al = a.length, bl = b.length;
+      if (!al) return bl;
+      if (!bl) return al;
+      const matrix = Array.from({ length: al + 1 }, () => new Array(bl + 1).fill(0));
+      for (let i = 0; i <= al; i++) matrix[i][0] = i;
+      for (let j = 0; j <= bl; j++) matrix[0][j] = j;
+      for (let i = 1; i <= al; i++) {
+        for (let j = 1; j <= bl; j++) {
+          const cost = a[i - 1].toLowerCase() === b[j - 1].toLowerCase() ? 0 : 1;
+          matrix[i][j] = Math.min(
+            matrix[i - 1][j] + 1,
+            matrix[i][j - 1] + 1,
+            matrix[i - 1][j - 1] + cost
+          );
+        }
+      }
+      return matrix[al][bl];
+    }
+
+    const inputName = document.getElementById('player-name');
+    const suggBox = document.getElementById('fuzzy-suggestion');
+    const suggName = document.getElementById('fuzzy-name');
+
+    inputName.addEventListener('input', () => {
+      const val = inputName.value.trim().toLowerCase();
+      if (!val || val.length < 2 || squadList.length === 0) {
+        suggBox.style.display = 'none';
+        return;
+      }
+      const exact = squadList.find(s => s.toLowerCase() === val);
+      if (exact) {
+        suggBox.style.display = 'none';
         return;
       }
 
-      const msg = `📋 *Confirmación de Convocatoria*\n` +
-        `👤 *Jugador:* ${name}\n` +
-        `📢 *Estado:* ${status}\n` +
-        `🏆 *Evento:* ${title}${rival ? ' vs ' + rival : ''}\n` +
-        `${date ? '📅 *Fecha:* ' + date : ''} ${time ? '• ⏰ ' + time : ''}\n` +
-        `${notes ? '📝 *Comentario:* ' + notes + '\n' : ''}\n` +
-        `⚽ _Enviado desde Estadísticas Jugadores_`;
+      // Buscar el jugador más parecido
+      let best = null, bestDist = 999;
+      squadList.forEach(p => {
+        const pClean = p.toLowerCase().replace(/#\d+\s*/g, '').trim();
+        const dist = levenshtein(val, pClean);
+        if (dist < bestDist && dist <= Math.max(2, Math.floor(val.length * 0.45))) {
+          bestDist = dist;
+          best = p;
+        }
+      });
 
-      const waUrl = `whatsapp://send?text=${encodeURIComponent(msg)}`;
-      window.location.href = waUrl;
-      setTimeout(() => {
-        window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`, '_blank');
-      }, 500);
+      if (best) {
+        suggName.textContent = best;
+        suggBox.style.display = 'block';
+        suggBox.onclick = () => {
+          inputName.value = best;
+          suggBox.style.display = 'none';
+        };
+      } else {
+        suggBox.style.display = 'none';
+      }
+    });
+
+    let currentSelectedStatus = 'yes';
+
+    function handleChoice(status) {
+      const name = inputName.value.trim();
+      if (!name) {
+        alert('Please enter or select your name first / Por favor, selecciona o introduce tu nombre antes de confirmar.');
+        inputName.focus();
+        return;
+      }
+      currentSelectedStatus = status;
+      const sendDiv = document.getElementById('send-channels');
+      sendDiv.style.display = 'block';
+      sendDiv.scrollIntoView({ behavior: 'smooth' });
+
+      // Redirigir directamente a Viber
+      sendVia('viber');
+    }
+
+    function sendVia(channel) {
+      const name = inputName.value.trim();
+      const notes = document.getElementById('player-notes').value.trim();
+      const isAttending = currentSelectedStatus === 'yes';
+      const statusText = isAttending ? '🟢 ATTENDING (YES)' : '❌ NOT ATTENDING (NO)';
+
+      const msg = `📋 *Match Convocation Confirmation*\n` +
+        `👤 *Player:* ${name}\n` +
+        `📢 *Status:* ${statusText}\n` +
+        `🏆 *Match:* ${matchDisplay}\n` +
+        (team ? `🛡️ *Team:* ${team}\n` : '') +
+        (rival ? `⚔️ *Opponent:* ${rival}\n` : '') +
+        (date ? `📅 *Date:* ${date}\n` : '') +
+        (time ? `⏰ *Time:* ${time}\n` : '') +
+        (venue ? `📍 *Venue:* ${venue}\n` : '') +
+        (notes ? `📝 *Notes:* ${notes}\n` : '') +
+        `\n⚽ _Sent via Soccer Player Stats_`;
+
+      if (channel === 'viber') {
+        const viberUrl = `viber://forward?text=${encodeURIComponent(msg)}`;
+        window.location.href = viberUrl;
+        setTimeout(() => {
+          window.open(viberUrl, '_blank');
+        }, 500);
+      } else {
+        const waUrl = `whatsapp://send?text=${encodeURIComponent(msg)}`;
+        window.location.href = waUrl;
+        setTimeout(() => {
+          window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`, '_blank');
+        }, 500);
+      }
     }
   </script>
 </body>
