@@ -208,7 +208,28 @@
       coachCardTitle: 'Head Coach Profile',
       viewCoachProfile: 'View Coach Profile',
       coachProfileSubtitle: 'Technical Director & Coaching Staff',
-      chatWithCoach: '💬 Chat with Coach'
+      chatWithCoach: '💬 Chat with Coach',
+      confirmPlayerIdentity: 'Confirm Identity',
+      areYouPlayer: 'Are you {name}?',
+      securityCodeDesc: 'To protect your player profile, this security code has been generated. Give this code to your coach so they can verify and authorize access on your device.',
+      securityCodeTitle: 'Security Code',
+      waitingCoachApproval: 'Waiting for your coach to authorize the code...',
+      copyCode: '📋 Copy Code',
+      codeCopied: '✅ Code copied to clipboard!',
+      sendViaViber: '📱 Send via Viber',
+      cancelSelectOther: '✕ Cancel and select another player',
+      viberShareMsg: 'Hi Coach, my verification security code is {code} to access my profile ({name}) on Player Stats app.',
+      player: 'Player',
+      allPlayers: 'All Players',
+      creationApproved: '🎉 Your coach approved and created your profile! You can now view your stats.',
+      creationRejected: '❌ Your coach declined the registration request.',
+      profileChangeSecurityTitle: 'Confirm Profile Change',
+      profileChangeSecurityDesc: 'To protect your player account, this security code has been generated. Give this code to your coach so they can authorize switching your profile to {name}.',
+      viberProfileChangeMsg: 'Hi Coach, my verification code is {code} to change my profile to {name} on Player Stats app.',
+      birthDate: 'Date of Birth',
+      age: 'Age',
+      secondaryPositions: 'Secondary Positions',
+      guardian: 'Parent / Guardian'
     },
     es: {
       appName: 'Player stats (Player)',
@@ -337,7 +358,28 @@
       coachCardTitle: 'Ficha del Entrenador',
       viewCoachProfile: 'Ver Perfil del Entrenador',
       coachProfileSubtitle: 'Cuerpo Técnico y Dirección',
-      chatWithCoach: '💬 Chatear con el Entrenador'
+      chatWithCoach: '💬 Chatear con el Entrenador',
+      confirmPlayerIdentity: 'Confirmar Identidad',
+      areYouPlayer: '¿Eres {name}?',
+      securityCodeDesc: 'Para proteger tu perfil, se ha generado este código de seguridad. Dáselo a tu entrenador para que confirme y autorice tu acceso en tu dispositivo.',
+      securityCodeTitle: 'Código de Seguridad',
+      waitingCoachApproval: 'Esperando que tu entrenador autorice el código...',
+      copyCode: '📋 Copiar Código',
+      codeCopied: '✅ ¡Código copiado al portapapeles!',
+      sendViaViber: '📱 Enviar por Viber',
+      cancelSelectOther: '✕ Cancelar y elegir otro jugador',
+      viberShareMsg: 'Hola míster, mi código de seguridad es {code} para acceder a mi perfil ({name}) en la app Player Stats.',
+      player: 'Jugador',
+      allPlayers: 'Todos los jugadores',
+      creationApproved: '🎉 ¡El entrenador ha creado tu perfil! Ya puedes ver tus estadísticas.',
+      creationRejected: '❌ El entrenador ha denegado la solicitud de alta.',
+      profileChangeSecurityTitle: 'Confirmar Cambio de Perfil',
+      profileChangeSecurityDesc: 'Para proteger tu cuenta, se ha generado este código de seguridad. Facilita este código a tu entrenador para que autorice el cambio de perfil a {name}.',
+      viberProfileChangeMsg: 'Hola míster, mi código de verificación es {code} para cambiar mi perfil a {name} en la app Player Stats.',
+      birthDate: 'Fecha de Nacimiento',
+      age: 'Edad',
+      secondaryPositions: 'Posiciones Secundarias',
+      guardian: 'Padre / Tutor'
     }
   };
 
@@ -811,7 +853,7 @@
             localStorage.removeItem('portal_pending_creation_dorsal');
             localStorage.removeItem('portal_pending_creation_pos');
           } catch (e) {}
-          toast(t('creationApproved', '🎉 ¡El entrenador ha creado tu perfil! Ya puedes ver tus estadísticas.'), 'success');
+          toast(t('creationApproved', '🎉 Your coach approved and created your profile! You can now view your stats.'), 'success');
           haptic(50);
           updateHeaderIdentity();
           renderCurrentTab();
@@ -823,7 +865,7 @@
           localStorage.removeItem('portal_player_locked');
         } catch (e) {}
         myPlayerId = null;
-        toast(t('creationRejected', '❌ El entrenador ha denegado la solicitud de alta.'), 'error');
+        toast(t('creationRejected', '❌ Your coach declined the registration request.'), 'error');
         updateHeaderIdentity();
         renderCurrentTab();
       }
@@ -836,12 +878,12 @@
     overlay.innerHTML = `
       <div class="dialog-box" style="max-height: 88vh; width: 92%; max-width: 440px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
-          <h3 style="margin: 0; font-size: 16px; font-weight: 900; color: #fff;">➕ ${t('requestCoachProfileTitle', 'Solicitar Alta al Entrenador')}</h3>
+          <h3 style="margin: 0; font-size: 16px; font-weight: 900; color: #fff;">➕ ${t('requestCoachProfileTitle', 'Request Registration from Coach')}</h3>
           <button type="button" class="icon-btn ghost" id="dlg-pcr-x" style="width: 32px; height: 32px;">✕</button>
         </div>
 
         <p style="font-size: 12px; color: var(--muted); margin: 0 0 12px;">
-          ${t('requestCoachProfileDesc', 'Envía tus datos al entrenador para que cree tu ficha en el equipo y puedas seleccionarte.')}
+          ${t('requestCoachProfileDesc', 'Send your details to the coach so they can create your profile in the team database.')}
         </p>
 
         <div style="margin-bottom: 10px;">
@@ -918,13 +960,13 @@
         updateHeaderIdentity();
         renderCurrentTab();
 
-        toast(t('requestSent', '✅ Solicitud enviada al entrenador. Tu perfil se activará cuando sea aprobado.'), 'success');
+        toast(t('requestSent', '✅ Request sent to coach. Your profile will be activated once approved.'), 'success');
         haptic(40);
         close();
       } catch (err) {
         toast('Error: ' + err.message, 'error');
         btnSubmit.disabled = false;
-        btnSubmit.textContent = t('sendRequest', 'Enviar Solicitud al Entrenador');
+        btnSubmit.textContent = t('sendRequest', 'Send Request to Coach');
       }
     };
 
@@ -1081,7 +1123,7 @@
                     #${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(p.name || '')} ${escapeHtml(p.lastName || '')}
                   </b>
                   <small style="color: var(--muted); font-size: 11.5px;">
-                    ${p.mainPosition || 'Jugador'} ${team ? '• ' + escapeHtml(team.name) : ''}
+                    ${p.mainPosition || t('player', 'Player')} ${team ? '• ' + escapeHtml(team.name) : ''}
                   </small>
                 </div>
               </div>
@@ -1091,7 +1133,7 @@
 
         <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border);">
           <button type="button" class="btn sm ghost" id="btn-dialog-id-req-creation" style="width: 100%; border: 1.5px dashed var(--cyan); color: var(--cyan); font-weight: 800; font-size: 12px; height: 38px; border-radius: 10px;">
-            ${t('requestCoachProfile', '➕ ¿No estás en la lista? Solicitar alta al entrenador')}
+            ${t('requestCoachProfile', '➕ Not on the list? Request registration from coach')}
           </button>
         </div>
       </div>
@@ -1180,10 +1222,10 @@
         <div style="font-size: 40px; margin-bottom: 8px;">🔐</div>
         
         <h3 style="margin: 0 0 4px; font-size: 18px; font-weight: 900; color: #fff;">
-          ${t('confirmPlayerIdentity', 'Confirmar Identidad')}
+          ${t('confirmPlayerIdentity', 'Confirm Identity')}
         </h3>
         <p style="margin: 0 0 16px; font-size: 13.5px; color: var(--cyan); font-weight: 800;">
-          ${t('areYouPlayer', '¿Eres {name}?').replace('{name}', pName)}
+          ${t('areYouPlayer', 'Are you {name}?').replace('{name}', pName)}
         </p>
 
         <!-- Tarjeta del jugador seleccionado -->
@@ -1194,34 +1236,44 @@
               ${pDorsal} ${escapeHtml(pName)}
             </b>
             <small style="color: var(--muted); font-size: 12px;">
-              ${player.mainPosition || 'Jugador'} ${team ? '• ' + escapeHtml(team.name) : ''}
+              ${player.mainPosition || t('player', 'Player')} ${team ? '• ' + escapeHtml(team.name) : ''}
             </small>
           </div>
         </div>
 
         <!-- Explicación de seguridad -->
         <p style="font-size: 12.5px; color: #cbd5e1; line-height: 1.45; margin: 0 0 14px; text-align: left;">
-          ${t('securityCodeDesc', 'Para proteger tu perfil, se ha generado este código de seguridad. Dáselo a tu entrenador para que confirme y autorice tu acceso en tu dispositivo.')}
+          ${t('securityCodeDesc', 'To protect your player profile, this security code has been generated. Give this code to your coach so they can verify and authorize access on your device.')}
         </p>
 
         <!-- Código de seguridad destacado -->
-        <div style="background: var(--bg2); border: 2.5px dashed #22d3ee; border-radius: 14px; padding: 14px 10px; margin-bottom: 16px; box-shadow: 0 0 20px rgba(34, 211, 238, 0.15);">
+        <div style="background: var(--bg2); border: 2.5px dashed #22d3ee; border-radius: 14px; padding: 14px 10px; margin-bottom: 12px; box-shadow: 0 0 20px rgba(34, 211, 238, 0.15);">
           <span style="font-size: 11px; color: var(--muted); text-transform: uppercase; font-weight: 800; letter-spacing: 1px; display: block; margin-bottom: 4px;">
-            ${t('securityCodeTitle', 'Código de Seguridad')}
+            ${t('securityCodeTitle', 'Security Code')}
           </span>
           <b style="font-size: 32px; color: #22d3ee; letter-spacing: 5px; font-family: monospace; font-weight: 900; display: block;">
             ${securityCode}
           </b>
         </div>
 
+        <!-- Botones de Acción: Copiar Código y Enviar por Viber -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px;">
+          <button type="button" class="btn sm secondary" id="btn-copy-claim-code" style="height: 40px; font-weight: 800; font-size: 12px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+            ${t('copyCode', '📋 Copy Code')}
+          </button>
+          <button type="button" class="btn sm" id="btn-viber-claim-code" style="height: 40px; font-weight: 800; font-size: 12px; background: #7c3aed; color: #fff; border: 1px solid #a855f7; display: flex; align-items: center; justify-content: center; gap: 6px;">
+            ${t('sendViaViber', '📱 Send via Viber')}
+          </button>
+        </div>
+
         <!-- Indicador de espera -->
         <div style="display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 20px; background: rgba(250, 204, 21, 0.15); border: 1px solid rgba(250, 204, 21, 0.4); font-size: 12px; color: #fde047; font-weight: 800; margin-bottom: 16px;">
           <span>⏳</span>
-          <span>${t('waitingCoachApproval', 'Esperando que tu entrenador autorice el código...')}</span>
+          <span>${t('waitingCoachApproval', 'Waiting for your coach to authorize the code...')}</span>
         </div>
 
         <button type="button" class="btn sm ghost block" id="btn-cancel-claim-req" style="height: 38px; font-weight: 800; font-size: 12.5px;">
-          ✕ ${t('cancel', 'Cancelar y elegir otro jugador')}
+          ${t('cancelSelectOther', '✕ Cancel and select another player')}
         </button>
       </div>
     `;
@@ -1231,6 +1283,54 @@
         try { claimUnsub(); } catch (e) {}
       }
       overlay.remove();
+    }
+
+    function fallbackCopy(text) {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+        toast(t('codeCopied', '✅ Code copied to clipboard!'), 'success');
+        haptic(40);
+      } catch (e) {
+        toast('Code: ' + text, 'info');
+      }
+    }
+
+    const btnCopy = overlay.querySelector('#btn-copy-claim-code');
+    if (btnCopy) {
+      btnCopy.onclick = () => {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(securityCode).then(() => {
+            toast(t('codeCopied', '✅ Code copied to clipboard!'), 'success');
+            haptic(40);
+          }).catch(() => fallbackCopy(securityCode));
+        } else {
+          fallbackCopy(securityCode);
+        }
+      };
+    }
+
+    const btnViber = overlay.querySelector('#btn-viber-claim-code');
+    if (btnViber) {
+      btnViber.onclick = () => {
+        const vMsg = t('viberShareMsg', 'Hi Coach, my verification security code is {code} to access my profile ({name}) on Player Stats app.')
+          .replace('{code}', securityCode)
+          .replace('{name}', pName);
+        haptic(30);
+        const vUrl = 'viber://forward?text=' + encodeURIComponent(vMsg);
+        try {
+          window.location.href = vUrl;
+        } catch (e) {
+          window.open(vUrl, '_blank');
+        }
+      };
     }
 
     overlay.querySelector('#btn-cancel-claim-req').onclick = () => {
@@ -1384,6 +1484,15 @@
       btnSubmit.disabled = true;
       btnSubmit.textContent = t('sending');
 
+      // Generar código de seguridad de 3 letras y 3 números
+      const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+      const digits = '23456789';
+      let codeL = '';
+      for (let i = 0; i < 3; i++) codeL += letters.charAt(Math.floor(Math.random() * letters.length));
+      let codeD = '';
+      for (let i = 0; i < 3; i++) codeD += digits.charAt(Math.floor(Math.random() * digits.length));
+      const securityCode = `${codeL}-${codeD}`;
+
       const reqId = 'req_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
       const reqData = {
         id: reqId,
@@ -1393,6 +1502,7 @@
         toPlayerId: selectedTargetPid,
         toPlayerName: targetName,
         reason: reason,
+        securityCode: securityCode,
         status: 'pending',
         createdAt: Date.now()
       };
@@ -1402,9 +1512,7 @@
           await window.Cloud.submitProfileRequest(reqData);
           localStorage.setItem('portal_pending_req_id', reqId);
           close();
-          toast(t('reqSentSuccess'), 'success');
-          listenToMyPendingRequest(reqId);
-          renderCurrentTab();
+          showConfirmProfileChangeSecurityCodeModal(targetP, securityCode, reqId);
         } else {
           toast('Error de conexión a la nube', 'error');
           btnSubmit.disabled = false;
@@ -1418,6 +1526,140 @@
 
     document.body.appendChild(overlay);
     if (searchInp) setTimeout(() => searchInp.focus(), 60);
+  }
+
+  function showConfirmProfileChangeSecurityCodeModal(player, securityCode, reqId) {
+    if (!player || !securityCode || !reqId) return;
+
+    let reqUnsub = null;
+    const overlay = document.createElement('div');
+    overlay.className = 'dialog-overlay';
+
+    const pName = `${player.name || ''} ${player.lastName || ''}`.trim();
+    const pDorsal = player.mainDorsal != null ? `#${player.mainDorsal}` : '';
+    const team = clubData.teams ? clubData.teams.find(t => t.id === player.teamId) : null;
+
+    overlay.innerHTML = `
+      <div class="dialog-box" style="max-height: 88vh; width: 92%; max-width: 440px; padding: 22px 18px; text-align: center;">
+        <div style="font-size: 40px; margin-bottom: 8px;">🔐</div>
+        
+        <h3 style="margin: 0 0 4px; font-size: 18px; font-weight: 900; color: #fff;">
+          ${t('profileChangeSecurityTitle', 'Confirm Profile Change')}
+        </h3>
+        <p style="margin: 0 0 16px; font-size: 13.5px; color: var(--cyan); font-weight: 800;">
+          ➔ ${escapeHtml(pName)}
+        </p>
+
+        <!-- Tarjeta del nuevo jugador seleccionado -->
+        <div style="display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 12px; background: var(--surface2); border: 1px solid var(--border); margin-bottom: 16px; text-align: left;">
+          ${renderAvatar(player, 'md')}
+          <div style="flex: 1; overflow: hidden;">
+            <b style="font-size: 15px; color: #fff; display: block;" class="ellipsis">
+              ${pDorsal} ${escapeHtml(pName)}
+            </b>
+            <small style="color: var(--muted); font-size: 12px;">
+              ${player.mainPosition || t('player', 'Player')} ${team ? '• ' + escapeHtml(team.name) : ''}
+            </small>
+          </div>
+        </div>
+
+        <!-- Explicación de seguridad -->
+        <p style="font-size: 12.5px; color: #cbd5e1; line-height: 1.45; margin: 0 0 14px; text-align: left;">
+          ${t('profileChangeSecurityDesc', 'To protect your player account, this security code has been generated. Give this code to your coach so they can authorize switching your profile to {name}.').replace('{name}', pName)}
+        </p>
+
+        <!-- Código de seguridad destacado -->
+        <div style="background: var(--bg2); border: 2.5px dashed #22d3ee; border-radius: 14px; padding: 14px 10px; margin-bottom: 12px; box-shadow: 0 0 20px rgba(34, 211, 238, 0.15);">
+          <span style="font-size: 11px; color: var(--muted); text-transform: uppercase; font-weight: 800; letter-spacing: 1px; display: block; margin-bottom: 4px;">
+            ${t('securityCodeTitle', 'Security Code')}
+          </span>
+          <b style="font-size: 32px; color: #22d3ee; letter-spacing: 5px; font-family: monospace; font-weight: 900; display: block;">
+            ${securityCode}
+          </b>
+        </div>
+
+        <!-- Botones de Acción: Copiar Código y Enviar por Viber -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px;">
+          <button type="button" class="btn sm secondary" id="btn-copy-change-code" style="height: 40px; font-weight: 800; font-size: 12px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+            ${t('copyCode', '📋 Copy Code')}
+          </button>
+          <button type="button" class="btn sm" id="btn-viber-change-code" style="height: 40px; font-weight: 800; font-size: 12px; background: #7c3aed; color: #fff; border: 1px solid #a855f7; display: flex; align-items: center; justify-content: center; gap: 6px;">
+            ${t('sendViaViber', '📱 Send via Viber')}
+          </button>
+        </div>
+
+        <!-- Indicador de espera -->
+        <div style="display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 20px; background: rgba(250, 204, 21, 0.15); border: 1px solid rgba(250, 204, 21, 0.4); font-size: 12px; color: #fde047; font-weight: 800; margin-bottom: 16px;">
+          <span>⏳</span>
+          <span>${t('waitingCoachApproval', 'Waiting for your coach to authorize the code...')}</span>
+        </div>
+
+        <button type="button" class="btn sm ghost block" id="btn-cancel-change-req" style="height: 38px; font-weight: 800; font-size: 12.5px;">
+          ${t('cancelSelectOther', '✕ Cancel and select another player')}
+        </button>
+      </div>
+    `;
+
+    function close() {
+      if (reqUnsub) {
+        try { reqUnsub(); } catch (e) {}
+      }
+      overlay.remove();
+    }
+
+    overlay.querySelector('#btn-cancel-change-req').onclick = close;
+
+    // Copiar código
+    overlay.querySelector('#btn-copy-change-code').onclick = async () => {
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(securityCode);
+        } else {
+          const ta = document.createElement('textarea');
+          ta.value = securityCode;
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          ta.remove();
+        }
+        toast(t('codeCopied', '✅ Code copied to clipboard!'), 'success');
+        haptic(30);
+      } catch (err) {
+        toast(`Code: ${securityCode}`, 'info');
+      }
+    };
+
+    // Compartir por Viber
+    overlay.querySelector('#btn-viber-change-code').onclick = () => {
+      const shareText = t('viberProfileChangeMsg', 'Hi Coach, my verification code is {code} to change my profile to {name} on Player Stats app.')
+        .replace('{code}', securityCode)
+        .replace('{name}', pName);
+      const viberUrl = `viber://forward?text=${encodeURIComponent(shareText)}`;
+      window.location.href = viberUrl;
+    };
+
+    // Escuchar aprobación del entrenador
+    if (window.Cloud && window.Cloud.listenToMyProfileRequest) {
+      reqUnsub = window.Cloud.listenToMyProfileRequest(reqId, (reqDoc) => {
+        if (!reqDoc) return;
+        if (reqDoc.status === 'approved') {
+          close();
+          myPlayerId = player.id;
+          localStorage.setItem('portal_selected_player_id', player.id);
+          localStorage.removeItem('portal_pending_req_id');
+          haptic(50);
+          toast(t('profileAccessApproved', 'Access authorized by coach! You can now view your stats.'), 'success');
+          renderCurrentTab();
+        } else if (reqDoc.status === 'rejected') {
+          close();
+          localStorage.removeItem('portal_pending_req_id');
+          haptic(30);
+          toast(t('profileAccessDenied', 'Access denied by coach'), 'error');
+        }
+      });
+    }
+
+    document.body.appendChild(overlay);
   }
 
   function listenToMyPendingRequest(reqId) {
@@ -1862,6 +2104,33 @@
     `;
   }
 
+  function calculateAgeYearsMonths(birthDateStr, lang) {
+    if (!birthDateStr) return '';
+    const birth = new Date(birthDateStr);
+    if (isNaN(birth.getTime())) return '';
+    const today = new Date();
+    let years = today.getFullYear() - birth.getFullYear();
+    let months = today.getMonth() - birth.getMonth();
+    if (today.getDate() < birth.getDate()) {
+      months--;
+    }
+    if (months < 0) {
+      years--;
+      months += 12;
+    }
+    if (years < 0) return '';
+    const isEn = (lang || currentLang || 'en') === 'en';
+    if (isEn) {
+      const yStr = years === 1 ? '1 year' : `${years} years`;
+      const mStr = months === 1 ? '1 month' : `${months} months`;
+      return `${yStr}, ${mStr}`;
+    } else {
+      const yStr = years === 1 ? '1 año' : `${years} años`;
+      const mStr = months === 1 ? '1 mes' : `${months} meses`;
+      return `${yStr}, ${mStr}`;
+    }
+  }
+
   /* -------------------------------------------------------------
      PESTAÑA 2: MI FICHA PERSONAL (PUNTOS 1, 7, 8)
      ------------------------------------------------------------- */
@@ -1909,6 +2178,8 @@
     const team = clubData.teams ? clubData.teams.find(t => t.id === myP.teamId) : null;
     const stats = calculatePlayerStats(myP.id);
     const radar = calculatePlayerRadar(myP.id);
+    const secPositions = myP.secondaryPositions && myP.secondaryPositions.length ? myP.secondaryPositions : (myP.secondaryPosition ? [myP.secondaryPosition] : []);
+    const ageStr = myP.birthDate ? calculateAgeYearsMonths(myP.birthDate, currentLang) : '';
 
     view.innerHTML = `
       <div style="padding: 6px 0;">
@@ -1919,13 +2190,21 @@
             <h2 style="font-size: 19px; font-weight: 900; margin: 0 0 4px;">
               ${escapeHtml(myP.name || '')} ${escapeHtml(myP.lastName || '')}
             </h2>
-            <div class="meta" style="display: flex; gap: 6px; flex-wrap: wrap; font-size: 12px; color: var(--muted);">
+            <div class="meta" style="display: flex; gap: 6px; flex-wrap: wrap; font-size: 12px; color: var(--muted); align-items: center;">
               <span class="pos-tag">${myP.mainPosition || 'Jugador'}</span>
+              ${secPositions.length ? `<span class="badge" style="background: rgba(34, 211, 238, 0.15); color: var(--cyan); border: 1px solid rgba(34, 211, 238, 0.4); font-size: 11px;">🔄 ${secPositions.join(', ')}</span>` : ''}
               <span>•</span>
               <span>#${myP.mainDorsal != null ? myP.mainDorsal : '—'}</span>
               <span>•</span>
               <span>${getPlayerFootLabel(myP.foot)}</span>
             </div>
+            ${myP.birthDate ? `
+              <div style="font-size: 12px; color: #cbd5e1; margin-top: 5px; display: flex; align-items: center; gap: 5px;">
+                <span>🎂</span>
+                <span>${myP.birthDate}</span>
+                <span style="color: var(--cyan); font-weight: 800;">(${ageStr})</span>
+              </div>
+            ` : ''}
             ${team ? `
               <div style="margin-top: 6px;">
                 <span class="badge" style="background: ${team.color || 'var(--cyan)'}25; color: ${team.color || 'var(--cyan)'}; border: 1px solid ${team.color || 'var(--cyan)'}50; font-weight: 800;">
@@ -2344,12 +2623,20 @@
             <h2 style="font-size: 18px; font-weight: 900; margin: 0 0 2px;">
               #${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(p.name || '')} ${escapeHtml(p.lastName || '')}
             </h2>
-            <div style="font-size: 12px; color: var(--muted); display: flex; gap: 6px; flex-wrap: wrap;">
+            <div style="font-size: 12px; color: var(--muted); display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
               <span class="pos-tag">${p.mainPosition || 'Jugador'}</span>
+              ${(p.secondaryPositions && p.secondaryPositions.length) ? `<span class="badge" style="background: rgba(34, 211, 238, 0.15); color: var(--cyan); border: 1px solid rgba(34, 211, 238, 0.4); font-size: 11px;">🔄 ${p.secondaryPositions.join(', ')}</span>` : ''}
               <span>•</span>
               <span>${getPlayerFootLabel(p.foot)}</span>
               ${team ? `<span>• 🛡️ ${escapeHtml(team.name)}</span>` : ''}
             </div>
+            ${p.birthDate ? `
+              <div style="font-size: 12px; color: #cbd5e1; margin-top: 4px; display: flex; align-items: center; gap: 4px;">
+                <span>🎂</span>
+                <span>${p.birthDate}</span>
+                <span style="color: var(--cyan); font-weight: 800;">(${calculateAgeYearsMonths(p.birthDate, currentLang)})</span>
+              </div>
+            ` : ''}
             <div style="margin-top: 6px; font-size: 13.5px; font-weight: 900; color: #22d3ee;">
               ⭐ ${t('performanceRating')}: ${stats.aggregatedRating} / 10
             </div>

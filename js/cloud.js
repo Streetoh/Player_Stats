@@ -241,8 +241,7 @@
                 if (data && data.convId && data.playerId) {
                   if (typeof onResponseCallback === 'function') {
                     onResponseCallback(data);
-                  }
-                  if (typeof window !== 'undefined' && typeof window.onPlayerAttendanceResponse === 'function') {
+                  } else if (typeof window !== 'undefined' && typeof window.onPlayerAttendanceResponse === 'function') {
                     window.onPlayerAttendanceResponse(data);
                   }
                 }
@@ -548,8 +547,10 @@
         if (!preview && payload.image) preview = '📷 Foto';
         if (!preview && payload.file) preview = '📎 Archivo: ' + (payload.file.name || 'documento');
 
-        // 2. Actualizar último mensaje en la cabecera del chat
+        // 2. Actualizar último mensaje en la cabecera del chat (restaurando si estaba borrado)
         await chatRef.set({
+          deleted: false,
+          isDeleted: false,
           lastMessage: preview,
           lastMessageTime: payload.timestamp,
           lastSenderName: payload.senderName,

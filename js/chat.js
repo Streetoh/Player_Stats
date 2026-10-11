@@ -123,7 +123,31 @@
       return `<span>${c.iconEmoji}</span>`;
     }
     if (c.type === 'coach' || c.id.startsWith('coach_')) {
-      return '<span>👨‍🏫</span>';
+      const isCoach = (curId === 'coach');
+      if (isCoach) {
+        // En la app de coach, el otro participante es el jugador
+        let pid = c.id.replace('coach_', '');
+        if ((!pid || pid === 'coach') && Array.isArray(c.participants)) {
+          pid = c.participants.find(p => p !== 'coach') || '';
+        }
+        const p = (allPlayers || []).find(x => x.id === pid);
+        if (p && p.photo) {
+          return `<img src="${p.photo}" style="width: 100%; height: 100%; border-radius: 12px; object-fit: cover;" />`;
+        }
+        if (p) {
+          const init = (p.name || '?')[0].toUpperCase();
+          return `<span style="font-weight: 900; font-size: 16px; color: var(--cyan);">${init}</span>`;
+        }
+        return '<span>👤</span>';
+      } else {
+        // En la app de jugador, mostrar la foto del entrenador si existe
+        const cp = (global.clubData && global.clubData.coachProfile) ||
+                   (global.Store && global.Store.state && global.Store.state.coachProfile);
+        if (cp && cp.photo) {
+          return `<img src="${cp.photo}" style="width: 100%; height: 100%; border-radius: 12px; object-fit: cover;" />`;
+        }
+        return '<span>👨‍🏫</span>';
+      }
     }
     if (c.type === 'team' || c.id.startsWith('team_')) {
       return '<span>🛡️</span>';
@@ -131,10 +155,21 @@
     if (c.type === 'direct' || c.id.startsWith('direct_')) {
       const parts = c.participants || [];
       const otherId = parts.find(p => p !== curId) || (parts[0] === curId ? parts[1] : parts[0]);
-      if (!otherId || otherId === 'coach') return '<span>👨‍🏫</span>';
+      if (!otherId || otherId === 'coach') {
+        const cp = (global.clubData && global.clubData.coachProfile) ||
+                   (global.Store && global.Store.state && global.Store.state.coachProfile);
+        if (cp && cp.photo) {
+          return `<img src="${cp.photo}" style="width: 100%; height: 100%; border-radius: 12px; object-fit: cover;" />`;
+        }
+        return '<span>👨‍🏫</span>';
+      }
       const p = (allPlayers || []).find(x => x.id === otherId);
       if (p && p.photo) {
         return `<img src="${p.photo}" style="width: 100%; height: 100%; border-radius: 12px; object-fit: cover;" />`;
+      }
+      if (p) {
+        const init = (p.name || '?')[0].toUpperCase();
+        return `<span style="font-weight: 900; font-size: 16px; color: var(--cyan);">${init}</span>`;
       }
       return '<span>👤</span>';
     }
@@ -216,6 +251,9 @@
           if (c.participants && !c.participants.includes(curUserId) && curUserId !== 'coach') return;
           const lastRead = parseInt(localStorage.getItem(`chat_last_read_${curUserId}_${c.id}`) || '0', 10);
           if ((c.lastMessageTime || 0) > lastRead && c.lastSenderId && c.lastSenderId !== curUserId) {
+            // Si el usuario había borrado la sala anteriormente, reactivarla para que el mensaje nuevo aparezca
+            try { localStorage.removeItem('chat_deleted_' + c.id); } catch (e) {}
+
             if (currentlyOpenChatId === c.id) {
               ChatUI.markChatAsRead(curUserId, c.id, c.lastMessageTime);
             } else {
@@ -392,15 +430,38 @@
         });
 
         let displayChats = Object.values(mergedMap).filter(c => {
-          // Filtrar chats borrados por el usuario
-          if (localStorage.getItem('chat_deleted_' + c.id) === 'true' || c.deleted === true) {
-            return false;
+          // Filtrar chats borrados por el usuario (salvo que haya entrado un nuevo mensaje de otra persona)
+          const delFlag = localStorage.getItem('chat_deleted_' + c.id);
+          if (delFlag) {
+            const delTime = parseInt(delFlag, 10) || 0;
+            if (c.lastMessageTime && c.lastMessageTime > delTime && c.lastSenderId && c.lastSenderId !== curId) {
+              try { localStorage.removeItem('chat_deleted_' + c.id); } catch (e) {}
+            } else if (delFlag === 'true' && c.lastSenderId && c.lastSenderId !== curId && (c.lastMessageTime || 0) > 0) {
+              try { localStorage.removeItem('chat_deleted_' + c.id); } catch (e) {}
+            } else {
+              return false;
+            }
+          }
+          if (c.deleted === true || c.isDeleted === true) {
+            if (c.lastMessageTime && c.lastSenderId && c.lastSenderId !== curId) {
+              // Nuevo mensaje recibido: reactivar
+            } else {
+              return false;
+            }
           }
           // Filtrar por membresía: coach ve todo, jugador ve donde es participante o de su equipo
           if (!isCoach) {
             if (c.type === 'team') {
               if (c.teamId && myTeamId && c.teamId !== myTeamId) return false;
             } else if (c.participants && !c.participants.includes(curId)) {
+              return false;
+            }
+          }
+          // Filtrar conversaciones directas/coach vacías sin mensajes para no mostrarlas antes de que se envíe nada
+          if ((c.type === 'direct' || c.type === 'coach' || c.id.startsWith('direct_') || c.id.startsWith('coach_')) && !c.lastMessage && !c.lastMessageTime) {
+            if (!isCoach && c.id === pinnedCoachChatId) {
+              // Permitir acceso directo permanente del jugador con el entrenador
+            } else {
               return false;
             }
           }
@@ -449,12 +510,20 @@
           let displayName = (c.name || 'Chat').replace(/^Chat:\s*/i, '').replace(/^🛡️\s*Chat:\s*/i, '🛡️ ');
           if (c.type === 'direct' || c.id.startsWith('direct_') || c.id.startsWith('coach_')) {
             const parts = c.participants || [];
-            const otherId = parts.find(p => p !== curId) || (parts[0] === curId ? parts[1] : parts[0]);
-            if (!otherId || otherId === 'coach') {
+            let otherId = parts.find(p => p !== curId);
+            if (!otherId && c.id.startsWith('coach_')) {
+              const cand = c.id.replace('coach_', '');
+              if (cand !== curId) otherId = cand;
+            }
+            if (curId !== 'coach' && (!otherId || otherId === 'coach')) {
               displayName = `👨‍🏫 ${t('coach', isEn ? 'Coach' : 'Entrenador (Coach)')}`;
             } else {
               const p = (allPlayers || []).find(x => x.id === otherId);
-              if (p) displayName = `#${p.mainDorsal != null ? p.mainDorsal : '-'} ${p.name || ''} ${p.lastName || ''}`.trim();
+              if (p) {
+                displayName = `${p.mainDorsal != null ? '#' + p.mainDorsal + ' ' : ''}${p.name || ''} ${p.lastName || ''}`.trim();
+              } else if (c.name) {
+                displayName = c.name.replace(/^Chat:\s*/i, '').replace(/^👨‍🏫\s*/i, '');
+              }
             }
           }
 
@@ -1069,7 +1138,7 @@
       if (btnDelGroup) {
         btnDelGroup.onclick = async () => {
           if (!confirm(t('deleteGroupConfirm', '¿Eliminar este grupo de forma definitiva?'))) return;
-          localStorage.setItem('chat_deleted_' + chatId, 'true');
+          localStorage.setItem('chat_deleted_' + chatId, String(Date.now()));
           if (global.Cloud && global.Cloud.deleteChat) {
             await global.Cloud.deleteChat(chatId);
           }
@@ -1178,14 +1247,16 @@
       let pendingAttachment = null;
       let currentReplyTo = null; // { id, text, senderName }
 
-      // Si el chat es nuevo, registrar en Firestore
+      // Si el chat es de grupo o equipo nuevo, registrar en Firestore (los 1 a 1 se crean al enviar el primer mensaje)
       if (global.Cloud && global.Cloud.createOrGetChat) {
-        global.Cloud.createOrGetChat({
-          id: chatId,
-          name: resolvedTitle,
-          type: chatData.type || 'direct',
-          participants: chatData.participants || [curId, 'coach']
-        });
+        if (chatData.type !== 'coach' && chatData.type !== 'direct' && !chatId.startsWith('coach_') && !chatId.startsWith('direct_')) {
+          global.Cloud.createOrGetChat({
+            id: chatId,
+            name: resolvedTitle,
+            type: chatData.type || 'group',
+            participants: chatData.participants || [curId]
+          });
+        }
       }
 
       const overlay = document.createElement('div');
@@ -1452,7 +1523,7 @@
           const confirmMsg = isGroupChat ? t('deleteGroupConfirm', '¿Eliminar este grupo de forma definitiva?') : t('deleteChatConfirm', '¿Eliminar esta conversación?');
           if (!confirm(confirmMsg)) return;
           try {
-            localStorage.setItem('chat_deleted_' + chatId, 'true');
+            localStorage.setItem('chat_deleted_' + chatId, String(Date.now()));
             if (global.Cloud && global.Cloud.deleteChat) {
               await global.Cloud.deleteChat(chatId);
             }
@@ -1813,6 +1884,23 @@
         haptic(25);
 
         if (global.Cloud && global.Cloud.sendChatMessage) {
+          if (global.Cloud.createOrGetChat && (chatData.type === 'coach' || chatData.type === 'direct' || chatId.startsWith('coach_') || chatId.startsWith('direct_'))) {
+            try {
+              let directParts = chatData.participants || [curId];
+              if (!directParts.includes('coach') && (chatId.startsWith('coach_') || chatData.type === 'coach')) {
+                const otherPlayer = chatId.replace('coach_', '');
+                directParts = ['coach', otherPlayer];
+              }
+              await global.Cloud.createOrGetChat({
+                id: chatId,
+                name: resolvedTitle,
+                type: chatData.type || (chatId.startsWith('coach_') ? 'coach' : 'direct'),
+                participants: directParts
+              });
+            } catch (err) {
+              console.warn('[Chat] Error asegurando chat doc:', err);
+            }
+          }
           const payload = {
             senderId: curId,
             senderName: curName,

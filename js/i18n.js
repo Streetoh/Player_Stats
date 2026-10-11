@@ -210,6 +210,9 @@
       pasteChatConfirm: 'Pegar confirmaciones de WhatsApp / Viber',
       pasteChatPlaceholder: 'Pega aquí el mensaje copiado de WhatsApp o Viber para registrar la asistencia automáticamente...',
       importResponses: 'Importar Asistencia',
+      deleteAllPlans: 'Borrar todos los planes',
+      confirmDeleteAllPlans: '¿Estás seguro de que deseas eliminar todas las convocatorias y planes registrados? Esta acción no se puede deshacer.',
+      allPlansDeleted: 'Todos los planes han sido eliminados',
 
       // Radar y Rating
       skillRadar: 'Radar de Habilidades',
@@ -441,7 +444,30 @@
       deleteChatConfirm: '¿Seguro que deseas eliminar esta conversación?',
       selectMultipleTeams: 'Seleccionar equipos',
       allTeamsSelected: 'Todos los equipos',
-      mentionPlayer: 'Mencionar (@)'
+      mentionPlayer: 'Mencionar (@)',
+      birthDate: 'Fecha de Nacimiento',
+      age: 'Edad',
+      calcAgeHint: 'Introduce fecha de nacimiento',
+      parentContact: 'Contacto de Padres / Tutores',
+      parentName: 'Nombre del Padre/Madre/Tutor',
+      parentPhone: 'Teléfono del Tutor',
+      parentEmail: 'Email del Tutor',
+      mainPosition: 'Posición Principal',
+      secondaryPositions: 'Posiciones Secundarias',
+      selectOnPitch: '🏟️ Elegir en el Campo',
+      pitchPositionPicker: 'Táctico: Seleccionar Posición',
+      confirmPosition: 'Confirmar Posición',
+      selectedPosition: 'Posición seleccionada',
+      guardian: 'Tutor',
+      callGuardian: '📞 Llamar',
+      whatsappGuardian: '💬 WhatsApp',
+      emailGuardian: '✉️ Email',
+      profileChangeSecurityTitle: 'Confirmar Cambio de Perfil',
+      profileChangeSecurityDesc: 'Para proteger la cuenta, se ha generado este código de seguridad. Facilita este código a tu entrenador para que autorice el cambio a este perfil.',
+      yearsOld: 'años',
+      monthsOld: 'meses',
+      yearOld: 'año',
+      monthOld: 'mes'
     },
     en: {
       appName: 'Player stats (Coach)',
@@ -648,6 +674,9 @@
       pasteChatConfirm: 'Paste WhatsApp / Viber Responses',
       pasteChatPlaceholder: 'Paste message copied from WhatsApp or Viber to register attendance automatically...',
       importResponses: 'Import Attendance',
+      deleteAllPlans: 'Delete All Plans',
+      confirmDeleteAllPlans: 'Are you sure you want to delete all call-up plans and convocations? This action cannot be undone.',
+      allPlansDeleted: 'All plans have been deleted',
 
       // Radar & Rating
       skillRadar: 'Skill Radar',
@@ -879,7 +908,30 @@
       deleteChatConfirm: 'Are you sure you want to delete this conversation?',
       selectMultipleTeams: 'Select teams',
       allTeamsSelected: 'All teams',
-      mentionPlayer: 'Mention (@)'
+      mentionPlayer: 'Mention (@)',
+      birthDate: 'Date of Birth',
+      age: 'Age',
+      calcAgeHint: 'Enter birth date',
+      parentContact: 'Parent / Guardian Contact',
+      parentName: 'Parent / Guardian Name',
+      parentPhone: 'Guardian Phone',
+      parentEmail: 'Guardian Email',
+      mainPosition: 'Main Position',
+      secondaryPositions: 'Secondary Positions',
+      selectOnPitch: '🏟️ Pick on Pitch',
+      pitchPositionPicker: 'Tactical: Select Position',
+      confirmPosition: 'Confirm Position',
+      selectedPosition: 'Selected position',
+      guardian: 'Guardian',
+      callGuardian: '📞 Call',
+      whatsappGuardian: '💬 WhatsApp',
+      emailGuardian: '✉️ Email',
+      profileChangeSecurityTitle: 'Confirm Profile Change',
+      profileChangeSecurityDesc: 'To protect the account, this security code has been generated. Give this code to your coach so they can authorize the switch to this profile.',
+      yearsOld: 'years',
+      monthsOld: 'months',
+      yearOld: 'year',
+      monthOld: 'month'
     }
   };
 

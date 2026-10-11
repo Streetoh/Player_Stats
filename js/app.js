@@ -68,6 +68,7 @@
       <div class="sheet-handle"></div>
       <div class="sheet-head">
         <h2>${title}</h2>
+        <button class="icon-btn ghost" id="sheet-expand-btn" title="Expandir/Reducir" style="width: 32px; height: 32px; font-size: 14px; opacity: 0.85;">⤢</button>
         <button class="icon-btn ghost" id="sheet-close-btn">${icon('x', 20)}</button>
       </div>
       <div class="sheet-body" id="sheet-body-content"></div>
@@ -91,6 +92,54 @@
         try { onClose(); } catch (err) { console.error('Error on sheet close callback:', err); }
       }
     }
+
+    const expandBtn = sheet.querySelector('#sheet-expand-btn');
+    function toggleExpand() {
+      const isExpanded = sheet.classList.toggle('expanded');
+      if (expandBtn) expandBtn.textContent = isExpanded ? '⤡' : '⤢';
+      haptic(20);
+    }
+
+    if (expandBtn) expandBtn.onclick = toggleExpand;
+
+    // Arrastrar / deslizar hacia arriba para expandir la ventana
+    const handleEl = sheet.querySelector('.sheet-handle');
+    const headEl = sheet.querySelector('.sheet-head');
+    let touchStartY = 0;
+    let touchMoveY = 0;
+
+    [handleEl, headEl].forEach(target => {
+      if (!target) return;
+      target.addEventListener('touchstart', (e) => {
+        if (e.touches && e.touches[0]) {
+          touchStartY = e.touches[0].clientY;
+          touchMoveY = touchStartY;
+        }
+      }, { passive: true });
+
+      target.addEventListener('touchmove', (e) => {
+        if (e.touches && e.touches[0]) {
+          touchMoveY = e.touches[0].clientY;
+        }
+      }, { passive: true });
+
+      target.addEventListener('touchend', () => {
+        const diff = touchStartY - touchMoveY;
+        if (diff > 45) {
+          // Deslizado hacia arriba -> expandir ventana al máximo
+          if (!sheet.classList.contains('expanded')) {
+            toggleExpand();
+          }
+        } else if (diff < -65) {
+          // Deslizado hacia abajo -> contraer si estaba expandida, o cerrar si no
+          if (sheet.classList.contains('expanded')) {
+            toggleExpand();
+          } else {
+            handleClose();
+          }
+        }
+      }, { passive: true });
+    });
 
     backdrop.addEventListener('click', (e) => {
       if (e.target === backdrop) handleClose();
@@ -784,7 +833,14 @@
     return false;
   };
 
+  function clearAndroidSystemNotifications() {
+    if (window.AndroidBridge && window.AndroidBridge.clearNotifications) {
+      try { window.AndroidBridge.clearNotifications(); } catch (e) {}
+    }
+  }
+
   function showProfileRequestsModal() {
+    clearAndroidSystemNotifications();
     openSheet(t('profileRequests', 'Solicitudes de Jugadores'), (body) => {
       function renderRequests() {
         const curReqs = pendingProfileRequests || [];
@@ -906,6 +962,13 @@
                       </div>
                     </div>
 
+                    ${r.securityCode ? `
+                      <div style="background: var(--bg2); border: 2px dashed #facc15; border-radius: 10px; padding: 10px; text-align: center; margin-bottom: 10px;">
+                        <span style="font-size: 11px; color: var(--muted); text-transform: uppercase; font-weight: 800; display: block; margin-bottom: 2px;">${t('securityCodeTitle', 'Código de Seguridad')}</span>
+                        <b style="font-size: 24px; color: #fde047; letter-spacing: 4px; font-family: monospace;">${escapeHtml(r.securityCode)}</b>
+                      </div>
+                    ` : ''}
+
                     ${r.reason ? `
                       <div style="background: var(--bg2); padding: 8px 10px; border-radius: 8px; font-size: 12px; color: #cbd5e1; margin-bottom: 10px; border: 1px dashed var(--border);">
                         💬 <i>"${escapeHtml(r.reason)}"</i>
@@ -941,6 +1004,7 @@
               }
               pendingProfileClaimRequests = pendingProfileClaimRequests.filter(x => x.id !== claimId);
               NotifManager.removeByTarget(claimId);
+              clearAndroidSystemNotifications();
               toast('✅ Acceso autorizado al jugador', 'success');
               haptic(40);
               updateRequestsBadge();
@@ -965,6 +1029,7 @@
               }
               pendingProfileClaimRequests = pendingProfileClaimRequests.filter(x => x.id !== claimId);
               NotifManager.removeByTarget(claimId);
+              clearAndroidSystemNotifications();
               toast('❌ Solicitud de acceso denegada', 'info');
               haptic(25);
               updateRequestsBadge();
@@ -1005,6 +1070,7 @@
 
               pendingPlayerCreationRequests = pendingPlayerCreationRequests.filter(x => x.id !== reqId);
               NotifManager.removeByTarget(reqId);
+              clearAndroidSystemNotifications();
               toast('✅ Jugador creado y añadido al sistema', 'success');
               haptic(40);
               updateRequestsBadge();
@@ -1029,6 +1095,7 @@
               }
               pendingPlayerCreationRequests = pendingPlayerCreationRequests.filter(x => x.id !== reqId);
               NotifManager.removeByTarget(reqId);
+              clearAndroidSystemNotifications();
               toast('❌ Solicitud rechazada', 'info');
               haptic(25);
               updateRequestsBadge();
@@ -1051,6 +1118,7 @@
             }
             pendingProfileRequests = pendingProfileRequests.filter(x => x.id !== reqId);
             NotifManager.removeByTarget(reqId);
+            clearAndroidSystemNotifications();
             toast(t('requestApproved', '✅ Solicitud de cambio de perfil aprobada'), 'success');
             haptic(40);
             updateRequestsBadge();
@@ -1068,6 +1136,7 @@
             }
             pendingProfileRequests = pendingProfileRequests.filter(x => x.id !== reqId);
             NotifManager.removeByTarget(reqId);
+            clearAndroidSystemNotifications();
             toast(t('requestRejected', '❌ Solicitud rechazada'), 'info');
             haptic(25);
             updateRequestsBadge();
@@ -1239,8 +1308,17 @@
     }
   });
 
+  const _attendanceToastDedup = new Map();
+
   window.onPlayerAttendanceResponse = function (resp) {
     if (!resp) return;
+    const dedupKey = `${resp.convId || ''}_${resp.playerId || ''}_${resp.status || ''}`;
+    const now = Date.now();
+    if (_attendanceToastDedup.has(dedupKey) && (now - _attendanceToastDedup.get(dedupKey) < 5000)) {
+      return; // Evitar toast duplicado recibido en los últimos 5 segundos
+    }
+    _attendanceToastDedup.set(dedupKey, now);
+
     const p = Store.player(resp.playerId);
     const pName = resp.playerName || (p ? Store.playerName(p) : 'Jugador');
     const isAttending = (resp.status === 'called' || resp.status === 'attending' || resp.status === 'yes');
@@ -1690,6 +1768,7 @@
   function showNewSessionModal(defaultType) {
     let selectedType = defaultType || 'training';
     let chosenButtonKeys = null;
+    let selectedTeamIds = [];
     let customKeys = (Store.state.settings.enabledStats && Store.state.settings.enabledStats.length)
       ? Store.state.settings.enabledStats.slice()
       : Store.STATS.filter(s => s.def).map(s => s.key);
@@ -1773,7 +1852,7 @@
       const fTitle = body.querySelector('#field-title');
       const customContainer = body.querySelector('#custom-buttons-container');
 
-      let selectedTeamIds = [];
+      selectedTeamIds = [];
 
       // Selección de burbujas de equipo (permite seleccionar múltiples equipos a la vez)
       const allTeamsBubble = body.querySelector('#sess-team-bubbles .team-bubble[data-tid=""]');
@@ -1886,8 +1965,10 @@
           if (parsed) hiddenInp.value = parsed;
         }
         const date = hiddenInp ? hiddenInp.value : new Date().toISOString().slice(0, 10);
-        const rival = document.getElementById('sess-rival').value.trim();
-        const title = document.getElementById('sess-title').value.trim();
+        const rivalInp = document.getElementById('sess-rival');
+        const titleInp = document.getElementById('sess-title');
+        const rival = rivalInp ? rivalInp.value.trim() : '';
+        const title = titleInp ? titleInp.value.trim() : '';
 
         const s = Store.createSession({
           type: selectedType,
@@ -5240,6 +5321,9 @@
 
     const isEn = (Store.state.settings && Store.state.settings.lang === 'en');
     const footText = getPlayerFootLabel(p.foot);
+    const ageStr = p.birthDate ? calculateAgeYearsMonths(p.birthDate, isEn ? 'en' : 'es') : '';
+    const hasParentContact = p.parentContact && (p.parentContact.name || p.parentContact.phone || p.parentContact.email);
+    const secPositions = p.secondaryPositions && p.secondaryPositions.length ? p.secondaryPositions : (p.secondaryPosition ? [p.secondaryPosition] : []);
 
     openSheet(Store.playerName(p), (body) => {
       body.innerHTML = `
@@ -5247,11 +5331,19 @@
           ${renderAvatar(p, 'lg')}
           <div class="grow">
             <h2>${escapeHtml(Store.playerName(p))}</h2>
-            <div class="meta">
+            <div class="meta" style="flex-wrap: wrap; gap: 6px;">
               <span class="pos-tag">${p.mainPosition || 'Jugador'}</span>
+              ${secPositions.length ? `<span class="badge" style="background: rgba(34, 211, 238, 0.15); color: var(--cyan); border: 1px solid rgba(34, 211, 238, 0.4); font-size: 11px;">🔄 ${secPositions.join(', ')}</span>` : ''}
               <span>#${p.mainDorsal != null ? p.mainDorsal : '—'}</span>
               <span>${footText}</span>
             </div>
+            ${p.birthDate ? `
+              <div style="font-size: 12px; color: #cbd5e1; margin-top: 5px; display: flex; align-items: center; gap: 5px;">
+                <span>🎂</span>
+                <span>${p.birthDate}</span>
+                <span style="color: var(--cyan); font-weight: 800;">(${ageStr})</span>
+              </div>
+            ` : ''}
             <div style="display: flex; align-items: center; gap: 6px; margin-top: 5px; flex-wrap: wrap;">
               ${team ? `<span class="badge" style="background: ${team.color}25; color: ${team.color}; border: 1px solid ${team.color}60; font-weight: 800;">🛡️ ${escapeHtml(team.name)}</span>` : `<span class="badge" style="background: var(--surface2); color: var(--muted);">⚪ ${t('unassignedTeam')}</span>`}
               <button type="button" class="btn sm ghost" id="btn-reassign-team-profile" style="padding: 2px 8px; font-size: 11.5px; height: auto;" title="${t('reassignTeam')}">
@@ -5263,6 +5355,34 @@
             </div>
           </div>
         </div>
+
+        ${hasParentContact ? `
+          <!-- Tarjeta de Contacto de Padres / Tutores -->
+          <div class="card" style="padding: 12px 14px; margin-bottom: 10px; border: 1.5px solid rgba(168, 85, 247, 0.4); background: rgba(168, 85, 247, 0.06); border-radius: 14px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+              <b style="font-size: 12.5px; color: #d8b4fe;">👨‍👩‍👦 ${t('parentContact', 'Contacto de Padres / Tutores')}</b>
+              <span class="badge" style="background: rgba(168, 85, 247, 0.2); color: #c084fc; font-size: 10px; font-weight: 800;">${t('guardian', 'Tutor')}</span>
+            </div>
+            <div style="font-size: 14.5px; font-weight: 800; color: #fff; margin-bottom: 8px;">
+              ${escapeHtml(p.parentContact.name || 'Tutor')}
+            </div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+              ${p.parentContact.phone ? `
+                <a href="tel:${p.parentContact.phone.replace(/\s+/g, '')}" class="btn sm secondary" style="text-decoration: none; font-size: 11.5px; height: 32px; padding: 0 10px; display: inline-flex; align-items: center; gap: 4px;">
+                  ${t('callGuardian', '📞 Llamar')}
+                </a>
+                <a href="https://wa.me/${p.parentContact.phone.replace(/[^0-9]/g, '')}" target="_blank" rel="noopener" class="btn sm" style="text-decoration: none; font-size: 11.5px; height: 32px; padding: 0 10px; background: #22c55e; color: #04140a; border: none; font-weight: 900; display: inline-flex; align-items: center; gap: 4px;">
+                  ${t('whatsappGuardian', '💬 WhatsApp')}
+                </a>
+              ` : ''}
+              ${p.parentContact.email ? `
+                <a href="mailto:${p.parentContact.email}" class="btn sm ghost" style="text-decoration: none; font-size: 11.5px; height: 32px; padding: 0 10px; border: 1px solid var(--border); display: inline-flex; align-items: center; gap: 4px;">
+                  ${t('emailGuardian', '✉️ Email')}
+                </a>
+              ` : ''}
+            </div>
+          </div>
+        ` : ''}
 
         <!-- Botón para chatear directamente con este jugador -->
         <div style="margin-bottom: 8px;">
@@ -5649,10 +5769,154 @@
     });
   }
 
-  /* Modal de creación/edición de jugador */
+  /* Helper: Cálculo exacto de edad en años y meses */
+  function calculateAgeYearsMonths(birthDateStr, lang) {
+    if (!birthDateStr) return '';
+    const birth = new Date(birthDateStr);
+    if (isNaN(birth.getTime())) return '';
+    const today = new Date();
+    let years = today.getFullYear() - birth.getFullYear();
+    let months = today.getMonth() - birth.getMonth();
+    if (today.getDate() < birth.getDate()) {
+      months--;
+    }
+    if (months < 0) {
+      years--;
+      months += 12;
+    }
+    if (years < 0) return '';
+    const isEn = (lang || (window.I18N && window.I18N.getLang()) || 'es') === 'en';
+    if (isEn) {
+      const yStr = years === 1 ? '1 year' : `${years} years`;
+      const mStr = months === 1 ? '1 month' : `${months} months`;
+      return `${yStr}, ${mStr}`;
+    } else {
+      const yStr = years === 1 ? '1 año' : `${years} años`;
+      const mStr = months === 1 ? '1 mes' : `${months} meses`;
+      return `${yStr}, ${mStr}`;
+    }
+  }
+
+  const TACTICAL_PITCH_POSITIONS = [
+    { code: 'DC',  name: 'Delantero Centro / Striker', short: 'DC', x: 50, y: 15 },
+    { code: 'EI',  name: 'Extremo Izquierdo / Left Winger', short: 'EI', x: 20, y: 24 },
+    { code: 'ED',  name: 'Extremo Derecho / Right Winger', short: 'ED', x: 80, y: 24 },
+    { code: 'MCO', name: 'Mediapunta / Attacking Mid', short: 'MCO', x: 50, y: 36 },
+    { code: 'MC',  name: 'Mediocentro / Central Mid', short: 'MC', x: 50, y: 50 },
+    { code: 'MCD', name: 'Mediocentro Defensivo / CDM', short: 'MCD', x: 50, y: 64 },
+    { code: 'LI',  name: 'Lateral Izquierdo / Left Back', short: 'LI', x: 18, y: 76 },
+    { code: 'DFC', name: 'Defensa Central / Centre Back', short: 'DFC', x: 50, y: 76 },
+    { code: 'LD',  name: 'Lateral Derecho / Right Back', short: 'LD', x: 82, y: 76 },
+    { code: 'POR', name: 'Portero / Goalkeeper', short: 'POR', x: 50, y: 90 }
+  ];
+
+  /* Modal táctico interactivo de selección de posición sobre el campo de fútbol */
+  function showPitchPositionPickerModal(currentPos, onSelect) {
+    let selected = currentPos || 'DC';
+
+    openSheet(t('pitchPositionPicker', 'Táctico: Seleccionar Posición'), (body) => {
+      body.innerHTML = `
+        <div style="text-align: center; margin-bottom: 12px;">
+          <p style="font-size: 12px; color: var(--muted); margin: 0 0 6px;">
+            ${t('selectPositionOnPitchDesc', 'Toca una posición sobre el campo táctico para seleccionarla.')}
+          </p>
+        </div>
+
+        <div style="position: relative; width: 100%; max-width: 310px; aspect-ratio: 2 / 3; margin: 0 auto 14px; background: linear-gradient(180deg, #15803d 0%, #166534 50%, #15803d 100%); border: 2.5px solid rgba(255, 255, 255, 0.9); border-radius: 14px; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.6); user-select: none;" id="tactical-pitch-stage">
+          <!-- Bandas de césped cortado -->
+          <div style="position: absolute; inset: 0; background: repeating-linear-gradient(180deg, rgba(255,255,255,0.04) 0px, rgba(255,255,255,0.04) 38px, transparent 38px, transparent 76px); pointer-events: none;"></div>
+
+          <!-- Línea de medio campo -->
+          <div style="position: absolute; top: 50%; left: 0; right: 0; border-top: 2px solid rgba(255,255,255,0.7); transform: translateY(-50%); pointer-events: none;"></div>
+          <!-- Círculo central -->
+          <div style="position: absolute; top: 50%; left: 50%; width: 72px; height: 72px; border: 2px solid rgba(255,255,255,0.7); border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none;"></div>
+          <div style="position: absolute; top: 50%; left: 50%; width: 6px; height: 6px; background: #fff; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none;"></div>
+
+          <!-- Área rival (arriba) -->
+          <div style="position: absolute; top: 0; left: 20%; right: 20%; height: 21%; border: 2px solid rgba(255,255,255,0.7); border-top: none; pointer-events: none;"></div>
+          <div style="position: absolute; top: 0; left: 34%; right: 34%; height: 9%; border: 2px solid rgba(255,255,255,0.7); border-top: none; pointer-events: none;"></div>
+
+          <!-- Área propia (abajo) -->
+          <div style="position: absolute; bottom: 0; left: 20%; right: 20%; height: 21%; border: 2px solid rgba(255,255,255,0.7); border-bottom: none; pointer-events: none;"></div>
+          <div style="position: absolute; bottom: 0; left: 34%; right: 34%; height: 9%; border: 2px solid rgba(255,255,255,0.7); border-bottom: none; pointer-events: none;"></div>
+
+          <!-- Indicador de ataque -->
+          <div style="position: absolute; top: 8px; right: 10px; font-size: 10px; color: rgba(255,255,255,0.9); font-weight: 900; background: rgba(0,0,0,0.35); padding: 2px 7px; border-radius: 6px; pointer-events: none;">
+            ⬆️ ATAQUE
+          </div>
+
+          <!-- Fichas tácticas interactivas -->
+          ${TACTICAL_PITCH_POSITIONS.map(pos => {
+            const isSel = (pos.code === selected);
+            return `
+              <div class="tactical-pitch-pos-token" data-pos-code="${pos.code}" style="position: absolute; top: ${pos.y}%; left: ${pos.x}%; transform: translate(-50%, -50%); width: 44px; height: 44px; border-radius: 50%; background: ${isSel ? '#22d3ee' : '#0f172a'}; border: 2.5px solid ${isSel ? '#fff' : '#38bdf8'}; color: ${isSel ? '#04140a' : '#fff'}; font-weight: 900; font-size: 12.5px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; box-shadow: ${isSel ? '0 0 16px rgba(34, 211, 238, 0.9), 0 4px 8px rgba(0,0,0,0.5)' : '0 2px 8px rgba(0,0,0,0.4)'}; transition: all 0.15s; z-index: 2;">
+                <span>${pos.short}</span>
+                ${isSel ? '<span style="font-size: 9px; line-height: 1;">✓</span>' : ''}
+              </div>
+            `;
+          }).join('')}
+        </div>
+
+        <!-- Información de posición seleccionada -->
+        <div style="background: var(--surface2); border: 1.5px solid var(--border); border-radius: 12px; padding: 12px; margin-bottom: 6px; text-align: center;">
+          <small style="color: var(--muted); text-transform: uppercase; font-weight: 800; font-size: 11px; display: block; margin-bottom: 2px;">
+            ${t('selectedPosition', 'Posición seleccionada')}
+          </small>
+          <div id="pitch-pos-info-name" style="font-size: 15.5px; font-weight: 900; color: var(--cyan);">
+            ${(TACTICAL_PITCH_POSITIONS.find(x => x.code === selected) || {}).name || selected}
+          </div>
+        </div>
+      `;
+
+      body.querySelectorAll('.tactical-pitch-pos-token').forEach(token => {
+        token.onclick = () => {
+          const code = token.getAttribute('data-pos-code');
+          selected = code;
+          haptic(25);
+
+          body.querySelectorAll('.tactical-pitch-pos-token').forEach(el => {
+            const elCode = el.getAttribute('data-pos-code');
+            const isIt = elCode === selected;
+            el.style.background = isIt ? '#22d3ee' : '#0f172a';
+            el.style.borderColor = isIt ? '#fff' : '#38bdf8';
+            el.style.color = isIt ? '#04140a' : '#fff';
+            el.style.boxShadow = isIt ? '0 0 16px rgba(34, 211, 238, 0.9), 0 4px 8px rgba(0,0,0,0.5)' : '0 2px 8px rgba(0,0,0,0.4)';
+            el.innerHTML = `<span>${elCode}</span>${isIt ? '<span style="font-size: 9px; line-height: 1;">✓</span>' : ''}`;
+          });
+
+          const infoEl = body.querySelector('#pitch-pos-info-name');
+          const found = TACTICAL_PITCH_POSITIONS.find(x => x.code === selected);
+          if (infoEl && found) {
+            infoEl.textContent = found.name;
+          }
+        };
+      });
+    }, (foot) => {
+      foot.innerHTML = `
+        <button class="btn block primary" id="btn-confirm-pitch-pos" style="font-weight: 900; font-size: 14px; height: 44px;">
+          ✅ ${t('confirmPosition', 'Confirmar Posición')}
+        </button>
+      `;
+
+      foot.querySelector('#btn-confirm-pitch-pos').onclick = () => {
+        closeSheet();
+        haptic(35);
+        if (typeof onSelect === 'function') onSelect(selected);
+      };
+    });
+  }
+
+  /* Modal de creación/edición de jugador (extendida con fecha de nacimiento, edad, contactos y posiciones secundarias) */
   function showEditPlayerModal(player, onSaved) {
     const isEdit = !!player;
     let photoData = player ? player.photo || '' : '';
+    const parentContact = (player && player.parentContact) || { name: '', phone: '', email: '' };
+    let selectedSecondary = (player && Array.isArray(player.secondaryPositions)) 
+      ? [...player.secondaryPositions] 
+      : (player && player.secondaryPosition ? [player.secondaryPosition] : []);
+
+    const isEn = (Store.state.settings && Store.state.settings.lang === 'en');
+    const initialAge = player && player.birthDate ? calculateAgeYearsMonths(player.birthDate, isEn ? 'en' : 'es') : '';
 
     openSheet(isEdit ? t('editPlayer') : t('newPlayer'), (body) => {
       body.innerHTML = `
@@ -5676,24 +5940,25 @@
           </div>
         </div>
 
+        <!-- Fecha de Nacimiento y Cálculo Automático de Edad -->
+        <div class="field-row">
+          <div class="field">
+            <label>🎂 ${t('birthDate', 'Fecha de Nacimiento')}</label>
+            <input type="date" id="p-birthdate" value="${isEdit && player.birthDate ? player.birthDate : ''}" />
+          </div>
+          <div class="field" style="display: flex; flex-direction: column; justify-content: flex-end;">
+            <label>${t('age', 'Edad (Años y Meses)')}</label>
+            <div id="p-age-display" style="padding: 10px 12px; background: var(--surface2); border: 1.5px solid var(--border); border-radius: 10px; font-size: 12.5px; color: var(--cyan); font-weight: 800; min-height: 42px; display: flex; align-items: center;">
+              ${initialAge ? `🎂 ${initialAge}` : `<span style="color: var(--muted); font-size: 11.5px;">${t('calcAgeHint', 'Introduce fecha')}</span>`}
+            </div>
+          </div>
+        </div>
+
         <div class="field-row">
           <div class="field">
             <label>${t('mainDorsal')}</label>
             <input type="number" id="p-dorsal" value="${isEdit && player.mainDorsal != null ? player.mainDorsal : ''}" placeholder="10" />
           </div>
-          <div class="field">
-            <label>${t('position')}</label>
-            <select id="p-pos">
-              ${Store.POSITIONS.map(pos => `
-                <option value="${pos.v}" ${isEdit && player.mainPosition === pos.v ? 'selected' : ''}>
-                  ${pos.v} - ${pos.l}
-                </option>
-              `).join('')}
-            </select>
-          </div>
-        </div>
-
-        <div class="field-row">
           <div class="field">
             <label>${t('foot')}</label>
             <select id="p-foot">
@@ -5702,6 +5967,48 @@
               <option value="Ambidiestro" ${isEdit && player.foot === 'Ambidiestro' ? 'selected' : ''}>${t('footBoth')}</option>
             </select>
           </div>
+        </div>
+
+        <!-- Posición Principal con Botón de Selector en el Campo Táctico -->
+        <div class="field">
+          <label style="display: flex; justify-content: space-between; align-items: center;">
+            <span>📍 ${t('mainPosition', 'Posición Principal')}</span>
+            <small style="color: var(--cyan); font-weight: 700;">Táctico 2D</small>
+          </label>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <select id="p-pos" style="flex: 1;">
+              ${Store.POSITIONS.map(pos => `
+                <option value="${pos.v}" ${isEdit && player.mainPosition === pos.v ? 'selected' : ''}>
+                  ${pos.v} - ${pos.l}
+                </option>
+              `).join('')}
+            </select>
+            <button type="button" class="btn secondary" id="btn-open-pitch-picker" style="height: 42px; padding: 0 12px; font-weight: 900; font-size: 12.5px; flex-shrink: 0; display: flex; align-items: center; gap: 6px; border: 1.5px solid var(--cyan);" title="${t('selectOnPitch', 'Elegir en el campo')}">
+              ${t('selectOnPitch', '🏟️ Campo')}
+            </button>
+          </div>
+        </div>
+
+        <!-- Posiciones Secundarias Opcionales -->
+        <div class="field">
+          <label style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <span>🔄 ${t('secondaryPositions', 'Posiciones Secundarias (Opcional)')}</span>
+            <small style="color: var(--muted); font-size: 11px;">Toca para activar/desactivar</small>
+          </label>
+          <div id="p-secondary-chips" style="display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 0;">
+            ${TACTICAL_PITCH_POSITIONS.map(p => {
+              const isSel = selectedSecondary.includes(p.code);
+              return `
+                <button type="button" class="badge sec-pos-chip" data-sec-pos="${p.code}" style="cursor: pointer; padding: 5px 10px; font-size: 11.5px; font-weight: 800; border-radius: 8px; border: 1.5px solid ${isSel ? 'var(--cyan)' : 'var(--border)'}; background: ${isSel ? 'rgba(34, 211, 238, 0.2)' : 'var(--surface2)'}; color: ${isSel ? '#fff' : 'var(--muted)'}; transition: all 0.15s;">
+                  ${isSel ? '✓ ' : ''}${p.code}
+                </button>
+              `;
+            }).join('')}
+          </div>
+        </div>
+
+        <!-- Equipo y Apodo -->
+        <div class="field-row">
           <div class="field">
             <div style="display: flex; justify-content: space-between; align-items: center;">
               <label>${t('team')}</label>
@@ -5714,13 +6021,79 @@
               `).join('')}
             </select>
           </div>
+          <div class="field">
+            <label>${t('nickname')}</label>
+            <input type="text" id="p-nick" value="${isEdit ? escapeHtml(player.nickname || '') : ''}" placeholder="Carlitos" />
+          </div>
         </div>
 
+        <!-- Sección de Contacto de Padres / Tutores (como en Youth Football App) -->
+        <div class="section-title" style="margin-top: 14px; margin-bottom: 8px;">
+          <span>👨‍👩‍👦 ${t('parentContact', 'Contacto de Padres / Tutores')}</span>
+        </div>
         <div class="field">
-          <label>${t('nickname')}</label>
-          <input type="text" id="p-nick" value="${isEdit ? escapeHtml(player.nickname || '') : ''}" placeholder="Carlitos" />
+          <label>${t('parentName', 'Nombre del Padre/Madre/Tutor')}</label>
+          <input type="text" id="p-parent-name" value="${escapeHtml(parentContact.name || '')}" placeholder="Ej. Juan Gómez" />
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>${t('parentPhone', 'Teléfono del Tutor')}</label>
+            <input type="tel" id="p-parent-phone" value="${escapeHtml(parentContact.phone || '')}" placeholder="+34 600 000 000" />
+          </div>
+          <div class="field">
+            <label>${t('parentEmail', 'Email del Tutor')}</label>
+            <input type="email" id="p-parent-email" value="${escapeHtml(parentContact.email || '')}" placeholder="padres@correo.com" />
+          </div>
         </div>
       `;
+
+      // Live Age Calculation on Birthdate Change
+      const birthInput = body.querySelector('#p-birthdate');
+      const ageDisplay = body.querySelector('#p-age-display');
+      if (birthInput && ageDisplay) {
+        const updateAge = () => {
+          const val = birthInput.value;
+          const age = calculateAgeYearsMonths(val, isEn ? 'en' : 'es');
+          ageDisplay.innerHTML = age 
+            ? `🎂 ${age}` 
+            : `<span style="color: var(--muted); font-size: 11.5px;">${t('calcAgeHint', 'Introduce fecha')}</span>`;
+        };
+        birthInput.oninput = updateAge;
+        birthInput.onchange = updateAge;
+      }
+
+      // Selector de Posición sobre el Campo Táctico
+      const btnPitchPicker = body.querySelector('#btn-open-pitch-picker');
+      const posSelect = body.querySelector('#p-pos');
+      if (btnPitchPicker && posSelect) {
+        btnPitchPicker.onclick = () => {
+          showPitchPositionPickerModal(posSelect.value, (newPosCode) => {
+            posSelect.value = newPosCode;
+            haptic(30);
+          });
+        };
+      }
+
+      // Chips de Posiciones Secundarias
+      body.querySelectorAll('.sec-pos-chip').forEach(chip => {
+        chip.onclick = () => {
+          const code = chip.getAttribute('data-sec-pos');
+          if (selectedSecondary.includes(code)) {
+            selectedSecondary = selectedSecondary.filter(x => x !== code);
+            chip.style.borderColor = 'var(--border)';
+            chip.style.background = 'var(--surface2)';
+            chip.style.color = 'var(--muted)';
+            chip.textContent = code;
+          } else {
+            selectedSecondary.push(code);
+            chip.style.borderColor = 'var(--cyan)';
+            chip.style.background = 'rgba(34, 211, 238, 0.2)';
+            chip.style.color = '#fff';
+            chip.textContent = `✓ ${code}`;
+          }
+          haptic(20);
+        };
+      });
 
       const btnNewTeam = body.querySelector('#btn-player-new-team-quick');
       if (btnNewTeam) {
@@ -5758,13 +6131,18 @@
       `;
 
       foot.querySelector('#btn-save-player').onclick = () => {
-        const name = document.getElementById('p-name').value.trim();
-        const lastName = document.getElementById('p-lastname').value.trim();
-        const dorsalStr = document.getElementById('p-dorsal').value.trim();
-        const mainPosition = document.getElementById('p-pos').value;
-        const foot = document.getElementById('p-foot').value;
-        const teamId = document.getElementById('p-team').value;
-        const nickname = document.getElementById('p-nick').value.trim();
+        const name = (document.getElementById('p-name') ? document.getElementById('p-name').value : '').trim();
+        const lastName = (document.getElementById('p-lastname') ? document.getElementById('p-lastname').value : '').trim();
+        const dorsalStr = (document.getElementById('p-dorsal') ? document.getElementById('p-dorsal').value : '').trim();
+        const birthDate = (document.getElementById('p-birthdate') ? document.getElementById('p-birthdate').value : '').trim();
+        const mainPosition = (document.getElementById('p-pos') ? document.getElementById('p-pos').value : 'Jugador');
+        const foot = (document.getElementById('p-foot') ? document.getElementById('p-foot').value : 'Diestro');
+        const teamId = (document.getElementById('p-team') ? document.getElementById('p-team').value : '');
+        const nickname = (document.getElementById('p-nick') ? document.getElementById('p-nick').value : '').trim();
+
+        const parentName = (document.getElementById('p-parent-name') ? document.getElementById('p-parent-name').value : '').trim();
+        const parentPhone = (document.getElementById('p-parent-phone') ? document.getElementById('p-parent-phone').value : '').trim();
+        const parentEmail = (document.getElementById('p-parent-email') ? document.getElementById('p-parent-email').value : '').trim();
 
         if (!name && !nickname) {
           toast('Introduce al menos el nombre o apodo', 'error');
@@ -5778,8 +6156,16 @@
           name,
           lastName,
           nickname,
+          birthDate,
           mainDorsal,
           mainPosition,
+          secondaryPositions: selectedSecondary,
+          secondaryPosition: selectedSecondary[0] || '',
+          parentContact: {
+            name: parentName,
+            phone: parentPhone,
+            email: parentEmail
+          },
           foot,
           teamId,
           photo: photoData
@@ -6818,6 +7204,7 @@
     let currentType = c.type;
     const teams = Store.state.teams || [];
     let initialFilter = c.teamId || 'all';
+    let selectedTeamIds = (c.teamIds && c.teamIds.length) ? [...c.teamIds] : (c.teamId ? [c.teamId] : []);
 
     openSheet(c.id ? 'Editar Convocatoria' : t('newConvocation'), (body) => {
       const allPlayers = Store.sortedPlayers();
@@ -6848,17 +7235,18 @@
 
         <div class="field">
           <label>${t('team')}</label>
-          <input type="hidden" id="conv-team" value="${c.teamId || ''}" />
+          <input type="hidden" id="conv-team" value="${selectedTeamIds.join(',')}" />
           <div class="team-bubbles-container" id="conv-team-bubbles">
-            <div class="team-bubble ${!c.teamId ? 'active' : ''}" data-tid="" style="border-color: rgba(255, 255, 255, 0.25);">
+            <div class="team-bubble ${selectedTeamIds.length === 0 ? 'active' : ''}" data-tid="" style="border-color: rgba(255, 255, 255, 0.25);">
               <span class="dot" style="background: #94a3b8;"></span>
               <span>${t('allTeams')}</span>
               <span class="check-icon">✓</span>
             </div>
             ${teams.map(tm => {
               const tmColor = tm.color || '#22d3ee';
+              const isActive = selectedTeamIds.includes(tm.id);
               return `
-                <div class="team-bubble ${c.teamId === tm.id ? 'active' : ''}" data-tid="${tm.id}" style="border-color: ${tmColor}; color: #fff;">
+                <div class="team-bubble ${isActive ? 'active' : ''}" data-tid="${tm.id}" style="border-color: ${tmColor}; color: #fff;">
                   <span class="dot" style="background: ${tmColor};"></span>
                   <span>${escapeHtml(tm.name)}</span>
                   <span class="check-icon" style="color: ${tmColor};">✓</span>
@@ -6990,21 +7378,8 @@
         }
       }
 
-      const typeMatchBtn = body.querySelector('#conv-type-match');
-      const typeTrainBtn = body.querySelector('#conv-type-training');
-      if (typeMatchBtn && typeTrainBtn) {
-        typeMatchBtn.onclick = () => {
-          currentType = 'match';
-          typeMatchBtn.className = 'active';
-          typeTrainBtn.className = '';
-        };
-        typeTrainBtn.onclick = () => {
-          currentType = 'training';
-          typeTrainBtn.className = 'active';
-          typeMatchBtn.className = '';
-        };
-      }
-
+      const convTeamInput = body.querySelector('#conv-team');
+      const convTeamBubbles = body.querySelectorAll('#conv-team-bubbles .team-bubble');
       const filterSelect = body.querySelector('#conv-filter-team');
       const container = body.querySelector('#conv-players-container');
 
@@ -7013,27 +7388,72 @@
         const rows = container.querySelectorAll('.conv-player-row');
         rows.forEach(r => {
           const rTeam = r.getAttribute('data-team');
-          if (teamVal === 'all' || rTeam === teamVal) {
+          if (!teamVal || teamVal === 'all') {
             r.style.display = 'flex';
+          } else if (Array.isArray(teamVal)) {
+            r.style.display = (!teamVal.length || teamVal.includes(rTeam)) ? 'flex' : 'none';
           } else {
-            r.style.display = 'none';
+            r.style.display = (rTeam === teamVal) ? 'flex' : 'none';
           }
         });
       }
 
-      const convTeamInput = body.querySelector('#conv-team');
-      const convTeamBubbles = body.querySelectorAll('#conv-team-bubbles .team-bubble');
+      function updateTeamBubblesUI() {
+        convTeamBubbles.forEach(tb => {
+          const tid = tb.getAttribute('data-tid') || '';
+          if (!tid) {
+            tb.classList.toggle('active', selectedTeamIds.length === 0);
+          } else {
+            tb.classList.toggle('active', selectedTeamIds.includes(tid));
+          }
+        });
+        if (convTeamInput) convTeamInput.value = selectedTeamIds.join(',');
+        if (filterSelect) {
+          filterSelect.value = selectedTeamIds.length === 1 ? selectedTeamIds[0] : 'all';
+        }
+        applyFilter(selectedTeamIds.length ? selectedTeamIds : 'all');
+      }
+
+      const typeMatchBtn = body.querySelector('#conv-type-match');
+      const typeTrainBtn = body.querySelector('#conv-type-training');
+      if (typeMatchBtn && typeTrainBtn) {
+        typeMatchBtn.onclick = () => {
+          currentType = 'match';
+          typeMatchBtn.className = 'active';
+          typeTrainBtn.className = '';
+          // En partido sólo un equipo: si había más de uno seleccionado, dejar únicamente el primero
+          if (selectedTeamIds.length > 1) {
+            selectedTeamIds = [selectedTeamIds[0]];
+            updateTeamBubblesUI();
+          }
+        };
+        typeTrainBtn.onclick = () => {
+          currentType = 'training';
+          typeTrainBtn.className = 'active';
+          typeMatchBtn.className = '';
+        };
+      }
 
       convTeamBubbles.forEach(tb => {
         tb.onclick = () => {
-          convTeamBubbles.forEach(x => x.classList.remove('active'));
-          tb.classList.add('active');
           const tid = tb.getAttribute('data-tid') || '';
-          if (convTeamInput) convTeamInput.value = tid;
-          if (filterSelect) {
-            filterSelect.value = tid || 'all';
+          if (!tid) {
+            // "Todos los equipos" pulsado
+            selectedTeamIds = [];
+          } else {
+            if (currentType === 'training') {
+              // En entrenamiento se permite más de un equipo
+              if (selectedTeamIds.includes(tid)) {
+                selectedTeamIds = selectedTeamIds.filter(x => x !== tid);
+              } else {
+                selectedTeamIds.push(tid);
+              }
+            } else {
+              // En partido sólo un equipo
+              selectedTeamIds = [tid];
+            }
           }
-          applyFilter(tid || 'all');
+          updateTeamBubblesUI();
           haptic(20);
         };
       });
@@ -7042,18 +7462,12 @@
         filterSelect.onchange = () => {
           const val = filterSelect.value;
           const tid = val === 'all' ? '' : val;
-          if (convTeamInput) convTeamInput.value = tid;
-          convTeamBubbles.forEach(tb => {
-            const bTid = tb.getAttribute('data-tid') || '';
-            if (bTid === tid) {
-              tb.classList.add('active');
-            } else {
-              tb.classList.remove('active');
-            }
-          });
-          applyFilter(val);
+          selectedTeamIds = tid ? [tid] : [];
+          updateTeamBubblesUI();
         };
-        if (initialFilter !== 'all') {
+        if (selectedTeamIds.length > 0) {
+          applyFilter(selectedTeamIds);
+        } else if (initialFilter !== 'all') {
           applyFilter(initialFilter);
         }
       }
@@ -7297,7 +7711,8 @@
           venue,
           address,
           rival,
-          teamId,
+          teamId: selectedTeamIds[0] || '',
+          teamIds: selectedTeamIds,
           notes,
           list
         });
@@ -7310,7 +7725,8 @@
               date,
               rival: rival || '',
               title: title || (currentType === 'match' ? (rival ? 'vs ' + rival : 'Partido') : 'Entrenamiento'),
-              teamId: teamId || '',
+              teamId: selectedTeamIds[0] || '',
+              teamIds: selectedTeamIds,
               convocationId: savedConv.id
             });
           } catch (err) {
@@ -7639,6 +8055,11 @@
           </div>
           <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0; flex-wrap: wrap;">
             ${renderLangButton()}
+            ${list.length > 0 ? `
+              <button class="btn sm danger ghost" id="btn-delete-all-convs" style="font-weight: 800; font-size: 11.5px; height: 36px; padding: 0 8px; border-color: rgba(239, 68, 68, 0.4);" title="${t('deleteAllPlans', 'Borrar todos los planes')}">
+                🗑️ ${t('deleteAllPlans', 'Borrar planes')}
+              </button>
+            ` : ''}
             <button class="btn sm" id="btn-recurring-trainings" style="background: var(--surface2); color: var(--cyan); border-color: rgba(34,211,238,0.3); font-weight: 800; font-size: 11.5px; height: 36px; padding: 0 10px;" title="${t('recurringTrainings', 'Entrenamientos Recurrentes')}">
               🔄 ${t('recurringBtn', 'Recurrentes')}
             </button>
@@ -7728,6 +8149,27 @@
 
       const btnRecurring = view.querySelector('#btn-recurring-trainings');
       if (btnRecurring) btnRecurring.onclick = () => showRecurringTrainingsModal(() => build());
+
+      const btnDeleteAll = view.querySelector('#btn-delete-all-convs');
+      if (btnDeleteAll) {
+        btnDeleteAll.onclick = () => {
+          confirmDialog(
+            t('deleteAllPlans', 'Borrar todos los planes'),
+            t('confirmDeleteAllPlans', '¿Estás seguro de que deseas eliminar todas las convocatorias y planes registrados? Esta acción no se puede deshacer.'),
+            () => {
+              Store.state.convocations = [];
+              Store.save();
+              if (window.Cloud && window.Cloud.pushCoachState) {
+                window.Cloud.pushCoachState(Store.state, true);
+              }
+              toast(t('allPlansDeleted', 'Todos los planes han sido eliminados'), 'info');
+              build();
+            },
+            t('delete', 'Eliminar'),
+            'danger'
+          );
+        };
+      }
 
       view.querySelectorAll('[data-quick-viber]').forEach(btn => {
         btn.onclick = (e) => {
@@ -8053,11 +8495,14 @@
           const file = e.target.files && e.target.files[0];
           if (!file) return;
           try {
-            const shrunken = await shrinkImage(file);
+            const dataUrl = await IO.readFileDataURL(file);
+            const shrunken = await IO.shrinkPhoto(dataUrl, 200);
             photoData = shrunken;
             photoPreview.innerHTML = `<img src="${shrunken}" alt="" /><div class="cam">${icon('camera', 16)}</div>`;
+            haptic(30);
           } catch (err) {
             console.error('Error procesando foto:', err);
+            toast('Error procesando imagen', 'error');
           }
         };
       }

@@ -284,7 +284,9 @@
       const p = Object.assign({
         id: uid('p'), name: '', lastName: '', nickname: '', birthDate: '', teamId: '',
         mainDorsal: null, secondaryDorsal: null, foot: 'Diestro', mainPosition: 'Jugador',
-        secondaryPosition: '', photo: '', disciplineScore: 100
+        secondaryPosition: '', secondaryPositions: [],
+        parentContact: { name: '', phone: '', email: '' },
+        photo: '', disciplineScore: 100
       }, data);
       if (!p.id) p.id = uid('p');
       this.state.players.push(p);
@@ -337,6 +339,7 @@
         rival: opts.rival || '',
         venue: opts.venue || '',
         teamId: opts.teamId || '',
+        teamIds: opts.teamIds || (opts.teamId ? [opts.teamId] : []),
         notes: opts.notes || '',
         status: 'active',
         elapsedMs: 0,
