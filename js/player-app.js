@@ -51,6 +51,13 @@
     const overlays = document.querySelectorAll('.chat-dialog-overlay, .dialog-overlay, .sheet-backdrop');
     if (overlays.length > 0) {
       const topOverlay = overlays[overlays.length - 1];
+      if (topOverlay.classList.contains('chat-dialog-overlay')) {
+        const backBtn = topOverlay.querySelector('#chat-back-btn, #chat-close-btn');
+        if (backBtn) {
+          backBtn.click();
+          return true;
+        }
+      }
       topOverlay.remove();
       return true;
     }
@@ -844,11 +851,116 @@
   }
 
   /* -------------------------------------------------------------
+     CARGA DE DATOS INICIALES Y FALLBACK ROBUSTO
+     ------------------------------------------------------------- */
+  let isFetchingFallbackClubData = false;
+
+  async function loadInitialClubData() {
+    // 1. Intentar desde caché local si tiene jugadores
+    try {
+      const cached = localStorage.getItem('cached_club_state');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed && Array.isArray(parsed.players) && parsed.players.length > 0) {
+          clubData = parsed;
+          updateHeaderIdentity();
+          renderCurrentTab();
+          return clubData;
+        }
+      }
+    } catch (e) {}
+
+    // 2. Cargar desde data/database_reference.json
+    if (isFetchingFallbackClubData) return clubData;
+    isFetchingFallbackClubData = true;
+    try {
+      const res = await fetch('data/database_reference.json');
+      if (res.ok) {
+        const json = await res.json();
+        if (json && Array.isArray(json.players) && json.players.length > 0) {
+          if (!clubData || !clubData.players || clubData.players.length === 0) {
+            clubData = Object.assign({}, clubData || {}, json);
+            try { localStorage.setItem('cached_club_state', JSON.stringify(clubData)); } catch (e) {}
+            updateHeaderIdentity();
+            renderCurrentTab();
+
+            // Si el modal de carga provisional estaba abierto, actualizarlo con la lista de jugadores
+            const loadingModal = document.getElementById('dialog-id-loading-overlay');
+            if (loadingModal) {
+              loadingModal.remove();
+              showSelectIdentityModal();
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Fallback data/database_reference.json no disponible:', err);
+    } finally {
+      isFetchingFallbackClubData = false;
+    }
+    return clubData;
+  }
+
+  function showIdentityLoadingModal() {
+    const existing = document.getElementById('dialog-id-loading-overlay');
+    if (existing) return;
+    const overlay = document.createElement('div');
+    overlay.className = 'dialog-overlay';
+    overlay.id = 'dialog-id-loading-overlay';
+    overlay.innerHTML = `
+      <div class="dialog-box" style="max-height: 85vh; width: 92%; max-width: 420px; text-align: center; padding: 24px 18px;">
+        <div style="font-size: 38px; margin-bottom: 12px;">⏳</div>
+        <h3 style="margin: 0 0 6px; font-size: 16px; font-weight: 900; color: #fff;">${t('chooseIdentityTitle')}</h3>
+        <p style="font-size: 12.5px; color: var(--muted); margin: 0 0 16px; line-height: 1.4;">
+          ${t('loadingPlayers')}
+        </p>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <button type="button" class="btn primary" id="btn-retry-load-id" style="height: 42px; font-weight: 800; font-size: 13px;">
+            🔄 ${currentLang === 'en' ? 'Retry Loading' : 'Reintentar Carga'}
+          </button>
+          <button type="button" class="btn sm ghost" id="btn-dialog-id-req-fallback" style="border: 1.5px dashed var(--cyan); color: var(--cyan); font-weight: 800; font-size: 12px; height: 38px; border-radius: 10px;">
+            ${t('requestCoachProfile', '➕ ¿No estás en la lista? Solicitar alta al entrenador')}
+          </button>
+          <button type="button" class="btn sm ghost" id="btn-close-id-loading" style="color: var(--muted); font-size: 12px;">
+            ${t('close', 'Cerrar')}
+          </button>
+        </div>
+      </div>
+    `;
+    function close() { overlay.remove(); }
+    overlay.querySelector('#btn-close-id-loading').onclick = close;
+    overlay.onclick = (e) => { if (e.target === overlay) close(); };
+    overlay.querySelector('#btn-dialog-id-req-fallback').onclick = () => {
+      close();
+      showPlayerCreationRequestModal();
+    };
+    overlay.querySelector('#btn-retry-load-id').onclick = async () => {
+      const btn = overlay.querySelector('#btn-retry-load-id');
+      btn.disabled = true;
+      btn.textContent = '⏳ ...';
+      await loadInitialClubData();
+      if (clubData && clubData.players && clubData.players.length > 0) {
+        close();
+        showSelectIdentityModal();
+      } else {
+        btn.disabled = false;
+        btn.textContent = '🔄 ' + (currentLang === 'en' ? 'Retry Loading' : 'Reintentar Carga');
+        toast(t('loadingPlayers'), 'info');
+      }
+    };
+    document.body.appendChild(overlay);
+  }
+
+  /* -------------------------------------------------------------
      SOLICITUD DE CAMBIO DE PERFIL (PUNTO 6)
      ------------------------------------------------------------- */
-  function showSelectIdentityModal() {
+  async function showSelectIdentityModal() {
     if (!clubData || !clubData.players || clubData.players.length === 0) {
-      toast(t('loadingPlayers'), 'info');
+      await loadInitialClubData();
+    }
+
+    if (!clubData || !clubData.players || clubData.players.length === 0) {
+      showIdentityLoadingModal();
       return;
     }
 
@@ -948,6 +1060,9 @@
           localStorage.setItem('portal_player_locked', 'true');
         } catch (e) {}
         haptic(35);
+        if (window.ChatUI && window.ChatUI.initGlobalUnreadListener) {
+          window.ChatUI.initGlobalUnreadListener(myPlayerId);
+        }
         updateHeaderIdentity();
         close();
         toast(t('linkedSuccess'), 'success');
@@ -2045,7 +2160,12 @@
       btnChat.onclick = () => {
         close();
         if (window.ChatUI && ChatUI.startDirectChat) {
-          ChatUI.startDirectChat(pid, `${p.name || ''} ${p.lastName || ''}`.trim());
+          const myP = getMyPlayer();
+          ChatUI.startDirectChat(pid, `${p.name || ''} ${p.lastName || ''}`.trim(), {
+            currentUserId: myPlayerId,
+            currentUserName: myP ? `${myP.name || ''} ${myP.lastName || ''}`.trim() : 'Jugador',
+            isCoach: false
+          });
           const tabBtn = document.querySelector('#portal-tabbar [data-tab="chat"]');
           if (tabBtn) tabBtn.click();
         }
@@ -2310,6 +2430,11 @@
     updateHeaderIdentity();
     renderCurrentTab();
 
+    // Iniciar escucha global de mensajes no leídos para el jugador si ya tiene perfil
+    if (myPlayerId && window.ChatUI && window.ChatUI.initGlobalUnreadListener) {
+      window.ChatUI.initGlobalUnreadListener(myPlayerId);
+    }
+
     // Solicitar activación de notificaciones nativas de Android / PWA
     if (window.AndroidBridge && window.AndroidBridge.requestNotificationPermission) {
       try { window.AndroidBridge.requestNotificationPermission(); } catch (e) {}
@@ -2327,8 +2452,17 @@
       // Escuchar estado completo del club
       window.Cloud.listenToClubState((remoteState) => {
         if (!remoteState) return;
-        clubData = remoteState;
-        try { localStorage.setItem('cached_club_state', JSON.stringify(remoteState)); } catch (e) {}
+        if (remoteState.players && remoteState.players.length > 0) {
+          clubData = remoteState;
+        } else if (clubData && clubData.players && clubData.players.length > 0) {
+          clubData = Object.assign({}, clubData, remoteState, {
+            players: clubData.players,
+            teams: (remoteState.teams && remoteState.teams.length > 0) ? remoteState.teams : clubData.teams
+          });
+        } else {
+          clubData = remoteState;
+        }
+        try { localStorage.setItem('cached_club_state', JSON.stringify(clubData)); } catch (e) {}
 
         if (remoteState.settings && remoteState.settings.clubName) {
           const titleEl = document.getElementById('portal-club-title');
@@ -2343,6 +2477,13 @@
 
         updateHeaderIdentity();
         renderCurrentTab();
+
+        // Si el modal de carga estaba esperando jugadores y acaban de llegar, abrir selector
+        const loadingModal = document.getElementById('dialog-id-loading-overlay');
+        if (loadingModal && clubData && clubData.players && clubData.players.length > 0) {
+          loadingModal.remove();
+          showSelectIdentityModal();
+        }
       });
 
       // Escuchar respuestas de asistencia de convocatorias
@@ -2365,14 +2506,14 @@
       }
     }
 
-    // Si aún no ha seleccionado identidad, pedirla tras breve retardo
-    if (!myPlayerId) {
-      setTimeout(() => {
-        if (!myPlayerId && clubData && clubData.players && clubData.players.length > 0) {
-          showSelectIdentityModal();
-        }
-      }, 700);
-    }
+    // 3. Cargar datos locales de respaldo y pedir identidad si aún no la tiene
+    loadInitialClubData().then(() => {
+      if (!myPlayerId && clubData && clubData.players && clubData.players.length > 0) {
+        setTimeout(() => {
+          if (!myPlayerId) showSelectIdentityModal();
+        }, 300);
+      }
+    });
   }
 
   if (document.readyState === 'loading') {

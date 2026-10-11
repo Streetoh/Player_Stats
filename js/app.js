@@ -663,6 +663,13 @@
     const overlays = document.querySelectorAll('.chat-dialog-overlay, .dialog-overlay, .sheet-backdrop');
     if (overlays.length > 0) {
       const topOverlay = overlays[overlays.length - 1];
+      if (topOverlay.classList.contains('chat-dialog-overlay')) {
+        const backBtn = topOverlay.querySelector('#chat-back-btn, #chat-close-btn');
+        if (backBtn) {
+          backBtn.click();
+          return true;
+        }
+      }
       topOverlay.remove();
       return true;
     }
@@ -1151,10 +1158,28 @@
     }
   }
 
-  function autoSeedIfEmpty() {
-    if (Store.state.players.length === 0 && Store.state.teams.length === 0) {
-      Store.upsertTeam({ id: 'team_u12', name: 'U11 / U12 Base', color: '#10b981' });
-      Store.upsertTeam({ id: 'team_u10', name: 'U10 Formativo', color: '#3b82f6' });
+  async function autoSeedIfEmpty() {
+    if (Store.state.players.length === 0) {
+      try {
+        const res = await fetch('data/database_reference.json');
+        if (res.ok) {
+          const json = await res.json();
+          if (json && Array.isArray(json.players) && json.players.length > 0) {
+            Store.state.players = json.players;
+            if (json.teams && json.teams.length > 0) Store.state.teams = json.teams;
+            if (json.sessions && json.sessions.length > 0 && Store.state.sessions.length === 0) {
+              Store.state.sessions = json.sessions;
+            }
+            Store.save();
+            render();
+            return;
+          }
+        }
+      } catch (e) {}
+      if (Store.state.teams.length === 0) {
+        Store.upsertTeam({ id: 'team_u12', name: 'U11 / U12 Base', color: '#10b981' });
+        Store.upsertTeam({ id: 'team_u10', name: 'U10 Formativo', color: '#3b82f6' });
+      }
     }
   }
 

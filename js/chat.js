@@ -142,6 +142,42 @@
       });
     },
 
+    // Marca un chat como leído inmediatamente, limpiando badges del DOM y local storage
+    markChatAsRead: function (curId, chatId, lastMessageTime) {
+      if (!curId || !chatId) return;
+      const readTime = Math.max(Date.now(), (lastMessageTime || 0)) + 10000;
+      try {
+        localStorage.setItem(`chat_last_read_${curId}_${chatId}`, String(readTime));
+      } catch (e) {}
+
+      // Limpiar inmediatamente de la tarjeta del chat en el DOM
+      const card = document.querySelector(`.chat-room-card[data-chat-id="${chatId}"]`);
+      if (card) {
+        card.style.borderColor = 'var(--border)';
+        card.style.background = 'var(--surface2)';
+        const dot = card.querySelector('.chat-card-unread-dot');
+        if (dot) dot.remove();
+        const badge = card.querySelector('.chat-card-new-badge');
+        if (badge) badge.remove();
+      }
+
+      // Recalcular el indicador de mensajes no leídos en la pestaña
+      ChatUI.recalculateUnreadBadge(curId);
+    },
+
+    // Recalcula si queda algún chat no leído
+    recalculateUnreadBadge: function (curId) {
+      if (!curId) return;
+      const cards = document.querySelectorAll('.chat-room-card');
+      let anyUnread = false;
+      cards.forEach(card => {
+        const dot = card.querySelector('.chat-card-unread-dot');
+        const badge = card.querySelector('.chat-card-new-badge');
+        if (dot || badge) anyUnread = true;
+      });
+      ChatUI.updateTabBadge(anyUnread);
+    },
+
     // Escucha global en segundo plano para notificar y mostrar insignia al instante
     initGlobalUnreadListener: function (curUserId) {
       if (!curUserId || !global.Cloud || !global.Cloud.listenToChats) return;
@@ -155,8 +191,10 @@
           if (c.participants && !c.participants.includes(curUserId) && curUserId !== 'coach') return;
           const lastRead = parseInt(localStorage.getItem(`chat_last_read_${curUserId}_${c.id}`) || '0', 10);
           if ((c.lastMessageTime || 0) > lastRead && c.lastSenderId && c.lastSenderId !== curUserId) {
-            unreadCount++;
-            if (currentlyOpenChatId !== c.id) {
+            if (currentlyOpenChatId === c.id) {
+              ChatUI.markChatAsRead(curUserId, c.id, c.lastMessageTime);
+            } else {
+              unreadCount++;
               const knownKey = `last_notified_${c.id}_${c.lastMessageTime}`;
               if (!sessionStorage.getItem(knownKey)) {
                 sessionStorage.setItem(knownKey, '1');
@@ -379,7 +417,7 @@
             <div class="card chat-room-card" data-chat-id="${c.id}" style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1.5px solid ${isUnread ? 'rgba(34, 211, 238, 0.5)' : 'var(--border)'}; cursor: pointer; transition: all 0.15s; background: ${isUnread ? 'rgba(34, 211, 238, 0.05)' : 'var(--surface2)'}; border-radius: 14px; position: relative;">
               <div style="width: 44px; height: 44px; border-radius: 13px; background: rgba(34, 211, 238, 0.12); border: 1.5px solid rgba(34, 211, 238, 0.3); display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; position: relative;">
                 ${iconEmoji}
-                ${isUnread ? `<span style="position: absolute; top: -3px; right: -3px; width: 11px; height: 11px; border-radius: 50%; background: #ef4444; border: 2px solid var(--surface2);"></span>` : ''}
+                ${isUnread ? `<span class="chat-card-unread-dot" style="position: absolute; top: -3px; right: -3px; width: 11px; height: 11px; border-radius: 50%; background: #ef4444; border: 2px solid var(--surface2);"></span>` : ''}
               </div>
               <div style="flex: 1; min-width: 0;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
@@ -388,7 +426,7 @@
                     ${isMuted ? '<small style="font-size: 11px; opacity: 0.6;">🔕</small>' : ''}
                   </b>
                   <div style="display: flex; align-items: center; gap: 4px; flex-shrink: 0;">
-                    ${isUnread ? `<span class="badge" style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.5); font-weight: 900; font-size: 9.5px; padding: 1px 5px; border-radius: 8px;">● ${t('newBadge', 'NUEVO')}</span>` : ''}
+                    ${isUnread ? `<span class="badge chat-card-new-badge" style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.5); font-weight: 900; font-size: 9.5px; padding: 1px 5px; border-radius: 8px;">● ${t('newBadge', 'NUEVO')}</span>` : ''}
                     <small style="font-size: 11px; color: var(--muted);">${timeStr}</small>
                   </div>
                 </div>
@@ -405,6 +443,7 @@
             const cid = item.getAttribute('data-chat-id');
             const targetChat = displayChats.find(x => x.id === cid);
             haptic(20);
+            ChatUI.markChatAsRead(curId, cid, targetChat ? targetChat.lastMessageTime : 0);
             ChatUI.openConversationModal(cid, {
               currentUserId: curId,
               currentUserName: curName,
@@ -412,6 +451,7 @@
               title: targetChat ? targetChat.name : 'Chat',
               chatData: targetChat,
               onClose: () => {
+                ChatUI.markChatAsRead(curId, cid, targetChat ? targetChat.lastMessageTime : 0);
                 renderRooms();
               }
             });
@@ -459,8 +499,7 @@
       }
 
       // Marcar como leído inmediatamente
-      localStorage.setItem(`chat_last_read_${curId}_${chatId}`, String(Date.now()));
-      ChatUI.updateTabBadge(false);
+      ChatUI.markChatAsRead(curId, chatId, chatData ? chatData.lastMessageTime : 0);
 
       let messagesListenerUnsub = null;
       let presenceListenerUnsub = null;
@@ -571,6 +610,7 @@
         currentlyOpenChatId = null;
         if (messagesListenerUnsub) messagesListenerUnsub();
         if (presenceListenerUnsub) presenceListenerUnsub();
+        ChatUI.markChatAsRead(curId, chatId, chatData ? chatData.lastMessageTime : 0);
         overlay.remove();
         if (typeof options.onClose === 'function') options.onClose();
       }
@@ -795,7 +835,7 @@
           }
           await global.Cloud.sendChatMessage(chatId, payload);
           // Actualizar hora de lectura propia
-          localStorage.setItem(`chat_last_read_${curId}_${chatId}`, String(Date.now()));
+          ChatUI.markChatAsRead(curId, chatId);
         }
         inputEl.focus();
       }
@@ -815,7 +855,8 @@
           renderMessages();
 
           // Actualizar marca de lectura
-          localStorage.setItem(`chat_last_read_${curId}_${chatId}`, String(Date.now()));
+          const maxMsgTime = msgs.reduce((acc, m) => Math.max(acc, m.timestamp || 0), Date.now());
+          ChatUI.markChatAsRead(curId, chatId, maxMsgTime);
 
           if (messagesList.length > prevLen && prevLen > 0) {
             const lastMsg = messagesList[messagesList.length - 1];
