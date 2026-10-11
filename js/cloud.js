@@ -31,6 +31,47 @@
 
   const Cloud = {
     config: FIREBASE_CONFIG,
+    lastError: null,
+
+    // Comprime fotos pesadas en Base64 a miniaturas optimizadas para no superar el límite de 1MB de Firestore
+    _compressPhotoForCloud: function (photoDataUrl, maxDim = 128, quality = 0.68) {
+      return new Promise((resolve) => {
+        if (!photoDataUrl || typeof photoDataUrl !== 'string' || !photoDataUrl.startsWith('data:image')) {
+          return resolve(photoDataUrl || '');
+        }
+        if (photoDataUrl.length < 8000) return resolve(photoDataUrl);
+
+        try {
+          const img = new Image();
+          img.onload = () => {
+            try {
+              let w = img.width, h = img.height;
+              if (w > maxDim || h > maxDim) {
+                if (w > h) {
+                  h = Math.round((h * maxDim) / w);
+                  w = maxDim;
+                } else {
+                  w = Math.round((w * maxDim) / h);
+                  h = maxDim;
+                }
+              }
+              const canvas = document.createElement('canvas');
+              canvas.width = w;
+              canvas.height = h;
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(img, 0, 0, w, h);
+              resolve(canvas.toDataURL('image/jpeg', quality));
+            } catch (e) {
+              resolve(photoDataUrl);
+            }
+          };
+          img.onerror = () => resolve(photoDataUrl);
+          img.src = photoDataUrl;
+        } catch (e) {
+          resolve(photoDataUrl);
+        }
+      });
+    },
 
     init: function () {
       if (isReady && db) return true;
@@ -52,6 +93,7 @@
         return true;
       } catch (err) {
         console.error('[Cloud] Error inicializando Firebase:', err);
+        this.lastError = err && err.message ? err.message : String(err);
         this._notifyStatus('error');
         return false;
       }
@@ -77,7 +119,15 @@
 
     // Sube el estado completo (jugadores, sesiones, convocatorias, equipos, entrenador, horarios) a Firestore
     pushCoachState: async function (stateData, force = false) {
-      if (!this.init() || !stateData) return false;
+      this.lastError = null;
+      if (!this.init()) {
+        this.lastError = 'Firebase SDK no disponible en este dispositivo.';
+        return false;
+      }
+      if (!stateData) {
+        this.lastError = 'Estado vacío';
+        return false;
+      }
 
       const now = Date.now();
       if (!force && (isSyncing || now - lastPushTime < 1200)) {
@@ -94,13 +144,41 @@
         isSyncing = true;
         this._notifyStatus('syncing');
 
-        const cleanData = {
-          players: stateData.players || [],
+        // Optimizar y comprimir jugadores para que quepan holgadamente en el límite de 1MB de Firestore
+        const sanitizedPlayers = await Promise.all((stateData.players || []).map(async (p) => {
+          const copy = Object.assign({}, p);
+          delete copy.originalPhoto; // Eliminar duplicado innecesario
+          delete copy.cropSettings;
+          if (copy.photo && copy.photo.length > 8000) {
+            copy.photo = await Cloud._compressPhotoForCloud(copy.photo, 128, 0.68);
+          }
+          return copy;
+        }));
+
+        let sanitizedCoachProfile = Object.assign({}, stateData.coachProfile || {});
+        if (sanitizedCoachProfile.photo && sanitizedCoachProfile.photo.length > 10000) {
+          sanitizedCoachProfile.photo = await Cloud._compressPhotoForCloud(sanitizedCoachProfile.photo, 140, 0.7);
+        }
+
+        function cleanUndefined(obj) {
+          if (Array.isArray(obj)) return obj.map(cleanUndefined);
+          if (obj !== null && typeof obj === 'object') {
+            const out = {};
+            for (const [k, v] of Object.entries(obj)) {
+              if (v !== undefined) out[k] = cleanUndefined(v);
+            }
+            return out;
+          }
+          return obj;
+        }
+
+        const rawPayload = {
+          players: sanitizedPlayers,
           teams: stateData.teams || [],
           sessions: stateData.sessions || [],
           convocations: stateData.convocations || [],
           recurringSchedules: stateData.recurringSchedules || [],
-          coachProfile: stateData.coachProfile || {},
+          coachProfile: sanitizedCoachProfile,
           settings: {
             lang: (stateData.settings && stateData.settings.lang) || 'es',
             clubName: (stateData.settings && stateData.settings.clubName) || 'Jõhvi JK Noova',
@@ -110,15 +188,19 @@
           clientTime: now
         };
 
+        const cleanData = cleanUndefined(rawPayload);
+
         await db.collection('clubs').doc(CLUB_ID).set(cleanData, { merge: true });
 
         isSyncing = false;
+        this.lastError = null;
         this._notifyStatus('synced', now);
         return true;
       } catch (err) {
         isSyncing = false;
+        this.lastError = err && err.message ? err.message : String(err);
         console.error('[Cloud] Error subiendo estado del entrenador:', err);
-        this._notifyStatus('error', err.message);
+        this._notifyStatus('error', this.lastError);
         return false;
       }
     },

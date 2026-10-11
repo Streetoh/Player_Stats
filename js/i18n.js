@@ -312,7 +312,10 @@
       localMode: 'Red Local / Punto de Acceso',
       enterRoomCode: 'O escribe el código de 6 letras:',
       waitingGuest: 'Esperando que el segundo móvil escanee...',
-      syncSuccess: '¡Conectado en directo!',
+      syncSuccess: '¡Datos sincronizados en la nube en tiempo real!',
+      syncAllNow: 'Sincronizar Todo a la Nube Ahora',
+      syncError: 'Error al sincronizar',
+      syncErrorFallback: 'Error al sincronizar. Comprueba tu conexión a Internet.',
       shareSessionDesc: 'Escanea este QR con la otra app para sincronizar estadísticas en vivo:',
 
       // Traducciones añadidas
@@ -747,7 +750,10 @@
       localMode: 'Local Network / Hotspot',
       enterRoomCode: 'Or enter 6-letter room code:',
       waitingGuest: 'Waiting for second phone to scan...',
-      syncSuccess: 'Connected in real time!',
+      syncSuccess: 'Live cloud data synchronized!',
+      syncAllNow: 'Sync All to Cloud Now',
+      syncError: 'Sync error',
+      syncErrorFallback: 'Sync error. Please check your internet connection.',
       shareSessionDesc: 'Scan this QR code with the other app to sync stats live:',
 
       // Added translations

@@ -8198,7 +8198,7 @@
         </div>
         <div style="display: flex; flex-direction: column; gap: 8px;">
           <button class="btn btn-primary" id="btn-cloud-sync-now" style="height: 40px; font-size: 13px; font-weight: 800;">
-            ☁️ Sincronizar Todo a la Nube Ahora
+            ☁️ ${t('syncAllNow', 'Sincronizar Todo a la Nube Ahora')}
           </button>
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
             <button class="btn btn-secondary" id="btn-copy-portal-link" style="height: 38px; font-size: 12px; font-weight: 700;">
@@ -8336,17 +8336,22 @@
     if (btnSyncNow) {
       btnSyncNow.onclick = async () => {
         btnSyncNow.disabled = true;
-        btnSyncNow.textContent = '⏳ Sincronizando...';
+        btnSyncNow.textContent = '⏳ ' + t('syncing', 'Sincronizando...');
         if (window.Cloud) {
-          const ok = await window.Cloud.pushCoachState(Store.state);
+          const ok = await window.Cloud.pushCoachState(Store.state, true);
           if (ok) {
-            toast('¡Datos sincronizados en la nube en tiempo real!', 'success');
+            toast(t('syncSuccess', '¡Datos sincronizados en la nube en tiempo real!'), 'success');
           } else {
-            toast('Asegúrate de haber pulsado "Crear base de datos" en Firestore.', 'warning');
+            const err = window.Cloud && window.Cloud.lastError;
+            if (err) {
+              toast(t('syncError', 'Error al sincronizar') + ': ' + err, 'error');
+            } else {
+              toast(t('syncErrorFallback', 'Error al sincronizar. Comprueba tu conexión a Internet.'), 'warning');
+            }
           }
         }
         btnSyncNow.disabled = false;
-        btnSyncNow.textContent = '☁️ Sincronizar Todo a la Nube Ahora';
+        btnSyncNow.textContent = '☁️ ' + t('syncAllNow', 'Sincronizar Todo a la Nube Ahora');
       };
     }
 
