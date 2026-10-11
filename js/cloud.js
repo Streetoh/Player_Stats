@@ -118,19 +118,43 @@
     // Escucha en tiempo real las respuestas de asistencia de los jugadores
     startListeningToResponses: function (onResponseCallback) {
       if (!this.init()) return;
-      if (responseUnsubscribe) return;
+      if (responseUnsubscribe) {
+        try { responseUnsubscribe(); } catch (e) {}
+        responseUnsubscribe = null;
+      }
 
+      let isFirstSnapshot = true;
       try {
         // Escucha la subcolección 'responses' del club
         responseUnsubscribe = db.collection('clubs')
           .doc(CLUB_ID)
           .collection('responses')
           .onSnapshot((snapshot) => {
+            if (isFirstSnapshot) {
+              // Carga inicial: sincroniza estado silenciosamente sin spamear toasts
+              snapshot.forEach((doc) => {
+                const data = doc.data();
+                if (data && data.convId && data.playerId) {
+                  if (typeof onResponseCallback === 'function') {
+                    onResponseCallback(data);
+                  }
+                }
+              });
+              isFirstSnapshot = false;
+              return;
+            }
+
+            // Cambios en vivo recibidos tras el inicio
             snapshot.docChanges().forEach((change) => {
               if (change.type === 'added' || change.type === 'modified') {
                 const data = change.doc.data();
-                if (data && data.convId && data.playerId && typeof onResponseCallback === 'function') {
-                  onResponseCallback(data);
+                if (data && data.convId && data.playerId) {
+                  if (typeof onResponseCallback === 'function') {
+                    onResponseCallback(data);
+                  }
+                  if (typeof window !== 'undefined' && typeof window.onPlayerAttendanceResponse === 'function') {
+                    window.onPlayerAttendanceResponse(data);
+                  }
                 }
               }
             });
@@ -404,16 +428,20 @@
     },
 
     sendChatMessage: async function (chatId, msg) {
-      if (!this.init() || !chatId || !msg || !msg.text) return false;
+      if (!this.init() || !chatId || !msg) return false;
+      if (!msg.text && !msg.image && !msg.file) return false;
 
       try {
         const msgId = 'msg_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
+        const textVal = (msg.text || '').trim();
         const payload = {
           id: msgId,
           chatId: chatId,
           senderId: msg.senderId || 'anon',
           senderName: msg.senderName || 'Usuario',
-          text: msg.text.trim(),
+          text: textVal,
+          image: msg.image || null,
+          file: msg.file || null,
           timestamp: Date.now(),
           serverTime: global.firebase.firestore.FieldValue.serverTimestamp()
         };
@@ -423,9 +451,14 @@
         // 1. Añadir mensaje a subcolección
         await chatRef.collection('messages').doc(msgId).set(payload);
 
+        // Preview de texto para cabecera
+        let preview = payload.text;
+        if (!preview && payload.image) preview = '📷 Foto';
+        if (!preview && payload.file) preview = '📎 Archivo: ' + (payload.file.name || 'documento');
+
         // 2. Actualizar último mensaje en la cabecera del chat
         await chatRef.set({
-          lastMessage: payload.text,
+          lastMessage: preview,
           lastMessageTime: payload.timestamp,
           lastSenderName: payload.senderName,
           lastSenderId: payload.senderId
@@ -434,6 +467,156 @@
         return true;
       } catch (err) {
         console.error('[Cloud] Error enviando mensaje de chat:', err);
+        return false;
+      }
+    },
+
+    deleteChat: async function (chatId) {
+      if (!this.init() || !chatId) return false;
+      try {
+        const messagesRef = db.collection('clubs').doc(CLUB_ID).collection('chats').doc(chatId).collection('messages');
+        const snap = await messagesRef.limit(50).get();
+        const batch = db.batch();
+        snap.forEach(d => batch.delete(d.ref));
+        await batch.commit();
+
+        await db.collection('clubs').doc(CLUB_ID).collection('chats').doc(chatId).delete();
+        return true;
+      } catch (err) {
+        console.error('[Cloud] Error borrando chat:', err);
+        return false;
+      }
+    },
+
+    leaveGroup: async function (chatId, userId) {
+      if (!this.init() || !chatId || !userId) return false;
+      try {
+        const chatRef = db.collection('clubs').doc(CLUB_ID).collection('chats').doc(chatId);
+        const doc = await chatRef.get();
+        if (doc.exists) {
+          const data = doc.data();
+          const members = (data.members || []).filter(m => m !== userId);
+          const memberDetails = (data.memberDetails || []).filter(m => m.id !== userId);
+          await chatRef.update({
+            members: members,
+            memberDetails: memberDetails
+          });
+          return true;
+        }
+        return false;
+      } catch (err) {
+        console.error('[Cloud] Error saliendo de grupo:', err);
+        return false;
+      }
+    },
+
+    /* =========================================================
+       PRESENCIA EN LÍNEA (ONLINE / ÚLTIMA CONEXIÓN)
+       ========================================================= */
+    updatePresence: async function (userId, userName, isOnline) {
+      if (!this.init() || !userId) return;
+      try {
+        const ref = db.collection('clubs').doc(CLUB_ID).collection('presence').doc(userId);
+        await ref.set({
+          userId: userId,
+          userName: userName || '',
+          isOnline: isOnline !== false,
+          lastSeen: Date.now(),
+          serverTime: global.firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+      } catch (err) {
+        console.warn('[Cloud] Error actualizando presencia:', err);
+      }
+    },
+
+    listenToUserPresence: function (userId, callback) {
+      if (!this.init() || !userId) return null;
+      try {
+        return db.collection('clubs')
+          .doc(CLUB_ID)
+          .collection('presence')
+          .doc(userId)
+          .onSnapshot((doc) => {
+            if (doc.exists && typeof callback === 'function') {
+              callback(doc.data());
+            } else if (typeof callback === 'function') {
+              callback({ userId: userId, isOnline: false, lastSeen: null });
+            }
+          }, (err) => {
+            console.warn('[Cloud] Error escuchando presencia:', err);
+          });
+      } catch (err) {
+        console.error('[Cloud] Error listener presencia:', err);
+        return null;
+      }
+    },
+
+    /* =========================================================
+       SOLICITUDES DE ALTA DE JUGADOR NUEVO (NO EN LISTA)
+       ========================================================= */
+    submitPlayerCreationRequest: async function (reqData) {
+      if (!this.init()) throw new Error('No hay conexión con la nube.');
+      if (!reqData || !reqData.id) throw new Error('Datos incompletos.');
+      await db.collection('clubs')
+        .doc(CLUB_ID)
+        .collection('player_creation_requests')
+        .doc(reqData.id)
+        .set({
+          ...reqData,
+          status: 'pending',
+          serverTime: global.firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+      return true;
+    },
+
+    listenToPlayerCreationRequests: function (callback) {
+      if (!this.init()) return null;
+      try {
+        return db.collection('clubs')
+          .doc(CLUB_ID)
+          .collection('player_creation_requests')
+          .onSnapshot((snapshot) => {
+            const requests = [];
+            snapshot.forEach(doc => {
+              const data = doc.data();
+              if (data && data.status === 'pending') {
+                requests.push(data);
+              }
+            });
+            requests.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+            if (typeof callback === 'function') callback(requests);
+          }, (err) => {
+            console.warn('[Cloud] Error escuchando solicitudes de alta:', err);
+          });
+      } catch (err) {
+        console.error('[Cloud] Error listener creación jugador:', err);
+        return null;
+      }
+    },
+
+    resolvePlayerCreationRequest: async function (reqId, status) {
+      if (!this.init() || !reqId) return false;
+      try {
+        await db.collection('clubs')
+          .doc(CLUB_ID)
+          .collection('player_creation_requests')
+          .doc(reqId)
+          .update({
+            status: status,
+            resolvedAt: Date.now()
+          });
+        setTimeout(async () => {
+          try {
+            await db.collection('clubs')
+              .doc(CLUB_ID)
+              .collection('player_creation_requests')
+              .doc(reqId)
+              .delete();
+          } catch (e) {}
+        }, 4000);
+        return true;
+      } catch (err) {
+        console.error('[Cloud] Error resolviendo solicitud de alta:', err);
         return false;
       }
     }

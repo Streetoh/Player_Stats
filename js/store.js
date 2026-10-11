@@ -109,6 +109,15 @@
       sessions: [],
       convocations: [],
       recurringSchedules: [],
+      coachProfile: {
+        name: 'Entrenador Principal',
+        title: 'Director Técnico / Head Coach',
+        license: 'UEFA Pro / Nivel 3',
+        phone: '',
+        email: '',
+        bio: 'Responsable técnico del club.',
+        photo: ''
+      },
       settings: {
         lang: 'en',
         enabledStats: STATS.filter(s => s.def).map(s => s.key),
@@ -129,6 +138,7 @@
     s.sessions = Array.isArray(s.sessions) ? s.sessions : [];
     s.convocations = Array.isArray(s.convocations) ? s.convocations : [];
     s.recurringSchedules = Array.isArray(s.recurringSchedules) ? s.recurringSchedules : [];
+    s.coachProfile = Object.assign({}, d.coachProfile, s.coachProfile || {});
     s.settings = Object.assign({}, d.settings, s.settings || {});
     if (!s.settings.convocatoriaWebUrl) s.settings.convocatoriaWebUrl = d.settings.convocatoriaWebUrl;
     s.settings.enabledStats = (s.settings.enabledStats || []).filter(k => STAT_MAP[k]);
@@ -527,7 +537,7 @@
     filterSessions(type, period) {
       const now = Date.now();
       const days = period === '7' ? 7 : period === '30' ? 30 : period === '90' ? 90 : 0;
-      return this.state.sessions.filter(s => {
+      const res = this.state.sessions.filter(s => {
         if (type && type !== 'all' && s.type !== type) return false;
         if (days) {
           const t = new Date(s.date + 'T12:00:00').getTime();
@@ -535,6 +545,13 @@
         }
         return true;
       });
+      // Invertir orden: de más reciente a más antigua / próximas primero
+      res.sort((a, b) => {
+        const da = (a.date || '') + ' ' + (a.time || '00:00');
+        const db = (b.date || '') + ' ' + (b.time || '00:00');
+        return db.localeCompare(da);
+      });
+      return res;
     },
 
     playerAggregate(playerId, sessions) {
@@ -672,34 +689,67 @@
     /* Radar de Habilidades (Spider Chart de 0 a 99) */
     calculatePlayerRadar(playerId, sessions) {
       const agg = this.playerAggregate(playerId, sessions || this.state.sessions);
-      const st = agg.totals;
-      const count = Math.max(1, agg.count);
+      const st = agg.totals || {};
+      const count = agg.count || 0;
       const pl = this.player(playerId);
 
+      const totalActions = Object.values(st).reduce((sum, v) => sum + (typeof v === 'number' ? v : 0), 0);
+
+      // Si no tiene sesiones trackeadas ni acciones registradas, empezar en 50 en todas las habilidades
+      if (count === 0 || totalActions === 0) {
+        return { pas: 50, tir: 50, reg: 50, fis: 50, def: 50, dis: 50 };
+      }
+
       const passes = (st.passOk || 0) + (st.passKo || 0);
-      const passAcc = passes > 0 ? (st.passOk || 0) / passes : 0.65;
-      const pas = Math.min(99, Math.max(45, Math.round(passAcc * 65 + Math.min(34, (st.keyPass || 0) * 4 + ((st.passOk || 0) / count) * 1.5))));
+      let pas = 50;
+      if (passes > 0) {
+        const passAcc = (st.passOk || 0) / passes;
+        pas = Math.min(99, Math.max(20, Math.round(50 + (passAcc - 0.5) * 40 + Math.min(25, (st.keyPass || 0) * 3 + ((st.passOk || 0) / count) * 1.5))));
+      }
 
       const shots = (st.shotOn || 0) + (st.shotOff || 0);
-      const shotAcc = shots > 0 ? (st.shotOn || 0) / shots : 0.5;
-      const tir = Math.min(99, Math.max(40, Math.round(shotAcc * 50 + Math.min(49, (st.goal || 0) * 8 + (st.shotOn || 0) * 2))));
+      let tir = 50;
+      if (shots > 0 || (st.goal || 0) > 0) {
+        const shotAcc = shots > 0 ? (st.shotOn || 0) / shots : 0.5;
+        tir = Math.min(99, Math.max(20, Math.round(50 + (shotAcc - 0.5) * 30 + Math.min(35, (st.goal || 0) * 8 + (st.shotOn || 0) * 2))));
+      }
 
       const dribbles = (st.dribbleOk || 0) + (st.dribbleKo || 0);
-      const dribAcc = dribbles > 0 ? (st.dribbleOk || 0) / dribbles : 0.6;
-      const reg = Math.min(99, Math.max(40, Math.round(dribAcc * 55 + Math.min(44, (st.dribbleOk || 0) * 4))));
+      let reg = 50;
+      if (dribbles > 0) {
+        const dribAcc = (st.dribbleOk || 0) / dribbles;
+        reg = Math.min(99, Math.max(20, Math.round(50 + (dribAcc - 0.5) * 35 + Math.min(25, (st.dribbleOk || 0) * 3))));
+      }
 
-      const def = Math.min(99, Math.max(40, Math.round(50 + Math.min(49, ((st.recovery || 0) / count) * 6 + (st.save || 0) * 8 - ((st.loss || 0) / count) * 2))));
+      const recoveries = st.recovery || 0;
+      const losses = st.loss || 0;
+      let def = Math.min(99, Math.max(20, Math.round(50 + Math.min(35, ((recoveries / count) * 5) + ((st.save || 0) * 6) - ((losses / count) * 3)))));
 
       const duels = (st.duelWon || 0) + (st.duelLost || 0);
-      const duelAcc = duels > 0 ? (st.duelWon || 0) / duels : 0.55;
-      const fis = Math.min(99, Math.max(45, Math.round(duelAcc * 50 + Math.min(49, ((st.touches || 0) / count) * 1.2 + (st.duelWon || 0) * 2))));
+      let fis = 50;
+      if (duels > 0 || (st.touches || 0) > 0) {
+        const duelAcc = duels > 0 ? (st.duelWon || 0) / duels : 0.5;
+        fis = Math.min(99, Math.max(20, Math.round(50 + (duelAcc - 0.5) * 30 + Math.min(25, ((st.touches || 0) / count) * 1.2))));
+      }
 
-      // Disciplina establecida por el entrenador y ajustada por tarjetas/faltas
-      const baseDis = (pl && pl.disciplineScore !== undefined && pl.disciplineScore !== null) ? Number(pl.disciplineScore) : 100;
-      const foulDeduction = (st.foul || 0) * 2 + (st.yellow || 0) * 5 + (st.red || 0) * 15;
-      const dis = Math.min(99, Math.max(30, Math.round(baseDis - (foulDeduction / count))));
+      let dis = 50;
+      if (pl && pl.disciplineScore !== undefined && pl.disciplineScore !== null) {
+        dis = Number(pl.disciplineScore);
+      } else {
+        const foulDeduction = (st.foul || 0) * 2 + (st.yellow || 0) * 5 + (st.red || 0) * 15;
+        dis = Math.min(99, Math.max(20, Math.round(50 + Math.min(45, count * 5) - (foulDeduction / count))));
+      }
 
       return { pas, tir, reg, def, fis, dis };
+    },
+
+    upsertCoachProfile(profile) {
+      this.state.coachProfile = Object.assign({}, this.state.coachProfile || {}, profile);
+      this.save();
+      if (window.Cloud && window.Cloud.pushCoachState) {
+        window.Cloud.pushCoachState(this.state);
+      }
+      return this.state.coachProfile;
     },
 
     /* Comparador Cara a Cara (Head-to-Head) */
@@ -823,31 +873,36 @@
 
     upsertRecurringSchedule(data) {
       this.state.recurringSchedules = this.state.recurringSchedules || [];
+      let item = null;
       if (data.id) {
         const i = this.state.recurringSchedules.findIndex(r => r.id === data.id);
         if (i >= 0) {
-          this.state.recurringSchedules[i] = Object.assign({}, this.state.recurringSchedules[i], data);
-          this.save();
-          this.generateRecurringConvocations(14);
-          return this.state.recurringSchedules[i];
+          item = Object.assign({}, this.state.recurringSchedules[i], data);
+          this.state.recurringSchedules[i] = item;
         }
       }
-      const item = Object.assign({
-        id: uid('rec'),
-        title: '',
-        teamId: '',
-        daysOfWeek: [2, 4], // 1=Lun, 2=Mar, 3=Mie, 4=Jue, 5=Vie, 6=Sab, 0=Dom
-        time: '18:00',
-        venue: '',
-        address: '',
-        notes: '',
-        active: true,
-        createdAt: Date.now()
-      }, data);
-      if (!item.id) item.id = uid('rec');
-      this.state.recurringSchedules.push(item);
+      if (!item) {
+        item = Object.assign({
+          id: uid('rec'),
+          title: '',
+          teamId: '',
+          daysOfWeek: [2, 4], // 1=Lun, 2=Mar, 3=Mie, 4=Jue, 5=Vie, 6=Sab, 0=Dom
+          time: '18:00',
+          venue: '',
+          address: '',
+          notes: '',
+          startDate: '',
+          endDate: '',
+          active: true,
+          createdAt: Date.now()
+        }, data);
+        if (!item.id) item.id = uid('rec');
+        // Deduplicar cualquier horario previo con mismo id
+        this.state.recurringSchedules = this.state.recurringSchedules.filter(r => r.id !== item.id);
+        this.state.recurringSchedules.push(item);
+      }
       this.save();
-      this.generateRecurringConvocations(14);
+      this.generateRecurringConvocations(30, item.startDate, item.endDate);
       return item;
     },
 
@@ -856,27 +911,41 @@
       this.save();
     },
 
-    generateRecurringConvocations(daysAhead = 14) {
+    generateRecurringConvocations(daysAhead = 30, startDateStr = '', endDateStr = '') {
       this.state.recurringSchedules = this.state.recurringSchedules || [];
       const activeSchedules = this.state.recurringSchedules.filter(r => r.active !== false);
       if (!activeSchedules.length) return 0;
 
       let generatedCount = 0;
-      const today = new Date();
+      let startD = startDateStr ? new Date(startDateStr + 'T00:00:00') : new Date();
+      if (isNaN(startD.getTime())) startD = new Date();
 
       activeSchedules.forEach(sched => {
         const targetDays = Array.isArray(sched.daysOfWeek) ? sched.daysOfWeek : [2, 4];
         const teamPlayers = this.state.players.filter(p => !sched.teamId || p.teamId === sched.teamId);
 
-        for (let i = 0; i <= daysAhead; i++) {
-          const d = new Date(today);
-          d.setDate(today.getDate() + i);
-          const dayOfWeek = d.getDay(); // 0=Dom, 1=Lun, 2=Mar, etc.
+        let curEndD = sched.endDate ? new Date(sched.endDate + 'T23:59:59') : null;
+        if (endDateStr) {
+          const customEnd = new Date(endDateStr + 'T23:59:59');
+          if (!isNaN(customEnd.getTime())) curEndD = customEnd;
+        }
+        if (!curEndD || isNaN(curEndD.getTime())) {
+          curEndD = new Date(startD);
+          curEndD.setDate(startD.getDate() + (daysAhead || 30));
+        }
+
+        let curD = new Date(startD);
+        while (curD <= curEndD) {
+          const dayOfWeek = curD.getDay(); // 0=Dom, 1=Lun, 2=Mar, etc.
 
           if (targetDays.includes(dayOfWeek)) {
-            const dateStr = d.toISOString().slice(0, 10);
+            const dateStr = curD.toISOString().slice(0, 10);
+            const targetId = `rec_${sched.id}_${dateStr.replace(/-/g, '')}`;
+
             const exists = (this.state.convocations || []).some(c => 
-              c.date === dateStr && (c.scheduleId === sched.id || (c.type === 'training' && (c.teamId || '') === (sched.teamId || '') && c.time === (sched.time || '18:00')))
+              c.id === targetId ||
+              (c.date === dateStr && c.scheduleId === sched.id) ||
+              (c.date === dateStr && c.type === 'training' && (c.teamId || '') === (sched.teamId || '') && (c.time || '') === (sched.time || '18:00'))
             );
 
             if (!exists) {
@@ -887,7 +956,7 @@
               const autoTitle = sched.title || (teamObj ? 'Entrenamiento ' + teamObj.name : 'Entrenamiento');
 
               this.upsertConvocation({
-                id: `rec_${sched.id}_${dateStr.replace(/-/g, '')}`,
+                id: targetId,
                 scheduleId: sched.id,
                 isRecurring: true,
                 title: autoTitle,
@@ -904,6 +973,7 @@
               generatedCount++;
             }
           }
+          curD.setDate(curD.getDate() + 1);
         }
       });
 

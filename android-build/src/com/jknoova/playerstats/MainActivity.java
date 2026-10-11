@@ -381,6 +381,50 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public void pickTime(final String initialTime, final String callbackId) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        int hour = 18, minute = 0;
+                        if (initialTime != null && initialTime.contains(":")) {
+                            String[] parts = initialTime.trim().split(":");
+                            if (parts.length >= 2) {
+                                hour = Integer.parseInt(parts[0].trim());
+                                minute = Integer.parseInt(parts[1].trim());
+                            }
+                        } else {
+                            java.util.Calendar c = java.util.Calendar.getInstance();
+                            hour = c.get(java.util.Calendar.HOUR_OF_DAY);
+                            minute = c.get(java.util.Calendar.MINUTE);
+                        }
+
+                        android.app.TimePickerDialog tp = new android.app.TimePickerDialog(
+                            MainActivity.this,
+                            new android.app.TimePickerDialog.OnTimeSetListener() {
+                                @Override
+                                public void onTimeSet(android.widget.TimePicker view, int h, int m) {
+                                    final String formatted = String.format(java.util.Locale.US, "%02d:%02d", h, m);
+                                    webView.post(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            String js = "if (window.__onNativeTimePicked) { window.__onNativeTimePicked('" + callbackId + "', '" + formatted + "'); }";
+                                            webView.evaluateJavascript(js, null);
+                                        }
+                                    });
+                                }
+                            },
+                            hour, minute, true
+                        );
+                        tp.show();
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error abriendo TimePickerDialog", e);
+                    }
+                }
+            });
+        }
+
+        @JavascriptInterface
         public void requestNotificationPermission() {
             if (Build.VERSION.SDK_INT >= 33) {
                 runOnUiThread(new Runnable() {
@@ -649,38 +693,62 @@ public class MainActivity extends Activity {
         }
     }
 
+    private long lastBackPressTime = 0;
+
     @Override
     public void onBackPressed() {
         if (webView != null) {
             webView.evaluateJavascript(
                 "(function() { " +
-                "  var sheet = document.getElementById('active-sheet-backdrop'); " +
+                "  if (typeof window.__handleAppBack === 'function') { " +
+                "    try { var res = window.__handleAppBack(); if (res === true || res === 'handled') return 'handled'; } catch(e) {} " +
+                "  } " +
+                "  var chatModal = document.querySelector('.chat-dialog-overlay'); " +
+                "  if (chatModal) { " +
+                "    var backBtn = chatModal.querySelector('#chat-back-btn') || chatModal.querySelector('#chat-close-btn'); " +
+                "    if (backBtn) backBtn.click(); else chatModal.remove(); " +
+                "    return 'handled'; " +
+                "  } " +
+                "  var dialog = document.querySelector('.dialog-overlay'); " +
+                "  if (dialog) { dialog.remove(); return 'handled'; } " +
+                "  var sheet = document.querySelector('.sheet-backdrop'); " +
                 "  if (sheet) { " +
-                "    var cl = sheet.querySelector('#sheet-close-btn'); if (cl) cl.click(); else sheet.remove(); " +
-                "    return true; " +
+                "    var cl = sheet.querySelector('#sheet-close-btn') || sheet.querySelector('.sheet-close'); " +
+                "    if (cl) cl.click(); else sheet.remove(); " +
+                "    return 'handled'; " +
                 "  } " +
                 "  var tr = document.getElementById('tracker-fullscreen'); " +
                 "  if (tr) { " +
-                "    var backBtn = tr.querySelector('#tracker-btn-back'); if (backBtn) backBtn.click(); " +
-                "    return true; " +
+                "    var b = tr.querySelector('#tracker-btn-back'); if (b) b.click(); else tr.remove(); " +
+                "    return 'handled'; " +
                 "  } " +
-                "  return false; " +
+                "  return 'none'; " +
                 "})()",
                 new ValueCallback<String>() {
                     @Override
                     public void onReceiveValue(String value) {
-                        if (!"true".equals(value)) {
-                            if (webView.canGoBack()) {
-                                webView.goBack();
-                            } else {
-                                MainActivity.super.onBackPressed();
-                            }
+                        String res = (value != null) ? value.replace("\"", "").trim() : "none";
+                        if ("handled".equals(res) || "true".equals(res)) {
+                            return;
+                        }
+                        long now = System.currentTimeMillis();
+                        if (now - lastBackPressTime < 2000) {
+                            MainActivity.super.onBackPressed();
+                        } else {
+                            lastBackPressTime = now;
+                            Toast.makeText(MainActivity.this, "Pulsa atrás otra vez para salir", Toast.LENGTH_SHORT).show();
                         }
                     }
                 }
             );
             return;
         }
-        super.onBackPressed();
+        long now = System.currentTimeMillis();
+        if (now - lastBackPressTime < 2000) {
+            super.onBackPressed();
+        } else {
+            lastBackPressTime = now;
+            Toast.makeText(this, "Pulsa atrás otra vez para salir", Toast.LENGTH_SHORT).show();
+        }
     }
 }

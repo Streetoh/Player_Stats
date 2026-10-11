@@ -20,6 +20,52 @@
   let currentLang = localStorage.getItem('lang') || 'en';
   let activeTeamFilter = 'all';
   let myPendingReqUnsub = null;
+  let convFilterType = 'all'; // 'all' | 'match' | 'training'
+
+  function formatDisplayDate(isoStr) {
+    if (!isoStr) return '';
+    const parts = String(isoStr).trim().split('-');
+    if (parts.length === 3) {
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10) - 1;
+      const d = parseInt(parts[2], 10);
+      const dateObj = new Date(y, m, d);
+
+      const daysEs = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+      const daysEn = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+      const dayName = (currentLang === 'en' ? daysEn : daysEs)[dateObj.getDay()] || '';
+      const dayPad = String(d).padStart(2, '0');
+      const monthPad = String(m + 1).padStart(2, '0');
+      return `${dayName}, ${dayPad}/${monthPad}/${y}`;
+    }
+    return isoStr;
+  }
+
+  window.__handleAppBack = function () {
+    const lightbox = document.querySelector('.chat-photo-lightbox');
+    if (lightbox) {
+      lightbox.remove();
+      return true;
+    }
+    const overlays = document.querySelectorAll('.chat-dialog-overlay, .dialog-overlay, .sheet-backdrop');
+    if (overlays.length > 0) {
+      const topOverlay = overlays[overlays.length - 1];
+      topOverlay.remove();
+      return true;
+    }
+    if (currentTab !== 'convocations') {
+      currentTab = 'convocations';
+      const convTabBtn = document.querySelector('#tab-convocations, button[data-tab="convocations"]');
+      if (convTabBtn) {
+        document.querySelectorAll('.tabbar button, .tab-bar button').forEach(b => b.classList.remove('active'));
+        convTabBtn.classList.add('active');
+      }
+      renderCurrentTab();
+      return true;
+    }
+    return false;
+  };
 
   const view = document.getElementById('portal-view');
   const toastRoot = document.getElementById('toast-root');
@@ -123,7 +169,39 @@
       goalsLabel: 'GOALS',
       dribblesLabel: 'DRIBBLES',
       recoveriesLabel: 'RECOV.',
-      touchesLabel: 'TOUCHES'
+      touchesLabel: 'TOUCHES',
+      pitchGoalsTitle: 'Tactical Goal Map',
+      pitchGoalsDesc: 'Goals scored by field zone',
+      untrackedGoalsHint: 'goals recorded without specific field zone assigned',
+      chatWithPlayer: '💬 Chat with this teammate',
+      zone_box_opp: 'Opponent Box',
+      zone_front: 'Front of Box',
+      zone_wing_off_l: 'Attacking Left Wing',
+      zone_wing_off_r: 'Attacking Right Wing',
+      zone_wing_l: 'Left Wing',
+      zone_wing_r: 'Right Wing',
+      zone_mid: 'Midfield',
+      filterAll: 'All',
+      filterMatches: '🏆 Matches',
+      filterTrainings: '⚽ Trainings',
+      requestCoachProfile: '➕ Not on the list? Request registration from coach',
+      requestCoachProfileTitle: 'Request Registration from Coach',
+      requestCoachProfileDesc: 'Send your details to the coach so they can create your profile in the team database.',
+      fullNameLabel: 'Full Name *',
+      fullNamePlaceholder: 'e.g. Lucas Martinez',
+      dorsalLabel: 'Jersey Number',
+      dorsalPlaceholder: 'e.g. 10',
+      positionLabel: 'Position',
+      positionPlaceholder: 'e.g. Striker, Goalkeeper...',
+      notesLabel: 'Notes / Team',
+      notesPlaceholder: 'e.g. U14 Team, new signing...',
+      sendRequest: 'Send Request to Coach',
+      nameRequired: 'Please enter your full name',
+      requestSent: 'Request sent to coach!',
+      coachCardTitle: 'Head Coach Profile',
+      viewCoachProfile: 'View Coach Profile',
+      coachProfileSubtitle: 'Technical Director & Coaching Staff',
+      chatWithCoach: '💬 Chat with Coach'
     },
     es: {
       appName: 'Player stats (Player)',
@@ -220,7 +298,39 @@
       goalsLabel: 'GOLES',
       dribblesLabel: 'REGATES',
       recoveriesLabel: 'RECUP.',
-      touchesLabel: 'TOQUES'
+      touchesLabel: 'TOQUES',
+      pitchGoalsTitle: 'Mapa Táctico de Goles',
+      pitchGoalsDesc: 'Goles anotados según la zona del campo',
+      untrackedGoalsHint: 'goles contabilizados en partidos anteriores sin zona asignada',
+      chatWithPlayer: '💬 Chatear con este jugador',
+      zone_box_opp: 'Área Rival',
+      zone_front: 'Frontal',
+      zone_wing_off_l: 'Banda Of. Izq',
+      zone_wing_off_r: 'Banda Of. Der',
+      zone_wing_l: 'Banda Izquierda',
+      zone_wing_r: 'Banda Derecha',
+      zone_mid: 'Centro Campo',
+      filterAll: 'Todos',
+      filterMatches: '🏆 Partidos',
+      filterTrainings: '⚽ Entrenamientos',
+      requestCoachProfile: '➕ ¿No estás en la lista? Solicitar alta al entrenador',
+      requestCoachProfileTitle: 'Solicitar Alta al Entrenador',
+      requestCoachProfileDesc: 'Envía tus datos al entrenador para que cree tu ficha en el equipo y puedas seleccionarte.',
+      fullNameLabel: 'Nombre y Apellidos *',
+      fullNamePlaceholder: 'Ej: Lucas Martínez',
+      dorsalLabel: 'Dorsal habitual',
+      dorsalPlaceholder: 'Ej: 10',
+      positionLabel: 'Posición',
+      positionPlaceholder: 'Ej: Delantero, Portero...',
+      notesLabel: 'Notas / Equipo',
+      notesPlaceholder: 'Ej: Infantil A, nuevo fichaje...',
+      sendRequest: 'Enviar Solicitud al Entrenador',
+      nameRequired: 'Por favor introduce tu nombre y apellidos',
+      requestSent: '¡Solicitud enviada al entrenador!',
+      coachCardTitle: 'Ficha del Entrenador',
+      viewCoachProfile: 'Ver Perfil del Entrenador',
+      coachProfileSubtitle: 'Cuerpo Técnico y Dirección',
+      chatWithCoach: '💬 Chatear con el Entrenador'
     }
   };
 
@@ -475,11 +585,18 @@
 
   function calculatePlayerRadar(pid) {
     const s = calculatePlayerStats(pid);
-    const passScore = s.passAcc > 0 ? Math.min(99, Math.max(45, Math.round(s.passAcc * 0.95))) : 65;
-    const shotScore = s.goals > 0 ? Math.min(99, Math.max(50, 60 + s.goals * 6)) : 55;
-    const regScore = s.dribbleOk > 0 ? Math.min(99, Math.max(50, 60 + s.dribbleOk * 5)) : 60;
-    const defScore = s.recoveries > 0 ? Math.min(99, Math.max(50, 55 + s.recoveries * 5)) : 55;
-    const fisScore = s.totalSessions > 0 ? Math.min(99, Math.max(50, 60 + s.totalSessions * 3)) : 65;
+    const totalActions = (s.passOk || 0) + (s.passKo || 0) + (s.shotsOn || 0) + (s.goals || 0) + (s.dribbleOk || 0) + (s.recoveries || 0) + (s.touches || 0);
+
+    // Sin sesiones ni acciones trackeadas: empezar todas las habilidades en 50
+    if (s.totalSessions === 0 && totalActions === 0) {
+      return { pas: 50, tir: 50, reg: 50, fis: 50, def: 50, dis: 50 };
+    }
+
+    const passScore = s.passAcc > 0 ? Math.min(99, Math.max(20, Math.round(50 + (s.passAcc - 50) * 0.7))) : 50;
+    const shotScore = s.goals > 0 ? Math.min(99, Math.max(20, Math.round(50 + s.goals * 5 + (s.shotAcc - 50) * 0.3))) : (s.shotsOn > 0 ? 52 : 50);
+    const regScore = s.dribbleOk > 0 ? Math.min(99, Math.max(20, Math.round(50 + s.dribbleOk * 5))) : 50;
+    const defScore = s.recoveries > 0 ? Math.min(99, Math.max(20, Math.round(50 + s.recoveries * 4))) : 50;
+    const fisScore = s.totalSessions > 0 ? Math.min(99, Math.max(20, Math.round(50 + s.totalSessions * 3 + (s.touches > 20 ? 8 : 0)))) : 50;
 
     return {
       pas: passScore,
@@ -487,7 +604,7 @@
       reg: regScore,
       fis: fisScore,
       def: defScore,
-      dis: 100
+      dis: 50
     };
   }
 
@@ -620,6 +737,9 @@
         lockIndicatorEl.innerHTML = isProfileLocked() ? `🔒 ${t('locked')}` : `${t('changeProfile')}`;
         lockIndicatorEl.style.color = isProfileLocked() ? '#facc15' : 'var(--cyan)';
       }
+      if (window.ChatUI && ChatUI.initPresenceHeartbeat) {
+        ChatUI.initPresenceHeartbeat(myPlayerId, `${myP.name || ''} ${myP.lastName || ''}`.trim());
+      }
     } else {
       if (nameEl) nameEl.textContent = t('selectIdentity');
       if (avatarEl) avatarEl.innerHTML = '<span>?</span>';
@@ -633,6 +753,94 @@
     if (btnLang) btnLang.textContent = currentLang.toUpperCase();
     const badge = document.getElementById('portal-cloud-badge');
     if (badge) badge.textContent = `🟢 ${t('live')}`;
+  }
+
+  /* -------------------------------------------------------------
+     SOLICITUD DE ALTA DE NUEVO JUGADOR (SI NO ESTÁ EN LA LISTA)
+     ------------------------------------------------------------- */
+  function showPlayerCreationRequestModal() {
+    const overlay = document.createElement('div');
+    overlay.className = 'dialog-overlay';
+    overlay.innerHTML = `
+      <div class="dialog-box" style="max-height: 88vh; width: 92%; max-width: 440px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
+          <h3 style="margin: 0; font-size: 16px; font-weight: 900; color: #fff;">➕ ${t('requestCoachProfileTitle', 'Solicitar Alta al Entrenador')}</h3>
+          <button type="button" class="icon-btn ghost" id="dlg-pcr-x" style="width: 32px; height: 32px;">✕</button>
+        </div>
+
+        <p style="font-size: 12px; color: var(--muted); margin: 0 0 12px;">
+          ${t('requestCoachProfileDesc', 'Envía tus datos al entrenador para que cree tu ficha en el equipo y puedas seleccionarte.')}
+        </p>
+
+        <div style="margin-bottom: 10px;">
+          <label style="display: block; font-size: 11.5px; font-weight: 800; color: var(--cyan); margin-bottom: 4px;">${t('fullNameLabel')}</label>
+          <input type="text" id="pcr-name" placeholder="${t('fullNamePlaceholder')}" style="width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg2); color: #fff; font-size: 13.5px;" />
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px;">
+          <div>
+            <label style="display: block; font-size: 11.5px; font-weight: 800; color: var(--muted); margin-bottom: 4px;">${t('dorsalLabel')}</label>
+            <input type="number" id="pcr-dorsal" placeholder="${t('dorsalPlaceholder')}" style="width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg2); color: #fff; font-size: 13.5px;" />
+          </div>
+          <div>
+            <label style="display: block; font-size: 11.5px; font-weight: 800; color: var(--muted); margin-bottom: 4px;">${t('positionLabel')}</label>
+            <input type="text" id="pcr-pos" placeholder="${t('positionPlaceholder')}" style="width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg2); color: #fff; font-size: 13.5px;" />
+          </div>
+        </div>
+
+        <div style="margin-bottom: 14px;">
+          <label style="display: block; font-size: 11.5px; font-weight: 800; color: var(--muted); margin-bottom: 4px;">${t('notesLabel')}</label>
+          <input type="text" id="pcr-notes" placeholder="${t('notesPlaceholder')}" style="width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg2); color: #fff; font-size: 13.5px;" />
+        </div>
+
+        <button type="button" class="btn block primary" id="btn-submit-pcr" style="height: 44px; font-weight: 900; font-size: 13.5px;">
+          🚀 ${t('sendRequest')}
+        </button>
+      </div>
+    `;
+
+    function close() { overlay.remove(); }
+    overlay.querySelector('#dlg-pcr-x').onclick = close;
+    overlay.onclick = (e) => { if (e.target === overlay) close(); };
+
+    const btnSubmit = overlay.querySelector('#btn-submit-pcr');
+    btnSubmit.onclick = async () => {
+      const name = overlay.querySelector('#pcr-name').value.trim();
+      const dorsal = overlay.querySelector('#pcr-dorsal').value.trim();
+      const pos = overlay.querySelector('#pcr-pos').value.trim();
+      const notes = overlay.querySelector('#pcr-notes').value.trim();
+
+      if (!name) {
+        toast(t('nameRequired'), 'error');
+        return;
+      }
+
+      btnSubmit.disabled = true;
+      btnSubmit.textContent = t('sending');
+
+      try {
+        const reqId = 'pcr_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
+        if (window.Cloud && window.Cloud.submitPlayerCreationRequest) {
+          await window.Cloud.submitPlayerCreationRequest({
+            id: reqId,
+            name: name,
+            dorsal: dorsal ? parseInt(dorsal, 10) : null,
+            position: pos || 'Delantero',
+            notes: notes || '',
+            createdAt: Date.now()
+          });
+        }
+        toast(t('requestSent', '✅ Solicitud enviada al entrenador'), 'success');
+        haptic(40);
+        close();
+      } catch (err) {
+        toast('Error: ' + err.message, 'error');
+        btnSubmit.disabled = false;
+        btnSubmit.textContent = t('sendRequest', 'Enviar Solicitud al Entrenador');
+      }
+    };
+
+    document.body.appendChild(overlay);
   }
 
   /* -------------------------------------------------------------
@@ -669,7 +877,7 @@
 
         <input type="text" id="id-search" placeholder="${t('searchTeammate')}" style="width: 100%; margin-bottom: 10px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg2); color: #fff; font-size: 13px;" />
 
-        <div style="display: flex; flex-direction: column; gap: 6px; max-height: 52vh; overflow-y: auto;" id="id-players-list">
+        <div style="display: flex; flex-direction: column; gap: 6px; max-height: 48vh; overflow-y: auto;" id="id-players-list">
           ${players.map(p => {
             const team = clubData.teams ? clubData.teams.find(t => t.id === p.teamId) : null;
             return `
@@ -687,12 +895,26 @@
             `;
           }).join('')}
         </div>
+
+        <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border);">
+          <button type="button" class="btn sm ghost" id="btn-dialog-id-req-creation" style="width: 100%; border: 1.5px dashed var(--cyan); color: var(--cyan); font-weight: 800; font-size: 12px; height: 38px; border-radius: 10px;">
+            ${t('requestCoachProfile', '➕ ¿No estás en la lista? Solicitar alta al entrenador')}
+          </button>
+        </div>
       </div>
     `;
 
     function close() { overlay.remove(); }
     overlay.querySelector('#dialog-id-close').onclick = close;
     overlay.onclick = (e) => { if (e.target === overlay) close(); };
+
+    const btnReqCreation = overlay.querySelector('#btn-dialog-id-req-creation');
+    if (btnReqCreation) {
+      btnReqCreation.onclick = () => {
+        close();
+        showPlayerCreationRequestModal();
+      };
+    }
 
     const langBtn = overlay.querySelector('#dialog-id-lang');
     if (langBtn) {
@@ -932,119 +1154,148 @@
       return;
     }
 
+    const filteredConvs = convs.filter(c => {
+      if (convFilterType !== 'all' && c.type !== convFilterType) return false;
+      return true;
+    }).sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.time || '').localeCompare(b.time || ''));
+
     const allPlayersMap = {};
     (clubData.players || []).forEach(p => { allPlayersMap[p.id] = p; });
 
     view.innerHTML = `
       <div style="padding: 10px 0;">
         ${bannerHtml}
-        <div style="display: flex; flex-direction: column; gap: 14px;">
-          ${convs.map(c => {
-            const team = clubData.teams ? clubData.teams.find(t => t.id === c.teamId) : null;
-            const list = c.list || {};
-            const responses = liveVotes[c.id] || {};
 
-            // SÓLO jugadores efectivamente convocados (st !== 'uncalled')
-            const calledPlayerIds = Object.keys(list).filter(pid => {
-              const st = list[pid];
-              return st && st !== 'uncalled';
-            });
-
-            const isCalled = myPlayerId ? calledPlayerIds.includes(myPlayerId) : false;
-
-            // Recuentos reales entre los convocados
-            let nAttending = 0;
-            let nAbsent = 0;
-            let nPending = 0;
-
-            calledPlayerIds.forEach(pid => {
-              const r = responses[pid] || (c.responses && c.responses[pid]);
-              const st = r ? r.status : null;
-              if (st === 'called' || st === 'attending' || st === 'yes') nAttending++;
-              else if (st === 'absent' || st === 'no') nAbsent++;
-              else nPending++;
-            });
-
-            // Voto del usuario actual
-            const myVoteObj = myPlayerId ? (responses[myPlayerId] || (c.responses && c.responses[myPlayerId])) : null;
-            const mySt = myVoteObj ? myVoteObj.status : null;
-            const isAttending = mySt && (mySt === 'called' || mySt === 'attending' || mySt === 'yes');
-            const isAbsent = mySt && (mySt === 'absent' || mySt === 'no');
-
-            const isMatch = c.type === 'match';
-
-            return `
-              <div class="card" style="border: 1px solid var(--border); padding: 16px;" data-cid="${c.id}">
-                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
-                  <div>
-                    <span class="badge ${c.type}" style="margin-bottom: 6px;">
-                      ${isMatch ? '🏆 ' + t('match') : '⚽ ' + t('training')}
-                    </span>
-                    <h3 style="margin: 0; font-size: 17px; font-weight: 900;">
-                      ${escapeHtml(c.title || (c.rival ? 'vs ' + c.rival : t('callUpOfficial')))}
-                    </h3>
-                    <div style="font-size: 12.5px; color: var(--muted); margin-top: 4px; line-height: 1.4;">
-                      📅 <b>${c.date}</b> • ⏰ ${c.time || '10:00'}<br />
-                      ${c.venue ? `📍 <b>${t('venue')}:</b> ${escapeHtml(c.venue)}<br />` : ''}
-                      ${c.address ? `
-                        🗺️ <b>${t('address')}:</b> ${escapeHtml(c.address)}
-                        <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(c.address)}" target="_blank" style="color: var(--cyan); font-weight: 800; text-decoration: underline; margin-left: 4px;">
-                          ${t('openInMaps')}
-                        </a><br />
-                      ` : ''}
-                      ${team ? `<span style="color: ${team.color || 'var(--cyan)'}; font-weight: 800;">🛡️ ${escapeHtml(team.name)}</span>` : ''}
-                    </div>
-                  </div>
-                </div>
-
-                ${c.notes ? `
-                  <div style="background: rgba(0,0,0,0.25); border-left: 3px solid var(--cyan); padding: 8px 10px; border-radius: 6px; font-size: 12px; margin-top: 10px; color: #bae6fd;">
-                    📝 <b>${t('coachNote')}:</b> ${escapeHtml(c.notes)}
-                  </div>
-                ` : ''}
-
-                <!-- CAJA DE ASISTENCIA -->
-                <div class="portal-vote-box">
-                  ${isCalled ? `
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                      <span style="font-size: 12px; font-weight: 800; color: #fff;">${t('willYouAttend')}</span>
-                      <span id="vote-badge-${c.id}" class="badge" style="${isAttending ? 'background: rgba(34,197,94,0.2); color: #86efac;' : (isAbsent ? 'background: rgba(239,68,68,0.2); color: #fca5a5;' : 'background: var(--surface); color: var(--muted);')}">
-                        ${isAttending ? t('attendanceConfirmed') : (isAbsent ? t('absenceReported') : t('pendingResponse'))}
-                      </span>
-                    </div>
-
-                    <div class="portal-vote-btns">
-                      <button class="btn-vote yes ${isAttending ? 'active' : ''}" data-cid="${c.id}" data-vote="called">
-                        ${t('iWillAttend')}
-                      </button>
-                      <button class="btn-vote no ${isAbsent ? 'active' : ''}" data-cid="${c.id}" data-vote="absent">
-                        ${t('iCannotAttend')}
-                      </button>
-                    </div>
-                  ` : `
-                    <div style="text-align: center; padding: 6px 0; color: var(--muted); font-size: 12.5px;">
-                      ${t('notCalledUp')}
-                    </div>
-                  `}
-
-                  <!-- RECUENTO EN VIVO Y MODAL DE COMPAÑEROS QUE ASISTEN -->
-                  <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; font-size: 12px;">
-                    <div style="display: flex; gap: 8px;">
-                      <span style="color: #86efac; font-weight: 800;">🟢 ${nAttending}</span>
-                      <span style="color: #fca5a5; font-weight: 800;">❌ ${nAbsent}</span>
-                      <span style="color: #fde047; font-weight: 800;">⏳ ${nPending}</span>
-                    </div>
-                    <button type="button" class="btn sm ghost" data-open-squad-status="${c.id}" style="color: var(--cyan); font-weight: 800; font-size: 11.5px; padding: 4px 8px;">
-                      ${t('viewAttendees')}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            `;
-          }).join('')}
+        <!-- FILTROS DE CONVOCATORIAS: TODOS, PARTIDOS, ENTRENAMIENTOS -->
+        <div class="segmented" style="display: flex; gap: 4px; margin-bottom: 12px; background: var(--surface2); padding: 4px; border-radius: 12px; border: 1px solid var(--border);">
+          <button type="button" class="btn sm ${convFilterType === 'all' ? 'primary' : 'ghost'}" data-conv-filter="all" style="flex: 1; height: 34px; font-size: 12px; font-weight: 800; border-radius: 8px;">${t('filterAll', 'Todos')}</button>
+          <button type="button" class="btn sm ${convFilterType === 'match' ? 'primary' : 'ghost'}" data-conv-filter="match" style="flex: 1; height: 34px; font-size: 12px; font-weight: 800; border-radius: 8px;">${t('filterMatches', '🏆 Partidos')}</button>
+          <button type="button" class="btn sm ${convFilterType === 'training' ? 'primary' : 'ghost'}" data-conv-filter="training" style="flex: 1; height: 34px; font-size: 12px; font-weight: 800; border-radius: 8px;">${t('filterTrainings', '⚽ Entrenamientos')}</button>
         </div>
+
+        ${filteredConvs.length === 0 ? `
+          <div class="empty-state card">
+            <div class="e-ic">📋</div>
+            <h3>${t('emptyConvs')}</h3>
+            <p>${t('emptyConvsDesc')}</p>
+          </div>
+        ` : `
+          <div style="display: flex; flex-direction: column; gap: 14px;">
+            ${filteredConvs.map(c => {
+              const team = clubData.teams ? clubData.teams.find(t => t.id === c.teamId) : null;
+              const list = c.list || {};
+              const responses = liveVotes[c.id] || {};
+
+              // SÓLO jugadores efectivamente convocados (st !== 'uncalled')
+              const calledPlayerIds = Object.keys(list).filter(pid => {
+                const st = list[pid];
+                return st && st !== 'uncalled';
+              });
+
+              const isCalled = myPlayerId ? calledPlayerIds.includes(myPlayerId) : false;
+
+              // Recuentos reales entre los convocados
+              let nAttending = 0;
+              let nAbsent = 0;
+              let nPending = 0;
+
+              calledPlayerIds.forEach(pid => {
+                const r = responses[pid] || (c.responses && c.responses[pid]);
+                const st = r ? r.status : null;
+                if (st === 'called' || st === 'attending' || st === 'yes') nAttending++;
+                else if (st === 'absent' || st === 'no') nAbsent++;
+                else nPending++;
+              });
+
+              // Voto del usuario actual
+              const myVoteObj = myPlayerId ? (responses[myPlayerId] || (c.responses && c.responses[myPlayerId])) : null;
+              const mySt = myVoteObj ? myVoteObj.status : null;
+              const isAttending = mySt && (mySt === 'called' || mySt === 'attending' || mySt === 'yes');
+              const isAbsent = mySt && (mySt === 'absent' || mySt === 'no');
+
+              const isMatch = c.type === 'match';
+
+              return `
+                <div class="card" style="border: 1px solid var(--border); padding: 16px;" data-cid="${c.id}">
+                  <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+                    <div>
+                      <span class="badge ${c.type}" style="margin-bottom: 6px;">
+                        ${isMatch ? '🏆 ' + t('match') : '⚽ ' + t('training')}
+                      </span>
+                      <h3 style="margin: 0; font-size: 17px; font-weight: 900;">
+                        ${escapeHtml(c.title || (c.rival ? 'vs ' + c.rival : t('callUpOfficial')))}
+                      </h3>
+                      <div style="font-size: 12.5px; color: var(--muted); margin-top: 4px; line-height: 1.4;">
+                        📅 <b>${formatDisplayDate(c.date)}</b> • ⏰ ${c.time || '10:00'}<br />
+                        ${c.venue ? `📍 <b>${t('venue')}:</b> ${escapeHtml(c.venue)}<br />` : ''}
+                        ${c.address ? `
+                          🗺️ <b>${t('address')}:</b> ${escapeHtml(c.address)}
+                          <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(c.address)}" target="_blank" style="color: var(--cyan); font-weight: 800; text-decoration: underline; margin-left: 4px;">
+                            ${t('openInMaps')}
+                          </a><br />
+                        ` : ''}
+                        ${team ? `<span style="color: ${team.color || 'var(--cyan)'}; font-weight: 800;">🛡️ ${escapeHtml(team.name)}</span>` : ''}
+                      </div>
+                    </div>
+                  </div>
+
+                  ${c.notes ? `
+                    <div style="background: rgba(0,0,0,0.25); border-left: 3px solid var(--cyan); padding: 8px 10px; border-radius: 6px; font-size: 12px; margin-top: 10px; color: #bae6fd;">
+                      📝 <b>${t('coachNote')}:</b> ${escapeHtml(c.notes)}
+                    </div>
+                  ` : ''}
+
+                  <!-- CAJA DE ASISTENCIA -->
+                  <div class="portal-vote-box">
+                    ${isCalled ? `
+                      <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-size: 12px; font-weight: 800; color: #fff;">${t('willYouAttend')}</span>
+                        <span id="vote-badge-${c.id}" class="badge" style="${isAttending ? 'background: rgba(34,197,94,0.2); color: #86efac;' : (isAbsent ? 'background: rgba(239,68,68,0.2); color: #fca5a5;' : 'background: var(--surface); color: var(--muted);')}">
+                          ${isAttending ? t('attendanceConfirmed') : (isAbsent ? t('absenceReported') : t('pendingResponse'))}
+                        </span>
+                      </div>
+
+                      <div class="portal-vote-btns">
+                        <button class="btn-vote yes ${isAttending ? 'active' : ''}" data-cid="${c.id}" data-vote="called">
+                          ${t('iWillAttend')}
+                        </button>
+                        <button class="btn-vote no ${isAbsent ? 'active' : ''}" data-cid="${c.id}" data-vote="absent">
+                          ${t('iCannotAttend')}
+                        </button>
+                      </div>
+                    ` : `
+                      <div style="text-align: center; padding: 6px 0; color: var(--muted); font-size: 12.5px;">
+                        ${t('notCalledUp')}
+                      </div>
+                    `}
+
+                    <!-- RECUENTO EN VIVO Y MODAL DE COMPAÑEROS QUE ASISTEN -->
+                    <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; font-size: 12px;">
+                      <div style="display: flex; gap: 8px;">
+                        <span style="color: #86efac; font-weight: 800;">🟢 ${nAttending}</span>
+                        <span style="color: #fca5a5; font-weight: 800;">❌ ${nAbsent}</span>
+                        <span style="color: #fde047; font-weight: 800;">⏳ ${nPending}</span>
+                      </div>
+                      <button type="button" class="btn sm ghost" data-open-squad-status="${c.id}" style="color: var(--cyan); font-weight: 800; font-size: 11.5px; padding: 4px 8px;">
+                        ${t('viewAttendees')}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `}
       </div>
     `;
+
+    // Filtros de convocatorias
+    view.querySelectorAll('[data-conv-filter]').forEach(b => {
+      b.onclick = () => {
+        convFilterType = b.getAttribute('data-conv-filter');
+        renderConvocationsView();
+      };
+    });
 
     // Conectar botones de voto
     view.querySelectorAll('.btn-vote').forEach(btn => {
@@ -1060,6 +1311,10 @@
         const pName = myP ? `${myP.name || ''} ${myP.lastName || ''}`.trim() : 'Player';
 
         haptic(35);
+
+        // Actualizar caché de votos local al instante
+        liveVotes[cid] = liveVotes[cid] || {};
+        liveVotes[cid][myPlayerId] = { status: vote, playerName: pName, timestamp: Date.now() };
 
         // Feedback visual inmediato
         const box = btn.closest('.portal-vote-box');
@@ -1175,6 +1430,100 @@
   }
 
   /* -------------------------------------------------------------
+     MAPA TÁCTICO DE GOLES POR ZONAS DEL CAMPO (PUNTO 10)
+     ------------------------------------------------------------- */
+  function getPlayerGoalsByZone(pid) {
+    const counts = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0, 11: 0 };
+    let totalTrackedGoals = 0;
+    (clubData.sessions || []).forEach(s => {
+      (s.zones || []).forEach(zItem => {
+        if (zItem.p === pid && zItem.k === 'goal') {
+          const zid = parseInt(zItem.z, 10);
+          if (counts[zid] !== undefined) {
+            counts[zid]++;
+            totalTrackedGoals++;
+          }
+        }
+      });
+    });
+    return { counts, totalTrackedGoals };
+  }
+
+  function renderPlayerGoalsPitchHtml(pid) {
+    const { counts, totalTrackedGoals } = getPlayerGoalsByZone(pid);
+    const pStats = calculatePlayerStats(pid);
+    const totalGoals = pStats.goals;
+
+    function cellContent(zoneId, label, emoji) {
+      const qty = counts[zoneId] || 0;
+      const hasGoals = qty > 0;
+      return `
+        <span class="z-emoji" style="font-size: ${hasGoals ? '18px' : '14px'};">${hasGoals ? '⚽' : emoji}</span>
+        <span style="font-size: 10px; font-weight: 700; opacity: 0.9;">${label}</span>
+        ${hasGoals ? `
+          <span class="badge" style="background: #facc15; color: #000; font-weight: 900; font-size: 11px; padding: 2px 7px; border-radius: 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.4); margin-top: 2px;">
+            ${qty} ${qty === 1 ? (currentLang === 'en' ? 'goal' : 'gol') : (currentLang === 'en' ? 'goals' : 'goles')}
+          </span>
+        ` : `
+          <span style="font-size: 9px; opacity: 0.55; color: #fff;">0</span>
+        `}
+      `;
+    }
+
+    return `
+      <div class="card" style="margin-bottom: 14px; border: 1px solid var(--border); padding: 14px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <div>
+            <div style="font-size: 13.5px; font-weight: 900; color: #fff; display: flex; align-items: center; gap: 6px;">
+              <span>🗺️</span> <span>${t('pitchGoalsTitle', 'Mapa Táctico de Goles')}</span>
+            </div>
+            <small style="color: var(--muted); font-size: 11px;">
+              ${t('pitchGoalsDesc', 'Goles anotados según la zona del campo')}
+            </small>
+          </div>
+          <div style="text-align: right;">
+            <span class="badge" style="background: rgba(134, 239, 172, 0.18); color: #86efac; border: 1px solid rgba(134, 239, 172, 0.4); font-size: 11.5px; font-weight: 900;">
+              ⚽ ${totalGoals} ${t('goalsScored')}
+            </span>
+          </div>
+        </div>
+
+        <div class="pitch-field-grid" style="margin: 0 auto; box-shadow: 0 6px 20px rgba(0,0,0,0.5);">
+          <div class="pitch-grid-cell pz-top-l ${counts[3] > 0 ? 'has-actions' : ''}" style="background: ${counts[3] > 0 ? 'rgba(234, 179, 8, 0.3)' : 'rgba(56, 189, 248, 0.25)'};">
+            ${cellContent(3, t('zone_wing_off_l', 'Banda Of. Izq'), '↖️')}
+          </div>
+          <div class="pitch-grid-cell pz-top-c ${counts[1] > 0 ? 'has-actions' : ''}" style="background: ${counts[1] > 0 ? 'rgba(239, 68, 68, 0.7)' : 'rgba(239, 68, 68, 0.35)'}; border: ${counts[1] > 0 ? '2px solid #facc15' : '1.5px dashed rgba(255,255,255,0.4)'};">
+            ${cellContent(1, t('zone_box_opp', 'Área Rival'), '🥅')}
+          </div>
+          <div class="pitch-grid-cell pz-top-r ${counts[4] > 0 ? 'has-actions' : ''}" style="background: ${counts[4] > 0 ? 'rgba(234, 179, 8, 0.3)' : 'rgba(6, 182, 212, 0.25)'};">
+            ${cellContent(4, t('zone_wing_off_r', 'Banda Of. Der'), '↗️')}
+          </div>
+
+          <div class="pitch-grid-cell pz-wing-l ${counts[7] > 0 ? 'has-actions' : ''}" style="background: ${counts[7] > 0 ? 'rgba(234, 179, 8, 0.3)' : 'rgba(59, 130, 246, 0.25)'};">
+            ${cellContent(7, t('zone_wing_l', 'Banda Izq'), '⬅️')}
+          </div>
+          <div class="pitch-grid-cell pz-mid-t ${counts[2] > 0 ? 'has-actions' : ''}" style="background: ${counts[2] > 0 ? 'rgba(249, 115, 22, 0.65)' : 'rgba(249, 115, 22, 0.35)'}; border: ${counts[2] > 0 ? '2px solid #facc15' : '1.5px dashed rgba(255,255,255,0.4)'};">
+            ${cellContent(2, t('zone_front', 'Frontal'), '🎯')}
+          </div>
+          <div class="pitch-grid-cell pz-wing-r ${counts[8] > 0 ? 'has-actions' : ''}" style="background: ${counts[8] > 0 ? 'rgba(234, 179, 8, 0.3)' : 'rgba(14, 165, 233, 0.25)'};">
+            ${cellContent(8, t('zone_wing_r', 'Banda Der'), '➡️')}
+          </div>
+
+          <div class="pitch-grid-cell pz-mid-b ${counts[5] > 0 ? 'has-actions' : ''}" style="background: ${counts[5] > 0 ? 'rgba(34, 197, 94, 0.65)' : 'rgba(34, 197, 94, 0.35)'};">
+            ${cellContent(5, t('zone_mid', 'Medio'), '⚽')}
+          </div>
+        </div>
+        
+        ${totalGoals > 0 && totalTrackedGoals < totalGoals ? `
+          <div style="margin-top: 8px; text-align: center; font-size: 11px; color: var(--muted);">
+            ℹ️ ${totalGoals - totalTrackedGoals} ${t('untrackedGoalsHint', 'goles contabilizados en partidos anteriores sin zona asignada')}
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
+
+  /* -------------------------------------------------------------
      PESTAÑA 2: MI FICHA PERSONAL (PUNTOS 1, 7, 8)
      ------------------------------------------------------------- */
   function renderMyStatsView() {
@@ -1278,6 +1627,9 @@
             <div style="font-size: 24px; font-weight: 900; color: #c084fc; margin-top: 2px;">${stats.touches}</div>
           </div>
         </div>
+
+        <!-- Mapa Táctico de Goles por Zonas (Punto 10) -->
+        ${renderPlayerGoalsPitchHtml(myP.id)}
 
         <!-- Historial de Partidos y Acciones Detalladas -->
         <div class="section-title"><span>${t('recentMatchesTitle')}</span></div>
@@ -1426,6 +1778,29 @@
           `).join('')}
         </div>
 
+        <!-- FICHA DEL ENTRENADOR (PUNTO 8) -->
+        <div class="card coach-profile-card" id="btn-view-coach-card" style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1.5px solid rgba(250, 204, 21, 0.5); background: linear-gradient(135deg, rgba(250, 204, 21, 0.12) 0%, rgba(15, 23, 42, 0.7) 100%); border-radius: 14px; margin-bottom: 12px; cursor: pointer;">
+          <div style="width: 44px; height: 44px; border-radius: 14px; background: rgba(250, 204, 21, 0.2); border: 2px solid #facc15; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0;">
+            ${(clubData.coachProfile && clubData.coachProfile.photo) ? `<img src="${clubData.coachProfile.photo}" style="width: 100%; height: 100%; border-radius: 12px; object-fit: cover;" />` : '👨‍🏫'}
+          </div>
+          <div style="flex: 1; min-width: 0;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span class="badge" style="background: rgba(250, 204, 21, 0.2); color: #fde047; font-size: 10px; font-weight: 900; border: 1px solid rgba(250, 204, 21, 0.4);">
+                🛡️ ${t('coachCardTitle', 'Cuerpo Técnico')}
+              </span>
+            </div>
+            <h4 style="margin: 2px 0 0; font-size: 14.5px; font-weight: 900; color: #fff; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">
+              ${escapeHtml((clubData.coachProfile && clubData.coachProfile.name) || 'Entrenador Principal')}
+            </h4>
+            <small style="color: var(--muted); font-size: 11px;">
+              ${escapeHtml((clubData.coachProfile && clubData.coachProfile.title) || t('coachProfileSubtitle', 'Director Técnico'))}
+            </small>
+          </div>
+          <div style="color: #facc15; font-size: 11.5px; font-weight: 800; white-space: nowrap;">
+            ${t('viewCoachProfile', 'Ver Ficha')} ➔
+          </div>
+        </div>
+
         <input type="text" id="squad-search" placeholder="${t('searchTeammate')}" style="width: 100%; margin-bottom: 12px; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg2); color: #fff; font-size: 13.5px;" />
 
         <div style="display: flex; flex-direction: column; gap: 8px;" id="squad-list">
@@ -1458,6 +1833,10 @@
       </div>
     `;
 
+    // Conectar botón ficha del entrenador
+    const btnCoachCard = view.querySelector('#btn-view-coach-card');
+    if (btnCoachCard) btnCoachCard.onclick = showCoachFullProfileModal;
+
     // Conectar filtros de equipo
     view.querySelectorAll('[data-filter-team]').forEach(btn => {
       btn.onclick = () => {
@@ -1485,6 +1864,90 @@
         showPlayerFullProfileModal(pid);
       };
     });
+  }
+
+  function showCoachFullProfileModal() {
+    const cp = clubData.coachProfile || {
+      name: 'Entrenador Principal',
+      title: 'Director Técnico / Head Coach',
+      license: 'UEFA Pro / Nivel 3',
+      bio: 'Responsable técnico del club.',
+      phone: '',
+      email: '',
+      photo: ''
+    };
+
+    const overlay = document.createElement('div');
+    overlay.className = 'dialog-overlay';
+    overlay.innerHTML = `
+      <div class="dialog-box" style="max-height: 88vh; width: 92%; max-width: 440px; padding: 18px; overflow-y: auto;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
+          <h3 style="margin: 0; font-size: 16px; font-weight: 900; color: #facc15;">🛡️ ${t('coachCardTitle', 'Ficha del Entrenador')}</h3>
+          <button type="button" class="icon-btn ghost" id="dlg-coach-x" style="width: 32px; height: 32px;">✕</button>
+        </div>
+
+        <div class="card p-hero" style="margin-bottom: 14px; padding: 14px; border: 1.5px solid rgba(250, 204, 21, 0.4); background: var(--surface2);">
+          <div style="width: 64px; height: 64px; border-radius: 18px; background: rgba(250, 204, 21, 0.2); border: 2.5px solid #facc15; display: flex; align-items: center; justify-content: center; font-size: 32px; flex-shrink: 0; overflow: hidden;">
+            ${cp.photo ? `<img src="${cp.photo}" style="width: 100%; height: 100%; border-radius: 16px; object-fit: cover;" />` : '👨‍🏫'}
+          </div>
+          <div class="grow" style="overflow: hidden;">
+            <h2 style="font-size: 18px; font-weight: 900; margin: 0 0 2px; color: #fff;">
+              ${escapeHtml(cp.name || 'Entrenador Principal')}
+            </h2>
+            <div style="font-size: 12px; color: var(--cyan); font-weight: 800;">
+              ${escapeHtml(cp.title || 'Director Técnico')}
+            </div>
+            ${cp.license ? `
+              <div style="font-size: 11px; color: var(--muted); margin-top: 2px;">
+                🏅 Licencia: ${escapeHtml(cp.license)}
+              </div>
+            ` : ''}
+          </div>
+        </div>
+
+        ${cp.bio ? `
+          <div class="card" style="margin-bottom: 12px; padding: 12px; border: 1px solid var(--border); background: var(--bg2);">
+            <div style="font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase; margin-bottom: 4px;">Información / Filosofía</div>
+            <p style="margin: 0; font-size: 13px; line-height: 1.5; color: #e2e8f0;">
+              ${escapeHtml(cp.bio)}
+            </p>
+          </div>
+        ` : ''}
+
+        ${(cp.phone || cp.email) ? `
+          <div class="card" style="margin-bottom: 14px; padding: 12px; border: 1px solid var(--border); background: var(--bg2); display: flex; flex-direction: column; gap: 6px; font-size: 12.5px;">
+            ${cp.phone ? `<div>📞 <b>Contacto:</b> ${escapeHtml(cp.phone)}</div>` : ''}
+            ${cp.email ? `<div>✉️ <b>Email:</b> ${escapeHtml(cp.email)}</div>` : ''}
+          </div>
+        ` : ''}
+
+        <button type="button" class="btn block primary" id="btn-coach-chat" style="height: 44px; font-weight: 800; font-size: 13.5px; display: flex; align-items: center; justify-content: center; gap: 8px;">
+          ${t('chatWithCoach', '💬 Chatear con el Entrenador')}
+        </button>
+      </div>
+    `;
+
+    function close() { overlay.remove(); }
+    overlay.querySelector('#dlg-coach-x').onclick = close;
+    overlay.onclick = (e) => { if (e.target === overlay) close(); };
+
+    const btnChat = overlay.querySelector('#btn-coach-chat');
+    if (btnChat) {
+      btnChat.onclick = () => {
+        close();
+        if (window.ChatUI && ChatUI.startDirectChat) {
+          const myP = getMyPlayer();
+          ChatUI.startDirectChat('coach', cp.name || 'Entrenador', {
+            currentUserId: myPlayerId,
+            currentUserName: myP ? `${myP.name || ''} ${myP.lastName || ''}`.trim() : 'Jugador'
+          });
+          const tabBtn = document.querySelector('#portal-tabbar [data-tab="chat"]');
+          if (tabBtn) tabBtn.click();
+        }
+      };
+    }
+
+    document.body.appendChild(overlay);
   }
 
   function showPlayerFullProfileModal(pid) {
@@ -1555,6 +2018,16 @@
           </div>
         </div>
 
+        <!-- Botón Chatear con este jugador (Punto 8) -->
+        ${pid !== myPlayerId ? `
+          <button type="button" class="btn block primary" id="btn-chat-with-player-${pid}" style="height: 42px; font-weight: 800; font-size: 13.5px; margin-bottom: 12px; display: flex; align-items: center; justify-content: center; gap: 8px;">
+            💬 ${t('chatWithPlayer', 'Chatear con este compañero')}
+          </button>
+        ` : ''}
+
+        <!-- Mapa Táctico de Goles por Zonas (Punto 10) -->
+        ${renderPlayerGoalsPitchHtml(pid)}
+
         <!-- Partidos Recientes -->
         <div style="font-size: 13px; font-weight: 800; margin-bottom: 6px;">${t('recentMatchesTitle')}</div>
         <div style="display: flex; flex-direction: column; gap: 8px;">
@@ -1566,6 +2039,18 @@
     function close() { overlay.remove(); }
     overlay.querySelector('#dlg-pfull-x').onclick = close;
     overlay.onclick = (e) => { if (e.target === overlay) close(); };
+
+    const btnChat = overlay.querySelector(`#btn-chat-with-player-${pid}`);
+    if (btnChat) {
+      btnChat.onclick = () => {
+        close();
+        if (window.ChatUI && ChatUI.startDirectChat) {
+          ChatUI.startDirectChat(pid, `${p.name || ''} ${p.lastName || ''}`.trim());
+          const tabBtn = document.querySelector('#portal-tabbar [data-tab="chat"]');
+          if (tabBtn) tabBtn.click();
+        }
+      };
+    }
 
     overlay.querySelectorAll('.radar-click-label').forEach(el => {
       el.onclick = () => {

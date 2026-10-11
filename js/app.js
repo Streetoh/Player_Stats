@@ -158,6 +158,27 @@
     return isoStr;
   }
 
+  function formatConvocationDateWithDay(isoStr) {
+    if (!isoStr) return '';
+    const parts = String(isoStr).trim().split('-');
+    if (parts.length === 3) {
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10) - 1;
+      const d = parseInt(parts[2], 10);
+      const dateObj = new Date(y, m, d);
+
+      const daysEs = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+      const daysEn = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+      const lang = (window.I18N && window.I18N.getLang) ? window.I18N.getLang() : (localStorage.getItem('lang') || 'en');
+      const dayName = (lang === 'en' ? daysEn : daysEs)[dateObj.getDay()] || '';
+      const dayPad = String(d).padStart(2, '0');
+      const monthPad = String(m + 1).padStart(2, '0');
+      return `${dayName}, ${dayPad}/${monthPad}/${y}`;
+    }
+    return isoStr;
+  }
+
   function parseInputDateToIso(displayStr) {
     if (!displayStr) return new Date().toISOString().slice(0, 10);
     const clean = String(displayStr).trim();
@@ -475,12 +496,84 @@
     return t('footRight', 'Diestro');
   }
 
+  /* =========================================================
+     CENTRO DE NOTIFICACIONES Y GESTIÓN DE SOLICITUDES
+     ========================================================= */
+  const NotifManager = {
+    getAll() {
+      try {
+        const raw = localStorage.getItem('coach_notifications_v2');
+        return raw ? JSON.parse(raw) : [];
+      } catch (e) {
+        return [];
+      }
+    },
+    save(list) {
+      try {
+        localStorage.setItem('coach_notifications_v2', JSON.stringify((list || []).slice(0, 80)));
+      } catch (e) {}
+      updateRequestsBadge();
+    },
+    add(notif) {
+      const list = this.getAll();
+      const existingIdx = list.findIndex(n => n.id === notif.id || (notif.targetId && n.targetId === notif.targetId && n.type === notif.type));
+      if (existingIdx >= 0) {
+        list[existingIdx] = { ...list[existingIdx], ...notif, time: notif.time || list[existingIdx].time };
+      } else {
+        list.unshift({
+          id: notif.id || 'notif_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+          type: notif.type || 'info',
+          title: notif.title || '',
+          body: notif.body || '',
+          time: notif.time || Date.now(),
+          read: false,
+          targetId: notif.targetId || null
+        });
+      }
+      this.save(list);
+    },
+    remove(id) {
+      let list = this.getAll();
+      list = list.filter(n => n.id !== id && n.targetId !== id);
+      this.save(list);
+    },
+    removeByTarget(targetId) {
+      if (!targetId) return;
+      let list = this.getAll();
+      list = list.filter(n => n.targetId !== targetId && n.id !== targetId && n.id !== ('create_' + targetId) && n.id !== ('req_' + targetId));
+      this.save(list);
+    },
+    markAsRead(id) {
+      const list = this.getAll();
+      const item = list.find(n => n.id === id || n.targetId === id);
+      if (item) item.read = true;
+      this.save(list);
+    },
+    markAllAsRead() {
+      const list = this.getAll();
+      list.forEach(n => { n.read = true; });
+      this.save(list);
+    },
+    clearAll() {
+      this.save([]);
+    },
+    getUnreadCount() {
+      return this.getAll().filter(n => !n.read).length;
+    }
+  };
+
   let pendingProfileRequests = [];
   let knownProfileRequestIds = new Set();
   let isFirstRequestsSnapshot = true;
 
+  let pendingPlayerCreationRequests = [];
+  let knownPlayerCreationRequestIds = new Set();
+  let isFirstCreationRequestsSnapshot = true;
+
   function updateRequestsBadge() {
-    const count = (pendingProfileRequests || []).length;
+    const unreadCount = NotifManager.getUnreadCount();
+    const reqsCount = (pendingProfileRequests || []).length + (pendingPlayerCreationRequests || []).length;
+    const count = Math.max(unreadCount, reqsCount);
     document.querySelectorAll('#requests-badge').forEach(badge => {
       if (count > 0) {
         badge.textContent = count;
@@ -493,6 +586,19 @@
 
   function handleIncomingProfileRequests(requests) {
     pendingProfileRequests = requests || [];
+
+    // Registrar en el Centro de Notificaciones
+    (requests || []).forEach(r => {
+      NotifManager.add({
+        id: 'req_' + r.id,
+        type: 'profile_req',
+        title: t('profileRequests', 'Solicitud de cambio de perfil'),
+        body: `${r.fromPlayerName || 'Jugador'} ➔ ${r.toPlayerName || 'Nuevo perfil'}`,
+        targetId: r.id,
+        time: r.createdAt || Date.now()
+      });
+    });
+
     updateRequestsBadge();
 
     if (!isFirstRequestsSnapshot) {
@@ -513,76 +619,226 @@
     knownProfileRequestIds = new Set((requests || []).map(r => r.id));
   }
 
+  function handleIncomingPlayerCreationRequests(requests) {
+    pendingPlayerCreationRequests = requests || [];
+
+    // Registrar en el Centro de Notificaciones
+    (requests || []).forEach(cr => {
+      NotifManager.add({
+        id: 'create_' + cr.id,
+        type: 'creation_req',
+        title: t('requestCoachProfileTitle', 'Solicitud de alta de jugador'),
+        body: `${cr.name || 'Nuevo jugador'} (${cr.dorsal ? '#' + cr.dorsal + ' - ' : ''}${cr.position || 'Jugador'})`,
+        targetId: cr.id,
+        time: cr.createdAt || Date.now()
+      });
+    });
+
+    updateRequestsBadge();
+
+    if (!isFirstCreationRequestsSnapshot) {
+      requests.forEach(r => {
+        if (!knownPlayerCreationRequestIds.has(r.id)) {
+          const reqPlayerName = r.name || 'Nuevo Jugador';
+          toast(`➕ ${t('requestCoachProfileTitle', 'Solicitud de alta de jugador')}: ${reqPlayerName}`, 'info');
+          haptic(50);
+          if (window.AndroidBridge && window.AndroidBridge.showSystemNotification) {
+            try { window.AndroidBridge.showSystemNotification('Player Stats', `Solicitud de alta: ${reqPlayerName}`); } catch(e) {}
+          } else if ('Notification' in window && Notification.permission === 'granted') {
+            try { new Notification('Player Stats', { body: `Solicitud de alta: ${reqPlayerName}`, icon: 'icons/icon-192.png' }); } catch(e) {}
+          }
+        }
+      });
+    }
+    isFirstCreationRequestsSnapshot = false;
+    knownPlayerCreationRequestIds = new Set((requests || []).map(r => r.id));
+  }
+
+  window.__handleAppBack = function () {
+    const lightbox = document.querySelector('.chat-photo-lightbox');
+    if (lightbox) {
+      lightbox.remove();
+      return true;
+    }
+    const overlays = document.querySelectorAll('.chat-dialog-overlay, .dialog-overlay, .sheet-backdrop');
+    if (overlays.length > 0) {
+      const topOverlay = overlays[overlays.length - 1];
+      topOverlay.remove();
+      return true;
+    }
+    const trackerEl = document.getElementById('tracker-fullscreen');
+    if (trackerEl) {
+      trackerEl.remove();
+      return true;
+    }
+    if (currentTab !== 'home') {
+      navigate('home');
+      return true;
+    }
+    return false;
+  };
+
   function showProfileRequestsModal() {
-    openSheet(t('profileRequests', 'Solicitudes de Perfil'), (body) => {
+    openSheet(t('profileRequests', 'Solicitudes de Jugadores'), (body) => {
       function renderRequests() {
         const curReqs = pendingProfileRequests || [];
-        if (!curReqs.length) {
+        const curCreations = pendingPlayerCreationRequests || [];
+
+        if (!curReqs.length && !curCreations.length) {
           body.innerHTML = `
             <div style="text-align: center; padding: 36px 16px; color: var(--muted);">
               <div style="font-size: 36px; margin-bottom: 10px;">🔔</div>
               <h3 style="margin: 0 0 6px; color: #fff; font-size: 15px;">${t('noProfileRequests', 'Sin solicitudes pendientes')}</h3>
-              <p style="margin: 0; font-size: 12.5px;">${t('noProfileRequestsDesc', 'Cuando un jugador solicite cambiar de perfil en su app, aparecerá aquí para que puedas autorizarlo o denegarlo.')}</p>
+              <p style="margin: 0; font-size: 12.5px;">${t('noProfileRequestsDesc', 'Cuando un jugador solicite cambiar de perfil o solicitar alta en el club, aparecerá aquí para que puedas autorizarlo.')}</p>
             </div>
           `;
           return;
         }
 
-        body.innerHTML = `
-          <div style="font-size: 12px; color: var(--muted); margin-bottom: 12px;">
-            ${t('profileRequestsDesc', 'Los siguientes jugadores solicitan cambiar su perfil en este club:')}
-          </div>
-          <div style="display: flex; flex-direction: column; gap: 10px;" id="profile-requests-list">
-            ${curReqs.map(r => {
-              const fromPlayer = Store.player(r.fromPlayerId);
-              const toPlayer = Store.player(r.toPlayerId);
-              const dateStr = r.createdAt ? new Date(r.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-              return `
-                <div class="card" style="padding: 12px; border: 1.5px solid var(--border); border-radius: 14px; background: var(--surface2);">
-                  <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
-                    <div>
+        let html = '';
+
+        // 1. Solicitudes de Alta de Nuevo Jugador
+        if (curCreations.length > 0) {
+          html += `
+            <div style="font-size: 12.5px; font-weight: 800; color: var(--cyan); margin-bottom: 8px;">
+              ➕ ${t('requestCoachProfileTitle', 'Solicitudes de Alta de Nuevo Jugador')} (${curCreations.length})
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px;">
+              ${curCreations.map(cr => `
+                <div class="card" style="padding: 12px; border: 1.5px solid rgba(34, 211, 238, 0.4); border-radius: 14px; background: rgba(34, 211, 238, 0.06);">
+                  <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">
+                    <b style="font-size: 14px; color: #fff;">👤 ${escapeHtml(cr.name || 'Nuevo Jugador')}</b>
+                    <span class="badge" style="background: rgba(34, 211, 238, 0.2); color: #38bdf8; font-size: 10px; font-weight: 800;">ALTA</span>
+                  </div>
+                  <div style="font-size: 12px; color: var(--muted); margin-bottom: 8px;">
+                    ${cr.dorsal ? `<span>#${escapeHtml(cr.dorsal)}</span> • ` : ''}
+                    <span>${escapeHtml(cr.position || 'Jugador')}</span>
+                    ${cr.notes ? `<div style="margin-top: 4px; color: #cbd5e1; font-style: italic;">"${escapeHtml(cr.notes)}"</div>` : ''}
+                  </div>
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                    <button type="button" class="btn sm primary" data-approve-create="${cr.id}" style="font-weight: 900; font-size: 12px; height: 36px;">
+                      ✅ Crear Jugador
+                    </button>
+                    <button type="button" class="btn sm danger ghost" data-reject-create="${cr.id}" style="font-weight: 800; font-size: 12px; height: 36px;">
+                      ❌ Denegar
+                    </button>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          `;
+        }
+
+        // 2. Solicitudes de Cambio de Perfil
+        if (curReqs.length > 0) {
+          html += `
+            <div style="font-size: 12.5px; font-weight: 800; color: #fde047; margin-bottom: 8px;">
+              🔄 ${t('profileRequestsDesc', 'Solicitudes de Cambio de Perfil')} (${curReqs.length})
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 10px;" id="profile-requests-list">
+              ${curReqs.map(r => {
+                const fromPlayer = Store.player(r.fromPlayerId);
+                const toPlayer = Store.player(r.toPlayerId);
+                const dateStr = r.createdAt ? new Date(r.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+                return `
+                  <div class="card" style="padding: 12px; border: 1.5px solid var(--border); border-radius: 14px; background: var(--surface2);">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
                       <span class="badge" style="background: rgba(250, 204, 21, 0.18); color: #fde047; font-size: 11px; font-weight: 800;">
                         ⏳ ${t('pending', 'Pendiente')} ${dateStr ? '• ' + dateStr : ''}
                       </span>
                     </div>
-                  </div>
 
-                  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 13.5px;">
-                    <div style="flex: 1; overflow: hidden;">
-                      <small style="display: block; color: var(--muted); font-size: 10.5px; text-transform: uppercase; font-weight: 800;">${t('currentProfile', 'Perfil Actual')}:</small>
-                      <b style="color: #cbd5e1; display: block; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">
-                        ${escapeHtml(r.fromPlayerName || (fromPlayer ? Store.playerName(fromPlayer) : 'Ninguno'))}
-                      </b>
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 13.5px;">
+                      <div style="flex: 1; overflow: hidden;">
+                        <small style="display: block; color: var(--muted); font-size: 10.5px; text-transform: uppercase; font-weight: 800;">${t('currentProfile', 'Perfil Actual')}:</small>
+                        <b style="color: #cbd5e1; display: block; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">
+                          ${escapeHtml(r.fromPlayerName || (fromPlayer ? Store.playerName(fromPlayer) : 'Ninguno'))}
+                        </b>
+                      </div>
+                      <span style="font-size: 18px; color: var(--cyan); font-weight: 900;">➔</span>
+                      <div style="flex: 1; overflow: hidden;">
+                        <small style="display: block; color: var(--cyan); font-size: 10.5px; text-transform: uppercase; font-weight: 800;">${t('requestedProfile', 'Nuevo Perfil')}:</small>
+                        <b style="color: #86efac; display: block; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">
+                          ${escapeHtml(r.toPlayerName || (toPlayer ? Store.playerName(toPlayer) : 'Desconocido'))}
+                        </b>
+                      </div>
                     </div>
-                    <span style="font-size: 18px; color: var(--cyan); font-weight: 900;">➔</span>
-                    <div style="flex: 1; overflow: hidden;">
-                      <small style="display: block; color: var(--cyan); font-size: 10.5px; text-transform: uppercase; font-weight: 800;">${t('requestedProfile', 'Nuevo Perfil')}:</small>
-                      <b style="color: #86efac; display: block; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">
-                        ${escapeHtml(r.toPlayerName || (toPlayer ? Store.playerName(toPlayer) : 'Desconocido'))}
-                      </b>
+
+                    ${r.reason ? `
+                      <div style="background: var(--bg2); padding: 8px 10px; border-radius: 8px; font-size: 12px; color: #cbd5e1; margin-bottom: 10px; border: 1px dashed var(--border);">
+                        💬 <i>"${escapeHtml(r.reason)}"</i>
+                      </div>
+                    ` : ''}
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                      <button type="button" class="btn sm" data-approve-req="${r.id}" style="background: #22c55e; color: #04140a; font-weight: 900; font-size: 12px; height: 36px; border: none;">
+                        ✅ ${t('approve', 'Aprobar')}
+                      </button>
+                      <button type="button" class="btn sm danger ghost" data-reject-req="${r.id}" style="font-weight: 800; font-size: 12px; height: 36px;">
+                        ❌ ${t('reject', 'Denegar')}
+                      </button>
                     </div>
                   </div>
+                `;
+              }).join('')}
+            </div>
+          `;
+        }
 
-                  ${r.reason ? `
-                    <div style="background: var(--bg2); padding: 8px 10px; border-radius: 8px; font-size: 12px; color: #cbd5e1; margin-bottom: 10px; border: 1px dashed var(--border);">
-                      💬 <i>"${escapeHtml(r.reason)}"</i>
-                    </div>
-                  ` : ''}
+        body.innerHTML = html;
 
-                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-                    <button type="button" class="btn sm" data-approve-req="${r.id}" style="background: #22c55e; color: #04140a; font-weight: 900; font-size: 12px; height: 36px; border: none;">
-                      ✅ ${t('approve', 'Aprobar')}
-                    </button>
-                    <button type="button" class="btn sm danger ghost" data-reject-req="${r.id}" style="font-weight: 800; font-size: 12px; height: 36px;">
-                      ❌ ${t('reject', 'Denegar')}
-                    </button>
-                  </div>
-                </div>
-              `;
-            }).join('')}
-          </div>
-        `;
+        // Listeners para altas
+        body.querySelectorAll('[data-approve-create]').forEach(btn => {
+          btn.onclick = async () => {
+            const reqId = btn.getAttribute('data-approve-create');
+            const item = pendingPlayerCreationRequests.find(x => x.id === reqId);
+            if (!item) return;
 
+            btn.disabled = true;
+            btn.textContent = '...';
+
+            // Crear jugador en Store
+            Store.upsertPlayer({
+              name: item.name,
+              mainDorsal: item.dorsal ? parseInt(item.dorsal, 10) : null,
+              mainPosition: item.position || 'Delantero',
+              notes: item.notes || ''
+            });
+            Sync.push();
+            if (window.Cloud && window.Cloud.pushCoachState) {
+              window.Cloud.pushCoachState(Store.state);
+            }
+            if (window.Cloud && window.Cloud.resolvePlayerCreationRequest) {
+              await window.Cloud.resolvePlayerCreationRequest(reqId, 'approved');
+            }
+
+            pendingPlayerCreationRequests = pendingPlayerCreationRequests.filter(x => x.id !== reqId);
+            NotifManager.removeByTarget(reqId);
+            toast('✅ Jugador creado y añadido al sistema', 'success');
+            haptic(40);
+            renderRequests();
+            updateRequestsBadge();
+          };
+        });
+
+        body.querySelectorAll('[data-reject-create]').forEach(btn => {
+          btn.onclick = async () => {
+            const reqId = btn.getAttribute('data-reject-create');
+            btn.disabled = true;
+            btn.textContent = '...';
+            if (window.Cloud && window.Cloud.resolvePlayerCreationRequest) {
+              await window.Cloud.resolvePlayerCreationRequest(reqId, 'rejected');
+            }
+            pendingPlayerCreationRequests = pendingPlayerCreationRequests.filter(x => x.id !== reqId);
+            NotifManager.removeByTarget(reqId);
+            toast('❌ Solicitud rechazada', 'info');
+            haptic(25);
+            renderRequests();
+            updateRequestsBadge();
+          };
+        });
+
+        // Listeners para cambios de perfil
         body.querySelectorAll('[data-approve-req]').forEach(btn => {
           btn.onclick = async () => {
             const reqId = btn.getAttribute('data-approve-req');
@@ -592,6 +848,7 @@
               await window.Cloud.resolveProfileRequest(reqId, 'approved');
             }
             pendingProfileRequests = pendingProfileRequests.filter(x => x.id !== reqId);
+            NotifManager.removeByTarget(reqId);
             toast(t('requestApproved', '✅ Solicitud de cambio de perfil aprobada'), 'success');
             haptic(40);
             renderRequests();
@@ -608,6 +865,7 @@
               await window.Cloud.resolveProfileRequest(reqId, 'rejected');
             }
             pendingProfileRequests = pendingProfileRequests.filter(x => x.id !== reqId);
+            NotifManager.removeByTarget(reqId);
             toast(t('requestRejected', '❌ Solicitud rechazada'), 'info');
             haptic(25);
             renderRequests();
@@ -620,14 +878,154 @@
     });
   }
 
+  function showNotificationsCenterModal() {
+    openSheet(t('notificationCenter', 'Centro de Notificaciones'), (body) => {
+      function renderNotifs() {
+        const notifs = NotifManager.getAll();
+        const pendingReqs = (pendingProfileRequests || []).length + (pendingPlayerCreationRequests || []).length;
+
+        body.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 8px;">
+            <div style="font-size: 13px; font-weight: 800; color: #fff;">
+              🔔 ${notifs.length} ${t('notifications', 'Notificaciones')}
+            </div>
+            <div style="display: flex; gap: 6px;">
+              ${notifs.length > 0 ? `
+                <button type="button" class="btn sm ghost" id="btn-notif-mark-all" style="font-size: 11px; padding: 3px 8px; font-weight: 700;">
+                  ✓ ${t('markAllRead', 'Marcar leídas')}
+                </button>
+                <button type="button" class="btn sm danger ghost" id="btn-notif-clear-all" style="font-size: 11px; padding: 3px 8px; font-weight: 700;">
+                  🗑️ ${t('clearAllNotifications', 'Limpiar')}
+                </button>
+              ` : ''}
+            </div>
+          </div>
+
+          ${pendingReqs > 0 ? `
+            <div id="btn-jump-to-requests" style="background: rgba(34, 211, 238, 0.12); border: 1.5px solid rgba(34, 211, 238, 0.4); padding: 10px 14px; border-radius: 12px; margin-bottom: 12px; cursor: pointer; display: flex; align-items: center; justify-content: space-between;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 18px;">📋</span>
+                <div>
+                  <b style="color: #38bdf8; font-size: 13px;">${pendingReqs} ${t('profileRequests', 'Solicitudes pendientes')}</b>
+                  <div style="font-size: 11px; color: var(--muted);">${t('tapToManageRequests', 'Toca para autorizar o denegar cambios y altas')}</div>
+                </div>
+              </div>
+              <span style="color: var(--cyan); font-weight: 900; font-size: 14px;">➔</span>
+            </div>
+          ` : ''}
+
+          ${notifs.length === 0 ? `
+            <div class="empty-state card" style="padding: 30px 16px; text-align: center;">
+              <div style="font-size: 36px; margin-bottom: 8px;">🔔</div>
+              <h3 style="margin: 0 0 6px; font-size: 15px; color: #fff;">${t('noNotifications', 'No tienes notificaciones')}</h3>
+              <p style="margin: 0; font-size: 12px; color: var(--muted);">${t('allCaughtUp', 'Todas las solicitudes y convocatorias están al día.')}</p>
+            </div>
+          ` : `
+            <div style="display: flex; flex-direction: column; gap: 8px;" id="notif-cards-list">
+              ${notifs.map(n => {
+                let ic = '🔔';
+                if (n.type === 'profile_req') ic = '🔄';
+                else if (n.type === 'creation_req') ic = '➕';
+                else if (n.type === 'attendance') ic = (n.title && n.title.includes('🟢')) ? '🟢' : '❌';
+                else if (n.type === 'chat') ic = '💬';
+
+                const dateStr = n.time ? new Date(n.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+                return `
+                  <div class="notif-card" data-nid="${n.id}" data-target="${n.targetId || ''}" data-type="${n.type}" style="background: ${n.read ? 'var(--surface)' : 'rgba(34, 211, 238, 0.08)'}; border: 1.5px solid ${n.read ? 'var(--border)' : 'rgba(34, 211, 238, 0.4)'}; border-radius: 12px; padding: 10px 12px; display: flex; align-items: flex-start; gap: 10px; cursor: pointer; position: relative;">
+                    <span style="font-size: 20px; line-height: 1; flex-shrink: 0; margin-top: 2px;">${ic}</span>
+                    <div style="flex: 1; min-width: 0;">
+                      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+                        <b style="font-size: 13px; color: ${n.read ? '#cbd5e1' : '#fff'}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                          ${escapeHtml(n.title)}
+                        </b>
+                        <span style="font-size: 10.5px; color: var(--muted); margin-left: 6px; flex-shrink: 0;">${dateStr}</span>
+                      </div>
+                      <div style="font-size: 12px; color: ${n.read ? 'var(--muted)' : '#e2e8f0'}; line-height: 1.35; word-break: break-word;">
+                        ${escapeHtml(n.body)}
+                      </div>
+                    </div>
+                    <button type="button" class="icon-btn ghost" data-delete-nid="${n.id}" style="width: 28px; height: 28px; color: var(--muted); flex-shrink: 0; margin-left: 2px;" title="Eliminar">
+                      🗑️
+                    </button>
+                    ${!n.read ? `
+                      <span style="position: absolute; top: 6px; right: 6px; width: 6px; height: 6px; border-radius: 50%; background: #22d3ee; box-shadow: 0 0 6px #22d3ee;"></span>
+                    ` : ''}
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          `}
+        `;
+
+        const btnMarkAll = body.querySelector('#btn-notif-mark-all');
+        if (btnMarkAll) {
+          btnMarkAll.onclick = () => {
+            NotifManager.markAllAsRead();
+            renderNotifs();
+          };
+        }
+
+        const btnClearAll = body.querySelector('#btn-notif-clear-all');
+        if (btnClearAll) {
+          btnClearAll.onclick = () => {
+            NotifManager.clearAll();
+            renderNotifs();
+          };
+        }
+
+        const btnJumpReqs = body.querySelector('#btn-jump-to-requests');
+        if (btnJumpReqs) {
+          btnJumpReqs.onclick = () => {
+            closeSheet();
+            showProfileRequestsModal();
+          };
+        }
+
+        body.querySelectorAll('[data-delete-nid]').forEach(btn => {
+          btn.onclick = (e) => {
+            e.stopPropagation();
+            const nid = btn.getAttribute('data-delete-nid');
+            NotifManager.remove(nid);
+            renderNotifs();
+          };
+        });
+
+        body.querySelectorAll('.notif-card').forEach(card => {
+          card.onclick = () => {
+            const nid = card.getAttribute('data-nid');
+            const targetId = card.getAttribute('data-target');
+            const type = card.getAttribute('data-type');
+            NotifManager.markAsRead(nid);
+
+            closeSheet();
+
+            if (type === 'profile_req' || type === 'creation_req') {
+              showProfileRequestsModal();
+            } else if (type === 'attendance') {
+              navigate('convocations');
+              if (targetId) {
+                const conv = Store.convocation(targetId);
+                if (conv) showConvocationDetailsModal(conv);
+              }
+            } else if (type === 'chat') {
+              navigate('chat');
+            }
+          };
+        });
+      }
+
+      renderNotifs();
+    });
+  }
+
   function renderLangButton() {
     const cur = I18N.getLang();
-    const pendingCount = (pendingProfileRequests || []).length;
+    const count = Math.max(NotifManager.getUnreadCount(), (pendingProfileRequests || []).length + (pendingPlayerCreationRequests || []).length);
     return `
       <div style="display: flex; align-items: center; gap: 6px;">
-        <button class="icon-btn" id="btn-profile-requests" title="${t('profileRequests', 'Solicitudes de Perfil')}" style="position: relative;">
+        <button class="icon-btn" id="btn-profile-requests" title="${t('notificationCenter', 'Centro de Notificaciones')}" style="position: relative;">
           <span style="font-size: 17px;">🔔</span>
-          <span id="requests-badge" style="position: absolute; top: -3px; right: -3px; background: #ef4444; color: #fff; font-size: 10px; font-weight: 900; min-width: 16px; height: 16px; line-height: 16px; text-align: center; border-radius: 999px; box-shadow: 0 0 6px rgba(239, 68, 68, 0.8); ${pendingCount > 0 ? '' : 'display: none;'}">${pendingCount}</span>
+          <span id="requests-badge" style="position: absolute; top: -3px; right: -3px; background: #ef4444; color: #fff; font-size: 10px; font-weight: 900; min-width: 16px; height: 16px; line-height: 16px; text-align: center; border-radius: 999px; box-shadow: 0 0 6px rgba(239, 68, 68, 0.8); ${count > 0 ? '' : 'display: none;'}">${count}</span>
         </button>
         <button class="icon-btn" id="btn-toggle-lang" title="${t('appLanguage')}">
           <span style="font-size: 13px; font-weight: 900; letter-spacing: 0.5px;">${cur.toUpperCase()}</span>
@@ -646,7 +1044,7 @@
   document.addEventListener('click', (e) => {
     const reqBtn = e.target.closest('#btn-profile-requests');
     if (reqBtn) {
-      showProfileRequestsModal();
+      showNotificationsCenterModal();
     }
   });
 
@@ -655,6 +1053,16 @@
     const p = Store.player(resp.playerId);
     const pName = resp.playerName || (p ? Store.playerName(p) : 'Jugador');
     const isAttending = (resp.status === 'called' || resp.status === 'attending' || resp.status === 'yes');
+
+    NotifManager.add({
+      id: 'att_' + (resp.convId || 'c') + '_' + resp.playerId,
+      type: 'attendance',
+      title: isAttending ? `🟢 Asistencia confirmada` : `❌ Baja comunicada`,
+      body: `${pName} (${isAttending ? 'Asistirá' : 'No asistirá'})`,
+      targetId: resp.convId || null,
+      time: Date.now()
+    });
+
     toast(
       isAttending ? `🟢 ${pName} ha confirmado asistencia` : `❌ ${pName} no puede asistir`,
       isAttending ? 'success' : 'info'
@@ -695,6 +1103,15 @@
       window.Cloud.listenToProfileRequests((requests) => {
         handleIncomingProfileRequests(requests);
       });
+      window.Cloud.listenToPlayerCreationRequests((requests) => {
+        handleIncomingPlayerCreationRequests(requests);
+      });
+      if (window.ChatUI && window.ChatUI.initPresenceHeartbeat) {
+        window.ChatUI.initPresenceHeartbeat('coach', 'Entrenador');
+      }
+      if (window.ChatUI && window.ChatUI.initGlobalUnreadListener) {
+        window.ChatUI.initGlobalUnreadListener('coach');
+      }
       setTimeout(() => {
         if (Store.state.players.length > 0 || Store.state.convocations.length > 0) {
           window.Cloud.pushCoachState(Store.state);
@@ -766,6 +1183,10 @@
         navigate(id);
       };
     });
+
+    if (window.ChatUI && window.ChatUI.updateTabBadge) {
+      window.ChatUI.updateTabBadge(window.ChatUI.hasUnread);
+    }
   }
 
   function renderChatView(view) {
@@ -4449,7 +4870,19 @@
       const search = view.querySelector('#player-search-bar');
       search.oninput = (e) => {
         playerListSearch = e.target.value;
-        build();
+        const q = playerListSearch.toLowerCase().trim();
+        const listCont = view.querySelector('#players-list-container');
+        if (listCont) {
+          const items = listCont.querySelectorAll('.player-item');
+          items.forEach(el => {
+            const pid = el.getAttribute('data-id');
+            const p = Store.player(pid);
+            const name = p ? Store.playerName(p).toLowerCase() : el.textContent.toLowerCase();
+            const dorsal = (p && p.mainDorsal != null) ? String(p.mainDorsal) : '';
+            const match = !q || name.includes(q) || dorsal.includes(q);
+            el.style.display = match ? 'flex' : 'none';
+          });
+        }
       };
 
       view.querySelectorAll('#team-filter-chips .chip[data-t]').forEach(c => {
@@ -4535,6 +4968,13 @@
               <span class="rating-pill">⭐ ${matchRating.toFixed(1)} ${t('matchRating')}</span>
             </div>
           </div>
+        </div>
+
+        <!-- Botón para chatear directamente con este jugador -->
+        <div style="margin-bottom: 8px;">
+          <button class="btn sm primary block" id="btn-player-chat-direct" style="height: 38px; font-weight: 800; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%;">
+            💬 ${t('chatWithPlayer', 'Chatear con este jugador')}
+          </button>
         </div>
 
         <!-- Botones de Acción de este Jugador -->
@@ -4687,6 +5127,21 @@
           </div>
         `).join('')}
       `;
+
+      // Chatear con este jugador directamente
+      const btnChatDirect = body.querySelector('#btn-player-chat-direct');
+      if (btnChatDirect) {
+        btnChatDirect.onclick = () => {
+          closeSheet();
+          if (window.ChatUI && window.ChatUI.startDirectChat) {
+            window.ChatUI.startDirectChat(p.id, Store.playerName(p), {
+              currentUserId: 'coach',
+              currentUserName: 'Entrenador',
+              isCoach: true
+            });
+          }
+        };
+      }
 
       // Añadir datos manuales
       body.querySelector('#btn-player-add-manual-data').onclick = () => {
@@ -5559,7 +6014,7 @@
           </div>
 
           <div class="conv-detail-meta" style="margin-bottom: 12px; font-size: 13px; line-height: 1.5;">
-            <div>📅 <b>${t('date')}:</b> ${conv.date} ${conv.time ? '• ⏰ ' + conv.time : ''}</div>
+            <div>📅 <b>${t('date')}:</b> ${formatConvocationDateWithDay(conv.date)} ${conv.time ? '• ⏰ ' + conv.time : ''}</div>
             ${conv.venue ? `<div>📍 <b>Lugar / Campo:</b> ${escapeHtml(conv.venue)}</div>` : ''}
             ${conv.address ? `<div>🗺️ <b>Dirección:</b> ${escapeHtml(conv.address)} <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(conv.address)}" target="_blank" style="color: var(--cyan); text-decoration: underline; margin-left: 6px; font-weight: 700;">(Ver Mapa ↗)</a></div>` : ''}
             ${conv.rival ? `<div>⚔️ <b>Rival:</b> ${escapeHtml(conv.rival)}</div>` : ''}
@@ -5910,6 +6365,130 @@
     });
   }
 
+  function showAddManualPlayerToConvModal(currentTeamVal, onPlayerAdded) {
+    const overlay = document.createElement('div');
+    overlay.className = 'dialog-overlay';
+
+    const allPlayers = Store.state.players || [];
+
+    overlay.innerHTML = `
+      <div class="dialog-box" style="max-width: 420px; padding: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
+          <h3 style="margin: 0; font-size: 16px; font-weight: 800; color: #fff;">
+            ➕ ${t('addManualPlayer', 'Añadir Jugador a Convocatoria')}
+          </h3>
+          <button type="button" class="icon-btn ghost" id="dlg-add-manual-x" style="width: 32px; height: 32px;">✕</button>
+        </div>
+
+        <div class="segmented" style="display: flex; gap: 4px; margin-bottom: 14px; background: var(--surface2); padding: 4px; border-radius: 10px;">
+          <button type="button" class="btn sm primary" id="tab-opt-existing" style="flex: 1; height: 32px; font-size: 11.5px; font-weight: 800; border-radius: 8px;">
+            👥 ${t('players', 'Del Club')}
+          </button>
+          <button type="button" class="btn sm ghost" id="tab-opt-new" style="flex: 1; height: 32px; font-size: 11.5px; font-weight: 800; border-radius: 8px;">
+            ✨ ${t('newPlayer', 'Nuevo Invitado')}
+          </button>
+        </div>
+
+        <!-- SECCIÓN 1: SELECCIONAR JUGADOR YA REGISTRADO -->
+        <div id="sec-add-existing" style="display: block;">
+          <label style="font-size: 12px; font-weight: 800; color: var(--muted); margin-bottom: 6px; display: block;">
+            ${t('selectPlayer', 'Seleccionar de la plantilla del club:')}
+          </label>
+          <select id="sel-existing-player" style="width: 100%; padding: 10px; border-radius: 10px; font-size: 13.5px; background: var(--bg2); color: #fff; border: 1px solid var(--border); margin-bottom: 16px;">
+            <option value="">-- ${t('choosePlayer', 'Elegir jugador...')} --</option>
+            ${allPlayers.map(p => {
+              const tm = Store.team(p.teamId);
+              return `<option value="${p.id}">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(Store.playerName(p))} (${tm ? escapeHtml(tm.name) : 'Sin equipo'})</option>`;
+            }).join('')}
+          </select>
+          <button type="button" class="btn block primary" id="btn-confirm-add-existing" style="font-weight: 800; height: 38px;">
+            ✅ ${t('add', 'Añadir a la Convocatoria')}
+          </button>
+        </div>
+
+        <!-- SECCIÓN 2: CREAR JUGADOR PUNTUAL / INVITADO -->
+        <div id="sec-add-new" style="display: none;">
+          <div class="field" style="margin-bottom: 10px;">
+            <label style="font-size: 12px; font-weight: 800; color: var(--muted);">${t('fullName', 'Nombre y Apellidos')} *</label>
+            <input type="text" id="inp-guest-name" placeholder="Ej. Mateo Gómez" style="width: 100%; padding: 8px 12px; font-size: 13px; border-radius: 8px;" />
+          </div>
+          <div class="field-row" style="display: flex; gap: 8px; margin-bottom: 14px;">
+            <div class="field" style="flex: 1;">
+              <label style="font-size: 12px; font-weight: 800; color: var(--muted);">${t('dorsal', 'Dorsal')}</label>
+              <input type="number" id="inp-guest-dorsal" placeholder="10" style="width: 100%; padding: 8px 12px; font-size: 13px; border-radius: 8px;" />
+            </div>
+            <div class="field" style="flex: 1.5;">
+              <label style="font-size: 12px; font-weight: 800; color: var(--muted);">${t('position', 'Posición')}</label>
+              <input type="text" id="inp-guest-pos" placeholder="Delantero" value="Jugador" style="width: 100%; padding: 8px 12px; font-size: 13px; border-radius: 8px;" />
+            </div>
+          </div>
+          <button type="button" class="btn block primary" id="btn-confirm-add-new" style="font-weight: 800; height: 38px;">
+            ✨ ${t('createPlayer', 'Crear y Añadir a Convocatoria')}
+          </button>
+        </div>
+      </div>
+    `;
+
+    function close() { overlay.remove(); }
+    overlay.querySelector('#dlg-add-manual-x').onclick = close;
+    overlay.onclick = (e) => { if (e.target === overlay) close(); };
+
+    const tabExist = overlay.querySelector('#tab-opt-existing');
+    const tabNew = overlay.querySelector('#tab-opt-new');
+    const secExist = overlay.querySelector('#sec-add-existing');
+    const secNew = overlay.querySelector('#sec-add-new');
+
+    tabExist.onclick = () => {
+      tabExist.className = 'btn sm primary';
+      tabNew.className = 'btn sm ghost';
+      secExist.style.display = 'block';
+      secNew.style.display = 'none';
+    };
+    tabNew.onclick = () => {
+      tabNew.className = 'btn sm primary';
+      tabExist.className = 'btn sm ghost';
+      secNew.style.display = 'block';
+      secExist.style.display = 'none';
+    };
+
+    overlay.querySelector('#btn-confirm-add-existing').onclick = () => {
+      const pid = overlay.querySelector('#sel-existing-player').value;
+      if (!pid) {
+        toast('Selecciona un jugador', 'error');
+        return;
+      }
+      const player = Store.player(pid);
+      if (player && typeof onPlayerAdded === 'function') {
+        onPlayerAdded(player);
+      }
+      close();
+    };
+
+    overlay.querySelector('#btn-confirm-add-new').onclick = () => {
+      const name = overlay.querySelector('#inp-guest-name').value.trim();
+      if (!name) {
+        toast('Introduce el nombre del jugador', 'error');
+        return;
+      }
+      const dorsalVal = overlay.querySelector('#inp-guest-dorsal').value.trim();
+      const dorsal = dorsalVal ? parseInt(dorsalVal, 10) : null;
+      const pos = overlay.querySelector('#inp-guest-pos').value.trim() || 'Jugador';
+
+      const newPlayer = Store.upsertPlayer({
+        name,
+        mainDorsal: dorsal,
+        mainPosition: pos,
+        teamId: currentTeamVal || ''
+      });
+      if (typeof onPlayerAdded === 'function') {
+        onPlayerAdded(newPlayer);
+      }
+      close();
+    };
+
+    document.body.appendChild(overlay);
+  }
+
   function showEditConvocationModal(convId, onDone) {
     const existing = convId ? Store.convocation(convId) : null;
     const c = Object.assign({
@@ -6246,40 +6825,59 @@
       const btnAddManual = body.querySelector('#btn-conv-add-manual');
       if (btnAddManual && container) {
         btnAddManual.onclick = () => {
-          const name = prompt('Nombre del jugador puntual:');
-          if (!name || !name.trim()) return;
-          const dorsalInput = prompt('Número de dorsal (opcional):', '');
-          const dorsal = dorsalInput && !isNaN(parseInt(dorsalInput, 10)) ? parseInt(dorsalInput, 10) : null;
           const currentTeamVal = (filterSelect && filterSelect.value !== 'all') ? filterSelect.value : (body.querySelector('#conv-team') ? body.querySelector('#conv-team').value : '');
-          const newPlayer = Store.upsertPlayer({
-            name: name.trim(),
-            mainDorsal: dorsal,
-            mainPosition: 'Jugador',
-            teamId: currentTeamVal || ''
+          showAddManualPlayerToConvModal(currentTeamVal, (player) => {
+            list[player.id] = 'called';
+            const existingRow = container.querySelector(`.conv-player-row[data-pid="${player.id}"]`);
+            if (existingRow) {
+              existingRow.style.display = 'flex';
+              const group = existingRow.querySelector('.conv-btn-group');
+              if (group) {
+                group.querySelectorAll('.conv-pick-btn').forEach(b => {
+                  b.className = b.getAttribute('data-st') === 'called' ? 'conv-pick-btn active called' : 'conv-pick-btn';
+                });
+              }
+            } else {
+              const pTeam = Store.team(player.teamId);
+              const rowHtml = `
+                <div class="conv-player-row" data-pid="${player.id}" data-team="${player.teamId || ''}">
+                  ${renderAvatar(player, 'sm')}
+                  <div class="conv-player-name ellipsis">
+                    <b>#${player.mainDorsal != null ? player.mainDorsal : '-'} ${escapeHtml(Store.playerName(player))}</b>
+                    <small style="display: block; color: var(--muted); font-size: 11px;">
+                      ${player.mainPosition || 'Jugador'} ${pTeam ? '• ' + escapeHtml(pTeam.name) : ''}
+                    </small>
+                  </div>
+                  <div class="conv-btn-group">
+                    <button type="button" class="conv-pick-btn active called" data-p="${player.id}" data-st="called" title="${t('calledStatus')}">🟢</button>
+                    <button type="button" class="conv-pick-btn" data-p="${player.id}" data-st="bench" title="${t('benchStatus')}">🟡</button>
+                    <button type="button" class="conv-pick-btn" data-p="${player.id}" data-st="injured" title="${t('injuredStatus')}">🏥</button>
+                    <button type="button" class="conv-pick-btn" data-p="${player.id}" data-st="absent" title="${t('absentStatus')}">❌</button>
+                  </div>
+                </div>
+              `;
+              container.insertAdjacentHTML('afterbegin', rowHtml);
+              const newRow = container.querySelector(`.conv-player-row[data-pid="${player.id}"]`);
+              if (newRow) {
+                newRow.querySelectorAll('.conv-pick-btn').forEach(btn => {
+                  btn.onclick = (e) => {
+                    e.stopPropagation();
+                    const p = btn.getAttribute('data-p');
+                    const st = btn.getAttribute('data-st');
+                    list[p] = st;
+                    newRow.querySelectorAll('.conv-pick-btn').forEach(b => {
+                      b.className = b.getAttribute('data-st') === st ? `conv-pick-btn active ${st}` : 'conv-pick-btn';
+                    });
+                    haptic(20);
+                    updateCounterChips();
+                  };
+                });
+              }
+            }
+            haptic(30);
+            updateCounterChips();
+            toast(`${escapeHtml(Store.playerName(player))} añadido y convocado`, 'success');
           });
-          list[newPlayer.id] = 'called';
-          const pTeam = Store.team(newPlayer.teamId);
-          const rowHtml = `
-            <div class="conv-player-row" data-pid="${newPlayer.id}" data-team="${newPlayer.teamId || ''}">
-              ${renderAvatar(newPlayer, 'sm')}
-              <div class="conv-player-name ellipsis">
-                <b>#${newPlayer.mainDorsal != null ? newPlayer.mainDorsal : '-'} ${escapeHtml(Store.playerName(newPlayer))}</b>
-                <small style="display: block; color: var(--muted); font-size: 11px;">
-                  ${newPlayer.mainPosition || 'Jugador'} ${pTeam ? '• ' + escapeHtml(pTeam.name) : ''}
-                </small>
-              </div>
-              <div class="conv-btn-group">
-                <button type="button" class="conv-pick-btn active called" data-p="${newPlayer.id}" data-st="called" title="${t('calledStatus')}">🟢</button>
-                <button type="button" class="conv-pick-btn" data-p="${newPlayer.id}" data-st="bench" title="${t('benchStatus')}">🟡</button>
-                <button type="button" class="conv-pick-btn" data-p="${newPlayer.id}" data-st="injured" title="${t('injuredStatus')}">🏥</button>
-                <button type="button" class="conv-pick-btn" data-p="${newPlayer.id}" data-st="absent" title="${t('absentStatus')}">❌</button>
-              </div>
-            </div>
-          `;
-          container.insertAdjacentHTML('afterbegin', rowHtml);
-          haptic(30);
-          updateCounterChips();
-          toast(`Jugador ${escapeHtml(name.trim())} añadido y convocado`, 'success');
         };
       }
 
@@ -6423,7 +7021,16 @@
   function showRecurringTrainingsModal(onDone) {
     openSheet(t('recurringTrainings', 'Entrenamientos Recurrentes'), (body) => {
       function renderSchedulesList() {
-        const schedules = Store.state.recurringSchedules || [];
+        const rawScheds = Store.state.recurringSchedules || [];
+        const seenIds = new Set();
+        const schedules = [];
+        rawScheds.forEach(sc => {
+          if (sc && sc.id && !seenIds.has(sc.id)) {
+            seenIds.add(sc.id);
+            schedules.push(sc);
+          }
+        });
+        Store.state.recurringSchedules = schedules;
         const dayNames = [
           t('daySun', 'Dom'),
           t('dayMon', 'Lun'),
@@ -6583,8 +7190,22 @@
 
           <div class="field-row">
             <div class="field">
+              <label>🗓️ ${t('startDate', 'Fecha Desde')}</label>
+              <input type="date" id="sched-start-date" value="${existing && existing.startDate ? existing.startDate : new Date().toISOString().slice(0, 10)}" />
+            </div>
+            <div class="field">
+              <label>🗓️ ${t('endDate', 'Fecha Hasta')}</label>
+              <input type="date" id="sched-end-date" value="${existing && existing.endDate ? existing.endDate : new Date(Date.now() + 30*86400000).toISOString().slice(0, 10)}" />
+            </div>
+          </div>
+
+          <div class="field-row">
+            <div class="field">
               <label>${t('time', 'Hora')}</label>
-              <input type="time" id="sched-time" value="${existing ? (existing.time || '18:00') : '18:00'}" />
+              <div style="display: flex; gap: 6px; align-items: center;">
+                <input type="text" id="sched-time" value="${existing ? (existing.time || '18:00') : '18:00'}" placeholder="HH:MM" style="flex: 1;" />
+                <button type="button" class="btn sm" id="btn-pick-sched-time" style="background: var(--surface2); color: var(--cyan); border: 1px solid var(--border); font-size: 13px; font-weight: 800; height: 38px; padding: 0 10px;">⏰ Elegir</button>
+              </div>
             </div>
             <div class="field">
               <label>${t('venue', 'Lugar / Campo')}</label>
@@ -6609,6 +7230,25 @@
 
         body.querySelector('#btn-sched-back').onclick = renderSchedulesList;
 
+        const btnPickTime = body.querySelector('#btn-pick-sched-time');
+        const inpTime = body.querySelector('#sched-time');
+        if (btnPickTime && inpTime) {
+          btnPickTime.onclick = () => {
+            const curVal = inpTime.value.trim() || '18:00';
+            if (window.AndroidBridge && window.AndroidBridge.pickTime) {
+              window.__onNativeTimePicked = (cbId, selectedTime) => {
+                if (cbId === 'sched_time_cb') inpTime.value = selectedTime;
+              };
+              window.AndroidBridge.pickTime(curVal, 'sched_time_cb');
+            } else {
+              const res = prompt('Introduce la hora (HH:MM):', curVal);
+              if (res && /^\d{1,2}:\d{2}$/.test(res.trim())) {
+                inpTime.value = res.trim();
+              }
+            }
+          };
+        }
+
         body.querySelectorAll('[data-day-val]').forEach(btn => {
           btn.onclick = () => {
             const dayVal = parseInt(btn.getAttribute('data-day-val'), 10);
@@ -6627,10 +7267,12 @@
         body.querySelector('#btn-save-sched').onclick = () => {
           const title = body.querySelector('#sched-title').value.trim();
           const teamId = body.querySelector('#sched-team').value;
-          const time = body.querySelector('#sched-time').value || '18:00';
+          const time = body.querySelector('#sched-time').value.trim() || '18:00';
           const venue = body.querySelector('#sched-venue').value.trim();
           const address = body.querySelector('#sched-address').value.trim();
           const notes = body.querySelector('#sched-notes').value.trim();
+          const startDate = body.querySelector('#sched-start-date').value;
+          const endDate = body.querySelector('#sched-end-date').value;
 
           Store.upsertRecurringSchedule({
             id: existing ? existing.id : null,
@@ -6641,6 +7283,8 @@
             venue: venue,
             address: address,
             notes: notes,
+            startDate: startDate,
+            endDate: endDate,
             active: true
           });
 
@@ -6661,11 +7305,12 @@
      ========================================================= */
   function renderConvocationsView(view) {
     function build() {
-      const list = Store.state.convocations || [];
+      const rawList = Store.state.convocations || [];
+      const list = [...rawList].sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.time || '').localeCompare(b.time || ''));
 
       view.innerHTML = `
-        <div class="topbar" style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center;">
-          <div style="min-width: 130px; flex: 1;">
+        <div class="topbar" style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center; max-width: 100%; box-sizing: border-box;">
+          <div style="min-width: 120px; flex: 1;">
             <h1 style="font-size: 19px; margin: 0;">${t('convocations')}</h1>
             <span class="sub" style="font-size: 11px;">${list.length} convocatorias registradas</span>
           </div>
@@ -6674,7 +7319,7 @@
             <button class="btn sm" id="btn-recurring-trainings" style="background: var(--surface2); color: var(--cyan); border-color: rgba(34,211,238,0.3); font-weight: 800; font-size: 11.5px; height: 36px; padding: 0 10px;" title="${t('recurringTrainings', 'Entrenamientos Recurrentes')}">
               🔄 ${t('recurringBtn', 'Recurrentes')}
             </button>
-            <button class="btn sm primary" id="btn-create-conv" style="font-weight: 800; font-size: 12px; height: 36px; padding: 0 12px; white-space: nowrap;">
+            <button class="btn sm primary" id="btn-create-conv" style="font-weight: 800; font-size: 12px; height: 36px; padding: 0 10px; white-space: nowrap;">
               ${icon('plus', 16)} ${t('newConvocation')}
             </button>
           </div>
@@ -6723,7 +7368,7 @@
                         ${escapeHtml(c.title || (c.rival ? 'vs ' + c.rival : 'Convocatoria'))}
                       </h3>
                       <div class="muted" style="font-size: 12px; margin-top: 3px;">
-                        📅 ${c.date} ${c.time ? '• ⏰ ' + c.time : ''} ${c.venue ? '• 📍 ' + escapeHtml(c.venue) : ''}
+                        📅 <b>${formatConvocationDateWithDay(c.date)}</b> ${c.time ? '• ⏰ ' + c.time : ''} ${c.venue ? '• 📍 ' + escapeHtml(c.venue) : ''}
                       </div>
                     </div>
                     <button class="btn sm" data-quick-viber="${c.id}" style="background: #7c3aed; color: #fff; border-color: #a855f7; flex-shrink: 0; font-size: 11.5px; font-weight: 800; padding: 4px 8px;" title="Viber">
@@ -7013,10 +7658,127 @@
   }
 
   /* =========================================================
+     MODAL: EDITAR PERFIL DEL ENTRENADOR
+     ========================================================= */
+  function showEditCoachProfileModal(onDone) {
+    const profile = Store.state.coachProfile || {
+      name: '',
+      role: 'Primer Entrenador / Head Coach',
+      license: 'UEFA Pro',
+      photo: '',
+      phone: '',
+      email: '',
+      bio: '',
+      philosophy: ''
+    };
+    let photoData = profile.photo || '';
+
+    openSheet(t('editCoachProfile', 'Perfil del Entrenador'), (body) => {
+      body.innerHTML = `
+        <div class="field photo-field">
+          <div class="avatar lg" id="coach-photo-preview" style="cursor: pointer;">
+            ${photoData ? `<img src="${photoData}" alt="" />` : `<span>👔</span>`}
+            <div class="cam">${icon('camera', 16)}</div>
+          </div>
+          <input type="file" id="coach-photo-input" accept="image/*" style="display: none;" />
+          <span class="hint">${t('tapToChangePhoto', 'Toca para cambiar la foto')}</span>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label>${t('fullName', 'Nombre Completo')}</label>
+            <input type="text" id="coach-name" value="${escapeHtml(profile.name || '')}" placeholder="Ej. Carlos Silva" />
+          </div>
+          <div class="field">
+            <label>${t('coachTitle', 'Cargo / Puesto')}</label>
+            <input type="text" id="coach-role" value="${escapeHtml(profile.role || '')}" placeholder="Ej. Primer Entrenador" />
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label>${t('coachLicense', 'Licencia / Titulación')}</label>
+            <input type="text" id="coach-license" value="${escapeHtml(profile.license || '')}" placeholder="Ej. UEFA Pro / UEFA A" />
+          </div>
+          <div class="field">
+            <label>${t('coachContact', 'Teléfono / Contacto')}</label>
+            <input type="tel" id="coach-phone" value="${escapeHtml(profile.phone || '')}" placeholder="+34 600 000 000" />
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Email</label>
+          <input type="email" id="coach-email" value="${escapeHtml(profile.email || '')}" placeholder="mister@club.com" />
+        </div>
+
+        <div class="field">
+          <label>${t('coachBio', 'Presentación / Trayectoria')}</label>
+          <textarea id="coach-bio" rows="3" placeholder="Experiencia previa, años en el club...">${escapeHtml(profile.bio || '')}</textarea>
+        </div>
+
+        <div class="field">
+          <label>${t('notes', 'Filosofía y Metodología')}</label>
+          <textarea id="coach-philosophy" rows="3" placeholder="Principios de juego, valores del equipo...">${escapeHtml(profile.philosophy || '')}</textarea>
+        </div>
+      `;
+
+      const photoPreview = body.querySelector('#coach-photo-preview');
+      const photoInput = body.querySelector('#coach-photo-input');
+      if (photoPreview && photoInput) {
+        photoPreview.onclick = () => photoInput.click();
+        photoInput.onchange = async (e) => {
+          const file = e.target.files && e.target.files[0];
+          if (!file) return;
+          try {
+            const shrunken = await shrinkImage(file);
+            photoData = shrunken;
+            photoPreview.innerHTML = `<img src="${shrunken}" alt="" /><div class="cam">${icon('camera', 16)}</div>`;
+          } catch (err) {
+            console.error('Error procesando foto:', err);
+          }
+        };
+      }
+    }, (foot) => {
+      foot.innerHTML = `
+        <button class="btn block primary" id="btn-save-coach-profile" style="font-weight: 800;">
+          💾 ${t('saveProfile', 'Guardar Perfil de Entrenador')}
+        </button>
+      `;
+
+      foot.querySelector('#btn-save-coach-profile').onclick = () => {
+        const name = (document.getElementById('coach-name') ? document.getElementById('coach-name').value : '').trim();
+        const role = (document.getElementById('coach-role') ? document.getElementById('coach-role').value : '').trim();
+        const license = (document.getElementById('coach-license') ? document.getElementById('coach-license').value : '').trim();
+        const phone = (document.getElementById('coach-phone') ? document.getElementById('coach-phone').value : '').trim();
+        const email = (document.getElementById('coach-email') ? document.getElementById('coach-email').value : '').trim();
+        const bio = (document.getElementById('coach-bio') ? document.getElementById('coach-bio').value : '').trim();
+        const philosophy = (document.getElementById('coach-philosophy') ? document.getElementById('coach-philosophy').value : '').trim();
+
+        Store.upsertCoachProfile({
+          name: name || 'Entrenador',
+          role: role || 'Primer Entrenador',
+          license,
+          phone,
+          email,
+          bio,
+          philosophy,
+          photo: photoData
+        });
+
+        closeSheet();
+        toast(t('savedSuccess', '¡Guardado con éxito!'), 'success');
+        haptic(40);
+        if (typeof onDone === 'function') onDone();
+      };
+    });
+  }
+
+  /* =========================================================
      VISTA 5: AJUSTES / CONFIGURACIÓN
      ========================================================= */
   function renderConfigView(view) {
     const settings = Store.state.settings;
+    const coachProfile = Store.state.coachProfile || {};
 
     view.innerHTML = `
       <div class="topbar">
@@ -7025,6 +7787,24 @@
           <span class="sub">${t('configSubtitle')}</span>
         </div>
         ${renderLangButton()}
+      </div>
+
+      <!-- Perfil del Entrenador -->
+      <div class="section-title"><span>👔 ${t('coachProfile', 'Perfil del Entrenador')}</span></div>
+      <div class="card" style="margin-bottom: 14px; border: 1.5px solid rgba(34, 211, 238, 0.35); background: linear-gradient(135deg, rgba(34, 211, 238, 0.08) 0%, rgba(15, 23, 42, 0.6) 100%);">
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
+          <div class="avatar md" style="flex-shrink: 0;">
+            ${coachProfile.photo ? `<img src="${coachProfile.photo}" alt="" />` : `<span>👔</span>`}
+          </div>
+          <div style="flex: 1; min-width: 0;">
+            <b style="font-size: 15px; color: #fff; display: block;" class="ellipsis">${escapeHtml(coachProfile.name || 'Entrenador')}</b>
+            <span style="font-size: 12px; color: var(--cyan); font-weight: 700; display: block;" class="ellipsis">${escapeHtml(coachProfile.role || 'Primer Entrenador')}</span>
+            ${coachProfile.license ? `<small style="font-size: 11px; color: var(--muted); display: block;">📜 ${escapeHtml(coachProfile.license)}</small>` : ''}
+          </div>
+        </div>
+        <button type="button" class="btn block secondary" id="btn-edit-coach-profile" style="font-size: 12.5px; font-weight: 800; height: 36px;">
+          ✏️ ${t('editCoachProfile', 'Editar Mi Perfil de Entrenador')}
+        </button>
       </div>
 
       <!-- Selector de Idioma -->
@@ -7164,6 +7944,11 @@
 
     const btnLang = view.querySelector('#btn-toggle-lang');
     if (btnLang) btnLang.onclick = toggleLanguage;
+
+    const btnEditCoach = view.querySelector('#btn-edit-coach-profile');
+    if (btnEditCoach) {
+      btnEditCoach.onclick = () => showEditCoachProfileModal(() => renderConfigView(view));
+    }
 
     view.querySelector('#lang-pick-es').onclick = () => {
       I18N.setLang('es');
