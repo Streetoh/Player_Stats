@@ -64,6 +64,9 @@
     const backdrop = document.createElement('div');
     backdrop.className = 'sheet-backdrop';
     backdrop.id = 'active-sheet-backdrop';
+    if (document.querySelector('.chat-dialog-overlay, .dialog-overlay')) {
+      backdrop.style.zIndex = '11000';
+    }
 
     const sheet = document.createElement('div');
     sheet.className = 'sheet';
@@ -5316,7 +5319,11 @@
   }
 
   function showPlayerProfileModal(playerId) {
-    const p = Store.player(playerId);
+    let p = Store.player(playerId);
+    if (!p) {
+      const cleanId = String(playerId || '').trim();
+      p = (Store.state.players || []).find(x => x.id === cleanId || ('p_' + x.id) === cleanId || cleanId.includes(x.id) || Store.playerName(x).toLowerCase() === cleanId.toLowerCase());
+    }
     if (!p) return;
     const team = Store.team(p.teamId);
 
@@ -8786,6 +8793,9 @@
               📱 Enviar por Viber
             </button>
           </div>
+          <button class="btn btn-secondary block" id="btn-reset-test-presence" style="height: 38px; font-size: 12px; font-weight: 700; color: #f87171; border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.1);">
+            🔄 ${t('resetTestPlayerLinks', 'Desvincular perfiles de prueba')}
+          </button>
         </div>
       </div>
 
@@ -8954,6 +8964,27 @@
       btnSharePortalViber.onclick = () => {
         const viberMsg = `⚽ *Portal Oficial del Jugador - Jõhvi JK Noova*\nConsulta tus estadísticas individuales, convocatorias y confirma tu asistencia en vivo:\n👉 ${portalUrl}`;
         dispatchViberShare(viberMsg);
+      };
+    }
+
+    const btnResetPresence = view.querySelector('#btn-reset-test-presence');
+    if (btnResetPresence) {
+      btnResetPresence.onclick = async () => {
+        if (!confirm(t('confirmResetTestPresence', '¿Desvincular los perfiles de prueba y devolver el estado de todos los jugadores a por defecto?'))) return;
+        btnResetPresence.disabled = true;
+        btnResetPresence.textContent = '...';
+        try {
+          if (window.Cloud && window.Cloud.resetAllPlayersPresence) {
+            await window.Cloud.resetAllPlayersPresence();
+          }
+          window._globalPresenceMap = { coach: { isOnline: true } };
+          toast(t('resetPresenceSuccess', 'Perfiles de prueba desvinculados correctamente'), 'success');
+        } catch (e) {
+          toast('Error: ' + e.message, 'error');
+        } finally {
+          btnResetPresence.disabled = false;
+          btnResetPresence.textContent = '🔄 ' + t('resetTestPlayerLinks', 'Desvincular perfiles de prueba');
+        }
       };
     }
 

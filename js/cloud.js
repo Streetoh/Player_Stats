@@ -832,6 +832,65 @@
       }
     },
 
+    editChatMessage: async function (chatId, msgId, newText) {
+      if (!this.init() || !chatId || !msgId) return false;
+      try {
+        const msgRef = db.collection('clubs').doc(CLUB_ID).collection('chats').doc(chatId).collection('messages').doc(msgId);
+        await msgRef.update({
+          text: newText,
+          isEdited: true,
+          editedAt: Date.now()
+        });
+        return true;
+      } catch (err) {
+        console.error('[Cloud] Error editando mensaje:', err);
+        return false;
+      }
+    },
+
+    deleteChatMessageForEveryone: async function (chatId, msgId) {
+      if (!this.init() || !chatId || !msgId) return false;
+      try {
+        const msgRef = db.collection('clubs').doc(CLUB_ID).collection('chats').doc(chatId).collection('messages').doc(msgId);
+        await msgRef.update({
+          text: '',
+          image: null,
+          file: null,
+          isDeletedForEveryone: true,
+          deletedAt: Date.now()
+        });
+        return true;
+      } catch (err) {
+        console.error('[Cloud] Error eliminando mensaje para todos:', err);
+        return false;
+      }
+    },
+
+    resetAllPlayersPresence: async function () {
+      if (!this.init()) return false;
+      try {
+        const snap = await db.collection('clubs').doc(CLUB_ID).collection('presence').get();
+        const batch = db.batch();
+        snap.forEach(doc => {
+          if (doc.id !== 'coach') {
+            batch.delete(doc.ref);
+          }
+        });
+        await batch.commit();
+
+        const claimSnap = await db.collection('clubs').doc(CLUB_ID).collection('profile_claim_requests').get();
+        const claimBatch = db.batch();
+        claimSnap.forEach(doc => {
+          claimBatch.delete(doc.ref);
+        });
+        await claimBatch.commit();
+        return true;
+      } catch (err) {
+        console.error('[Cloud] Error reseteando presencia de jugadores:', err);
+        return false;
+      }
+    },
+
     removeChatParticipant: async function (chatId, participantId) {
       if (!this.init() || !chatId || !participantId) return false;
       try {

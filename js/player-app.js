@@ -3132,6 +3132,7 @@
       const cached = localStorage.getItem('cached_club_state');
       if (cached) {
         clubData = JSON.parse(cached);
+        window.clubData = clubData;
         updateHeaderIdentity();
       }
     } catch (e) {}
@@ -3181,6 +3182,7 @@
         if (remoteState.convocations) {
           clubData.convocations = remoteState.convocations;
         }
+        window.clubData = clubData;
         try { localStorage.setItem('cached_club_state', JSON.stringify(clubData)); } catch (e) {}
 
         if (remoteState.settings && remoteState.settings.clubName) {
