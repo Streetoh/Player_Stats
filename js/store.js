@@ -109,7 +109,7 @@
       sessions: [],
       convocations: [],
       settings: {
-        lang: 'es',
+        lang: 'en',
         enabledStats: STATS.filter(s => s.def).map(s => s.key),
         vibrate: true,
         linkGoalShot: true,
@@ -201,28 +201,22 @@
       conv.list = conv.list || {};
       conv.responses = conv.responses || {};
 
-      const prevSt = conv.list[resp.playerId];
-      const newSt = resp.status;
+      const isAttending = (resp.status === 'called' || resp.status === 'attending' || resp.status === 'yes');
+      const newSt = isAttending ? 'called' : 'absent';
+      const statusKey = isAttending ? 'attending' : 'absent';
 
-      if (prevSt !== newSt || !conv.responses[resp.playerId]) {
-        conv.list[resp.playerId] = newSt;
-        conv.responses[resp.playerId] = {
-          status: newSt === 'called' ? 'attending' : 'absent',
-          playerName: resp.playerName || '',
-          notes: resp.notes || '',
-          time: resp.timestamp || Date.now()
-        };
+      conv.list[resp.playerId] = newSt;
+      conv.responses[resp.playerId] = {
+        status: statusKey,
+        playerName: resp.playerName || '',
+        notes: resp.notes || '',
+        time: resp.timestamp || Date.now()
+      };
 
-        this.save();
+      this.save();
 
-        if (window.UI && window.UI.toast) {
-          const p = this.player(resp.playerId);
-          const pName = resp.playerName || (p ? this.playerName(p) : 'Un jugador');
-          const msg = newSt === 'called' 
-            ? `🟢 ${pName} ha confirmado asistencia` 
-            : `❌ ${pName} ha notificado baja`;
-          window.UI.toast(msg, newSt === 'called' ? 'success' : 'info');
-        }
+      if (typeof window.onPlayerAttendanceResponse === 'function') {
+        window.onPlayerAttendanceResponse(resp);
       }
     },
 
@@ -803,6 +797,7 @@
         date: new Date().toISOString().slice(0, 10),
         time: '10:00',
         venue: '',
+        address: '',
         rival: '',
         teamId: '',
         notes: '',

@@ -228,6 +228,93 @@
         console.error('[Cloud] Error listener votos:', err);
         return null;
       }
+    },
+
+    // Envía una solicitud de cambio de perfil (jugador -> entrenador)
+    submitProfileRequest: async function (reqData) {
+      if (!this.init()) throw new Error('No hay conexión con la nube.');
+      if (!reqData || !reqData.id) throw new Error('Datos de solicitud incompletos.');
+
+      await db.collection('clubs')
+        .doc(CLUB_ID)
+        .collection('profile_requests')
+        .doc(reqData.id)
+        .set({
+          ...reqData,
+          serverTime: global.firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+
+      return true;
+    },
+
+    // Escucha solicitudes pendientes (para el entrenador)
+    listenToProfileRequests: function (callback) {
+      if (!this.init()) return null;
+
+      try {
+        return db.collection('clubs')
+          .doc(CLUB_ID)
+          .collection('profile_requests')
+          .onSnapshot((snapshot) => {
+            const requests = [];
+            snapshot.forEach(doc => {
+              const data = doc.data();
+              if (data && data.status === 'pending') {
+                requests.push(data);
+              }
+            });
+            requests.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+            if (typeof callback === 'function') callback(requests);
+          }, (err) => {
+            console.warn('[Cloud] Error escuchando solicitudes:', err);
+          });
+      } catch (err) {
+        console.error('[Cloud] Error listener solicitudes:', err);
+        return null;
+      }
+    },
+
+    // Resuelve una solicitud (aprobar o rechazar) por parte del entrenador
+    resolveProfileRequest: async function (reqId, status) {
+      if (!this.init() || !reqId) return false;
+
+      try {
+        await db.collection('clubs')
+          .doc(CLUB_ID)
+          .collection('profile_requests')
+          .doc(reqId)
+          .update({
+            status: status, // 'approved' o 'rejected'
+            resolvedAt: Date.now()
+          });
+        return true;
+      } catch (err) {
+        console.error('[Cloud] Error resolviendo solicitud:', err);
+        return false;
+      }
+    },
+
+    // Escucha el estado de una solicitud específica del jugador
+    listenToMyProfileRequest: function (reqId, callback) {
+      if (!this.init() || !reqId) return null;
+
+      try {
+        return db.collection('clubs')
+          .doc(CLUB_ID)
+          .collection('profile_requests')
+          .doc(reqId)
+          .onSnapshot((doc) => {
+            if (doc.exists) {
+              const data = doc.data();
+              if (typeof callback === 'function') callback(data);
+            }
+          }, (err) => {
+            console.warn('[Cloud] Error escuchando mi solicitud:', err);
+          });
+      } catch (err) {
+        console.error(err);
+        return null;
+      }
     }
   };
 

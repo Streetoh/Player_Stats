@@ -14,15 +14,49 @@
   <link rel="icon" type="image/png" href="icons/icon-192.png" />
   <link rel="stylesheet" href="css/app.css" />
   <style>
-    /* Estilos específicos del Portal de Jugadores */
+    /* Estilos específicos y corrección de scroll del Portal de Jugadores */
+    html, body {
+      margin: 0 !important;
+      padding: 0 !important;
+      min-height: 100% !important;
+      height: auto !important;
+      overflow-y: auto !important;
+      overflow-x: hidden !important;
+      -webkit-overflow-scrolling: touch;
+      background: var(--bg);
+      color: var(--text);
+    }
+    #app {
+      position: relative !important;
+      inset: auto !important;
+      min-height: 100vh !important;
+      height: auto !important;
+      display: flex !important;
+      flex-direction: column !important;
+      overflow-y: visible !important;
+      overflow-x: hidden !important;
+    }
+    #portal-view {
+      flex: 1 0 auto !important;
+      padding-bottom: 140px !important;
+      overflow-y: visible !important;
+    }
+    .tabbar {
+      position: fixed !important;
+      left: 12px !important;
+      right: 12px !important;
+      bottom: calc(10px + env(safe-area-inset-bottom)) !important;
+      z-index: 999 !important;
+    }
     .player-portal-header {
-      background: linear-gradient(180deg, rgba(19, 31, 56, 0.95) 0%, rgba(6, 10, 19, 0.9) 100%);
+      background: linear-gradient(180deg, rgba(19, 31, 56, 0.98) 0%, rgba(6, 10, 19, 0.95) 100%);
       border-bottom: 1px solid var(--border);
       padding: 14px 16px 10px;
       position: sticky;
       top: 0;
       z-index: 100;
       backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
     }
     .portal-identity-bar {
       display: flex;
@@ -93,47 +127,47 @@
         <div style="display: flex; align-items: center; gap: 8px;">
           <span style="font-size: 22px;">🛡️</span>
           <div>
-            <h1 style="margin: 0; font-size: 16px; font-weight: 900; letter-spacing: -0.3px;" id="portal-club-title">Jõhvi JK Noova</h1>
+            <h1 style="margin: 0; font-size: 16px; font-weight: 900; letter-spacing: -0.3px;" id="portal-club-title">Player Stats</h1>
             <span style="font-size: 11px; color: var(--cyan); font-weight: 700;">PLAYER STATS (PLAYER)</span>
           </div>
         </div>
         <div style="display: flex; align-items: center; gap: 6px;">
-          <button class="icon-btn" id="btn-portal-lang" style="width: 34px; height: 34px; font-weight: 900; font-size: 12px;">ES</button>
-          <span class="badge" id="portal-cloud-badge" style="background: rgba(34, 197, 94, 0.15); color: #86efac; font-size: 10.5px;">🟢 En vivo</span>
+          <button class="icon-btn" id="btn-portal-lang" style="width: 34px; height: 34px; font-weight: 900; font-size: 12px;">EN</button>
+          <span class="badge" id="portal-cloud-badge" style="background: rgba(34, 197, 94, 0.15); color: #86efac; font-size: 10.5px;">🟢 Live</span>
         </div>
       </div>
 
       <!-- Selector de identidad: ¿Quién soy? -->
-      <div class="portal-identity-bar" id="btn-select-identity" title="Pulsa para cambiar de jugador">
+      <div class="portal-identity-bar" id="btn-select-identity" title="Select player profile">
         <div style="display: flex; align-items: center; gap: 10px; overflow: hidden;">
           <div id="portal-my-avatar" class="avatar sm"><span>?</span></div>
           <div style="overflow: hidden;">
-            <div style="font-size: 11px; color: var(--muted); font-weight: 700;">Mi Perfil:</div>
+            <div style="font-size: 11px; color: var(--muted); font-weight: 700;" id="portal-lbl-profile">My Profile:</div>
             <div style="font-size: 14px; font-weight: 800; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;" id="portal-my-name">
-              Seleccionar quién eres...
+              Select who you are...
             </div>
           </div>
         </div>
-        <span style="font-size: 12px; color: var(--cyan); font-weight: 800; flex-shrink: 0;">Cambiar ▾</span>
+        <span style="font-size: 12px; color: var(--cyan); font-weight: 800; flex-shrink: 0;" id="portal-lbl-change">Change ▾</span>
       </div>
     </header>
 
     <!-- Contenido principal según pestaña activa -->
-    <main id="portal-view" style="padding-bottom: 90px;"></main>
+    <main id="portal-view"></main>
 
     <!-- Barra de navegación inferior -->
     <nav class="tabbar" id="portal-tabbar">
       <button class="tab-btn active" data-tab="convocations">
         <span class="t-ic">📋</span>
-        <span class="t-lbl">Convocatorias</span>
+        <span class="t-lbl">Call-ups</span>
       </button>
       <button class="tab-btn" data-tab="stats">
         <span class="t-ic">👤</span>
-        <span class="t-lbl">Mi Ficha</span>
+        <span class="t-lbl">My Profile</span>
       </button>
       <button class="tab-btn" data-tab="squad">
         <span class="t-ic">👥</span>
-        <span class="t-lbl">Plantilla</span>
+        <span class="t-lbl">Squad</span>
       </button>
       <button class="tab-btn" data-tab="h2h">
         <span class="t-ic">⚔️</span>

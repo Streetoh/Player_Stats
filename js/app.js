@@ -475,12 +475,159 @@
     return t('footRight', 'Diestro');
   }
 
+  let pendingProfileRequests = [];
+  let knownProfileRequestIds = new Set();
+  let isFirstRequestsSnapshot = true;
+
+  function updateRequestsBadge() {
+    const count = (pendingProfileRequests || []).length;
+    document.querySelectorAll('#requests-badge').forEach(badge => {
+      if (count > 0) {
+        badge.textContent = count;
+        badge.style.display = 'block';
+      } else {
+        badge.style.display = 'none';
+      }
+    });
+  }
+
+  function handleIncomingProfileRequests(requests) {
+    pendingProfileRequests = requests || [];
+    updateRequestsBadge();
+
+    if (!isFirstRequestsSnapshot) {
+      requests.forEach(r => {
+        if (!knownProfileRequestIds.has(r.id)) {
+          const reqPlayerName = r.toPlayerName || 'Jugador';
+          toast(`🔔 ${t('newProfileRequest', 'Nueva solicitud de cambio de perfil')}: ${reqPlayerName}`, 'info');
+          haptic(50);
+        }
+      });
+    }
+    isFirstRequestsSnapshot = false;
+    knownProfileRequestIds = new Set((requests || []).map(r => r.id));
+  }
+
+  function showProfileRequestsModal() {
+    const reqs = pendingProfileRequests || [];
+    openSheet(t('profileRequests', 'Solicitudes de Perfil'), (body) => {
+      function renderRequests() {
+        if (!reqs.length) {
+          body.innerHTML = `
+            <div style="text-align: center; padding: 36px 16px; color: var(--muted);">
+              <div style="font-size: 36px; margin-bottom: 10px;">🔔</div>
+              <h3 style="margin: 0 0 6px; color: #fff; font-size: 15px;">${t('noProfileRequests', 'Sin solicitudes pendientes')}</h3>
+              <p style="margin: 0; font-size: 12.5px;">${t('noProfileRequestsDesc', 'Cuando un jugador solicite cambiar de perfil en su app, aparecerá aquí para que puedas autorizarlo o denegarlo.')}</p>
+            </div>
+          `;
+          return;
+        }
+
+        body.innerHTML = `
+          <div style="font-size: 12px; color: var(--muted); margin-bottom: 12px;">
+            ${t('profileRequestsDesc', 'Los siguientes jugadores solicitan cambiar su perfil en este club:')}
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 10px;" id="profile-requests-list">
+            ${reqs.map(r => {
+              const fromPlayer = Store.player(r.fromPlayerId);
+              const toPlayer = Store.player(r.toPlayerId);
+              const dateStr = r.createdAt ? new Date(r.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+              return `
+                <div class="card" style="padding: 12px; border: 1.5px solid var(--border); border-radius: 14px; background: var(--surface2);">
+                  <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                    <div>
+                      <span class="badge" style="background: rgba(250, 204, 21, 0.18); color: #fde047; font-size: 11px; font-weight: 800;">
+                        ⏳ ${t('pending', 'Pendiente')} ${dateStr ? '• ' + dateStr : ''}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 13.5px;">
+                    <div style="flex: 1; overflow: hidden;">
+                      <small style="display: block; color: var(--muted); font-size: 10.5px; text-transform: uppercase; font-weight: 800;">${t('currentProfile', 'Perfil Actual')}:</small>
+                      <b style="color: #cbd5e1; display: block; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">
+                        ${escapeHtml(r.fromPlayerName || (fromPlayer ? Store.playerName(fromPlayer) : 'Ninguno'))}
+                      </b>
+                    </div>
+                    <span style="font-size: 18px; color: var(--cyan); font-weight: 900;">➔</span>
+                    <div style="flex: 1; overflow: hidden;">
+                      <small style="display: block; color: var(--cyan); font-size: 10.5px; text-transform: uppercase; font-weight: 800;">${t('requestedProfile', 'Nuevo Perfil')}:</small>
+                      <b style="color: #86efac; display: block; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">
+                        ${escapeHtml(r.toPlayerName || (toPlayer ? Store.playerName(toPlayer) : 'Desconocido'))}
+                      </b>
+                    </div>
+                  </div>
+
+                  ${r.reason ? `
+                    <div style="background: var(--bg2); padding: 8px 10px; border-radius: 8px; font-size: 12px; color: #cbd5e1; margin-bottom: 10px; border: 1px dashed var(--border);">
+                      💬 <i>"${escapeHtml(r.reason)}"</i>
+                    </div>
+                  ` : ''}
+
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                    <button type="button" class="btn sm" data-approve-req="${r.id}" style="background: #22c55e; color: #04140a; font-weight: 900; font-size: 12px; height: 36px; border: none;">
+                      ✅ ${t('approve', 'Aprobar')}
+                    </button>
+                    <button type="button" class="btn sm danger ghost" data-reject-req="${r.id}" style="font-weight: 800; font-size: 12px; height: 36px;">
+                      ❌ ${t('reject', 'Denegar')}
+                    </button>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `;
+
+        body.querySelectorAll('[data-approve-req]').forEach(btn => {
+          btn.onclick = async () => {
+            const reqId = btn.getAttribute('data-approve-req');
+            btn.disabled = true;
+            btn.textContent = '...';
+            if (window.Cloud && window.Cloud.resolveProfileRequest) {
+              await window.Cloud.resolveProfileRequest(reqId, 'approved');
+            }
+            pendingProfileRequests = pendingProfileRequests.filter(x => x.id !== reqId);
+            toast(t('requestApproved', '✅ Solicitud de cambio de perfil aprobada'), 'success');
+            haptic(40);
+            renderRequests();
+            updateRequestsBadge();
+          };
+        });
+
+        body.querySelectorAll('[data-reject-req]').forEach(btn => {
+          btn.onclick = async () => {
+            const reqId = btn.getAttribute('data-reject-req');
+            btn.disabled = true;
+            btn.textContent = '...';
+            if (window.Cloud && window.Cloud.resolveProfileRequest) {
+              await window.Cloud.resolveProfileRequest(reqId, 'rejected');
+            }
+            pendingProfileRequests = pendingProfileRequests.filter(x => x.id !== reqId);
+            toast(t('requestRejected', '❌ Solicitud rechazada'), 'info');
+            haptic(25);
+            renderRequests();
+            updateRequestsBadge();
+          };
+        });
+      }
+
+      renderRequests();
+    });
+  }
+
   function renderLangButton() {
     const cur = I18N.getLang();
+    const pendingCount = (pendingProfileRequests || []).length;
     return `
-      <button class="icon-btn" id="btn-toggle-lang" title="${t('appLanguage')}">
-        <span style="font-size: 13px; font-weight: 900; letter-spacing: 0.5px;">${cur.toUpperCase()}</span>
-      </button>
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <button class="icon-btn" id="btn-profile-requests" title="${t('profileRequests', 'Solicitudes de Perfil')}" style="position: relative;">
+          <span style="font-size: 17px;">🔔</span>
+          <span id="requests-badge" style="position: absolute; top: -3px; right: -3px; background: #ef4444; color: #fff; font-size: 10px; font-weight: 900; min-width: 16px; height: 16px; line-height: 16px; text-align: center; border-radius: 999px; box-shadow: 0 0 6px rgba(239, 68, 68, 0.8); ${pendingCount > 0 ? '' : 'display: none;'}">${pendingCount}</span>
+        </button>
+        <button class="icon-btn" id="btn-toggle-lang" title="${t('appLanguage')}">
+          <span style="font-size: 13px; font-weight: 900; letter-spacing: 0.5px;">${cur.toUpperCase()}</span>
+        </button>
+      </div>
     `;
   }
 
@@ -490,6 +637,33 @@
     renderTabbar();
     navigate(currentTab);
   }
+
+  document.addEventListener('click', (e) => {
+    const reqBtn = e.target.closest('#btn-profile-requests');
+    if (reqBtn) {
+      showProfileRequestsModal();
+    }
+  });
+
+  window.onPlayerAttendanceResponse = function (resp) {
+    if (!resp) return;
+    const p = Store.player(resp.playerId);
+    const pName = resp.playerName || (p ? Store.playerName(p) : 'Jugador');
+    const isAttending = (resp.status === 'called' || resp.status === 'attending' || resp.status === 'yes');
+    toast(
+      isAttending ? `🟢 ${pName} ha confirmado asistencia` : `❌ ${pName} no puede asistir`,
+      isAttending ? 'success' : 'info'
+    );
+    haptic(35);
+
+    if (currentTab === 'convocations') {
+      navigate('convocations');
+    }
+
+    if (typeof window.activeConvocationModalRefresh === 'function') {
+      window.activeConvocationModalRefresh();
+    }
+  };
 
   /* =========================================================
      INICIALIZACIÓN Y NAVEGACIÓN
@@ -504,6 +678,9 @@
       window.Cloud.init();
       window.Cloud.startListeningToResponses((resp) => {
         Store.handleIncomingPlayerResponse(resp);
+      });
+      window.Cloud.listenToProfileRequests((requests) => {
+        handleIncomingProfileRequests(requests);
       });
       setTimeout(() => {
         if (Store.state.players.length > 0 || Store.state.convocations.length > 0) {
@@ -5200,6 +5377,7 @@
     const dateStr = conv.date || '';
     const timeStr = conv.time || '';
     const venueStr = conv.venue ? (isEn ? `📍 *Venue:* ${conv.venue}\n` : `📍 *Lugar:* ${conv.venue}\n`) : '';
+    const addressStr = conv.address ? (isEn ? `🗺️ *Address:* ${conv.address}\n` : `🗺️ *Dirección:* ${conv.address}\n`) : '';
     const rivalStr = conv.rival ? (isEn ? `⚔️ *Opponent:* ${conv.rival}\n` : `🆚 *Rival:* ${conv.rival}\n`) : '';
     const notesStr = conv.notes ? (isEn ? `📝 *Notes:* ${conv.notes}\n` : `📝 *Notas:* ${conv.notes}\n`) : '';
 
@@ -5211,6 +5389,7 @@
     text += isEn ? `📅 *Date:* ${dateStr} • ⏰ *Time:* ${timeStr}\n` : `📅 *Fecha:* ${dateStr} • ⏰ *Hora:* ${timeStr}\n`;
     if (rivalStr) text += rivalStr;
     if (venueStr) text += venueStr;
+    if (addressStr) text += addressStr;
     if (notesStr) text += notesStr;
 
     const list = conv.list || {};
@@ -5253,6 +5432,7 @@
       if (dateStr) qParams.set('d', dateStr);
       if (timeStr) qParams.set('h', timeStr);
       if (conv.venue) qParams.set('v', conv.venue);
+      if (conv.address) qParams.set('a', conv.address);
       if (conv.rival) qParams.set('r', conv.rival);
       if (calledNamesSimple.length > 0) {
         qParams.set('p', calledNamesSimple.join(','));
@@ -5351,6 +5531,7 @@
           <div class="conv-detail-meta" style="margin-bottom: 12px; font-size: 13px; line-height: 1.5;">
             <div>📅 <b>${t('date')}:</b> ${conv.date} ${conv.time ? '• ⏰ ' + conv.time : ''}</div>
             ${conv.venue ? `<div>📍 <b>Lugar / Campo:</b> ${escapeHtml(conv.venue)}</div>` : ''}
+            ${conv.address ? `<div>🗺️ <b>Dirección:</b> ${escapeHtml(conv.address)} <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(conv.address)}" target="_blank" style="color: var(--cyan); text-decoration: underline; margin-left: 6px; font-weight: 700;">(Ver Mapa ↗)</a></div>` : ''}
             ${conv.rival ? `<div>⚔️ <b>Rival:</b> ${escapeHtml(conv.rival)}</div>` : ''}
             ${conv.notes ? `<div style="margin-top: 4px; color: var(--muted);">📝 <b>Notas:</b> ${escapeHtml(conv.notes)}</div>` : ''}
           </div>
@@ -5665,6 +5846,10 @@
       }
 
       renderDetails();
+      window.activeConvocationModalRefresh = () => {
+        conv = Store.convocation(conv.id) || conv;
+        renderDetails();
+      };
     }, (foot) => {
       foot.innerHTML = `
         <div class="btn-row">
@@ -5690,6 +5875,8 @@
           showEditConvocationModal(conv.id, onDone);
         }, 150);
       };
+    }, () => {
+      window.activeConvocationModalRefresh = null;
     });
   }
 
@@ -5777,6 +5964,11 @@
             <label>${t('rivalTeam')}</label>
             <input type="text" id="conv-rival" placeholder="${t('rivalPlaceholder')}" value="${escapeHtml(c.rival || '')}" />
           </div>
+        </div>
+
+        <div class="field">
+          <label>📍 Dirección exacta / Address</label>
+          <input type="text" id="conv-address" placeholder="Ej: Carrer Major 45, 08001 Barcelona" value="${escapeHtml(c.address || '')}" />
         </div>
 
         <div class="field">
@@ -6143,6 +6335,7 @@
         const date = hiddenInp ? hiddenInp.value : (c.date || new Date().toISOString().slice(0, 10));
         const time = document.getElementById('conv-time').value;
         const venue = document.getElementById('conv-venue').value.trim();
+        const address = document.getElementById('conv-address') ? document.getElementById('conv-address').value.trim() : '';
         const rival = document.getElementById('conv-rival').value.trim();
         const notes = document.getElementById('conv-notes').value.trim();
         const teamId = document.getElementById('conv-team') ? document.getElementById('conv-team').value : '';
@@ -6161,6 +6354,7 @@
           date,
           time,
           venue,
+          address,
           rival,
           teamId,
           notes,
@@ -6206,9 +6400,12 @@
             <h1>${t('convocations')}</h1>
             <span class="sub">${list.length} convocatorias registradas</span>
           </div>
-          <button class="btn sm primary" id="btn-create-conv">
-            ${icon('plus', 16)} ${t('newConvocation')}
-          </button>
+          <div class="row" style="gap: 6px;">
+            ${renderLangButton()}
+            <button class="btn sm primary" id="btn-create-conv">
+              ${icon('plus', 16)} ${t('newConvocation')}
+            </button>
+          </div>
         </div>
 
         ${list.length === 0 ? `

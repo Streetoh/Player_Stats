@@ -330,7 +330,19 @@
       h2hScopeLabel: 'Comparar en base a:',
       h2hScopeGlobal: 'Historial Global (Todas las sesiones acumuladas)',
       h2hGroupSessions: 'Partidos y Entrenamientos',
-      shareViber: 'Compartir por Viber'
+      shareViber: 'Compartir por Viber',
+      profileRequests: 'Solicitudes de Perfil',
+      noProfileRequests: 'Sin solicitudes pendientes',
+      noProfileRequestsDesc: 'Cuando un jugador solicite cambiar de perfil en su app, aparecerá aquí para que puedas autorizarlo o denegarlo.',
+      profileRequestsDesc: 'Los siguientes jugadores solicitan cambiar su perfil en este club:',
+      pending: 'Pendiente',
+      currentProfile: 'Perfil Actual',
+      requestedProfile: 'Nuevo Perfil',
+      approve: 'Aprobar',
+      reject: 'Denegar',
+      requestApproved: '✅ Solicitud de cambio de perfil aprobada',
+      requestRejected: '❌ Solicitud rechazada',
+      newProfileRequest: 'Nueva solicitud de cambio de perfil'
     },
     en: {
       appName: 'Player stats (Coach)',
@@ -657,11 +669,29 @@
       h2hScopeLabel: 'Compare based on:',
       h2hScopeGlobal: 'Global Career (All sessions accumulated)',
       h2hGroupSessions: 'Matches & Training Sessions',
-      shareViber: 'Share via Viber'
+      shareViber: 'Share via Viber',
+      profileRequests: 'Profile Requests',
+      noProfileRequests: 'No pending requests',
+      noProfileRequestsDesc: 'When a player requests a profile switch from their app, it will appear here for you to approve or reject.',
+      profileRequestsDesc: 'The following players are requesting to switch their profile in this club:',
+      pending: 'Pending',
+      currentProfile: 'Current Profile',
+      requestedProfile: 'Requested Profile',
+      approve: 'Approve',
+      reject: 'Reject',
+      requestApproved: '✅ Profile switch request approved',
+      requestRejected: '❌ Profile switch request rejected',
+      newProfileRequest: 'New profile switch request'
     }
   };
 
-  let currentLang = 'es';
+  let currentLang = 'en';
+  try {
+    const saved = localStorage.getItem('lang');
+    if (saved === 'es' || saved === 'en') {
+      currentLang = saved;
+    }
+  } catch (e) {}
 
   function getLang() {
     return currentLang;
@@ -670,6 +700,7 @@
   function setLang(code) {
     if (code === 'en' || code === 'es') {
       currentLang = code;
+      try { localStorage.setItem('lang', code); } catch (e) {}
       if (window.Store && window.Store.state && window.Store.state.settings) {
         window.Store.state.settings.lang = code;
         window.Store.save();
