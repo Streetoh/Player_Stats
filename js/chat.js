@@ -115,6 +115,35 @@
     });
   }
 
+  function getCoachName() {
+    const cp = (global.clubData && global.clubData.coachProfile) ||
+               (global.Store && global.Store.state && global.Store.state.coachProfile);
+    if (cp && cp.name && cp.name.trim()) {
+      return cp.name.trim();
+    }
+    return 'Coach';
+  }
+
+  function getReactionsSummary(rawReactions) {
+    const summary = {};
+    if (!rawReactions || typeof rawReactions !== 'object') return [];
+    for (const [key, val] of Object.entries(rawReactions)) {
+      if (Array.isArray(val)) {
+        if (!summary[key]) summary[key] = [];
+        summary[key].push(...val);
+      } else if (val && typeof val === 'object' && val.emoji) {
+        const em = val.emoji;
+        if (!summary[em]) summary[em] = [];
+        if (!summary[em].includes(key)) summary[em].push(key);
+      } else if (typeof val === 'string') {
+        const em = val;
+        if (!summary[em]) summary[em] = [];
+        if (!summary[em].includes(key)) summary[em].push(key);
+      }
+    }
+    return Object.entries(summary).filter(([em, users]) => users.length > 0);
+  }
+
   function getChatAvatar(c, curId, allPlayers) {
     if (c.photo) {
       return `<img src="${c.photo}" style="width: 100%; height: 100%; border-radius: 12px; object-fit: cover; cursor: pointer;" class="chat-avatar-thumb" />`;
@@ -122,15 +151,17 @@
     if (c.iconEmoji) {
       return `<span>${c.iconEmoji}</span>`;
     }
+
+    const isCoachUser = (curId === 'coach');
+
     if (c.type === 'coach' || c.id.startsWith('coach_')) {
-      const isCoach = (curId === 'coach');
-      if (isCoach) {
+      if (isCoachUser) {
         // En la app de coach, el otro participante es el jugador
         let pid = c.id.replace('coach_', '');
         if ((!pid || pid === 'coach') && Array.isArray(c.participants)) {
           pid = c.participants.find(p => p !== 'coach') || '';
         }
-        const p = (allPlayers || []).find(x => x.id === pid);
+        const p = (allPlayers || []).find(x => x.id === pid) || (global.Store && global.Store.player ? global.Store.player(pid) : null);
         if (p && p.photo) {
           return `<img src="${p.photo}" style="width: 100%; height: 100%; border-radius: 12px; object-fit: cover;" />`;
         }
@@ -149,30 +180,50 @@
         return '<span>👨‍🏫</span>';
       }
     }
+
     if (c.type === 'team' || c.id.startsWith('team_')) {
       return '<span>🛡️</span>';
     }
+
     if (c.type === 'direct' || c.id.startsWith('direct_')) {
-      const parts = c.participants || [];
+      const parts = (Array.isArray(c.participants) && c.participants.length)
+        ? c.participants
+        : c.id.replace('direct_', '').split('_');
       const otherId = parts.find(p => p !== curId) || (parts[0] === curId ? parts[1] : parts[0]);
-      if (!otherId || otherId === 'coach') {
-        const cp = (global.clubData && global.clubData.coachProfile) ||
-                   (global.Store && global.Store.state && global.Store.state.coachProfile);
-        if (cp && cp.photo) {
-          return `<img src="${cp.photo}" style="width: 100%; height: 100%; border-radius: 12px; object-fit: cover;" />`;
+
+      if (isCoachUser) {
+        // En app de coach, el otro siempre es un jugador
+        const pid = (otherId && otherId !== 'coach') ? otherId : parts.find(p => p !== 'coach');
+        const p = (allPlayers || []).find(x => x.id === pid) || (global.Store && global.Store.player ? global.Store.player(pid) : null);
+        if (p && p.photo) {
+          return `<img src="${p.photo}" style="width: 100%; height: 100%; border-radius: 12px; object-fit: cover;" />`;
         }
-        return '<span>👨‍🏫</span>';
+        if (p) {
+          const init = (p.name || '?')[0].toUpperCase();
+          return `<span style="font-weight: 900; font-size: 16px; color: var(--cyan);">${init}</span>`;
+        }
+        return '<span>👤</span>';
+      } else {
+        if (!otherId || otherId === 'coach') {
+          const cp = (global.clubData && global.clubData.coachProfile) ||
+                     (global.Store && global.Store.state && global.Store.state.coachProfile);
+          if (cp && cp.photo) {
+            return `<img src="${cp.photo}" style="width: 100%; height: 100%; border-radius: 12px; object-fit: cover;" />`;
+          }
+          return '<span>👨‍🏫</span>';
+        }
+        const p = (allPlayers || []).find(x => x.id === otherId) || (global.Store && global.Store.player ? global.Store.player(otherId) : null);
+        if (p && p.photo) {
+          return `<img src="${p.photo}" style="width: 100%; height: 100%; border-radius: 12px; object-fit: cover;" />`;
+        }
+        if (p) {
+          const init = (p.name || '?')[0].toUpperCase();
+          return `<span style="font-weight: 900; font-size: 16px; color: var(--cyan);">${init}</span>`;
+        }
+        return '<span>👤</span>';
       }
-      const p = (allPlayers || []).find(x => x.id === otherId);
-      if (p && p.photo) {
-        return `<img src="${p.photo}" style="width: 100%; height: 100%; border-radius: 12px; object-fit: cover;" />`;
-      }
-      if (p) {
-        const init = (p.name || '?')[0].toUpperCase();
-        return `<span style="font-weight: 900; font-size: 16px; color: var(--cyan);">${init}</span>`;
-      }
-      return '<span>👤</span>';
     }
+
     if (c.type === 'group' || c.id.startsWith('group_')) {
       return '<span>👥</span>';
     }
@@ -410,13 +461,14 @@
           });
 
           pinnedCoachChatId = `coach_${curId}`;
+          const coachName = getCoachName();
           mergedMap[pinnedCoachChatId] = Object.assign({
             id: pinnedCoachChatId,
             type: 'coach',
             participants: [curId, 'coach']
           }, mergedMap[pinnedCoachChatId] || {}, {
             isPinned: true,
-            name: `👨‍🏫 ${t('pinnedCoachChat', isEn ? 'Private Chat with Coach' : 'Chat Privado con el Entrenador')}`
+            name: `(Coach) ${coachName}`
           });
         }
 
@@ -509,20 +561,22 @@
         listEl.innerHTML = displayChats.map(c => {
           let displayName = (c.name || 'Chat').replace(/^Chat:\s*/i, '').replace(/^🛡️\s*Chat:\s*/i, '🛡️ ');
           if (c.type === 'direct' || c.id.startsWith('direct_') || c.id.startsWith('coach_')) {
-            const parts = c.participants || [];
+            let parts = (Array.isArray(c.participants) && c.participants.length)
+              ? c.participants
+              : (c.id.startsWith('direct_') ? c.id.replace('direct_', '').split('_') : [c.id.replace('coach_', ''), 'coach']);
             let otherId = parts.find(p => p !== curId);
             if (!otherId && c.id.startsWith('coach_')) {
               const cand = c.id.replace('coach_', '');
               if (cand !== curId) otherId = cand;
             }
             if (curId !== 'coach' && (!otherId || otherId === 'coach')) {
-              displayName = `👨‍🏫 ${t('coach', isEn ? 'Coach' : 'Entrenador (Coach)')}`;
+              displayName = `(Coach) ${getCoachName()}`;
             } else {
-              const p = (allPlayers || []).find(x => x.id === otherId);
+              const p = (allPlayers || []).find(x => x.id === otherId) || (global.Store && global.Store.player ? global.Store.player(otherId) : null);
               if (p) {
                 displayName = `${p.mainDorsal != null ? '#' + p.mainDorsal + ' ' : ''}${p.name || ''} ${p.lastName || ''}`.trim();
               } else if (c.name) {
-                displayName = c.name.replace(/^Chat:\s*/i, '').replace(/^👨‍🏫\s*/i, '');
+                displayName = c.name.replace(/^Chat:\s*/i, '').replace(/^👨‍🏫\s*/i, '').replace(/^\(Coach\)\s*/i, '');
               }
             }
           }
@@ -694,7 +748,7 @@
                 <span style="font-size: 24px;">👨‍🏫</span>
                 <div style="flex: 1; overflow: hidden;">
                   <b style="font-size: 14px; color: #fff; display: block;">${t('coach', 'Entrenador')}</b>
-                  <small style="color: #fde047; font-size: 11px;">Staff Técnico Principal</small>
+                  <small style="color: #fde047; font-size: 11px;">${t('technicalStaff', 'Cuerpo Técnico Principal')}</small>
                 </div>
                 <span style="color: #facc15; font-size: 13px;">➔</span>
               </div>
@@ -712,7 +766,7 @@
                     <b style="font-size: 13.5px; color: #fff; display: block; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">
                       ${escapeHtml(displayName)}
                     </b>
-                    <small style="color: var(--muted); font-size: 11px;">${p.mainPosition || 'Jugador'} ${tm ? '• ' + escapeHtml(tm.name) : ''}</small>
+                    <small style="color: var(--muted); font-size: 11px;">${p.mainPosition || t('player', 'Jugador')} ${tm ? '• ' + escapeHtml(tm.name) : ''}</small>
                   </div>
                   <span style="color: var(--cyan); font-size: 13px;">➔</span>
                 </div>
@@ -774,7 +828,7 @@
             <label style="display: block; font-size: 12px; font-weight: 800; color: var(--cyan); margin-bottom: 4px;">
               ${t('groupName', 'Nombre del Grupo *')}
             </label>
-            <input type="text" id="inp-group-name" placeholder="Ej: Delanteros, Torneo Sábado..." style="width: 100%; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg2); color: #fff; font-size: 13.5px; margin-bottom: 12px;" />
+            <input type="text" id="inp-group-name" placeholder="${t('groupNamePlaceholder', 'Ej: Delanteros, Torneo Sábado...')}" style="width: 100%; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg2); color: #fff; font-size: 13.5px; margin-bottom: 12px;" />
 
             <!-- Icono y Foto del Grupo -->
             <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; margin-bottom: 12px;">
@@ -814,7 +868,7 @@
                   <input type="checkbox" value="coach" class="group-p-chk" style="width: 18px; height: 18px; accent-color: var(--cyan);" />
                   <div style="flex: 1; overflow: hidden;">
                     <b style="font-size: 13px; color: #fff; display: block;">👨‍🏫 ${t('coach', 'Entrenador')}</b>
-                    <small style="color: var(--cyan); font-size: 11px;">Staff Técnico</small>
+                    <small style="color: var(--cyan); font-size: 11px;">${t('technicalStaff', 'Staff Técnico')}</small>
                   </div>
                 </label>
               ` : ''}
@@ -827,7 +881,7 @@
                       <b style="font-size: 13px; color: #fff; display: block; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">
                         #${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(p.name || '')} ${escapeHtml(p.lastName || '')}
                       </b>
-                      <small style="color: var(--muted); font-size: 11px;">${p.mainPosition || 'Jugador'} ${tm ? '• ' + escapeHtml(tm.name) : ''}</small>
+                      <small style="color: var(--muted); font-size: 11px;">${p.mainPosition || t('player', 'Jugador')} ${tm ? '• ' + escapeHtml(tm.name) : ''}</small>
                     </div>
                   </label>
                 `;
@@ -1218,8 +1272,8 @@
       if (!chatId) return;
       currentlyOpenChatId = chatId;
       const curId = options.currentUserId || 'coach';
-      const curName = options.currentUserName || (options.isCoach ? 'Entrenador' : 'Jugador');
-      const isCoach = !!options.isCoach;
+      const isCoachUser = isCoach || (curId === 'coach');
+      const curName = options.currentUserName || (isCoachUser ? t('coach', 'Entrenador') : t('player', 'Jugador'));
       const chatData = options.chatData || {};
       const allPlayers = options.players || [];
       const allTeams = options.teams || [];
@@ -1229,12 +1283,47 @@
         try { global.AndroidBridge.clearNotifications(); } catch (e) {}
       }
 
+      let otherPlayerId = null;
+      let otherPlayerObj = null;
+      const isDirectOrCoachChat = (chatData.type === 'coach' || chatData.type === 'direct' || chatId.startsWith('coach_') || chatId.startsWith('direct_'));
+
       let resolvedTitle = options.title || 'Chat';
-      if (chatData.type === 'direct' || chatId.startsWith('direct_')) {
-        const parts = chatData.participants || chatId.replace('direct_', '').split('_');
-        const otherId = parts.find(p => p !== curId) || (parts[0] === curId ? parts[1] : parts[0]);
-        if (!otherId || otherId === 'coach') {
-          resolvedTitle = `👨‍🏫 ${t('coach', 'Entrenador (Coach)')}`;
+      if (isDirectOrCoachChat) {
+        let parts = Array.isArray(chatData.participants) && chatData.participants.length ? chatData.participants : null;
+        if (!parts) {
+          if (chatId.startsWith('coach_')) {
+            const pid = chatId.replace('coach_', '');
+            parts = ['coach', pid];
+          } else if (chatId.startsWith('direct_')) {
+            parts = chatId.replace('direct_', '').split('_');
+          }
+        }
+        const otherId = (parts || []).find(p => p !== curId) || ((parts && parts[0] === curId) ? parts[1] : (parts ? parts[0] : null));
+
+        if (isCoachUser) {
+          // En app de coach, el interlocutor en chat 1 a 1 siempre es un jugador
+          otherPlayerId = (otherId && otherId !== 'coach') ? otherId : (parts || []).find(p => p !== 'coach');
+          otherPlayerObj = (allPlayers || []).find(x => x.id === otherPlayerId) || (global.Store && global.Store.player ? global.Store.player(otherPlayerId) : null);
+          if (otherPlayerObj) {
+            resolvedTitle = `${otherPlayerObj.mainDorsal != null ? '#' + otherPlayerObj.mainDorsal + ' ' : ''}${otherPlayerObj.name || ''} ${otherPlayerObj.lastName || ''}`.trim();
+          } else if (otherPlayerId) {
+            resolvedTitle = `Jugador #${otherPlayerId}`;
+          }
+        } else {
+          // En app de jugador:
+          if (!otherId || otherId === 'coach' || chatData.type === 'coach' || chatId.startsWith('coach_')) {
+            resolvedTitle = `(Coach) ${getCoachName()}`;
+          } else {
+            otherPlayerId = otherId;
+            otherPlayerObj = (allPlayers || []).find(x => x.id === otherPlayerId) || (global.Store && global.Store.player ? global.Store.player(otherPlayerId) : null);
+            if (otherPlayerObj) {
+              resolvedTitle = `${otherPlayerObj.mainDorsal != null ? '#' + otherPlayerObj.mainDorsal + ' ' : ''}${otherPlayerObj.name || ''} ${otherPlayerObj.lastName || ''}`.trim();
+            }
+          }
+        }
+
+        if (!chatData.participants || !chatData.participants.length) {
+          chatData.participants = isCoachUser ? ['coach', otherPlayerId] : [curId, otherPlayerId || 'coach'];
         }
       }
 
@@ -1424,8 +1513,40 @@
       const headerTitle = overlay.querySelector('#chat-header-title');
       const mentionPopup = overlay.querySelector('#chat-mention-popup');
 
-      if (headerAvatar && chatData.photo) {
-        headerAvatar.onclick = () => openPhotoLightbox(chatData.photo);
+      const openPartnerProfile = () => {
+        haptic(25);
+        if (isCoachUser) {
+          if (otherPlayerId && typeof global.__showPlayerProfile === 'function') {
+            global.__showPlayerProfile(otherPlayerId);
+          }
+        } else {
+          if (!otherPlayerId || otherPlayerId === 'coach') {
+            if (typeof global.__showCoachProfile === 'function') {
+              global.__showCoachProfile();
+            }
+          } else {
+            if (typeof global.__showPlayerProfile === 'function') {
+              global.__showPlayerProfile(otherPlayerId);
+            }
+          }
+        }
+      };
+
+      if (isDirectOrCoachChat) {
+        if (headerAvatar) {
+          headerAvatar.style.cursor = 'pointer';
+          headerAvatar.title = t('viewProfile', 'Ver perfil');
+          headerAvatar.onclick = openPartnerProfile;
+        }
+        if (headerTitle) {
+          headerTitle.style.cursor = 'pointer';
+          headerTitle.title = t('viewProfile', 'Ver perfil');
+          headerTitle.onclick = openPartnerProfile;
+        }
+      } else {
+        if (headerAvatar && chatData.photo) {
+          headerAvatar.onclick = () => openPhotoLightbox(chatData.photo);
+        }
       }
 
       if (clearReplyBtn) {
@@ -1535,8 +1656,9 @@
         };
       }
 
-      // Autocomplete de menciones (@jugador)
-      if (inputEl && mentionPopup) {
+      // Autocomplete de menciones (@jugador) SOLO en chats grupales o de equipo
+      const isGroupOrTeamChat = (chatData.type === 'group' || chatData.type === 'team' || chatId.startsWith('group_') || chatId.startsWith('team_'));
+      if (inputEl && mentionPopup && isGroupOrTeamChat) {
         inputEl.addEventListener('input', () => {
           const val = inputEl.value;
           const selStart = inputEl.selectionStart || val.length;
@@ -1737,11 +1859,10 @@
           }
 
           // Reacciones
-          const reactionsMap = m.reactions || {};
-          const reactionsEntries = Object.entries(reactionsMap).filter(([em, users]) => Array.isArray(users) && users.length > 0);
+          const reactionsEntries = getReactionsSummary(m.reactions || {});
 
           return `
-            <div class="chat-msg-row" data-mid="${m.id}" data-idx="${idx}" style="display: flex; gap: 8px; align-items: flex-end; justify-content: ${isMine ? 'flex-end' : 'flex-start'}; margin-bottom: 4px;">
+            <div class="chat-msg-row" data-mid="${m.id}" data-idx="${idx}" style="display: flex; gap: 8px; align-items: flex-end; justify-content: ${isMine ? 'flex-end' : 'flex-start'}; margin-bottom: 4px; touch-action: pan-y;">
               ${!isMine ? `
                 <div class="chat-sender-avatar" data-sender-id="${m.senderId}" style="width: 32px; height: 32px; border-radius: 50%; background: rgba(34, 211, 238, 0.2); border: 1.5px solid rgba(34, 211, 238, 0.4); display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; cursor: pointer; overflow: hidden; margin-bottom: 2px;" title="${t('viewProfile', 'Ver perfil')}">
                   ${senderAvatarHtml}
@@ -1751,7 +1872,7 @@
               <div style="display: flex; flex-direction: column; align-items: ${isMine ? 'flex-end' : 'flex-start'}; max-width: 82%;">
                 ${!isMine ? `
                   <span class="chat-sender-name" data-sender-id="${m.senderId}" style="font-size: 11.5px; font-weight: 800; color: #38bdf8; margin-bottom: 3px; padding-left: 4px; cursor: pointer;">
-                    ${escapeHtml(m.senderName || 'Usuario')}
+                    ${escapeHtml(m.senderName || t('user', 'Usuario'))}
                   </span>
                 ` : ''}
 
@@ -1765,11 +1886,11 @@
                 <div style="display: flex; align-items: center; gap: 8px; margin-top: 3px; padding: 0 4px;">
                   <small style="font-size: 10.5px; color: var(--muted);">${time}</small>
 
-                  <button type="button" class="icon-btn ghost btn-msg-react" data-mid="${m.id}" style="width: 22px; height: 22px; font-size: 13px; padding: 0; opacity: 0.75;" title="Reaccionar">
+                  <button type="button" class="icon-btn ghost btn-msg-react" data-mid="${m.id}" style="width: 22px; height: 22px; font-size: 13px; padding: 0; opacity: 0.75;" title="${t('react', 'Reaccionar')}">
                     😊
                   </button>
 
-                  <button type="button" class="icon-btn ghost btn-msg-reply" data-mid="${m.id}" data-text="${escapeHtml(m.text || '')}" data-sname="${escapeHtml(m.senderName || '')}" style="width: 22px; height: 22px; font-size: 13px; padding: 0; opacity: 0.75;" title="Responder">
+                  <button type="button" class="icon-btn ghost btn-msg-reply" data-mid="${m.id}" data-text="${escapeHtml(m.text || '')}" data-sname="${escapeHtml(m.senderName || '')}" style="width: 22px; height: 22px; font-size: 13px; padding: 0; opacity: 0.75;" title="${t('reply', 'Responder')}">
                     ↩️
                   </button>
                 </div>
@@ -1778,7 +1899,7 @@
                 ${reactionsEntries.length > 0 ? `
                   <div style="display: flex; gap: 4px; flex-wrap: wrap; margin-top: 3px;">
                     ${reactionsEntries.map(([em, users]) => {
-                      const hasMyReaction = users.some(u => (typeof u === 'string' ? u : u.id) === curId);
+                      const hasMyReaction = Array.isArray(users) && users.includes(curId);
                       return `
                         <button type="button" class="btn sm badge-reaction" data-mid="${m.id}" data-emoji="${em}" style="height: 22px; padding: 1px 6px; font-size: 11.5px; font-weight: 800; border-radius: 12px; border: 1px solid ${hasMyReaction ? '#22c55e' : 'var(--border)'}; background: ${hasMyReaction ? 'rgba(34,197,94,0.2)' : 'var(--surface)'}; color: ${hasMyReaction ? '#86efac' : '#fff'}; cursor: pointer;">
                           ${em} ${users.length}
@@ -1827,6 +1948,77 @@
           };
         });
 
+        // Deslizar mensaje hacia la izquierda para responder (swipe-to-reply)
+        msgsContainer.querySelectorAll('.chat-msg-row').forEach(row => {
+          let touchStartX = 0;
+          let touchStartY = 0;
+          let isSwiping = false;
+          let diffX = 0;
+
+          row.addEventListener('touchstart', (e) => {
+            if (e.touches && e.touches.length === 1) {
+              touchStartX = e.touches[0].clientX;
+              touchStartY = e.touches[0].clientY;
+              isSwiping = false;
+              diffX = 0;
+            }
+          }, { passive: true });
+
+          row.addEventListener('touchmove', (e) => {
+            if (!e.touches || e.touches.length !== 1) return;
+            const currentX = e.touches[0].clientX;
+            const currentY = e.touches[0].clientY;
+            diffX = currentX - touchStartX;
+            const diffY = currentY - touchStartY;
+
+            if (diffX < -15 && Math.abs(diffX) > Math.abs(diffY)) {
+              isSwiping = true;
+              const translateX = Math.max(diffX, -65);
+              row.style.transform = `translateX(${translateX}px)`;
+              row.style.transition = 'none';
+            }
+          }, { passive: true });
+
+          row.addEventListener('touchend', () => {
+            if (isSwiping) {
+              row.style.transition = 'transform 0.25s cubic-bezier(0.2, 0.9, 0.3, 1)';
+              row.style.transform = 'translateX(0px)';
+
+              if (diffX < -45) {
+                const mid = row.getAttribute('data-mid');
+                const idx = parseInt(row.getAttribute('data-idx'), 10);
+                const m = messagesList[idx] || messagesList.find(x => x.id === mid);
+                if (m) {
+                  currentReplyTo = { id: m.id, text: m.text, senderName: m.senderName };
+                  if (replyText) replyText.textContent = `${m.senderName}: "${m.text ? m.text.slice(0, 45) : '📷'}"`;
+                  if (replyPreview) replyPreview.style.display = 'flex';
+                  haptic(35);
+                  if (inputEl) inputEl.focus();
+                }
+              }
+              isSwiping = false;
+            }
+          }, { passive: true });
+        });
+
+        // Función para aplicar o alternar reacción
+        async function applyReaction(mid, emoji) {
+          haptic(25);
+          const msgObj = messagesList.find(x => x.id === mid);
+          if (msgObj) {
+            if (!msgObj.reactions || typeof msgObj.reactions !== 'object') msgObj.reactions = {};
+            if (msgObj.reactions[curId] && (msgObj.reactions[curId].emoji === emoji || msgObj.reactions[curId] === emoji)) {
+              delete msgObj.reactions[curId];
+            } else {
+              msgObj.reactions[curId] = { emoji: emoji, userName: curName, time: Date.now() };
+            }
+            renderMessages();
+          }
+          if (global.Cloud && global.Cloud.reactToChatMessage) {
+            await global.Cloud.reactToChatMessage(chatId, mid, curId, curName, emoji);
+          }
+        }
+
         // Botón reaccionar (mostrar popover)
         msgsContainer.querySelectorAll('.btn-msg-react').forEach(btn => {
           btn.onclick = () => {
@@ -1845,10 +2037,7 @@
             const emoji = b.getAttribute('data-emoji');
             const pop = msgsContainer.querySelector('#popover-' + mid);
             if (pop) pop.style.display = 'none';
-            haptic(25);
-            if (global.Cloud && global.Cloud.reactToChatMessage) {
-              await global.Cloud.reactToChatMessage(chatId, mid, curId, curName, emoji);
-            }
+            await applyReaction(mid, emoji);
           };
         });
 
@@ -1857,10 +2046,7 @@
           b.onclick = async () => {
             const mid = b.getAttribute('data-mid');
             const emoji = b.getAttribute('data-emoji');
-            haptic(20);
-            if (global.Cloud && global.Cloud.reactToChatMessage) {
-              await global.Cloud.reactToChatMessage(chatId, mid, curId, curName, emoji);
-            }
+            await applyReaction(mid, emoji);
           };
         });
 

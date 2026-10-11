@@ -56,7 +56,11 @@
 
   /* ---------- Modales / Bottom Sheets ---------- */
   function openSheet(title, renderBody, renderFoot, onClose) {
-    closeSheet();
+    const existing = document.getElementById('active-sheet-backdrop');
+    if (existing) existing.remove();
+    const closing = document.getElementById('closing-sheet-backdrop');
+    if (closing) closing.remove();
+
     const backdrop = document.createElement('div');
     backdrop.className = 'sheet-backdrop';
     backdrop.id = 'active-sheet-backdrop';
@@ -154,8 +158,11 @@
   function closeSheet() {
     const backdrop = document.getElementById('active-sheet-backdrop');
     if (!backdrop) return;
+    backdrop.id = 'closing-sheet-backdrop';
     backdrop.classList.add('closing');
-    setTimeout(() => backdrop.remove(), 200);
+    setTimeout(() => {
+      if (backdrop && backdrop.parentNode) backdrop.remove();
+    }, 200);
   }
 
   /* Modal superpuesto sin cerrar la hoja inferior (Stacked Modal) */
@@ -261,20 +268,6 @@
 
   function openDatePicker(initialDate, onSelect) {
     const iso = parseInputDateToIso(initialDate);
-    if (window.AndroidBridge && window.AndroidBridge.pickDate) {
-      const cbId = 'dp_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
-      window.__datePickerCallbacks[cbId] = (pickedIso) => {
-        if (pickedIso && typeof onSelect === 'function') {
-          onSelect(pickedIso);
-        }
-      };
-      try {
-        window.AndroidBridge.pickDate(iso, cbId);
-        return;
-      } catch (err) {
-        console.warn('Native pickDate falló, usando calendario interno:', err);
-      }
-    }
     openCalendarModal(iso, onSelect);
   }
 
@@ -331,7 +324,10 @@
         let cls = 'calendar-day-cell current-month';
         if (isSelected) cls += ' selected';
         if (isToday) cls += ' today';
-        daysHtml += `<div class="${cls}" data-action="select" data-d="${d}">${d}</div>`;
+        const inlineStyle = isSelected
+          ? 'style="background: #22d3ee !important; color: #020617 !important; font-weight: 900 !important; border: 2px solid #ffffff !important; box-shadow: 0 0 16px rgba(34, 211, 238, 0.9) !important;"'
+          : (isToday ? 'style="border-color: rgba(34, 211, 238, 0.6); color: var(--cyan);"' : '');
+        daysHtml += `<div class="${cls}" data-action="select" data-d="${d}" ${inlineStyle}>${d}</div>`;
       }
 
       const totalCells = firstDayIndex + daysInMonth;
@@ -4044,11 +4040,11 @@
   function showPlayerCardModal(player, session) {
     if (!player) return;
     const sess = session || (Store.state.sessions.length > 0 ? Store.state.sessions[0] : null);
-    const st = sess ? (sess.stats[player.id] || {}) : Store.playerAggregate(player.id).totals;
+    const st = sess ? (sess.stats[player.id] || {}) : Store.playerAggregate(player.id, Store.state.sessions).totals;
     const rating = Store.calculateMatchRating(st, player.mainPosition);
     const radar = Store.calculatePlayerRadar(player.id);
     const team = Store.team(player.teamId);
-    const isEn = (Store.state.settings.lang === 'en');
+    const isEn = (Store.state.settings && Store.state.settings.lang === 'en');
 
     openSheet(t('playerCardTitle', 'Ficha de Jugador'), (body) => {
       body.innerHTML = `
@@ -4094,6 +4090,21 @@
 
       setTimeout(() => {
         const ctx = canvas.getContext('2d');
+        if (!ctx.roundRect) {
+          ctx.roundRect = function(x, y, w, h, r) {
+            let radius = typeof r === 'number' ? r : (Array.isArray(r) ? r[0] : 0);
+            if (radius < 0) radius = 0;
+            this.moveTo(x + radius, y);
+            this.lineTo(x + w - radius, y);
+            this.quadraticCurveTo(x + w, y, x + w, y + radius);
+            this.lineTo(x + w, y + h - radius);
+            this.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+            this.lineTo(x + radius, y + h);
+            this.quadraticCurveTo(x, y + h, x, y + h - radius);
+            this.lineTo(x, y + radius);
+            this.quadraticCurveTo(x, y, x + radius, y);
+          };
+        }
         const W = 600, H = 850;
 
         // Función que dibuja el contenido tras resolver la foto del jugador
@@ -5357,29 +5368,51 @@
         </div>
 
         ${hasParentContact ? `
-          <!-- Tarjeta de Contacto de Padres / Tutores -->
-          <div class="card" style="padding: 12px 14px; margin-bottom: 10px; border: 1.5px solid rgba(168, 85, 247, 0.4); background: rgba(168, 85, 247, 0.06); border-radius: 14px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-              <b style="font-size: 12.5px; color: #d8b4fe;">👨‍👩‍👦 ${t('parentContact', 'Contacto de Padres / Tutores')}</b>
-              <span class="badge" style="background: rgba(168, 85, 247, 0.2); color: #c084fc; font-size: 10px; font-weight: 800;">${t('guardian', 'Tutor')}</span>
+          <!-- Tarjeta de Contacto de Padres / Tutores (Plegable con alto contraste) -->
+          <div class="card" id="card-parent-contact" style="padding: 12px 14px; margin-bottom: 10px; border: 1.5px solid rgba(168, 85, 247, 0.4); background: rgba(168, 85, 247, 0.08); border-radius: 14px; cursor: pointer; user-select: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 18px;">👨‍👩‍👦</span>
+                <div>
+                  <b style="font-size: 12.5px; color: #d8b4fe; display: block;">${t('parentContact', 'Contacto de Padres / Tutores')}</b>
+                  <span style="font-size: 13.5px; color: #ffffff; font-weight: 800;">${escapeHtml(p.parentContact.name || t('guardian', 'Tutor'))}</span>
+                </div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span class="badge" style="background: rgba(168, 85, 247, 0.25); color: #c084fc; font-size: 10px; font-weight: 800;">${t('guardian', 'Tutor')}</span>
+                <span id="parent-contact-arrow" style="color: #c084fc; font-size: 13px; font-weight: 900; transition: transform 0.2s;">▼</span>
+              </div>
             </div>
-            <div style="font-size: 14.5px; font-weight: 800; color: #fff; margin-bottom: 8px;">
-              ${escapeHtml(p.parentContact.name || 'Tutor')}
-            </div>
-            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+
+            <!-- Información desplegada al pulsar la tarjeta -->
+            <div id="parent-contact-details" style="display: none; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(168, 85, 247, 0.25);">
               ${p.parentContact.phone ? `
-                <a href="tel:${p.parentContact.phone.replace(/\s+/g, '')}" class="btn sm secondary" style="text-decoration: none; font-size: 11.5px; height: 32px; padding: 0 10px; display: inline-flex; align-items: center; gap: 4px;">
-                  ${t('callGuardian', '📞 Llamar')}
-                </a>
-                <a href="https://wa.me/${p.parentContact.phone.replace(/[^0-9]/g, '')}" target="_blank" rel="noopener" class="btn sm" style="text-decoration: none; font-size: 11.5px; height: 32px; padding: 0 10px; background: #22c55e; color: #04140a; border: none; font-weight: 900; display: inline-flex; align-items: center; gap: 4px;">
-                  ${t('whatsappGuardian', '💬 WhatsApp')}
-                </a>
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; font-size: 13px;">
+                  <span style="color: #94a3b8; font-weight: 700;">📞 ${t('parentPhone', 'Teléfono')}:</span>
+                  <b style="color: #ffffff; font-size: 13.5px; letter-spacing: 0.5px;">${escapeHtml(p.parentContact.phone)}</b>
+                </div>
               ` : ''}
               ${p.parentContact.email ? `
-                <a href="mailto:${p.parentContact.email}" class="btn sm ghost" style="text-decoration: none; font-size: 11.5px; height: 32px; padding: 0 10px; border: 1px solid var(--border); display: inline-flex; align-items: center; gap: 4px;">
-                  ${t('emailGuardian', '✉️ Email')}
-                </a>
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; font-size: 13px;">
+                  <span style="color: #94a3b8; font-weight: 700;">✉️ ${t('parentEmail', 'Email')}:</span>
+                  <b style="color: #ffffff; font-size: 13px;">${escapeHtml(p.parentContact.email)}</b>
+                </div>
               ` : ''}
+              <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px;" onclick="event.stopPropagation();">
+                ${p.parentContact.phone ? `
+                  <a href="tel:${p.parentContact.phone.replace(/\s+/g, '')}" class="btn sm" style="text-decoration: none; font-size: 12px; height: 34px; padding: 0 12px; background: #0284c7; color: #ffffff !important; border: 1.5px solid #38bdf8; font-weight: 800; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px;">
+                    📞 ${t('callGuardian', 'Llamar')}
+                  </a>
+                  <a href="viber://chat?number=${encodeURIComponent(p.parentContact.phone.replace(/[^0-9+]/g, ''))}" target="_blank" rel="noopener" class="btn sm" style="text-decoration: none; font-size: 12px; height: 34px; padding: 0 12px; background: #7c3aed; color: #ffffff !important; border: 1.5px solid #c084fc; font-weight: 800; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px;">
+                    💜 Viber
+                  </a>
+                ` : ''}
+                ${p.parentContact.email ? `
+                  <a href="mailto:${escapeHtml(p.parentContact.email)}" class="btn sm" style="text-decoration: none; font-size: 12px; height: 34px; padding: 0 12px; background: rgba(255,255,255,0.14); color: #ffffff !important; border: 1.5px solid rgba(255,255,255,0.4); font-weight: 800; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px;">
+                    ✉️ ${t('emailGuardian', 'Email')}
+                  </a>
+                ` : ''}
+              </div>
             </div>
           </div>
         ` : ''}
@@ -5542,6 +5575,20 @@
         `).join('')}
       `;
 
+      // Desplegable de contacto de padres
+      const cardParent = body.querySelector('#card-parent-contact');
+      if (cardParent) {
+        cardParent.onclick = () => {
+          const details = body.querySelector('#parent-contact-details');
+          const arrow = body.querySelector('#parent-contact-arrow');
+          if (!details) return;
+          const isHidden = details.style.display === 'none';
+          details.style.display = isHidden ? 'block' : 'none';
+          if (arrow) arrow.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+          haptic(15);
+        };
+      }
+
       // Chatear con este jugador directamente
       const btnChatDirect = body.querySelector('#btn-player-chat-direct');
       if (btnChatDirect) {
@@ -5589,7 +5636,6 @@
 
       // Ficha de Jugador
       body.querySelector('#btn-player-match-card').onclick = () => {
-        closeSheet();
         showPlayerCardModal(p, aggAll.sessions.length ? aggAll.sessions[aggAll.sessions.length - 1].session : null);
       };
 
@@ -5638,88 +5684,88 @@
   /* =========================================================
      MODAL PARA AÑADIR DATOS MANUALMENTE A UN JUGADOR
      ========================================================= */
+  /* =========================================================
+     MODAL PARA AÑADIR DATOS MANUALMENTE A UN JUGADOR
+     ========================================================= */
   function showAddManualDataModal(player, onDone) {
-    let sessType = 'match';
-    const counts = {};
-    Store.STATS.forEach(s => { counts[s.key] = 0; });
+    const isEn = (window.I18N && window.I18N.getLang) ? window.I18N.getLang() === 'en' : false;
+    const currentAgg = Store.playerAggregate(player.id, Store.state.sessions);
+    const currentTotals = currentAgg.totals || {};
+
+    const deltas = {};
+    Store.STATS.forEach(s => { deltas[s.key] = 0; });
 
     openSheet(`${t('addDataManually')}: ${Store.playerName(player, true)}`, (body) => {
       body.innerHTML = `
-        <p class="hint" style="margin-bottom: 12px;">${t('manualDataDesc')}</p>
-
-        <div class="type-pick">
-          <button type="button" class="" id="man-training">
-            <span>⚽</span><b>${t('training')}</b>
-          </button>
-          <button type="button" class="active match" id="man-match">
-            <span>🏆</span><b>${t('match')}</b>
-          </button>
+        <div style="background: rgba(34, 211, 238, 0.08); border: 1.5px solid rgba(34, 211, 238, 0.3); border-radius: 12px; padding: 10px 12px; margin-bottom: 14px;">
+          <p style="font-size: 12.5px; color: #cbd5e1; margin: 0; line-height: 1.45;">
+            ${isEn 
+              ? 'Add extra counts directly to the player\'s accumulated totals. New actions will immediately sum to their historical stats:' 
+              : 'Añade cantidades directamente al acumulado del jugador. Las acciones que introduzcas se sumarán de inmediato a sus totales históricos:'}
+          </p>
         </div>
 
-        ${renderDatePickerFieldHtml('man-date', new Date().toISOString().slice(0, 10), t('date'))}
-        <div class="field">
-          <label>Minutos jugados (aprox)</label>
-          <input type="number" id="man-mins" value="45" />
-        </div>
+        <div class="edit-grid" style="max-height: 52vh; overflow-y: auto; padding-right: 2px;">
+          ${Store.STATS.map(item => {
+            const curVal = currentTotals[item.key] || 0;
+            return `
+              <div class="edit-row" style="display: flex; align-items: center; justify-content: space-between; padding: 9px 10px; border-bottom: 1px solid var(--border); gap: 8px;">
+                <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;">
+                  <span class="e-emoji" style="font-size: 18px; flex-shrink: 0;">${item.emoji}</span>
+                  <div style="overflow: hidden;">
+                    <b class="e-lbl" style="font-size: 13px; color: #fff; display: block; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">${item.label}</b>
+                    <span id="preview-${item.key}" style="font-size: 11px; color: var(--muted); font-weight: 700;">
+                      ${isEn ? 'Current' : 'Actual'}: <b>${curVal}</b>
+                    </span>
+                  </div>
+                </div>
 
-        <div class="field" id="man-rival-field">
-          <label>${t('rivalTeam')}</label>
-          <input type="text" id="man-rival" placeholder="${t('rivalPlaceholder')}" />
-        </div>
-
-        <div class="section-title"><span>Cifras acumuladas</span></div>
-
-        <div class="edit-grid" style="max-height: 40vh; overflow-y: auto;">
-          ${Store.STATS.map(item => `
-            <div class="edit-row">
-              <span class="e-emoji">${item.emoji}</span>
-              <span class="e-lbl">${item.label}</span>
-              <div class="stepper">
-                <button type="button" class="btn-m-step" data-k="${item.key}">-</button>
-                <input type="number" min="0" max="999" class="step-num-input" id="m-val-${item.key}" data-k="${item.key}" value="0" inputmode="numeric" />
-                <button type="button" class="btn-p-step" data-k="${item.key}">+</button>
+                <div class="stepper" style="display: flex; align-items: center; gap: 4px; flex-shrink: 0;">
+                  <button type="button" class="btn-m-step" data-k="${item.key}" style="width: 32px; height: 32px; border-radius: 8px; background: var(--surface2); border: 1px solid var(--border); color: #fff; font-size: 16px; font-weight: 900; cursor: pointer;">-</button>
+                  <input type="number" min="0" max="999" class="step-num-input" id="m-val-${item.key}" data-k="${item.key}" value="0" inputmode="numeric" style="width: 44px; height: 32px; text-align: center; border-radius: 8px; border: 1px solid var(--border); background: var(--bg2); color: #fff; font-weight: 900; font-size: 14px;" />
+                  <button type="button" class="btn-p-step" data-k="${item.key}" style="width: 32px; height: 32px; border-radius: 8px; background: var(--surface2); border: 1px solid var(--border); color: var(--cyan); font-size: 16px; font-weight: 900; cursor: pointer;">+</button>
+                </div>
               </div>
-            </div>
-          `).join('')}
+            `;
+          }).join('')}
         </div>
       `;
 
-      const bTr = body.querySelector('#man-training');
-      const bMt = body.querySelector('#man-match');
-      const fRiv = body.querySelector('#man-rival-field');
-
-      bTr.onclick = () => {
-        sessType = 'training';
-        bTr.className = 'active training';
-        bMt.className = '';
-        fRiv.style.display = 'none';
-      };
-      bMt.onclick = () => {
-        sessType = 'match';
-        bMt.className = 'active match';
-        bTr.className = '';
-        fRiv.style.display = '';
-      };
+      function updatePreview(k) {
+        const cur = currentTotals[k] || 0;
+        const add = deltas[k] || 0;
+        const prevEl = body.querySelector(`#preview-${k}`);
+        if (!prevEl) return;
+        if (add > 0) {
+          prevEl.innerHTML = `<span style="color: #86efac; font-weight: 800;">${cur} ➔ ${cur + add} (+${add})</span>`;
+        } else {
+          prevEl.innerHTML = `${isEn ? 'Current' : 'Actual'}: <b>${cur}</b>`;
+        }
+      }
 
       body.querySelectorAll('.step-num-input').forEach(inp => {
         const k = inp.getAttribute('data-k');
         inp.addEventListener('focus', () => inp.select());
         inp.addEventListener('input', () => {
           const val = Math.max(0, parseInt(inp.value, 10) || 0);
-          counts[k] = val;
+          deltas[k] = val;
+          updatePreview(k);
         });
         inp.addEventListener('blur', () => {
-          inp.value = counts[k] || 0;
+          inp.value = deltas[k] || 0;
+          updatePreview(k);
         });
       });
 
       body.querySelectorAll('.btn-m-step').forEach(btn => {
         btn.onclick = () => {
           const k = btn.getAttribute('data-k');
-          if (counts[k] > 0) {
-            counts[k]--;
+          if (deltas[k] > 0) {
+            deltas[k]--;
             const inp = body.querySelector(`#m-val-${k}`);
-            if (inp) inp.value = counts[k];
+            if (inp) inp.value = deltas[k];
+            updatePreview(k);
+            haptic(15);
           }
         };
       });
@@ -5727,42 +5773,33 @@
       body.querySelectorAll('.btn-p-step').forEach(btn => {
         btn.onclick = () => {
           const k = btn.getAttribute('data-k');
-          counts[k]++;
+          deltas[k] = (deltas[k] || 0) + 1;
           const inp = body.querySelector(`#m-val-${k}`);
-          if (inp) inp.value = counts[k];
+          if (inp) inp.value = deltas[k];
+          updatePreview(k);
+          haptic(20);
         };
       });
-
-      bindDatePickerField('man-date', body);
     }, (foot) => {
       foot.innerHTML = `
         <div class="btn-row">
           <button class="btn" id="btn-cancel-man">${t('cancel')}</button>
-          <button class="btn primary" id="btn-save-man">${t('saveChanges')}</button>
+          <button class="btn primary" id="btn-save-man" style="font-weight: 900;">💾 ${t('saveChanges')}</button>
         </div>
       `;
 
       foot.querySelector('#btn-cancel-man').onclick = closeSheet;
 
       foot.querySelector('#btn-save-man').onclick = () => {
-        const textInp = document.getElementById('man-date-text');
-        const hiddenInp = document.getElementById('man-date');
-        if (textInp && hiddenInp) {
-          const parsed = parseInputDateToIso(textInp.value);
-          if (parsed) hiddenInp.value = parsed;
+        const totalAdded = Object.values(deltas).reduce((sum, v) => sum + v, 0);
+        if (totalAdded > 0) {
+          Store.addManualPlayerSession(player.id, {
+            type: 'training',
+            date: new Date().toISOString().slice(0, 10),
+            title: isEn ? 'Manual Stats Addition' : 'Ajuste manual de estadísticas'
+          }, deltas);
+          toast(t('savedSuccess'), 'success');
         }
-        const date = hiddenInp ? hiddenInp.value : new Date().toISOString().slice(0, 10);
-        const mins = parseInt(document.getElementById('man-mins').value, 10) || 0;
-        const rival = document.getElementById('man-rival').value.trim();
-
-        Store.addManualPlayerSession(player.id, {
-          type: sessType,
-          date,
-          minutes: mins,
-          rival
-        }, counts);
-
-        toast(t('savedSuccess'), 'success');
         closeSheet();
         if (onDone) onDone();
       };
@@ -5810,19 +5847,30 @@
     { code: 'POR', name: 'Portero / Goalkeeper', short: 'POR', x: 50, y: 90 }
   ];
 
-  /* Modal táctico interactivo de selección de posición sobre el campo de fútbol */
+  /* Modal táctico interactivo de selección de posición sobre el campo de fútbol (Stacked overlay sin cerrar hojas inferiores) */
   function showPitchPositionPickerModal(currentPos, onSelect) {
     let selected = currentPos || 'DC';
 
-    openSheet(t('pitchPositionPicker', 'Táctico: Seleccionar Posición'), (body) => {
-      body.innerHTML = `
-        <div style="text-align: center; margin-bottom: 12px;">
-          <p style="font-size: 12px; color: var(--muted); margin: 0 0 6px;">
-            ${t('selectPositionOnPitchDesc', 'Toca una posición sobre el campo táctico para seleccionarla.')}
-          </p>
+    const overlay = document.createElement('div');
+    overlay.className = 'dialog-overlay';
+    overlay.style.cssText = 'position: fixed; inset: 0; z-index: 10000; background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center; padding: 14px;';
+
+    const isEn = (window.I18N && window.I18N.getLang) ? window.I18N.getLang() === 'en' : false;
+
+    overlay.innerHTML = `
+      <div class="dialog-box" style="width: 100%; max-width: 380px; max-height: 94vh; overflow-y: auto; background: var(--surface); border: 1.5px solid var(--border); border-radius: 20px; padding: 18px; box-shadow: 0 10px 40px rgba(0,0,0,0.8);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <h3 style="margin: 0; font-size: 16px; font-weight: 900; color: #fff;">
+            🏟️ ${t('pitchPositionPicker', 'Táctico: Seleccionar Posición')}
+          </h3>
+          <button type="button" class="icon-btn ghost" id="pitch-dlg-close-x" style="width: 32px; height: 32px; font-size: 16px;">✕</button>
         </div>
 
-        <div style="position: relative; width: 100%; max-width: 310px; aspect-ratio: 2 / 3; margin: 0 auto 14px; background: linear-gradient(180deg, #15803d 0%, #166534 50%, #15803d 100%); border: 2.5px solid rgba(255, 255, 255, 0.9); border-radius: 14px; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.6); user-select: none;" id="tactical-pitch-stage">
+        <p style="font-size: 12px; color: var(--muted); margin: 0 0 12px; text-align: center;">
+          ${t('selectPositionOnPitchDesc', 'Toca una posición sobre el campo táctico para seleccionarla.')}
+        </p>
+
+        <div style="position: relative; width: 100%; max-width: 290px; aspect-ratio: 2 / 3; margin: 0 auto 12px; background: linear-gradient(180deg, #15803d 0%, #166534 50%, #15803d 100%); border: 2.5px solid rgba(255, 255, 255, 0.9); border-radius: 14px; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.6); user-select: none;" id="tactical-pitch-stage">
           <!-- Bandas de césped cortado -->
           <div style="position: absolute; inset: 0; background: repeating-linear-gradient(180deg, rgba(255,255,255,0.04) 0px, rgba(255,255,255,0.04) 38px, transparent 38px, transparent 76px); pointer-events: none;"></div>
 
@@ -5841,15 +5889,15 @@
           <div style="position: absolute; bottom: 0; left: 34%; right: 34%; height: 9%; border: 2px solid rgba(255,255,255,0.7); border-bottom: none; pointer-events: none;"></div>
 
           <!-- Indicador de ataque -->
-          <div style="position: absolute; top: 8px; right: 10px; font-size: 10px; color: rgba(255,255,255,0.9); font-weight: 900; background: rgba(0,0,0,0.35); padding: 2px 7px; border-radius: 6px; pointer-events: none;">
-            ⬆️ ATAQUE
+          <div style="position: absolute; top: 8px; right: 10px; font-size: 10px; color: rgba(255,255,255,0.9); font-weight: 900; background: rgba(0,0,0,0.4); padding: 2px 7px; border-radius: 6px; pointer-events: none;">
+            ${isEn ? '⬆️ ATTACK' : '⬆️ ATAQUE'}
           </div>
 
           <!-- Fichas tácticas interactivas -->
           ${TACTICAL_PITCH_POSITIONS.map(pos => {
             const isSel = (pos.code === selected);
             return `
-              <div class="tactical-pitch-pos-token" data-pos-code="${pos.code}" style="position: absolute; top: ${pos.y}%; left: ${pos.x}%; transform: translate(-50%, -50%); width: 44px; height: 44px; border-radius: 50%; background: ${isSel ? '#22d3ee' : '#0f172a'}; border: 2.5px solid ${isSel ? '#fff' : '#38bdf8'}; color: ${isSel ? '#04140a' : '#fff'}; font-weight: 900; font-size: 12.5px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; box-shadow: ${isSel ? '0 0 16px rgba(34, 211, 238, 0.9), 0 4px 8px rgba(0,0,0,0.5)' : '0 2px 8px rgba(0,0,0,0.4)'}; transition: all 0.15s; z-index: 2;">
+              <div class="tactical-pitch-pos-token" data-pos-code="${pos.code}" style="position: absolute; top: ${pos.y}%; left: ${pos.x}%; transform: translate(-50%, -50%); width: 42px; height: 42px; border-radius: 50%; background: ${isSel ? '#22d3ee' : '#0f172a'}; border: 2.5px solid ${isSel ? '#fff' : '#38bdf8'}; color: ${isSel ? '#04140a' : '#fff'}; font-weight: 900; font-size: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; box-shadow: ${isSel ? '0 0 16px rgba(34, 211, 238, 0.9), 0 4px 8px rgba(0,0,0,0.5)' : '0 2px 8px rgba(0,0,0,0.4)'}; transition: all 0.15s; z-index: 2;">
                 <span>${pos.short}</span>
                 ${isSel ? '<span style="font-size: 9px; line-height: 1;">✓</span>' : ''}
               </div>
@@ -5858,52 +5906,62 @@
         </div>
 
         <!-- Información de posición seleccionada -->
-        <div style="background: var(--surface2); border: 1.5px solid var(--border); border-radius: 12px; padding: 12px; margin-bottom: 6px; text-align: center;">
+        <div style="background: var(--surface2); border: 1.5px solid var(--border); border-radius: 12px; padding: 10px; margin-bottom: 12px; text-align: center;">
           <small style="color: var(--muted); text-transform: uppercase; font-weight: 800; font-size: 11px; display: block; margin-bottom: 2px;">
             ${t('selectedPosition', 'Posición seleccionada')}
           </small>
-          <div id="pitch-pos-info-name" style="font-size: 15.5px; font-weight: 900; color: var(--cyan);">
+          <div id="pitch-pos-info-name" style="font-size: 15px; font-weight: 900; color: var(--cyan);">
             ${(TACTICAL_PITCH_POSITIONS.find(x => x.code === selected) || {}).name || selected}
           </div>
         </div>
-      `;
 
-      body.querySelectorAll('.tactical-pitch-pos-token').forEach(token => {
-        token.onclick = () => {
-          const code = token.getAttribute('data-pos-code');
-          selected = code;
-          haptic(25);
+        <div style="display: flex; gap: 8px;">
+          <button type="button" class="btn ghost block" id="btn-cancel-pitch-pos" style="height: 42px; font-size: 13.5px;">
+            ${t('cancel', 'Cancelar')}
+          </button>
+          <button type="button" class="btn primary block" id="btn-confirm-pitch-pos" style="font-weight: 900; font-size: 13.5px; height: 42px;">
+            ✅ ${t('confirmPosition', 'Confirmar Posición')}
+          </button>
+        </div>
+      </div>
+    `;
 
-          body.querySelectorAll('.tactical-pitch-pos-token').forEach(el => {
-            const elCode = el.getAttribute('data-pos-code');
-            const isIt = elCode === selected;
-            el.style.background = isIt ? '#22d3ee' : '#0f172a';
-            el.style.borderColor = isIt ? '#fff' : '#38bdf8';
-            el.style.color = isIt ? '#04140a' : '#fff';
-            el.style.boxShadow = isIt ? '0 0 16px rgba(34, 211, 238, 0.9), 0 4px 8px rgba(0,0,0,0.5)' : '0 2px 8px rgba(0,0,0,0.4)';
-            el.innerHTML = `<span>${elCode}</span>${isIt ? '<span style="font-size: 9px; line-height: 1;">✓</span>' : ''}`;
-          });
+    function close() { overlay.remove(); }
+    overlay.querySelector('#pitch-dlg-close-x').onclick = close;
+    overlay.querySelector('#btn-cancel-pitch-pos').onclick = close;
+    overlay.onclick = (e) => { if (e.target === overlay) close(); };
 
-          const infoEl = body.querySelector('#pitch-pos-info-name');
-          const found = TACTICAL_PITCH_POSITIONS.find(x => x.code === selected);
-          if (infoEl && found) {
-            infoEl.textContent = found.name;
-          }
-        };
-      });
-    }, (foot) => {
-      foot.innerHTML = `
-        <button class="btn block primary" id="btn-confirm-pitch-pos" style="font-weight: 900; font-size: 14px; height: 44px;">
-          ✅ ${t('confirmPosition', 'Confirmar Posición')}
-        </button>
-      `;
+    overlay.querySelectorAll('.tactical-pitch-pos-token').forEach(token => {
+      token.onclick = () => {
+        const code = token.getAttribute('data-pos-code');
+        selected = code;
+        haptic(25);
 
-      foot.querySelector('#btn-confirm-pitch-pos').onclick = () => {
-        closeSheet();
-        haptic(35);
-        if (typeof onSelect === 'function') onSelect(selected);
+        overlay.querySelectorAll('.tactical-pitch-pos-token').forEach(el => {
+          const elCode = el.getAttribute('data-pos-code');
+          const isIt = elCode === selected;
+          el.style.background = isIt ? '#22d3ee' : '#0f172a';
+          el.style.borderColor = isIt ? '#fff' : '#38bdf8';
+          el.style.color = isIt ? '#04140a' : '#fff';
+          el.style.boxShadow = isIt ? '0 0 16px rgba(34, 211, 238, 0.9), 0 4px 8px rgba(0,0,0,0.5)' : '0 2px 8px rgba(0,0,0,0.4)';
+          el.innerHTML = `<span>${elCode}</span>${isIt ? '<span style="font-size: 9px; line-height: 1;">✓</span>' : ''}`;
+        });
+
+        const infoEl = overlay.querySelector('#pitch-pos-info-name');
+        const found = TACTICAL_PITCH_POSITIONS.find(x => x.code === selected);
+        if (infoEl && found) {
+          infoEl.textContent = found.name;
+        }
       };
     });
+
+    overlay.querySelector('#btn-confirm-pitch-pos').onclick = () => {
+      close();
+      haptic(35);
+      if (typeof onSelect === 'function') onSelect(selected);
+    };
+
+    document.body.appendChild(overlay);
   }
 
   /* Modal de creación/edición de jugador (extendida con fecha de nacimiento, edad, contactos y posiciones secundarias) */
@@ -6038,7 +6096,7 @@
         <div class="field-row">
           <div class="field">
             <label>${t('parentPhone', 'Teléfono del Tutor')}</label>
-            <input type="tel" id="p-parent-phone" value="${escapeHtml(parentContact.phone || '')}" placeholder="+34 600 000 000" />
+            <input type="tel" id="p-parent-phone" value="${escapeHtml(parentContact.phone || '+372 ')}" placeholder="+372 5000 0000" />
           </div>
           <div class="field">
             <label>${t('parentEmail', 'Email del Tutor')}</label>
@@ -7066,9 +7124,10 @@
     overlay.className = 'dialog-overlay';
 
     const allPlayers = Store.state.players || [];
+    let selectedPlayerId = null;
 
     overlay.innerHTML = `
-      <div class="dialog-box" style="max-width: 420px; padding: 20px;">
+      <div class="dialog-box" style="max-width: 480px; width: 94%; max-height: 90vh; display: flex; flex-direction: column; padding: 18px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
           <h3 style="margin: 0; font-size: 16px; font-weight: 800; color: #fff;">
             ➕ ${t('addManualPlayer', 'Añadir Jugador a Convocatoria')}
@@ -7076,7 +7135,7 @@
           <button type="button" class="icon-btn ghost" id="dlg-add-manual-x" style="width: 32px; height: 32px;">✕</button>
         </div>
 
-        <div class="segmented" style="display: flex; gap: 4px; margin-bottom: 14px; background: var(--surface2); padding: 4px; border-radius: 10px;">
+        <div class="segmented" style="display: flex; gap: 4px; margin-bottom: 12px; background: var(--surface2); padding: 4px; border-radius: 10px;">
           <button type="button" class="btn sm primary" id="tab-opt-existing" style="flex: 1; height: 32px; font-size: 11.5px; font-weight: 800; border-radius: 8px;">
             👥 ${t('players', 'Del Club')}
           </button>
@@ -7085,19 +7144,35 @@
           </button>
         </div>
 
-        <!-- SECCIÓN 1: SELECCIONAR JUGADOR YA REGISTRADO -->
-        <div id="sec-add-existing" style="display: block;">
-          <label style="font-size: 12px; font-weight: 800; color: var(--muted); margin-bottom: 6px; display: block;">
-            ${t('selectPlayer', 'Seleccionar de la plantilla del club:')}
-          </label>
-          <select id="sel-existing-player" style="width: 100%; padding: 10px; border-radius: 10px; font-size: 13.5px; background: var(--bg2); color: #fff; border: 1px solid var(--border); margin-bottom: 16px;">
-            <option value="">-- ${t('choosePlayer', 'Elegir jugador...')} --</option>
+        <!-- SECCIÓN 1: SELECCIONAR JUGADOR YA REGISTRADO (VISTA CUADRICULADA CON FOTOS Y EQUIPOS) -->
+        <div id="sec-add-existing" style="display: flex; flex-direction: column; flex: 1; min-height: 0;">
+          <input type="text" id="inp-search-conv-player" placeholder="${t('searchPlayerPlaceholder', 'Buscar por nombre, dorsal o equipo...')}" style="width: 100%; padding: 8px 12px; font-size: 13px; border-radius: 10px; margin-bottom: 10px; border: 1px solid var(--border); background: var(--bg2); color: #fff;" />
+
+          <div id="grid-existing-players" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; max-height: 48vh; overflow-y: auto; padding: 2px; margin-bottom: 12px;">
             ${allPlayers.map(p => {
               const tm = Store.team(p.teamId);
-              return `<option value="${p.id}">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(Store.playerName(p))} (${tm ? escapeHtml(tm.name) : 'Sin equipo'})</option>`;
+              const pName = Store.playerName(p);
+              const searchKey = `${pName} ${p.mainDorsal || ''} ${tm ? tm.name : ''}`.toLowerCase();
+              return `
+                <div class="card conv-grid-card" data-pid="${p.id}" data-search="${escapeHtml(searchKey)}" style="display: flex; flex-direction: column; align-items: center; text-align: center; padding: 10px 6px; border-radius: 12px; border: 1.5px solid var(--border); background: var(--surface2); cursor: pointer; transition: all 0.15s; position: relative; user-select: none;">
+                  <div style="width: 44px; height: 44px; border-radius: 50%; overflow: hidden; background: rgba(34,211,238,0.12); display: flex; align-items: center; justify-content: center; margin-bottom: 6px; border: 1.5px solid rgba(255,255,255,0.2);">
+                    ${p.photo ? `<img src="${p.photo}" style="width: 100%; height: 100%; object-fit: cover;" />` : `<b style="font-size: 16px; color: var(--cyan);">${(p.name || '?')[0].toUpperCase()}</b>`}
+                  </div>
+                  <div style="font-size: 12px; font-weight: 800; color: #fff; width: 100%; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">
+                    #${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(pName)}
+                  </div>
+                  <div style="font-size: 10px; color: var(--muted); margin-top: 2px;">
+                    ${p.mainPosition || 'Jugador'}
+                  </div>
+                  <div style="margin-top: 4px; width: 100%;">
+                    ${tm ? `<span class="badge" style="background: ${tm.color}25; color: ${tm.color}; border: 1px solid ${tm.color}60; font-size: 9.5px; padding: 1px 5px; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; display: block;">🛡️ ${escapeHtml(tm.name)}</span>` : `<span class="badge" style="background: var(--surface); color: var(--muted); font-size: 9.5px;">⚪ Sin equipo</span>`}
+                  </div>
+                </div>
+              `;
             }).join('')}
-          </select>
-          <button type="button" class="btn block primary" id="btn-confirm-add-existing" style="font-weight: 800; height: 38px;">
+          </div>
+
+          <button type="button" class="btn block primary" id="btn-confirm-add-existing" style="font-weight: 800; height: 40px; margin-top: auto;">
             ✅ ${t('add', 'Añadir a la Convocatoria')}
           </button>
         </div>
@@ -7137,7 +7212,7 @@
     tabExist.onclick = () => {
       tabExist.className = 'btn sm primary';
       tabNew.className = 'btn sm ghost';
-      secExist.style.display = 'block';
+      secExist.style.display = 'flex';
       secNew.style.display = 'none';
     };
     tabNew.onclick = () => {
@@ -7147,13 +7222,49 @@
       secExist.style.display = 'none';
     };
 
+    const searchInp = overlay.querySelector('#inp-search-conv-player');
+    const gridCards = overlay.querySelectorAll('.conv-grid-card');
+
+    if (searchInp) {
+      searchInp.oninput = () => {
+        const q = searchInp.value.toLowerCase().trim();
+        gridCards.forEach(c => {
+          const s = c.getAttribute('data-search') || '';
+          c.style.display = (!q || s.includes(q)) ? 'flex' : 'none';
+        });
+      };
+    }
+
+    gridCards.forEach(c => {
+      c.onclick = () => {
+        const pid = c.getAttribute('data-pid');
+        selectedPlayerId = pid;
+        gridCards.forEach(x => {
+          x.style.borderColor = 'var(--border)';
+          x.style.background = 'var(--surface2)';
+          x.style.boxShadow = 'none';
+        });
+        c.style.borderColor = '#22d3ee';
+        c.style.background = 'rgba(34, 211, 238, 0.15)';
+        c.style.boxShadow = '0 0 14px rgba(34, 211, 238, 0.4)';
+        haptic(20);
+      };
+      c.ondblclick = () => {
+        const pid = c.getAttribute('data-pid');
+        const player = Store.player(pid);
+        if (player && typeof onPlayerAdded === 'function') {
+          onPlayerAdded(player);
+        }
+        close();
+      };
+    });
+
     overlay.querySelector('#btn-confirm-add-existing').onclick = () => {
-      const pid = overlay.querySelector('#sel-existing-player').value;
-      if (!pid) {
-        toast('Selecciona un jugador', 'error');
+      if (!selectedPlayerId) {
+        toast('Selecciona un jugador tocando su tarjeta', 'error');
         return;
       }
-      const player = Store.player(pid);
+      const player = Store.player(selectedPlayerId);
       if (player && typeof onPlayerAdded === 'function') {
         onPlayerAdded(player);
       }
@@ -7324,15 +7435,12 @@
         <!-- Barra de recuento en vivo -->
         <div class="conv-badge-row" id="conv-counters-row" style="margin-bottom: 10px;">
           <span class="conv-status-chip called" id="chip-called">🟢 ${countCalled} ${t('calledStatus')}</span>
-          <span class="conv-status-chip bench" id="chip-bench">🟡 ${countBench} ${t('benchStatus')}</span>
-          <span class="conv-status-chip injured" id="chip-injured">🏥 ${countInjured} ${t('injuredStatus')}</span>
-          <span class="conv-status-chip" id="chip-absent" style="background: rgba(148,163,184,0.15); color: #cbd5e1; ${countAbsent > 0 ? '' : 'display: none;'}">❌ ${countAbsent} ${t('absentStatus')}</span>
         </div>
 
-        <!-- Lista de jugadores con botones táctiles (scroll mantenido sin saltos) -->
+        <!-- Lista de jugadores con botón de convocado (scroll mantenido sin saltos) -->
         <div class="card" id="conv-players-container" style="max-height: 38vh; overflow-y: auto; padding: 6px 12px;">
           ${allPlayers.map(p => {
-            const cur = list[p.id];
+            const isCalled = (list[p.id] === 'called');
             const pTeam = Store.team(p.teamId);
             return `
               <div class="conv-player-row" data-pid="${p.id}" data-team="${p.teamId || ''}">
@@ -7344,10 +7452,9 @@
                   </small>
                 </div>
                 <div class="conv-btn-group">
-                  <button type="button" class="conv-pick-btn ${cur === 'called' ? 'active called' : ''}" data-p="${p.id}" data-st="called" title="${t('calledStatus')}">🟢</button>
-                  <button type="button" class="conv-pick-btn ${cur === 'bench' ? 'active bench' : ''}" data-p="${p.id}" data-st="bench" title="${t('benchStatus')}">🟡</button>
-                  <button type="button" class="conv-pick-btn ${cur === 'injured' ? 'active injured' : ''}" data-p="${p.id}" data-st="injured" title="${t('injuredStatus')}">🏥</button>
-                  <button type="button" class="conv-pick-btn ${cur === 'absent' ? 'active absent' : ''}" data-p="${p.id}" data-st="absent" title="${t('absentStatus')}">❌</button>
+                  <button type="button" class="conv-pick-btn ${isCalled ? 'active called' : ''}" data-p="${p.id}" data-st="called" title="${t('calledStatus')}" style="padding: 5px 12px; font-size: 12.5px; font-weight: 800; border-radius: 10px; display: inline-flex; align-items: center; gap: 4px;">
+                    🟢 <span>${t('calledStatus')}</span>
+                  </button>
                 </div>
               </div>
             `;
@@ -7356,26 +7463,13 @@
       `;
 
       function updateCounterChips() {
-        let nCalled = 0, nBench = 0, nInjured = 0, nAbsent = 0;
+        let nCalled = 0;
         const pList = Store.state.players || [];
         pList.forEach(p => {
-          const st = list[p.id];
-          if (st === 'called') nCalled++;
-          else if (st === 'bench') nBench++;
-          else if (st === 'injured') nInjured++;
-          else if (st === 'absent') nAbsent++;
+          if (list[p.id] === 'called') nCalled++;
         });
         const cChip = body.querySelector('#chip-called');
-        const bChip = body.querySelector('#chip-bench');
-        const iChip = body.querySelector('#chip-injured');
-        const aChip = body.querySelector('#chip-absent');
         if (cChip) cChip.textContent = `🟢 ${nCalled} ${t('calledStatus')}`;
-        if (bChip) bChip.textContent = `🟡 ${nBench} ${t('benchStatus')}`;
-        if (iChip) iChip.textContent = `🏥 ${nInjured} ${t('injuredStatus')}`;
-        if (aChip) {
-          aChip.textContent = `❌ ${nAbsent} ${t('absentStatus')}`;
-          aChip.style.display = nAbsent > 0 ? 'inline-flex' : 'none';
-        }
       }
 
       const convTeamInput = body.querySelector('#conv-team');

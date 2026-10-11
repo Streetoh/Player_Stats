@@ -1960,46 +1960,63 @@
     const overlay = document.createElement('div');
     overlay.className = 'dialog-overlay';
     overlay.innerHTML = `
-      <div class="dialog-box" style="max-height: 85vh; width: 92%; max-width: 440px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
+      <div class="dialog-box" style="max-height: 88vh; width: 95%; max-width: 540px; display: flex; flex-direction: column; padding: 18px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px; flex-shrink: 0;">
           <h3 style="margin: 0; font-size: 16px; font-weight: 800;">${t('attendeesTitle')}</h3>
           <button type="button" class="icon-btn ghost" id="dlg-attendees-x" style="width: 32px; height: 32px;">✕</button>
         </div>
 
-        <div style="font-size: 12.5px; font-weight: 800; color: #86efac; margin: 8px 0 4px;">
-          🟢 ${t('confirmedBadge').toUpperCase()} (${attending.length})
-        </div>
-        <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; max-height: 25vh; overflow-y: auto;">
-          ${attending.length === 0 ? `<span style="font-size: 12px; color: var(--muted);">${t('noAttendeesYet')}</span>` : attending.map(p => `
-            <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; background: var(--surface2); padding: 6px 10px; border-radius: 8px;">
-              ${renderAvatar(p, 'sm')}
-              <b>#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(p.name || '')} ${escapeHtml(p.lastName || '')}</b>
+        <div style="flex: 1; overflow-y: auto; padding-right: 4px; display: flex; flex-direction: column; gap: 14px;">
+          <!-- Confirmados -->
+          <div>
+            <div style="font-size: 12.5px; font-weight: 800; color: #86efac; margin-bottom: 6px;">
+              🟢 ${t('confirmedBadge').toUpperCase()} (${attending.length})
             </div>
-          `).join('')}
-        </div>
+            ${attending.length === 0 ? `<div style="font-size: 12px; color: var(--muted);">${t('noAttendeesYet')}</div>` : `
+              <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px;">
+                ${attending.map(p => `
+                  <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; background: var(--surface2); border: 1px solid var(--border); padding: 8px 10px; border-radius: 10px; overflow: hidden;">
+                    ${renderAvatar(p, 'sm')}
+                    <b style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(p.name || '')} ${escapeHtml(p.lastName || '')}</b>
+                  </div>
+                `).join('')}
+              </div>
+            `}
+          </div>
 
-        <div style="font-size: 12.5px; font-weight: 800; color: #fca5a5; margin: 8px 0 4px;">
-          ❌ ${t('absentBadge').toUpperCase()} (${absent.length})
-        </div>
-        <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; max-height: 20vh; overflow-y: auto;">
-          ${absent.length === 0 ? `<span style="font-size: 12px; color: var(--muted);">${t('noAbsentYet')}</span>` : absent.map(p => `
-            <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; background: var(--surface2); padding: 6px 10px; border-radius: 8px;">
-              ${renderAvatar(p, 'sm')}
-              <span>#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(p.name || '')} ${escapeHtml(p.lastName || '')}</span>
+          <!-- Ausentes -->
+          <div>
+            <div style="font-size: 12.5px; font-weight: 800; color: #fca5a5; margin-bottom: 6px;">
+              ❌ ${t('absentBadge').toUpperCase()} (${absent.length})
             </div>
-          `).join('')}
-        </div>
+            ${absent.length === 0 ? `<div style="font-size: 12px; color: var(--muted);">${t('noAbsentYet')}</div>` : `
+              <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px;">
+                ${absent.map(p => `
+                  <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; background: var(--surface2); border: 1px solid var(--border); padding: 8px 10px; border-radius: 10px; overflow: hidden;">
+                    ${renderAvatar(p, 'sm')}
+                    <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(p.name || '')} ${escapeHtml(p.lastName || '')}</span>
+                  </div>
+                `).join('')}
+              </div>
+            `}
+          </div>
 
-        <div style="font-size: 12.5px; font-weight: 800; color: #fde047; margin: 8px 0 4px;">
-          ⏳ ${t('pendingBadge').toUpperCase()} (${pending.length})
-        </div>
-        <div style="display: flex; flex-direction: column; gap: 6px; max-height: 20vh; overflow-y: auto;">
-          ${pending.length === 0 ? `<span style="font-size: 12px; color: var(--muted);">${t('allAnswered')}</span>` : pending.map(p => `
-            <div style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); background: var(--surface2); padding: 6px 10px; border-radius: 8px;">
-              ${renderAvatar(p, 'sm')}
-              <span>#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(p.name || '')} ${escapeHtml(p.lastName || '')}</span>
+          <!-- Pendientes -->
+          <div>
+            <div style="font-size: 12.5px; font-weight: 800; color: #fde047; margin-bottom: 6px;">
+              ⏳ ${t('pendingBadge').toUpperCase()} (${pending.length})
             </div>
-          `).join('')}
+            ${pending.length === 0 ? `<div style="font-size: 12px; color: var(--muted);">${t('allAnswered')}</div>` : `
+              <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px;">
+                ${pending.map(p => `
+                  <div style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); background: var(--surface2); border: 1px solid var(--border); padding: 8px 10px; border-radius: 10px; overflow: hidden;">
+                    ${renderAvatar(p, 'sm')}
+                    <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(p.name || '')} ${escapeHtml(p.lastName || '')}</span>
+                  </div>
+                `).join('')}
+              </div>
+            `}
+          </div>
         </div>
       </div>
     `;
@@ -2803,7 +2820,7 @@
         </div>
 
         <!-- Radares individuales -->
-        <div class="section-title"><span>Radares Comparativos</span></div>
+        <div class="section-title"><span>${t('comparativeRadars', 'Comparative Skill Radars')}</span></div>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
           <div class="card" style="padding: 8px; text-align: center; border: 1px solid var(--border);">
             <b style="font-size: 12px; color: #22d3ee;">${escapeHtml(p1.name || '')}</b>

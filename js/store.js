@@ -558,9 +558,10 @@
     },
 
     playerAggregate(playerId, sessions) {
+      const sessList = Array.isArray(sessions) ? sessions : ((this.state && this.state.sessions) || []);
       const totals = {};
       const perSession = [];
-      sessions.forEach(s => {
+      sessList.forEach(s => {
         const st = (s.stats || {})[playerId];
         if (!st || !Object.keys(st).some(k => st[k] > 0)) return;
         perSession.push({ session: s, stats: st });
