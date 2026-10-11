@@ -22,6 +22,16 @@
     return global.t ? global.t(key, fallback) : (fallback || key);
   }
 
+  function checkIsEn() {
+    try {
+      return (global.Store && global.Store.state && global.Store.state.lang === 'en') ||
+             (localStorage.getItem('preferred_lang') === 'en') ||
+             (localStorage.getItem('lang') === 'en');
+    } catch (e) {
+      return false;
+    }
+  }
+
   function haptic(ms = 25) {
     if (navigator.vibrate) {
       try { navigator.vibrate(ms); } catch (e) {}
@@ -1372,6 +1382,7 @@
     // Abre el modal de conversación en tiempo real
     openConversationModal: function (chatId, options) {
       if (!chatId) return;
+      const isEn = checkIsEn();
       currentlyOpenChatId = chatId;
       const curId = options.currentUserId || 'coach';
       const isCoach = !!options.isCoach || (curId === 'coach');

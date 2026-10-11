@@ -1824,6 +1824,25 @@
 
     const filteredConvs = convs.filter(c => {
       if (convFilterType !== 'all' && c.type !== convFilterType) return false;
+      if (!myP || !myPlayerId) return false;
+
+      // Debe pertenecer al equipo de la convocatoria
+      const convTeams = (Array.isArray(c.teamIds) && c.teamIds.length > 0)
+        ? c.teamIds
+        : (c.teamId ? [c.teamId] : []);
+      
+      if (convTeams.length > 0) {
+        if (!myP.teamId || !convTeams.includes(myP.teamId)) return false;
+      } else {
+        if (!myP.teamId) return false;
+      }
+
+      // Debe haber sido explícitamente convocado en la lista
+      const list = c.list || {};
+      const st = list[myPlayerId];
+      const isCalled = !!(st && st !== 'uncalled' && st !== 'absent');
+      if (!isCalled) return false;
+
       return true;
     }).sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.time || '').localeCompare(b.time || ''));
 
@@ -1854,29 +1873,13 @@
               const list = c.list || {};
               const responses = liveVotes[c.id] || {};
 
-              // SÓLO jugadores efectivamente convocados (st !== 'uncalled')
-              let calledPlayerIds = Object.keys(list).filter(pid => {
+              // SÓLO jugadores efectivamente convocados (st !== 'uncalled' y st !== 'absent')
+              const calledPlayerIds = Object.keys(list).filter(pid => {
                 const st = list[pid];
-                return st && st !== 'uncalled';
+                return st && st !== 'uncalled' && st !== 'absent';
               });
 
-              let isCalled = false;
-              if (myPlayerId) {
-                if (calledPlayerIds.includes(myPlayerId)) {
-                  isCalled = true;
-                } else if (list[myPlayerId] === 'uncalled' || list[myPlayerId] === 'absent') {
-                  isCalled = false;
-                } else {
-                  // Si no está explícitamente excluido: pertenece al equipo convocado o es convocatoria general
-                  const belongsToTeam = !c.teamId || (myP && myP.teamId === c.teamId) || (c.teamIds && myP && c.teamIds.includes(myP.teamId));
-                  if (belongsToTeam) {
-                    isCalled = true;
-                    if (!calledPlayerIds.includes(myPlayerId)) {
-                      calledPlayerIds.push(myPlayerId);
-                    }
-                  }
-                }
-              }
+              const isCalled = true;
 
               // Recuentos reales entre los convocados
               let nAttending = 0;
