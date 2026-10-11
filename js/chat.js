@@ -24,11 +24,14 @@
 
   function checkIsEn() {
     try {
-      return (global.Store && global.Store.state && global.Store.state.lang === 'en') ||
-             (localStorage.getItem('preferred_lang') === 'en') ||
-             (localStorage.getItem('lang') === 'en');
+      const stored = localStorage.getItem('lang') || localStorage.getItem('preferred_lang');
+      if (stored) return stored === 'en';
+      if (global.currentLang) return global.currentLang === 'en';
+      if (global.Store && global.Store.state) return global.Store.state.lang === 'en';
+      // Por defecto en la app de jugador (sin Store) es inglés:
+      return true;
     } catch (e) {
-      return false;
+      return true;
     }
   }
 
@@ -151,6 +154,40 @@
     return 'Daniel Requena';
   }
 
+  function getCoachProfile() {
+    let cp = (global.clubData && global.clubData.coachProfile) ||
+             (global.Store && global.Store.state && global.Store.state.coachProfile);
+    if (!cp || !cp.photo) {
+      try {
+        const cached = JSON.parse(localStorage.getItem('cached_club_state') || '{}');
+        if (cached && cached.coachProfile) {
+          cp = Object.assign({}, cp || {}, cached.coachProfile);
+        }
+      } catch (e) {}
+    }
+    if (!cp || !cp.photo) {
+      try {
+        const cpRaw = localStorage.getItem('coach_profile') || localStorage.getItem('coachProfile');
+        if (cpRaw) {
+          const parsed = JSON.parse(cpRaw);
+          if (parsed) cp = Object.assign({}, cp || {}, parsed);
+        }
+      } catch (e) {}
+    }
+    return cp || {};
+  }
+
+  function getCoachAvatarHtml(size = 32, isRounded = true) {
+    const cp = getCoachProfile();
+    if (cp && cp.photo) {
+      return `<img src="${cp.photo}" style="width: 100%; height: 100%; object-fit: cover; border-radius: ${isRounded ? '50%' : '10px'}; display: block;" />`;
+    }
+    const name = getCoachName() || 'Coach';
+    const parts = name.trim().split(/\s+/);
+    const initials = parts.length > 1 ? (parts[0][0] + parts[1][0]).toUpperCase() : parts[0].slice(0, 2).toUpperCase();
+    return `<span style="font-weight: 900; font-size: ${Math.round(size * 0.42)}px; color: var(--cyan); display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; border-radius: ${isRounded ? '50%' : '10px'}; background: rgba(34, 211, 238, 0.15);">${initials}</span>`;
+  }
+
   function getReactionsSummary(rawReactions) {
     const summary = {};
     if (!rawReactions || typeof rawReactions !== 'object') return [];
@@ -198,13 +235,8 @@
         }
         return '<span>👤</span>';
       } else {
-        // En la app de jugador, mostrar la foto del entrenador si existe
-        const cp = (global.clubData && global.clubData.coachProfile) ||
-                   (global.Store && global.Store.state && global.Store.state.coachProfile);
-        if (cp && cp.photo) {
-          return `<img src="${cp.photo}" style="width: 100%; height: 100%; border-radius: 12px; object-fit: cover;" />`;
-        }
-        return '<span>👨‍🏫</span>';
+        // En la app de jugador, mostrar el avatar del entrenador
+        return getCoachAvatarHtml(36, false);
       }
     }
 
@@ -232,12 +264,7 @@
         return '<span>👤</span>';
       } else {
         if (!otherId || otherId === 'coach') {
-          const cp = (global.clubData && global.clubData.coachProfile) ||
-                     (global.Store && global.Store.state && global.Store.state.coachProfile);
-          if (cp && cp.photo) {
-            return `<img src="${cp.photo}" style="width: 100%; height: 100%; border-radius: 12px; object-fit: cover;" />`;
-          }
-          return '<span>👨‍🏫</span>';
+          return getCoachAvatarHtml(36, false);
         }
         const p = (allPlayers || []).find(x => x.id === otherId) || (global.Store && global.Store.player ? global.Store.player(otherId) : null);
         if (p && p.photo) {
@@ -317,19 +344,30 @@
     },
 
     // Escucha global en segundo plano para notificar y mostrar insignia al instante
-    initGlobalUnreadListener: function (curUserId) {
+    initGlobalUnreadListener: function (curUserId, myTeamId) {
       if (!curUserId || !global.Cloud || !global.Cloud.listenToChats) return;
       if (window._chatUnreadUnsub) {
         try { window._chatUnreadUnsub(); } catch (e) {}
       }
+      let isFirstSnapshot = true;
+      const sCurUserId = String(curUserId);
       window._chatUnreadUnsub = global.Cloud.listenToChats((chats) => {
         if (!chats) return;
         let unreadCount = 0;
         chats.forEach(c => {
-          if (c.participants && !c.participants.includes(curUserId) && curUserId !== 'coach') return;
+          const isParticipant = (curUserId === 'coach') ||
+            (c.id === 'coach_' + sCurUserId) ||
+            (c.id.startsWith('direct_') && c.id.split('_').slice(1).map(String).includes(sCurUserId)) ||
+            ((c.type === 'team' || c.id.startsWith('team_')) && (!c.teamId || !myTeamId || c.teamId === myTeamId || c.id === 'team_' + myTeamId)) ||
+            (Array.isArray(c.participants) && c.participants.some(p => String(p) === sCurUserId));
+
+          if (!isParticipant) return;
+
           const lastRead = parseInt(localStorage.getItem(`chat_last_read_${curUserId}_${c.id}`) || '0', 10);
-          if ((c.lastMessageTime || 0) > lastRead && c.lastSenderId && c.lastSenderId !== curUserId) {
-            // Si el usuario había borrado la sala anteriormente, reactivarla para que el mensaje nuevo aparezca
+          const isFromOther = c.lastSenderId && String(c.lastSenderId) !== sCurUserId;
+          const isUnread = (c.lastMessageTime || 0) > lastRead && isFromOther;
+
+          if (isUnread) {
             try { localStorage.removeItem('chat_deleted_' + c.id); } catch (e) {}
 
             if (currentlyOpenChatId === c.id) {
@@ -337,13 +375,17 @@
             } else {
               unreadCount++;
               const knownKey = `last_notified_${c.id}_${c.lastMessageTime}`;
-              if (!sessionStorage.getItem(knownKey)) {
+              if (!isFirstSnapshot && !sessionStorage.getItem(knownKey)) {
                 sessionStorage.setItem(knownKey, '1');
                 sendNotification(c.lastSenderName || 'Chat', c.lastMessage || 'Nuevo mensaje', c.id);
               }
             }
           }
+          if (isFirstSnapshot) {
+            sessionStorage.setItem(`last_notified_${c.id}_${c.lastMessageTime}`, '1');
+          }
         });
+        isFirstSnapshot = false;
         ChatUI.updateTabBadge(unreadCount > 0);
       });
     },
@@ -857,9 +899,9 @@
           <div style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;" id="direct-users-list">
             ${!isCoach ? `
               <div class="card direct-user-item" data-uid="coach" data-uname="${t('coach', 'Entrenador')}" style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1.5px solid rgba(250, 204, 21, 0.4); background: rgba(250, 204, 21, 0.08); cursor: pointer; border-radius: 12px;">
-                <span style="font-size: 24px;">👨‍🏫</span>
+                <div style="width: 38px; height: 38px; border-radius: 10px; overflow: hidden; flex-shrink: 0; display: flex; align-items: center; justify-content: center;">${getCoachAvatarHtml(38, false)}</div>
                 <div style="flex: 1; overflow: hidden;">
-                  <b style="font-size: 14px; color: #fff; display: block;">${t('coach', 'Entrenador')}</b>
+                  <b style="font-size: 14px; color: #fff; display: block;">${t('coach', 'Entrenador')} (${getCoachName()})</b>
                   <small style="color: #fde047; font-size: 11px;">${t('technicalStaff', 'Cuerpo Técnico Principal')}</small>
                 </div>
                 <span style="color: #facc15; font-size: 13px;">➔</span>
@@ -978,8 +1020,9 @@
               ${!options.isCoach ? `
                 <label style="display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; background: rgba(34,211,238,0.1); border: 1px solid rgba(34,211,238,0.3); cursor: pointer;">
                   <input type="checkbox" value="coach" class="group-p-chk" style="width: 18px; height: 18px; accent-color: var(--cyan);" />
+                  <div style="width: 28px; height: 28px; border-radius: 8px; overflow: hidden; flex-shrink: 0; display: flex; align-items: center; justify-content: center;">${getCoachAvatarHtml(28, false)}</div>
                   <div style="flex: 1; overflow: hidden;">
-                    <b style="font-size: 13px; color: #fff; display: block;">👨‍🏫 ${t('coach', 'Entrenador')}</b>
+                    <b style="font-size: 13px; color: #fff; display: block;">${t('coach', 'Entrenador')} (${getCoachName()})</b>
                     <small style="color: var(--cyan); font-size: 11px;">${t('technicalStaff', 'Staff Técnico')}</small>
                   </div>
                 </label>
@@ -1218,9 +1261,9 @@
                 return `
                   <div class="card member-item-row" data-pid="coach" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-radius: 12px; background: rgba(250, 204, 21, 0.08); border: 1px solid rgba(250, 204, 21, 0.3);">
                     <div style="display: flex; align-items: center; gap: 10px; overflow: hidden;">
-                      <span style="font-size: 22px;">👨‍🏫</span>
+                      <div style="width: 32px; height: 32px; border-radius: 50%; overflow: hidden; flex-shrink: 0; display: flex; align-items: center; justify-content: center;">${getCoachAvatarHtml(32, true)}</div>
                       <div>
-                        <b style="font-size: 13.5px; color: #fff; display: block;">${t('coach', 'Entrenador')}</b>
+                        <b style="font-size: 13.5px; color: #fff; display: block;">${t('coach', 'Entrenador')} (${getCoachName()})</b>
                         <small style="color: #fde047; font-size: 11px;">Staff Técnico Principal</small>
                       </div>
                     </div>
@@ -1826,7 +1869,7 @@
               mentionPopup.innerHTML = filtered.slice(0, 6).map(c => `
                 <div class="mention-candidate-item" data-cname="${escapeHtml(c.name)}" style="display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 8px; cursor: pointer; background: var(--surface2);">
                   <div style="width: 26px; height: 26px; border-radius: 50%; background: rgba(34,211,238,0.2); display: flex; align-items: center; justify-content: center; font-size: 13px; overflow: hidden; flex-shrink: 0;">
-                    ${c.photo ? `<img src="${c.photo}" style="width: 100%; height: 100%; object-fit: cover;" />` : (c.id === 'coach' ? '👨‍🏫' : '👤')}
+                    ${c.photo ? `<img src="${c.photo}" style="width: 100%; height: 100%; object-fit: cover;" />` : (c.id === 'coach' ? getCoachAvatarHtml(26, true) : '👤')}
                   </div>
                   <b style="font-size: 13px; color: #fff;">@${escapeHtml(c.name)}</b>
                 </div>
@@ -1967,17 +2010,21 @@
           // Avatar y nombre del emisor
           let senderAvatarHtml = '👤';
           if (m.senderId === 'coach') {
-            senderAvatarHtml = '👨‍🏫';
+            senderAvatarHtml = getCoachAvatarHtml(32, true);
           } else {
-            const p = (allPlayers || []).find(x => x.id === m.senderId);
+            const p = (allPlayers || []).find(x => String(x.id) === String(m.senderId)) ||
+                      (global.Store && global.Store.player ? global.Store.player(m.senderId) : null);
             if (p && p.photo) {
               senderAvatarHtml = `<img src="${p.photo}" style="width: 100%; height: 100%; object-fit: cover;" />`;
+            } else if (p) {
+              const init = (p.name || '?')[0].toUpperCase();
+              senderAvatarHtml = `<span style="font-weight: 900; font-size: 13px; color: #38bdf8;">${init}</span>`;
             }
           }
 
           if (m.isDeletedForEveryone) {
             return `
-              <div class="chat-msg-row" data-mid="${m.id}" data-idx="${idx}" style="display: flex; gap: 8px; align-items: flex-end; justify-content: ${isMine ? 'flex-end' : 'flex-start'}; margin-bottom: 4px; touch-action: pan-y;">
+              <div class="chat-msg-row" data-mid="${m.id}" style="display: flex; gap: 8px; align-items: flex-end; justify-content: ${isMine ? 'flex-end' : 'flex-start'}; margin-bottom: 4px; touch-action: pan-y;">
                 ${!isMine ? `
                   <div class="chat-sender-avatar" data-sender-id="${m.senderId}" style="width: 32px; height: 32px; border-radius: 50%; background: rgba(34, 211, 238, 0.2); border: 1.5px solid rgba(34, 211, 238, 0.4); display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; cursor: pointer; overflow: hidden; margin-bottom: 2px;" title="${t('viewProfile', 'Ver perfil')}">
                     ${senderAvatarHtml}
@@ -2033,7 +2080,7 @@
           const reactionsEntries = getReactionsSummary(m.reactions || {});
 
           return `
-            <div class="chat-msg-row" data-mid="${m.id}" data-idx="${idx}" style="display: flex; gap: 8px; align-items: flex-end; justify-content: ${isMine ? 'flex-end' : 'flex-start'}; margin-bottom: 4px; touch-action: pan-y;">
+            <div class="chat-msg-row" data-mid="${m.id}" style="display: flex; gap: 8px; align-items: flex-end; justify-content: ${isMine ? 'flex-end' : 'flex-start'}; margin-bottom: 4px; touch-action: pan-y;">
               ${!isMine ? `
                 <div class="chat-sender-avatar" data-sender-id="${m.senderId}" style="width: 32px; height: 32px; border-radius: 50%; background: rgba(34, 211, 238, 0.2); border: 1.5px solid rgba(34, 211, 238, 0.4); display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; cursor: pointer; overflow: hidden; margin-bottom: 2px;" title="${t('viewProfile', 'Ver perfil')}">
                   ${senderAvatarHtml}
@@ -2130,8 +2177,7 @@
           let longPressFired = false;
 
           const mid = row.getAttribute('data-mid');
-          const idx = parseInt(row.getAttribute('data-idx'), 10);
-          const m = messagesList[idx] || messagesList.find(x => x.id === mid);
+          const m = messagesList.find(x => x.id === mid);
 
           const triggerContextMenu = () => {
             if (!m) return;
@@ -2528,7 +2574,7 @@
         chatId = `coach_${playerId}`;
         chatType = 'coach';
         if (!isCoach) {
-          title = `👨‍🏫 ${t('pinnedCoachChat', isEn ? 'Private Chat with Coach' : 'Chat Privado con el Entrenador')}`;
+          title = `(Coach) ${getCoachName()}`;
         }
       } else {
         const p1 = curId < otherUserId ? curId : otherUserId;

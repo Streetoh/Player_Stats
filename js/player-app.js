@@ -235,7 +235,18 @@
       voteReset: 'Attendance vote cancelled (pending)',
       viberCoachContactMsg: 'Hi Coach!',
       messageViaViber: 'Message via Viber',
-      contact: 'Contact'
+      contact: 'Contact',
+      msgDeletedForEveryone: 'This message was deleted',
+      messageOptions: 'Message Options',
+      copyMessage: 'Copy message',
+      editMessage: 'Edit message',
+      deleteForEveryone: 'Delete for everyone',
+      deleteForMe: 'Delete for me',
+      deleteForEveryoneConfirm: 'Are you sure you want to delete this message for everyone?',
+      messageDeleted: 'Message deleted for everyone',
+      messageDeletedForMe: 'Message removed for you',
+      messageEdited: 'Message updated',
+      copiedToClipboard: 'Message copied to clipboard'
     },
     es: {
       appName: 'Player stats (Player)',
@@ -391,7 +402,18 @@
       voteReset: 'Respuesta cancelada (pendiente)',
       viberCoachContactMsg: '¡Hola míster!',
       messageViaViber: 'Mensaje por Viber',
-      contact: 'Contacto'
+      contact: 'Contacto',
+      msgDeletedForEveryone: 'Este mensaje fue eliminado',
+      messageOptions: 'Opciones del mensaje',
+      copyMessage: 'Copiar mensaje',
+      editMessage: 'Editar mensaje',
+      deleteForEveryone: 'Borrar para todos',
+      deleteForMe: 'Borrar para mí',
+      deleteForEveryoneConfirm: '¿Eliminar este mensaje para todos?',
+      messageDeleted: 'Mensaje eliminado para todos',
+      messageDeletedForMe: 'Mensaje eliminado para ti',
+      messageEdited: 'Mensaje actualizado',
+      copiedToClipboard: 'Mensaje copiado al portapapeles'
     }
   };
 
@@ -919,6 +941,9 @@
       }
       if (window.ChatUI && ChatUI.initPresenceHeartbeat) {
         ChatUI.initPresenceHeartbeat(myPlayerId, `${myP.name || ''} ${myP.lastName || ''}`.trim());
+      }
+      if (window.ChatUI && ChatUI.initGlobalUnreadListener) {
+        ChatUI.initGlobalUnreadListener(myPlayerId, myP.teamId || null);
       }
     } else {
       if (nameEl) nameEl.textContent = t('selectIdentity');
@@ -2570,7 +2595,7 @@
         <!-- FICHA DEL ENTRENADOR (PUNTO 8) -->
         <div class="card coach-profile-card" id="btn-view-coach-card" style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1.5px solid rgba(250, 204, 21, 0.5); background: linear-gradient(135deg, rgba(250, 204, 21, 0.12) 0%, rgba(15, 23, 42, 0.7) 100%); border-radius: 14px; margin-bottom: 12px; cursor: pointer;">
           <div style="width: 44px; height: 44px; border-radius: 14px; background: rgba(250, 204, 21, 0.2); border: 2px solid #facc15; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0;">
-            ${(clubData.coachProfile && clubData.coachProfile.photo) ? `<img src="${clubData.coachProfile.photo}" style="width: 100%; height: 100%; border-radius: 12px; object-fit: cover;" />` : '👨‍🏫'}
+            ${(clubData.coachProfile && clubData.coachProfile.photo) ? `<img src="${clubData.coachProfile.photo}" style="width: 100%; height: 100%; border-radius: 12px; object-fit: cover;" />` : '<span style="color: #facc15; font-weight: 900; font-size: 16px;">DR</span>'}
           </div>
           <div style="flex: 1; min-width: 0;">
             <div style="display: flex; align-items: center; gap: 6px;">
@@ -2679,7 +2704,7 @@
 
         <div class="card p-hero" style="margin-bottom: 14px; padding: 14px; border: 1.5px solid rgba(250, 204, 21, 0.4); background: var(--surface2);">
           <div style="width: 64px; height: 64px; border-radius: 18px; background: rgba(250, 204, 21, 0.2); border: 2.5px solid #facc15; display: flex; align-items: center; justify-content: center; font-size: 32px; flex-shrink: 0; overflow: hidden;">
-            ${cp.photo ? `<img src="${cp.photo}" style="width: 100%; height: 100%; border-radius: 16px; object-fit: cover;" />` : '👨‍🏫'}
+            ${cp.photo ? `<img src="${cp.photo}" style="width: 100%; height: 100%; border-radius: 16px; object-fit: cover;" />` : '<span style="color: #facc15; font-weight: 900; font-size: 22px;">DR</span>'}
           </div>
           <div class="grow" style="overflow: hidden;">
             <h2 style="font-size: 18px; font-weight: 900; margin: 0 0 2px; color: #fff;">
@@ -3160,6 +3185,11 @@
     // 2. Conectar en tiempo real con Firebase Firestore
     if (window.Cloud) {
       window.Cloud.init();
+
+      if (myPlayerId && window.ChatUI && window.ChatUI.initGlobalUnreadListener) {
+        const curP = getMyPlayer();
+        window.ChatUI.initGlobalUnreadListener(myPlayerId, curP ? curP.teamId : null);
+      }
 
       const badge = document.getElementById('portal-cloud-badge');
 
