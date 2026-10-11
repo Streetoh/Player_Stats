@@ -1,0 +1,21 @@
+{
+  "name": "Portal del Jugador • Jõhvi JK Noova",
+  "short_name": "JK Noova",
+  "start_url": "jugadores.html",
+  "display": "standalone",
+  "background_color": "#060a13",
+  "theme_color": "#060a13",
+  "description": "Estadísticas individuales, convocatorias, asistencia en vivo y Face to Face",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#060a13" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="description" content="Portal oficial del jugador: estadísticas, convocatorias, asistencia en vivo y comparativas Face to Face" />
+  <title>Portal del Jugador • Jõhvi JK Noova</title>
+  <link rel="manifest" href="manifest_jugadores.json" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="icon" type="image/png" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="css/app.css" />
+  <style>
+    /* Estilos específicos del Portal de Jugadores */
+    .player-portal-header {
+      background: linear-gradient(180deg, rgba(19, 31, 56, 0.95) 0%, rgba(6, 10, 19, 0.9) 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 16px 10px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(10px);
+    }
+    .portal-identity-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 8px;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 8px 12px;
+      cursor: pointer;
+    }
+    .portal-vote-box {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px;
+      margin-top: 12px;
+    }
+    .portal-vote-btns {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .btn-vote {
+      height: 48px;
+      font-size: 14px;
+      font-weight: 800;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      border: 2px solid transparent;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-vote:active { transform: scale(0.96); }
+    .btn-vote.yes {
+      background: rgba(34, 197, 94, 0.18);
+      border-color: rgba(34, 197, 94, 0.5);
+      color: #86efac;
+    }
+    .btn-vote.yes.active {
+      background: #22c55e;
+      color: #04140a;
+      box-shadow: 0 4px 18px rgba(34, 197, 94, 0.4);
+    }
+    .btn-vote.no {
+      background: rgba(239, 68, 68, 0.18);
+      border-color: rgba(239, 68, 68, 0.5);
+      color: #fca5a5;
+    }
+    .btn-vote.no.active {
+      background: #ef4444;
+      color: #fff;
+      box-shadow: 0 4px 18px rgba(239, 68, 68, 0.4);
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <!-- Barra superior fija del Portal -->
+    <header class="player-portal-header">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 22px;">🛡️</span>
+          <div>
+            <h1 style="margin: 0; font-size: 16px; font-weight: 900; letter-spacing: -0.3px;" id="portal-club-title">Jõhvi JK Noova</h1>
+            <span style="font-size: 11px; color: var(--cyan); font-weight: 700;">PORTAL DEL JUGADOR</span>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <button class="icon-btn" id="btn-portal-lang" style="width: 34px; height: 34px; font-weight: 900; font-size: 12px;">ES</button>
+          <span class="badge" id="portal-cloud-badge" style="background: rgba(34, 197, 94, 0.15); color: #86efac; font-size: 10.5px;">🟢 En vivo</span>
+        </div>
+      </div>
+
+      <!-- Selector de identidad: ¿Quién soy? -->
+      <div class="portal-identity-bar" id="btn-select-identity" title="Pulsa para cambiar de jugador">
+        <div style="display: flex; align-items: center; gap: 10px; overflow: hidden;">
+          <div id="portal-my-avatar" class="avatar sm"><span>?</span></div>
+          <div style="overflow: hidden;">
+            <div style="font-size: 11px; color: var(--muted); font-weight: 700;">Mi Perfil:</div>
+            <div style="font-size: 14px; font-weight: 800; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;" id="portal-my-name">
+              Seleccionar quién eres...
+            </div>
+          </div>
+        </div>
+        <span style="font-size: 12px; color: var(--cyan); font-weight: 800; flex-shrink: 0;">Cambiar ▾</span>
+      </div>
+    </header>
+
+    <!-- Contenido principal según pestaña activa -->
+    <main id="portal-view" style="padding-bottom: 90px;"></main>
+
+    <!-- Barra de navegación inferior -->
+    <nav class="tabbar" id="portal-tabbar">
+      <button class="tab-btn active" data-tab="convocations">
+        <span class="t-ic">📋</span>
+        <span class="t-lbl">Convocatorias</span>
+      </button>
+      <button class="tab-btn" data-tab="stats">
+        <span class="t-ic">👤</span>
+        <span class="t-lbl">Mi Ficha</span>
+      </button>
+      <button class="tab-btn" data-tab="squad">
+        <span class="t-ic">👥</span>
+        <span class="t-lbl">Plantilla</span>
+      </button>
+      <button class="tab-btn" data-tab="h2h">
+        <span class="t-ic">⚔️</span>
+        <span class="t-lbl">Face to Face</span>
+      </button>
+    </nav>
+  </div>
+
+  <div id="toast-root"></div>
+
+  <!-- Scripts -->
+  <script src="js/icons.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/firebase-app-compat.js"></script>
+  <script src="js/firebase-firestore-compat.js"></script>
+  <script src="js/cloud.js"></script>
+  <script src="js/player-app.js"></script>
+</body>
+</html>

@@ -72,11 +72,18 @@
     </div>
 
     <div id="send-channels" style="display: none; margin-top: 16px; background: var(--bg2); padding: 14px; border-radius: 14px; border: 1px solid var(--border);">
-      <div style="font-size: 12px; font-weight: 800; color: #a855f7; margin-bottom: 8px;">💜 ENVIANDO POR VIBER...</div>
-      <p style="font-size: 12px; color: var(--muted); margin-bottom: 10px;">Si no se abre automáticamente tu aplicación Viber, pulsa el botón morado:</p>
-      <button type="button" class="choice-btn doubt" style="width: 100%; padding: 12px; justify-content: center; gap: 8px; border-color: rgba(168, 85, 247, 0.4); background: rgba(168, 85, 247, 0.2); color: #d8b4fe;" onclick="sendVia('viber')">
-        <span>💜 Abrir Viber y Confirmar</span>
-      </button>
+      <div id="copy-status-badge" style="font-size: 12px; font-weight: 800; color: #86efac; margin-bottom: 6px;">
+        ✅ ¡Copiado al portapapeles! / Copied to clipboard!
+      </div>
+      <div id="msg-preview-box" style="background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 10px; padding: 10px; font-size: 12px; color: #e2e8f0; white-space: pre-wrap; font-family: monospace; max-height: 120px; overflow-y: auto; margin-bottom: 10px; text-align: left;"></div>
+      <div style="display: flex; gap: 8px; flex-direction: column;">
+        <button type="button" class="choice-btn doubt" id="btn-viber-open" style="width: 100%; padding: 12px; justify-content: center; gap: 8px; border-color: rgba(168, 85, 247, 0.4); background: rgba(168, 85, 247, 0.2); color: #d8b4fe;" onclick="sendVia('viber')">
+          <span>💜 Abrir Viber</span>
+        </button>
+        <button type="button" class="choice-btn" id="btn-copy-again" style="width: 100%; padding: 10px; justify-content: center; gap: 8px; font-size: 13px; border-color: var(--border); background: var(--surface2); color: #fff;" onclick="copyCurrentMessage()">
+          <span>📋 Copiar mensaje completo</span>
+        </button>
+      </div>
     </div>
 
     <div class="foot">
@@ -199,24 +206,9 @@
     });
 
     let currentSelectedStatus = 'yes';
+    let lastGeneratedMsg = '';
 
-    function handleChoice(status) {
-      const name = inputName.value.trim();
-      if (!name) {
-        alert('Please enter or select your name first / Por favor, selecciona o introduce tu nombre antes de confirmar.');
-        inputName.focus();
-        return;
-      }
-      currentSelectedStatus = status;
-      const sendDiv = document.getElementById('send-channels');
-      sendDiv.style.display = 'block';
-      sendDiv.scrollIntoView({ behavior: 'smooth' });
-
-      // Redirigir directamente a Viber
-      sendVia('viber');
-    }
-
-    function sendVia(channel) {
+    function buildConfirmationMessage() {
       const name = inputName.value.trim();
       const notes = document.getElementById('player-notes').value.trim();
       const isAttending = currentSelectedStatus === 'yes';
@@ -224,17 +216,68 @@
         ? (isEn ? '🟢 ATTENDING (YES)' : '🟢 CONFIRMO ASISTENCIA (SÍ)') 
         : (isEn ? '❌ NOT ATTENDING (NO)' : '❌ NO PUEDO ASISTIR (NO)');
 
-      const msg = (isEn ? `📋 *Match Convocation Confirmation*\n` : `📋 *Confirmación de Convocatoria*\n`) +
-        (isEn ? `👤 *Player:* ${name}\n` : `👤 *Jugador:* ${name}\n`) +
-        (isEn ? `📢 *Status:* ${statusText}\n` : `📢 *Estado:* ${statusText}\n`) +
-        (isEn ? `🏆 *Match:* ${matchDisplay}\n` : `🏆 *Partido:* ${matchDisplay}\n`) +
-        (team ? (isEn ? `🛡️ *Team:* ${team}\n` : `🛡️ *Equipo:* ${team}\n`) : '') +
-        (rival ? (isEn ? `⚔️ *Opponent:* ${rival}\n` : `⚔️ *Rival:* ${rival}\n`) : '') +
-        (date ? (isEn ? `📅 *Date:* ${date}\n` : `📅 *Fecha:* ${date}\n`) : '') +
-        (time ? (isEn ? `⏰ *Time:* ${time}\n` : `⏰ *Hora:* ${time}\n`) : '') +
-        (venue ? (isEn ? `📍 *Venue:* ${venue}\n` : `📍 *Lugar:* ${venue}\n`) : '') +
-        (notes ? (isEn ? `📝 *Notes:* ${notes}\n` : `📝 *Notas:* ${notes}\n`) : '') +
-        (isEn ? `\n⚽ _Sent via Player Stats_` : `\n⚽ _Enviado desde Estadísticas Jugadores_`);
+      const matchStr = matchDisplay || (rival ? `vs ${rival}` : title);
+      const metaItems = [];
+      if (date) metaItems.push(date);
+      if (time) metaItems.push(time);
+      if (venue) metaItems.push(venue);
+      const metaLine = metaItems.join(' • ');
+
+      let msg = (isEn ? `📋 *Match Attendance Confirmation*\n` : `📋 *Confirmación de Convocatoria*\n`);
+      msg += (isEn ? `👤 *Player:* ${name}\n` : `👤 *Jugador:* ${name}\n`);
+      msg += (isEn ? `📢 *Status:* ${statusText}\n` : `📢 *Estado:* ${statusText}\n`);
+      if (matchStr) msg += (isEn ? `🏆 *Match:* ${matchStr}\n` : `🏆 *Partido:* ${matchStr}\n`);
+      if (metaLine) msg += (isEn ? `📅 *Info:* ${metaLine}\n` : `📅 *Datos:* ${metaLine}\n`);
+      if (notes) msg += (isEn ? `📝 *Notes:* ${notes}\n` : `📝 *Notas:* ${notes}\n`);
+      msg += (isEn ? `\n⚽ _Player Stats_` : `\n⚽ _Estadísticas Jugadores_`);
+
+      lastGeneratedMsg = msg;
+      return msg;
+    }
+
+    function copyCurrentMessage() {
+      const msg = lastGeneratedMsg || buildConfirmationMessage();
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(msg).then(() => {
+          alert(isEn ? 'Message copied to clipboard! You can paste it into Viber.' : '¡Mensaje copiado al portapapeles! Puedes pegarlo en el grupo de Viber.');
+        }).catch(() => {});
+      }
+    }
+
+    function handleChoice(status) {
+      const name = inputName.value.trim();
+      if (!name) {
+        alert(isEn ? 'Please enter or select your name first.' : 'Por favor, selecciona o introduce tu nombre antes de confirmar.');
+        inputName.focus();
+        return;
+      }
+      currentSelectedStatus = status;
+
+      const msg = buildConfirmationMessage();
+
+      // Copiar automáticamente al portapapeles
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(msg).catch(() => {});
+      }
+
+      const previewBox = document.getElementById('msg-preview-box');
+      if (previewBox) {
+        previewBox.textContent = msg;
+      }
+
+      const sendDiv = document.getElementById('send-channels');
+      sendDiv.style.display = 'block';
+      sendDiv.scrollIntoView({ behavior: 'smooth' });
+
+      sendVia('viber');
+    }
+
+    function sendVia(channel) {
+      const msg = lastGeneratedMsg || buildConfirmationMessage();
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(msg).catch(() => {});
+      }
 
       const viberUrl = `viber://forward?text=${encodeURIComponent(msg)}`;
       window.location.href = viberUrl;

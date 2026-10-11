@@ -1,0 +1,6801 @@
+/* =========================================================
+   Estadísticas Jugadores — Controlador de Interfaz (UI)
+   - Bilingüe (Español / Inglés) con selector directo
+   - Selector dinámico de botones en pantalla (presets: solo toques, solo tiros, etc.)
+   - Orden canónico estricto garantizado
+   - Deshacer (undo) 100% silencioso (sin toast molesto)
+   - Añadir datos manuales al perfil del jugador
+   - Exportación de jugador y sesiones en formato JSON
+   ========================================================= */
+(function () {
+  'use strict';
+
+  let currentTab = 'home';
+  let activeSessionId = null;
+  let timerInterval = null;
+  let statsFilterType = 'all';
+  let statsFilterPeriod = 'all';
+  let statsSelectedPlayerId = 'all';
+  let playerListSearch = '';
+  let playerListTeam = 'all';
+
+  function haptic(ms) {
+    if (!Store.state.settings.vibrate) return;
+    try {
+      if (window.navigator && window.navigator.vibrate) {
+        window.navigator.vibrate(ms || 25);
+      }
+    } catch (e) {}
+  }
+
+  function toast(msg, type) {
+    const root = document.getElementById('toast-root');
+    if (!root) return;
+    const el = document.createElement('div');
+    el.className = 'toast ' + (type || 'info');
+    el.innerHTML = msg;
+    root.appendChild(el);
+    setTimeout(() => {
+      el.classList.add('out');
+      setTimeout(() => el.remove(), 250);
+    }, 2400);
+  }
+
+  window.UI = { toast, haptic };
+  window.getActiveSessionId = () => activeSessionId;
+  window.setActiveSessionId = (id) => { activeSessionId = id; };
+
+  /* ---------- Modales / Bottom Sheets ---------- */
+  function openSheet(title, renderBody, renderFoot, onClose) {
+    closeSheet();
+    const backdrop = document.createElement('div');
+    backdrop.className = 'sheet-backdrop';
+    backdrop.id = 'active-sheet-backdrop';
+
+    const sheet = document.createElement('div');
+    sheet.className = 'sheet';
+
+    sheet.innerHTML = `
+      <div class="sheet-handle"></div>
+      <div class="sheet-head">
+        <h2>${title}</h2>
+        <button class="icon-btn ghost" id="sheet-close-btn">${icon('x', 20)}</button>
+      </div>
+      <div class="sheet-body" id="sheet-body-content"></div>
+      ${renderFoot ? '<div class="sheet-foot" id="sheet-foot-content"></div>' : ''}
+    `;
+
+    backdrop.appendChild(sheet);
+    document.body.appendChild(backdrop);
+
+    const bodyEl = sheet.querySelector('#sheet-body-content');
+    if (typeof renderBody === 'function') renderBody(bodyEl);
+
+    if (renderFoot && typeof renderFoot === 'function') {
+      const footEl = sheet.querySelector('#sheet-foot-content');
+      renderFoot(footEl);
+    }
+
+    function handleClose() {
+      closeSheet();
+      if (typeof onClose === 'function') {
+        try { onClose(); } catch (err) { console.error('Error on sheet close callback:', err); }
+      }
+    }
+
+    backdrop.addEventListener('click', (e) => {
+      if (e.target === backdrop) handleClose();
+    });
+
+    const closeBtn = sheet.querySelector('#sheet-close-btn');
+    if (closeBtn) closeBtn.onclick = handleClose;
+
+    return backdrop;
+  }
+
+  function closeSheet() {
+    const backdrop = document.getElementById('active-sheet-backdrop');
+    if (!backdrop) return;
+    backdrop.classList.add('closing');
+    setTimeout(() => backdrop.remove(), 200);
+  }
+
+  /* Modal superpuesto sin cerrar la hoja inferior (Stacked Modal) */
+  function openModalDialog(title, bodyHtml, onClose) {
+    const overlay = document.createElement('div');
+    overlay.className = 'dialog-overlay';
+    overlay.innerHTML = `
+      <div class="dialog-box">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+          <h3 style="margin: 0; font-size: 16px; font-weight: 800;">${title}</h3>
+          <button type="button" class="icon-btn ghost" id="dialog-close-x" style="width: 32px; height: 32px;">${icon('x', 18)}</button>
+        </div>
+        <div>${bodyHtml}</div>
+        <div style="margin-top: 16px;">
+          <button type="button" class="btn block ghost" id="dialog-close-btn">${t('close', 'Cerrar')}</button>
+        </div>
+      </div>
+    `;
+
+    function close() {
+      overlay.remove();
+      if (typeof onClose === 'function') onClose();
+    }
+
+    overlay.querySelector('#dialog-close-x').onclick = close;
+    overlay.querySelector('#dialog-close-btn').onclick = close;
+    overlay.onclick = (e) => {
+      if (e.target === overlay) close();
+    };
+
+    document.body.appendChild(overlay);
+    return overlay;
+  }
+
+  /* =========================================================
+     DATE PICKER Y CALENDARIO INTERACTIVO
+     ========================================================= */
+  window.__datePickerCallbacks = window.__datePickerCallbacks || {};
+  window.__onNativeDatePicked = function(callbackId, dateStr) {
+    if (window.__datePickerCallbacks && window.__datePickerCallbacks[callbackId]) {
+      try {
+        window.__datePickerCallbacks[callbackId](dateStr);
+      } finally {
+        delete window.__datePickerCallbacks[callbackId];
+      }
+    }
+  };
+
+  function formatDisplayDate(isoStr) {
+    if (!isoStr) return '';
+    const parts = String(isoStr).trim().split('-');
+    if (parts.length === 3) {
+      const y = parts[0];
+      const m = parts[1].padStart(2, '0');
+      const d = parts[2].padStart(2, '0');
+      return `${d}/${m}/${y}`;
+    }
+    return isoStr;
+  }
+
+  function parseInputDateToIso(displayStr) {
+    if (!displayStr) return new Date().toISOString().slice(0, 10);
+    const clean = String(displayStr).trim();
+    // DD/MM/AAAA o DD-MM-AAAA o DD.MM.AAAA
+    const m1 = clean.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+    if (m1) {
+      const d = m1[1].padStart(2, '0');
+      const m = m1[2].padStart(2, '0');
+      const y = m1[3];
+      return `${y}-${m}-${d}`;
+    }
+    // AAAA-MM-DD
+    const m2 = clean.match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})$/);
+    if (m2) {
+      const y = m2[1];
+      const m = m2[2].padStart(2, '0');
+      const d = m2[3].padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+    return clean;
+  }
+
+  function openDatePicker(initialDate, onSelect) {
+    const iso = parseInputDateToIso(initialDate);
+    if (window.AndroidBridge && window.AndroidBridge.pickDate) {
+      const cbId = 'dp_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
+      window.__datePickerCallbacks[cbId] = (pickedIso) => {
+        if (pickedIso && typeof onSelect === 'function') {
+          onSelect(pickedIso);
+        }
+      };
+      try {
+        window.AndroidBridge.pickDate(iso, cbId);
+        return;
+      } catch (err) {
+        console.warn('Native pickDate falló, usando calendario interno:', err);
+      }
+    }
+    openCalendarModal(iso, onSelect);
+  }
+
+  function openCalendarModal(initialDate, onSelect) {
+    const iso = parseInputDateToIso(initialDate);
+    let curYear, curMonth, curDay;
+    if (iso && iso.includes('-')) {
+      const parts = iso.split('-');
+      curYear = parseInt(parts[0], 10) || 2026;
+      curMonth = (parseInt(parts[1], 10) || 1) - 1;
+      curDay = parseInt(parts[2], 10) || 1;
+    } else {
+      const now = new Date();
+      curYear = now.getFullYear();
+      curMonth = now.getMonth();
+      curDay = now.getDate();
+    }
+
+    let viewYear = curYear;
+    let viewMonth = curMonth;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'dialog-overlay';
+
+    const monthNamesEs = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    const monthNamesEn = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const weekdaysEs = ['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá', 'Do'];
+    const weekdaysEn = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+
+    const isEn = I18N.getLang() === 'en';
+    const monthNames = isEn ? monthNamesEn : monthNamesEs;
+    const weekdays = isEn ? weekdaysEn : weekdaysEs;
+
+    function renderContent() {
+      const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+      const firstDayIndex = (new Date(viewYear, viewMonth, 1).getDay() + 6) % 7; // Lunes = 0
+      const daysInPrevMonth = new Date(viewYear, viewMonth, 0).getDate();
+
+      const today = new Date();
+      const todayYear = today.getFullYear();
+      const todayMonth = today.getMonth();
+      const todayDate = today.getDate();
+
+      let daysHtml = '';
+
+      for (let i = firstDayIndex - 1; i >= 0; i--) {
+        const d = daysInPrevMonth - i;
+        daysHtml += `<div class="calendar-day-cell other-month" data-action="prev-month" data-d="${d}">${d}</div>`;
+      }
+
+      for (let d = 1; d <= daysInMonth; d++) {
+        const isSelected = (viewYear === curYear && viewMonth === curMonth && d === curDay);
+        const isToday = (viewYear === todayYear && viewMonth === todayMonth && d === todayDate);
+        let cls = 'calendar-day-cell current-month';
+        if (isSelected) cls += ' selected';
+        if (isToday) cls += ' today';
+        daysHtml += `<div class="${cls}" data-action="select" data-d="${d}">${d}</div>`;
+      }
+
+      const totalCells = firstDayIndex + daysInMonth;
+      const nextDays = (7 - (totalCells % 7)) % 7;
+      for (let d = 1; d <= nextDays; d++) {
+        daysHtml += `<div class="calendar-day-cell other-month" data-action="next-month" data-d="${d}">${d}</div>`;
+      }
+
+      overlay.innerHTML = `
+        <div class="calendar-modal">
+          <div class="calendar-header">
+            <button type="button" class="calendar-nav-btn" id="cal-prev" title="Mes anterior">‹</button>
+            <div class="calendar-title">
+              <span>${monthNames[viewMonth]} ${viewYear}</span>
+            </div>
+            <button type="button" class="calendar-nav-btn" id="cal-next" title="Mes siguiente">›</button>
+          </div>
+
+          <div class="calendar-weekdays">
+            ${weekdays.map(w => `<div class="calendar-weekday">${w}</div>`).join('')}
+          </div>
+
+          <div class="calendar-days-grid" id="cal-days-grid">
+            ${daysHtml}
+          </div>
+
+          <div class="calendar-shortcuts">
+            <button type="button" class="calendar-shortcut-btn" id="cal-btn-today">⚡ ${isEn ? 'Today' : 'Hoy'}</button>
+            <button type="button" class="calendar-shortcut-btn" id="cal-btn-tomorrow">⏩ ${isEn ? 'Tomorrow' : 'Mañana'}</button>
+            <button type="button" class="calendar-shortcut-btn" id="cal-btn-yesterday">⏪ ${isEn ? 'Yesterday' : 'Ayer'}</button>
+          </div>
+
+          <div style="margin-top: 12px; display: flex; gap: 8px;">
+            <button type="button" class="btn ghost block" id="cal-btn-cancel">${t('cancel', 'Cancelar')}</button>
+          </div>
+        </div>
+      `;
+
+      overlay.querySelector('#cal-prev').onclick = (e) => {
+        e.stopPropagation();
+        viewMonth--;
+        if (viewMonth < 0) { viewMonth = 11; viewYear--; }
+        renderContent();
+      };
+
+      overlay.querySelector('#cal-next').onclick = (e) => {
+        e.stopPropagation();
+        viewMonth++;
+        if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+        renderContent();
+      };
+
+      overlay.querySelector('#cal-btn-today').onclick = (e) => {
+        e.stopPropagation();
+        const t = new Date();
+        const isoStr = String(t.getFullYear()) + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0');
+        finish(isoStr);
+      };
+
+      overlay.querySelector('#cal-btn-tomorrow').onclick = (e) => {
+        e.stopPropagation();
+        const t = new Date();
+        t.setDate(t.getDate() + 1);
+        const isoStr = String(t.getFullYear()) + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0');
+        finish(isoStr);
+      };
+
+      overlay.querySelector('#cal-btn-yesterday').onclick = (e) => {
+        e.stopPropagation();
+        const t = new Date();
+        t.setDate(t.getDate() - 1);
+        const isoStr = String(t.getFullYear()) + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0');
+        finish(isoStr);
+      };
+
+      overlay.querySelector('#cal-btn-cancel').onclick = (e) => {
+        e.stopPropagation();
+        overlay.remove();
+      };
+
+      overlay.querySelector('#cal-days-grid').onclick = (e) => {
+        const cell = e.target.closest('.calendar-day-cell');
+        if (!cell) return;
+        const act = cell.getAttribute('data-action');
+        const dayNum = parseInt(cell.getAttribute('data-d'), 10);
+        if (act === 'select') {
+          const isoStr = String(viewYear) + '-' + String(viewMonth + 1).padStart(2, '0') + '-' + String(dayNum).padStart(2, '0');
+          finish(isoStr);
+        } else if (act === 'prev-month') {
+          viewMonth--;
+          if (viewMonth < 0) { viewMonth = 11; viewYear--; }
+          const isoStr = String(viewYear) + '-' + String(viewMonth + 1).padStart(2, '0') + '-' + String(dayNum).padStart(2, '0');
+          finish(isoStr);
+        } else if (act === 'next-month') {
+          viewMonth++;
+          if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+          const isoStr = String(viewYear) + '-' + String(viewMonth + 1).padStart(2, '0') + '-' + String(dayNum).padStart(2, '0');
+          finish(isoStr);
+        }
+      };
+    }
+
+    function finish(selectedIso) {
+      overlay.remove();
+      if (typeof onSelect === 'function') {
+        onSelect(selectedIso);
+      }
+    }
+
+    overlay.onclick = (e) => {
+      if (e.target === overlay) overlay.remove();
+    };
+
+    document.body.appendChild(overlay);
+    renderContent();
+  }
+
+  function renderDatePickerFieldHtml(id, initialIsoDate, label) {
+    const iso = initialIsoDate || new Date().toISOString().slice(0, 10);
+    const displayVal = formatDisplayDate(iso);
+    return `
+      <div class="field">
+        <label>${label || t('date')}</label>
+        <div class="date-picker-group">
+          <div class="date-picker-input-wrapper">
+            <input type="text" id="${id}-text" value="${displayVal}" placeholder="DD/MM/AAAA" autocomplete="off" />
+            <span class="date-picker-icon" id="${id}-icon" title="${t('openCalendar', 'Abrir calendario')}">📅</span>
+          </div>
+          <button type="button" class="btn-open-calendar" id="${id}-cal-btn" title="${t('openCalendar', 'Abrir calendario')}">
+            <span>📅</span>
+            <span>${t('calendar', 'Calendario')}</span>
+          </button>
+          <input type="hidden" id="${id}" value="${iso}" />
+        </div>
+      </div>
+    `;
+  }
+
+  function bindDatePickerField(prefix, container) {
+    const root = container || document;
+    const textInp = root.querySelector('#' + prefix + '-text');
+    const hiddenInp = root.querySelector('#' + prefix);
+    const calBtn = root.querySelector('#' + prefix + '-cal-btn');
+    const iconSpan = root.querySelector('#' + prefix + '-icon');
+
+    function updateBoth(isoVal) {
+      if (!isoVal) return;
+      const cleanIso = parseInputDateToIso(isoVal);
+      if (hiddenInp) hiddenInp.value = cleanIso;
+      if (textInp) textInp.value = formatDisplayDate(cleanIso);
+    }
+
+    if (textInp) {
+      textInp.oninput = () => {
+        const parsed = parseInputDateToIso(textInp.value);
+        if (parsed && parsed.length === 10 && hiddenInp) {
+          hiddenInp.value = parsed;
+        }
+      };
+      textInp.onblur = () => {
+        const parsed = parseInputDateToIso(textInp.value);
+        if (parsed && hiddenInp) {
+          hiddenInp.value = parsed;
+          textInp.value = formatDisplayDate(parsed);
+        }
+      };
+    }
+
+    const handleOpenCal = () => {
+      const cur = hiddenInp ? hiddenInp.value : (textInp ? textInp.value : '');
+      openDatePicker(cur, (newIso) => {
+        updateBoth(newIso);
+        haptic(25);
+      });
+    };
+
+    if (calBtn) calBtn.onclick = handleOpenCal;
+    if (iconSpan) iconSpan.onclick = handleOpenCal;
+  }
+
+  function confirmDialog(title, message, onConfirm, okText, okClass) {
+    openSheet(title, (body) => {
+      body.innerHTML = `
+        <div class="confirm-body">
+          <div class="c-ic">⚠️</div>
+          <p>${message}</p>
+        </div>
+      `;
+    }, (foot) => {
+      foot.innerHTML = `
+        <div class="btn-row">
+          <button class="btn" id="confirm-cancel">${t('cancel', 'Cancelar')}</button>
+          <button class="btn ${okClass || 'danger'}" id="confirm-ok">${okText || t('delete', 'Eliminar')}</button>
+        </div>
+      `;
+      foot.querySelector('#confirm-cancel').onclick = closeSheet;
+      foot.querySelector('#confirm-ok').onclick = () => {
+        closeSheet();
+        onConfirm();
+      };
+    });
+  }
+
+  function renderAvatar(player, sizeClass) {
+    const cls = sizeClass ? 'avatar ' + sizeClass : 'avatar';
+    if (!player) return `<div class="${cls}"><span>?</span></div>`;
+    const initial = (player.name ? player.name[0] : (player.nickname ? player.nickname[0] : 'J')).toUpperCase();
+    const dorsalHtml = player.mainDorsal != null ? `<span class="dorsal">${player.mainDorsal}</span>` : '';
+    if (player.photo) {
+      return `<div class="${cls}"><img src="${player.photo}" alt="" loading="lazy" />${dorsalHtml}</div>`;
+    }
+    return `<div class="${cls}"><span>${initial}</span>${dorsalHtml}</div>`;
+  }
+
+  function getPlayerFootLabel(footVal) {
+    if (!footVal) return t('footRight', 'Diestro');
+    const f = String(footVal).toLowerCase();
+    if (f.includes('zurdo') || f.includes('left')) return t('footLeft', 'Zurdo');
+    if (f.includes('ambi') || f.includes('both')) return (t('footBoth') || t('footAmbi') || 'Ambidiestro');
+    return t('footRight', 'Diestro');
+  }
+
+  function renderLangButton() {
+    const cur = I18N.getLang();
+    return `
+      <button class="icon-btn" id="btn-toggle-lang" title="${t('appLanguage')}">
+        <span style="font-size: 13px; font-weight: 900; letter-spacing: 0.5px;">${cur.toUpperCase()}</span>
+      </button>
+    `;
+  }
+
+  function toggleLanguage() {
+    const next = I18N.getLang() === 'es' ? 'en' : 'es';
+    I18N.setLang(next);
+    renderTabbar();
+    navigate(currentTab);
+  }
+
+  /* =========================================================
+     INICIALIZACIÓN Y NAVEGACIÓN
+     ========================================================= */
+  function init() {
+    renderTabbar();
+    autoSeedIfEmpty();
+    navigate('home');
+
+    // Sincronización en la Nube Firebase (App Jugadores <-> App Entrenador)
+    if (window.Cloud) {
+      window.Cloud.init();
+      window.Cloud.startListeningToResponses((resp) => {
+        Store.handleIncomingPlayerResponse(resp);
+      });
+      setTimeout(() => {
+        if (Store.state.players.length > 0 || Store.state.convocations.length > 0) {
+          window.Cloud.pushCoachState(Store.state);
+        }
+      }, 2500);
+    }
+
+    // Escucha reactiva de eventos remotos en tiempo real (QR / WebSocket / WebRTC)
+    if (window.SyncEngine) {
+      SyncEngine.on((type, data) => {
+        if (type === 'remote_action' || type === 'remote_undo' || type === 'remote_score' || type === 'remote_period' || type === 'remote_zone' || type === 'session_synced') {
+          if (type === 'session_synced' && data && data.id) {
+            const trackerEl = document.getElementById('tracker-fullscreen');
+            if (!trackerEl || activeSessionId !== data.id) {
+              openTracker(data.id);
+              return;
+            }
+          }
+          const trackerEl = document.getElementById('tracker-fullscreen');
+          if (trackerEl && activeSessionId) {
+            renderTracker();
+          }
+        } else if (type === 'peer_connected') {
+          toast('¡Compañero sincronizado en vivo!', 'success');
+          const trackerEl = document.getElementById('tracker-fullscreen');
+          if (trackerEl) renderTracker();
+        } else if (type === 'joined') {
+          toast(`Conectado a la sala ${data.room}`, 'success');
+          const trackerEl = document.getElementById('tracker-fullscreen');
+          if (trackerEl) renderTracker();
+        } else if (type === 'session_finished') {
+          toast(t('sessionFinishedByHost', 'El anfitrión ha finalizado la sesión. Guardada en tu historial.'), 'info');
+          closeTracker();
+          navigate('history');
+        }
+      });
+    }
+  }
+
+  function autoSeedIfEmpty() {
+    if (Store.state.players.length === 0 && Store.state.teams.length === 0) {
+      Store.upsertTeam({ id: 'team_u12', name: 'U11 / U12 Base', color: '#10b981' });
+      Store.upsertTeam({ id: 'team_u10', name: 'U10 Formativo', color: '#3b82f6' });
+    }
+  }
+
+  function renderTabbar() {
+    const bar = document.getElementById('tabbar');
+    if (!bar) return;
+    const tabs = [
+      { id: 'home',         label: t('home'),         ic: 'home' },
+      { id: 'history',      label: t('sessions'),     ic: 'calendar' },
+      { id: 'players',      label: t('players'),      ic: 'users' },
+      { id: 'convocations', label: t('convocations'), ic: 'clipboard' },
+      { id: 'stats',        label: t('metrics'),      ic: 'chart' },
+      { id: 'config',       label: t('settings'),     ic: 'sliders' }
+    ];
+    bar.innerHTML = tabs.map(t => `
+      <button class="tab ${t.id === currentTab ? 'active' : ''}" data-tab="${t.id}">
+        <span class="tab-ic">${icon(t.ic, 20)}</span>
+        <span>${t.label}</span>
+      </button>
+    `).join('');
+
+    bar.querySelectorAll('.tab').forEach(b => {
+      b.onclick = () => {
+        const id = b.getAttribute('data-tab');
+        navigate(id);
+      };
+    });
+  }
+
+  function navigate(tab) {
+    currentTab = tab;
+    renderTabbar();
+    const view = document.getElementById('view');
+    if (!view) return;
+    view.className = 'anim';
+
+    switch (tab) {
+      case 'home':         renderHomeView(view); break;
+      case 'history':      renderHistoryView(view); break;
+      case 'players':      renderPlayersView(view); break;
+      case 'convocations': renderConvocationsView(view); break;
+      case 'stats':        renderStatsView(view); break;
+      case 'config':       renderConfigView(view); break;
+    }
+  }
+
+  /* =========================================================
+     VISTA 1: INICIO (HOME)
+     ========================================================= */
+  function renderHomeView(view) {
+    const totalPlayers = Store.state.players.length;
+    const totalTrainings = Store.state.sessions.filter(s => s.type === 'training').length;
+    const totalMatches = Store.state.sessions.filter(s => s.type === 'match').length;
+    const recent = Store.state.sessions.slice(0, 4);
+
+    let html = `
+      <div class="topbar">
+        <div>
+          <h1>${t('appName')}</h1>
+          <span class="sub">${t('appSubtitle')}</span>
+        </div>
+        ${renderLangButton()}
+      </div>
+
+      <div class="hero-cta">
+        <button class="cta training" id="btn-quick-training">
+          <div class="cta-ic">⚽</div>
+          <div class="plus">${icon('plus', 16)}</div>
+          <div>
+            <h3>${t('training')}</h3>
+            <p>${t('trainingDesc')}</p>
+          </div>
+        </button>
+
+        <button class="cta match" id="btn-quick-match">
+          <div class="cta-ic">🏆</div>
+          <div class="plus">${icon('plus', 16)}</div>
+          <div>
+            <h3>${t('match')}</h3>
+            <p>${t('matchDesc')}</p>
+          </div>
+        </button>
+      </div>
+
+      <div style="margin-bottom: 14px;">
+        <button class="btn block ghost" id="btn-home-join-live" style="border: 1.5px dashed var(--cyan); background: rgba(34, 211, 238, 0.08); color: var(--cyan); font-weight: 800; font-size: 13.5px; border-radius: 14px; padding: 10px; display: flex; align-items: center; justify-content: center; gap: 8px;">
+          ${icon('qr', 18)} <span>${t('joinLive', '📡 Unirse a sesión en vivo')}</span>
+        </button>
+      </div>
+
+      <div class="quick-stats">
+        <div class="qs">
+          <b>${totalPlayers}</b>
+          <span>${t('players')}</span>
+        </div>
+        <div class="qs">
+          <b style="color: var(--train);">${totalTrainings}</b>
+          <span>${t('training')}</span>
+        </div>
+        <div class="qs">
+          <b style="color: var(--match);">${totalMatches}</b>
+          <span>${t('match')}</span>
+        </div>
+      </div>
+
+      ${totalPlayers === 0 ? `
+        <div class="banner">
+          <div class="b-ic">💡</div>
+          <div class="grow">
+            <b>${t('noPlayersTitle')}</b>
+            <p>${t('noPlayersDesc')}</p>
+          </div>
+          <button class="btn sm primary" id="btn-home-import">${t('importPlayers')}</button>
+        </div>
+      ` : ''}
+
+      <div class="section-title">
+        <span>${t('recentSessions')}</span>
+        <button class="link" id="btn-see-all-sessions">${t('seeAll')}</button>
+      </div>
+
+      <div id="recent-sessions-list">
+        ${recent.length === 0 ? `
+          <div class="empty">
+            <div class="big">📋</div>
+            <h3>${t('noSessionsYet')}</h3>
+            <p>${t('noSessionsDesc')}</p>
+          </div>
+        ` : recent.map(s => renderSessionItemHtml(s)).join('')}
+      </div>
+    `;
+
+    view.innerHTML = html;
+
+    const btnLang = view.querySelector('#btn-toggle-lang');
+    if (btnLang) btnLang.onclick = toggleLanguage;
+
+    view.querySelector('#btn-quick-training').onclick = () => showNewSessionModal('training');
+    view.querySelector('#btn-quick-match').onclick = () => showNewSessionModal('match');
+    view.querySelector('#btn-see-all-sessions').onclick = () => navigate('history');
+
+    const btnJoinLive = view.querySelector('#btn-home-join-live');
+    if (btnJoinLive) btnJoinLive.onclick = () => showLiveSyncModal(null, 'guest');
+
+    const btnImp = view.querySelector('#btn-home-import');
+    if (btnImp) btnImp.onclick = () => showImportModal();
+
+    view.querySelectorAll('.session-item').forEach(el => {
+      el.onclick = () => {
+        const id = el.getAttribute('data-id');
+        openTracker(id);
+      };
+    });
+  }
+
+  function formatDateDDMMAAAA(dateStr) {
+    if (!dateStr) return '';
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    return dateStr;
+  }
+
+  function renderSessionItemHtml(s) {
+    const isLive = s.timerStartedAt != null;
+    const pids = Store.sessionPlayerIds(s);
+    const players = pids.map(id => Store.player(id)).filter(Boolean);
+    const typeLabel = s.type === 'match' ? t('match') : t('training');
+    const typeClass = s.type === 'match' ? 'match' : 'training';
+    const emoji = s.type === 'match' ? '🏆' : '⚽';
+
+    let totalActions = 0;
+    pids.forEach(pid => {
+      const st = s.stats[pid] || {};
+      Object.keys(st).forEach(k => { totalActions += (st[k] || 0); });
+    });
+
+    // Encontrar MVP del partido requiriendo un mínimo de volumen de participación
+    let mvpPlayer = null;
+    let mvpRating = 0;
+    if (s.type === 'match' && pids.length > 0) {
+      players.forEach(p => {
+        const st = s.stats[p.id] || {};
+        let actCount = 0;
+        Object.keys(st).forEach(k => { actCount += (st[k] || 0); });
+        const r = Store.calculateMatchRating(st, p.mainPosition);
+        if (actCount >= 4 && r > mvpRating) {
+          mvpRating = r;
+          mvpPlayer = p;
+        }
+      });
+      // Fallback si ningún jugador supera 4 acciones
+      if (!mvpPlayer) {
+        players.forEach(p => {
+          const st = s.stats[p.id] || {};
+          let actCount = 0;
+          Object.keys(st).forEach(k => { actCount += (st[k] || 0); });
+          const r = Store.calculateMatchRating(st, p.mainPosition);
+          if (actCount > 0 && r > mvpRating && r >= 5.5) {
+            mvpRating = r;
+            mvpPlayer = p;
+          }
+        });
+      }
+    }
+
+    const mvpHtml = (mvpPlayer && mvpRating >= 5.5) ? `
+      <div class="mvp-chip" title="MVP: ${escapeHtml(Store.playerName(mvpPlayer))} (⭐ ${mvpRating.toFixed(1)})">
+        ${renderAvatar(mvpPlayer, 'sm')}
+        <div style="display: flex; flex-direction: column; line-height: 1.1; max-width: 65px;">
+          <span style="font-size: 8.5px; font-weight: 800; color: #facc15;">⭐ MVP</span>
+          <b class="ellipsis" style="font-size: 11px; color: var(--text);">${escapeHtml(Store.playerName(mvpPlayer).split(' ')[0])}</b>
+          <span style="font-size: 9.5px; font-weight: 800; color: #22c55e;">${mvpRating.toFixed(1)}</span>
+        </div>
+      </div>
+    ` : '';
+
+    if (s.type === 'match') {
+      let teamObj = s.teamId ? Store.team(s.teamId) : null;
+      if (!teamObj && pids.length > 0) {
+        for (const pid of pids) {
+          const pl = Store.player(pid);
+          if (pl && pl.teamId) { teamObj = Store.team(pl.teamId); break; }
+        }
+      }
+      if (!teamObj && Store.state.teams && Store.state.teams.length > 0) {
+        teamObj = Store.state.teams[0];
+      }
+      const myTeamName = teamObj ? teamObj.name : 'Mi Equipo';
+      const myTeamColor = teamObj ? (teamObj.color || '#22c55e') : '#22c55e';
+      const rivalName = s.rival || (s.title ? s.title : t('rivalTeam', 'Rival'));
+      const homeScore = (s.score && s.score.home != null) ? s.score.home : 0;
+      const awayScore = (s.score && s.score.away != null) ? s.score.away : 0;
+
+      return `
+        <div class="session-item match ${isLive ? 'live' : ''}" data-id="${s.id}">
+          <div class="grow" style="min-width: 0;">
+            <div class="match-teams-bar">
+              <span class="team-bubble-pill" style="border-color: ${myTeamColor}; background: ${myTeamColor}24; color: ${myTeamColor};" title="${escapeHtml(myTeamName)}">
+                🛡️ ${escapeHtml(myTeamName)}
+              </span>
+              <div class="score-pill-horiz">
+                <span>${homeScore}</span>
+                <span style="opacity: 0.55; font-size: 13px;">-</span>
+                <span>${awayScore}</span>
+              </div>
+              <span class="rival-bubble-pill" title="${escapeHtml(rivalName)}">
+                ⚔️ ${escapeHtml(rivalName)}
+              </span>
+            </div>
+            <div class="meta" style="margin-top: 4px; display: flex; align-items: center; gap: 6px;">
+              <span>📅 ${formatDateDDMMAAAA(s.date)}</span>
+              <span>•</span>
+              <span>⏱️ ${Store.fmtTime(Store.elapsed(s), s)}</span>
+              ${isLive ? `<span class="badge live">${t('live')}</span>` : `<span class="badge match" style="font-size: 10px; padding: 2px 6px;">${typeLabel}</span>`}
+            </div>
+          </div>
+          ${mvpHtml || (players.length > 0 ? `
+            <div class="avatars-stack">
+              ${players.slice(0, 3).map(p => renderAvatar(p, 'sm')).join('')}
+            </div>
+          ` : '')}
+        </div>
+      `;
+    }
+
+    return `
+      <div class="session-item training ${isLive ? 'live' : ''}" data-id="${s.id}">
+        <div class="s-ic">${emoji}</div>
+        <div class="grow">
+          <div class="row" style="justify-content: space-between; align-items: center; margin-bottom: 2px;">
+            <div style="display: flex; align-items: center; gap: 4px; overflow: hidden; min-width: 0;">
+              <h4 class="ellipsis" style="margin: 0;">${escapeHtml(Store.sessionTitle(s))}</h4>
+            </div>
+            ${isLive ? `<span class="badge live">${t('live')}</span>` : `<span class="badge training">${typeLabel}</span>`}
+          </div>
+          <div class="meta">
+            <span>📅 ${formatDateDDMMAAAA(s.date)}</span>
+            <span>•</span>
+            <span>${totalActions} ${t('actions')}</span>
+            <span>•</span>
+            <span>⏱️ ${Store.fmtTime(Store.elapsed(s), s)}</span>
+          </div>
+        </div>
+        ${players.length > 0 ? `
+          <div class="avatars-stack">
+            ${players.slice(0, 3).map(p => renderAvatar(p, 'sm')).join('')}
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
+
+  /* =========================================================
+     MODAL NUEVA SESIÓN (CON PRESET DE BOTONES)
+     ========================================================= */
+  function showNewSessionModal(defaultType) {
+    let selectedType = defaultType || 'training';
+    let chosenButtonKeys = null;
+    let customKeys = (Store.state.settings.enabledStats && Store.state.settings.enabledStats.length)
+      ? Store.state.settings.enabledStats.slice()
+      : Store.STATS.filter(s => s.def).map(s => s.key);
+
+    openSheet(t('newSession'), (body) => {
+      body.innerHTML = `
+        <div class="type-pick">
+          <button type="button" class="${selectedType === 'training' ? 'active training' : ''}" id="pick-training">
+            <span>⚽</span>
+            <b>${t('training')}</b>
+          </button>
+          <button type="button" class="${selectedType === 'match' ? 'active match' : ''}" id="pick-match">
+            <span>🏆</span>
+            <b>${t('match')}</b>
+          </button>
+        </div>
+
+        ${renderDatePickerFieldHtml('sess-date', new Date().toISOString().slice(0, 10), t('date'))}
+
+        <div class="field" id="field-rival" style="${selectedType === 'match' ? '' : 'display: none;'}">
+          <label>${t('rivalTeam')}</label>
+          <input type="text" id="sess-rival" placeholder="${t('rivalPlaceholder')}" />
+        </div>
+
+        <div class="field" id="field-title" style="${selectedType === 'training' ? '' : 'display: none;'}">
+          <label>${t('sessionTitle')}</label>
+          <input type="text" id="sess-title" placeholder="${t('sessionTitlePlaceholder')}" />
+        </div>
+
+        <div class="field">
+          <label>${t('activeButtons')}</label>
+          <div class="segmented" id="preset-buttons-selector" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px;">
+            <button type="button" class="active" data-preset="all">${t('presetAll')}</button>
+            <button type="button" data-preset="touches-passes">${t('presetTouchesPasses')}</button>
+            <button type="button" data-preset="shots">${t('presetShots')}</button>
+            <button type="button" data-preset="custom">${t('presetCustom')}</button>
+          </div>
+
+          <div id="custom-buttons-container" style="display: none;">
+            <p class="hint" style="margin: 8px 0 4px;">${t('selectButtonsForView')}</p>
+            <div class="custom-buttons-grid">
+              ${Store.STATS.map(stat => {
+                const isChecked = customKeys.includes(stat.key);
+                return `
+                  <div class="btn-check-chip ${isChecked ? 'active' : ''}" data-key="${stat.key}">
+                    <span class="c-emoji">${stat.emoji}</span>
+                    <span class="c-lbl">${stat.short}</span>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>${t('team')}</label>
+          <input type="hidden" id="sess-team" value="" />
+          <div class="team-bubbles-container" id="sess-team-bubbles">
+            <div class="team-bubble active" data-tid="" style="border-color: rgba(255, 255, 255, 0.25);">
+              <span class="dot" style="background: #94a3b8;"></span>
+              <span>${t('allTeams')}</span>
+              <span class="check-icon">✓</span>
+            </div>
+            ${Store.state.teams.map(tm => {
+              const tmColor = tm.color || '#22d3ee';
+              return `
+                <div class="team-bubble" data-tid="${tm.id}" style="border-color: ${tmColor}; color: #fff;">
+                  <span class="dot" style="background: ${tmColor};"></span>
+                  <span>${escapeHtml(tm.name)}</span>
+                  <span class="check-icon" style="color: ${tmColor};">✓</span>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `;
+
+      const btnTr = body.querySelector('#pick-training');
+      const btnMt = body.querySelector('#pick-match');
+      const fRival = body.querySelector('#field-rival');
+      const fTitle = body.querySelector('#field-title');
+      const customContainer = body.querySelector('#custom-buttons-container');
+
+      // Selección de burbujas de equipo
+      body.querySelectorAll('#sess-team-bubbles .team-bubble').forEach(tb => {
+        tb.onclick = () => {
+          body.querySelectorAll('#sess-team-bubbles .team-bubble').forEach(x => x.classList.remove('active'));
+          tb.classList.add('active');
+          const tid = tb.getAttribute('data-tid') || '';
+          const inp = document.getElementById('sess-team');
+          if (inp) inp.value = tid;
+          haptic(20);
+        };
+      });
+
+      btnTr.onclick = () => {
+        selectedType = 'training';
+        btnTr.className = 'active training';
+        btnMt.className = '';
+        fRival.style.display = 'none';
+        fTitle.style.display = '';
+      };
+
+      btnMt.onclick = () => {
+        selectedType = 'match';
+        btnMt.className = 'active match';
+        btnTr.className = '';
+        fRival.style.display = '';
+        fTitle.style.display = 'none';
+      };
+
+      body.querySelectorAll('#preset-buttons-selector button').forEach(pb => {
+        pb.onclick = () => {
+          body.querySelectorAll('#preset-buttons-selector button').forEach(x => x.classList.remove('active'));
+          pb.classList.add('active');
+          const p = pb.getAttribute('data-preset');
+          if (p === 'touches-passes') {
+            customContainer.style.display = 'none';
+            chosenButtonKeys = ['touches', 'passOk', 'passKo'];
+          } else if (p === 'shots') {
+            customContainer.style.display = 'none';
+            chosenButtonKeys = ['shotOn', 'shotOff', 'goal'];
+          } else if (p === 'custom') {
+            customContainer.style.display = 'block';
+            chosenButtonKeys = Store.getSortedStats(customKeys).map(s => s.key);
+          } else {
+            customContainer.style.display = 'none';
+            chosenButtonKeys = null; // Todos
+          }
+        };
+      });
+
+      // Selección de botones en modo Personalizado
+      customContainer.querySelectorAll('.btn-check-chip').forEach(chip => {
+        chip.onclick = () => {
+          const k = chip.getAttribute('data-key');
+          const idx = customKeys.indexOf(k);
+          if (idx >= 0) {
+            if (customKeys.length <= 1) {
+              toast(t('minTwoButtons'), 'error');
+              return;
+            }
+            customKeys.splice(idx, 1);
+            chip.classList.remove('active');
+          } else {
+            customKeys.push(k);
+            chip.classList.add('active');
+          }
+          chosenButtonKeys = Store.getSortedStats(customKeys).map(s => s.key);
+        };
+      });
+
+      bindDatePickerField('sess-date', body);
+    }, (foot) => {
+      foot.innerHTML = `
+        <button class="btn block ${selectedType === 'match' ? 'match' : 'primary'}" id="btn-start-session">
+          ${t('startSession')}
+        </button>
+      `;
+
+      foot.querySelector('#btn-start-session').onclick = () => {
+        const textInp = document.getElementById('sess-date-text');
+        const hiddenInp = document.getElementById('sess-date');
+        if (textInp && hiddenInp) {
+          const parsed = parseInputDateToIso(textInp.value);
+          if (parsed) hiddenInp.value = parsed;
+        }
+        const date = hiddenInp ? hiddenInp.value : new Date().toISOString().slice(0, 10);
+        const rival = document.getElementById('sess-rival').value.trim();
+        const title = document.getElementById('sess-title').value.trim();
+        const teamInp = document.getElementById('sess-team');
+        const teamId = teamInp ? teamInp.value : '';
+
+        const s = Store.createSession({
+          type: selectedType,
+          date,
+          rival,
+          title,
+          teamId,
+          enabledStats: chosenButtonKeys
+        });
+
+        closeSheet();
+        openTracker(s.id);
+      };
+    });
+  }
+
+  /* =========================================================
+     MODAL DE CONFIGURACIÓN DE MODO DEL TEMPORIZADOR (CRONO / CUENTA ATRÁS)
+     ========================================================= */
+  function showTimerSettingsModal(session) {
+    let mode = session.timerMode || 'chrono';
+    let targetMin = Math.round((session.countdownTargetMs || (25 * 60 * 1000)) / (60 * 1000));
+
+    const dialog = document.createElement('div');
+    dialog.className = 'dialog-overlay';
+    dialog.innerHTML = `
+      <div class="dialog-box" style="max-width: 380px;">
+        <h3 style="margin: 0 0 8px; text-align: center; font-size: 18px; font-weight: 900;">
+          ⏱️ Modo del Temporizador
+        </h3>
+        <p class="hint" style="margin-bottom: 14px; text-align: center;">
+          Elige si deseas cronómetro progresivo o cuenta atrás con tiempo fijado:
+        </p>
+
+        <div class="segmented" style="margin-bottom: 14px;">
+          <button type="button" id="btn-mode-chrono" class="${mode === 'chrono' ? 'active' : ''}">
+            Cronómetro
+          </button>
+          <button type="button" id="btn-mode-countdown" class="${mode === 'countdown' ? 'active' : ''}">
+            Cuenta Atrás
+          </button>
+        </div>
+
+        <div id="countdown-config-section" style="${mode === 'countdown' ? '' : 'display: none;'} margin-bottom: 16px;">
+          <label style="font-size: 12px; font-weight: 700; color: var(--muted); display: block; margin-bottom: 6px;">
+            Minutos de la cuenta atrás:
+          </label>
+          <div style="display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap;">
+            ${[15, 20, 25, 30, 40, 45].map(m => `
+              <button type="button" class="btn sm ghost preset-min-btn" data-min="${m}" style="padding: 5px 10px; font-weight: 800; ${targetMin === m ? 'border-color: var(--cyan); color: var(--cyan); background: rgba(34,211,238,0.15);' : ''}">
+                ${m} min
+              </button>
+            `).join('')}
+          </div>
+          <input type="number" id="input-countdown-min" value="${targetMin}" min="1" max="180" style="width: 100%; padding: 10px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg2); color: #fff; font-size: 16px; font-weight: 800; text-align: center;" />
+          <small style="display: block; color: var(--muted); font-size: 11px; margin-top: 6px; text-align: center;">
+            Al llegar a 00:00 continuará contando en negativo (-00:01, -00:02...) hasta que lo pares.
+          </small>
+        </div>
+
+        <div class="btn-row" style="margin-top: 10px;">
+          <button type="button" class="btn ghost" id="btn-reset-timer-time" style="color: #f87171; border-color: rgba(239, 68, 68, 0.4);">
+            Reiniciar
+          </button>
+          <button type="button" class="btn primary grow" id="btn-save-timer-mode">
+            Guardar
+          </button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(dialog);
+
+    const bChrono = dialog.querySelector('#btn-mode-chrono');
+    const bCountdown = dialog.querySelector('#btn-mode-countdown');
+    const cdSection = dialog.querySelector('#countdown-config-section');
+    const inputMin = dialog.querySelector('#input-countdown-min');
+
+    bChrono.onclick = () => {
+      mode = 'chrono';
+      bChrono.classList.add('active');
+      bCountdown.classList.remove('active');
+      cdSection.style.display = 'none';
+    };
+    bCountdown.onclick = () => {
+      mode = 'countdown';
+      bCountdown.classList.add('active');
+      bChrono.classList.remove('active');
+      cdSection.style.display = 'block';
+    };
+
+    dialog.querySelectorAll('.preset-min-btn').forEach(btn => {
+      btn.onclick = () => {
+        const m = parseInt(btn.getAttribute('data-min'), 10);
+        targetMin = m;
+        inputMin.value = m;
+        dialog.querySelectorAll('.preset-min-btn').forEach(x => {
+          x.style.borderColor = '';
+          x.style.color = '';
+          x.style.background = '';
+        });
+        btn.style.borderColor = 'var(--cyan)';
+        btn.style.color = 'var(--cyan)';
+        btn.style.background = 'rgba(34,211,238,0.15)';
+      };
+    });
+
+    dialog.querySelector('#btn-reset-timer-time').onclick = () => {
+      confirmDialog('Reiniciar Tiempo', '¿Deseas reiniciar el contador de tiempo a cero?', () => {
+        Store.resetTimer(session);
+        dialog.remove();
+        renderTracker();
+      });
+    };
+
+    dialog.querySelector('#btn-save-timer-mode').onclick = () => {
+      const minVal = parseInt(inputMin.value, 10) || 25;
+      Store.setTimerMode(session.id, mode, minVal);
+      dialog.remove();
+      renderTracker();
+    };
+
+    dialog.onclick = (e) => { if (e.target === dialog) dialog.remove(); };
+  }
+
+  /* =========================================================
+     TRACKER EN PANTALLA DIVIDIDA (1 O 2 JUGADORES)
+     ========================================================= */
+  function openTracker(sessionId) {
+    activeSessionId = sessionId;
+    const session = Store.session(sessionId);
+    if (!session) {
+      toast('Sesión no encontrada', 'error');
+      return;
+    }
+
+    let trackerEl = document.getElementById('tracker-fullscreen');
+    if (!trackerEl) {
+      trackerEl = document.createElement('div');
+      trackerEl.id = 'tracker-fullscreen';
+      trackerEl.className = 'tracker';
+      document.body.appendChild(trackerEl);
+    }
+
+    startTimerTicker();
+    renderTracker();
+  }
+
+  function closeTracker() {
+    stopTimerTicker();
+    activeSessionId = null;
+    const el = document.getElementById('tracker-fullscreen');
+    if (el) el.remove();
+    navigate(currentTab);
+  }
+
+  function startTimerTicker() {
+    stopTimerTicker();
+    timerInterval = setInterval(() => {
+      const s = Store.session(activeSessionId);
+      if (!s) return;
+      const chronoEl = document.getElementById('tracker-chrono-val');
+      const btnChrono = document.getElementById('tracker-btn-chrono');
+      if (chronoEl) {
+        const timeStr = Store.fmtTime(Store.elapsed(s), s);
+        chronoEl.textContent = timeStr;
+        if (btnChrono) {
+          if (timeStr.startsWith('-')) btnChrono.classList.add('negative');
+          else btnChrono.classList.remove('negative');
+        }
+      }
+    }, 1000);
+  }
+
+  function stopTimerTicker() {
+    if (timerInterval) {
+      clearInterval(timerInterval);
+      timerInterval = null;
+    }
+  }
+
+  function renderTracker() {
+    const trackerEl = document.getElementById('tracker-fullscreen');
+    if (!trackerEl) return;
+    const s = Store.session(activeSessionId);
+    if (!s) { closeTracker(); return; }
+
+    const isLive = s.timerStartedAt != null;
+    const slots = s.slots || [null, null];
+    const playerA = slots[0] ? Store.player(slots[0]) : null;
+    const playerB = slots[1] ? Store.player(slots[1]) : null;
+    const singleMode = !playerB && playerA;
+
+    trackerEl.className = 'tracker ' + (singleMode ? 'single' : '');
+
+    trackerEl.innerHTML = `
+      <!-- SLOT 0: JUGADOR SUPERIOR -->
+      ${renderSlotPanel(s, 0, playerA)}
+
+      <!-- BARRA CENTRAL DE CONTROL (2 FILAS ORDENADAS) -->
+      <div class="t-bar">
+        <div class="t-bar-top">
+          <button class="icon-btn ghost" id="tracker-btn-back" title="Volver">${icon('back', 18)}</button>
+          <div class="t-title">
+            <b>${escapeHtml(Store.sessionTitle(s))}</b>
+            <span class="badge ${s.type}">${s.type === 'match' ? t('match').toUpperCase() : t('training').toUpperCase()}</span>
+          </div>
+
+          <!-- Sincronización en vivo Dual QR -->
+          <button class="icon-btn ${window.SyncEngine && SyncEngine.isLive() ? 'accent' : ''}" id="tracker-btn-sync-qr" title="${t('liveSync')}">
+            ${window.SyncEngine && SyncEngine.isLive() ? '<span class="live-dot" style="margin-right:2px;"></span>' : ''}
+            ${icon('qr', 16)}
+          </button>
+
+          <!-- Configuración rápida de botones en pantalla -->
+          <button class="icon-btn" id="tracker-btn-filter-buttons" title="${t('customizeButtons')}">
+            ${icon('sliders', 16)}
+          </button>
+
+          <button class="icon-btn" id="tracker-btn-swap" title="${t('swap')}">${icon('swap', 16)}</button>
+          <button class="finish-btn" id="tracker-btn-finish" title="${t('finish')}">
+            ${icon('check', 15)} <span>${t('finish')}</span>
+          </button>
+        </div>
+
+        <div class="t-bar-bottom">
+          ${s.type === 'match' ? `
+            <!-- Marcador de partido (Sólo en partidos) -->
+            <div class="score-widget" id="tracker-score-widget">
+              <button class="score-btn" id="btn-score-home-m" title="-1">-</button>
+              <span class="score-val" id="score-home-val">${(s.score && s.score.home) || 0}</span>
+              <button class="score-btn" id="btn-score-home-p" title="+1">+</button>
+              <span class="score-divider">:</span>
+              <button class="score-btn" id="btn-score-away-m" title="-1">-</button>
+              <span class="score-val" id="score-away-val">${(s.score && s.score.away) || 0}</span>
+              <button class="score-btn" id="btn-score-away-p" title="+1">+</button>
+            </div>
+
+            <!-- Selector de periodo (1T, Descanso, 2T...) -->
+            <button class="period-tag" id="btn-period-picker" title="${t('period')}">
+              ${s.period || '1T'}
+            </button>
+          ` : `
+            <div style="font-size: 11.5px; font-weight: 700; color: #86efac; display: flex; align-items: center; gap: 4px;">
+              <span>⚽</span> <span>${t('training')} en curso</span>
+            </div>
+          `}
+
+          <div style="display: flex; align-items: center; gap: 4px;">
+            <button class="chrono ${isLive ? 'running' : ''} ${Store.fmtTime(Store.elapsed(s), s).startsWith('-') ? 'negative' : ''}" id="tracker-btn-chrono">
+              ${icon(isLive ? 'pause' : 'play', 16)}
+              <span id="tracker-chrono-val">${Store.fmtTime(Store.elapsed(s), s)}</span>
+            </button>
+            <button class="icon-btn" id="btn-timer-settings" title="Modo Temporizador" style="width: 32px; height: 32px; font-size: 13px;">
+              ⏱️
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLOT 1: JUGADOR INFERIOR -->
+      ${renderSlotPanel(s, 1, playerB)}
+    `;
+
+    bindTrackerInteractions(trackerEl, s);
+  }
+
+  function renderSlotPanel(session, slotIndex, player) {
+    const slotClass = slotIndex === 0 ? 'slot-0' : 'slot-1';
+    const slotLetter = slotIndex === 0 ? 'A' : 'B';
+
+    if (!player) {
+      return `
+        <div class="panel empty ${slotClass}" data-slot="${slotIndex}">
+          <button class="add-slot" id="btn-pick-slot-${slotIndex}">
+            ${icon('plus', 22)}
+            <span>${t('selectPlayer')} (${slotLetter})</span>
+          </button>
+        </div>
+      `;
+    }
+
+    const st = session.stats[player.id] || {};
+    // Obtener la lista de botones EN ORDEN CANÓNICO ESTRICTO
+    const statsList = Store.getSessionStats(session);
+
+    // Ajustar rejilla: mantener siempre el tamaño generoso y ancho de la versión original
+    const gridCount = statsList.length;
+    let sizeCls = 'normal';
+    let cols = 3;
+
+    if (gridCount <= 2) {
+      sizeCls = 'large';
+      cols = gridCount;
+    } else if (gridCount <= 4) {
+      sizeCls = 'large';
+      cols = 2;
+    } else {
+      sizeCls = 'normal';
+      cols = 3; // SIEMPRE 3 columnas máximo (nunca 4), para conservar el ancho y tamaño generoso original
+    }
+
+    const passAcc = Store.ratio(st, Store.RATIOS[0]);
+    const shotAcc = Store.ratio(st, Store.RATIOS[1]);
+
+    return `
+      <div class="panel ${slotClass}" data-slot="${slotIndex}" data-player="${player.id}">
+        <div class="p-head">
+          <button class="p-who" id="btn-change-player-${slotIndex}">
+            <div class="slot-letter">${slotLetter}</div>
+            ${renderAvatar(player, 'sm')}
+            <div class="grow ellipsis">
+              <h3>${escapeHtml(Store.playerName(player))}</h3>
+              <div class="ratios">
+                <span>${t('pass')}: <b>${passAcc !== null ? passAcc + '%' : '—'}</b></span>
+                <span>•</span>
+                <span>${t('shot')}: <b>${shotAcc !== null ? shotAcc + '%' : '—'}</b></span>
+              </div>
+            </div>
+            <div class="chev">${icon('chevR', 16)}</div>
+          </button>
+
+          <!-- Botón Deshacer silencioso e independiente -->
+          <button class="undo-btn" id="btn-undo-${slotIndex}" title="${t('undo')}">
+            ${icon('undo', 20)}
+          </button>
+        </div>
+
+        <div class="counters ${sizeCls}" style="grid-template-columns: repeat(${cols}, 1fr);">
+          ${statsList.map(item => {
+            const count = st[item.key] || 0;
+            const isGoal = item.key === 'goal';
+            return `
+              <button class="counter ${isGoal ? 'goal' : ''}"
+                      style="--c: ${item.color};"
+                      data-key="${item.key}"
+                      data-player="${player.id}">
+                <span class="c-emoji">${item.emoji}</span>
+                <span class="c-val num" id="val-${player.id}-${item.key}">${count}</span>
+                <span class="c-lbl">${item.short}</span>
+              </button>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  function bindTrackerInteractions(container, session) {
+    container.querySelector('#tracker-btn-chrono').onclick = () => {
+      Store.toggleTimer(session);
+      haptic(30);
+      renderTracker();
+    };
+
+    container.querySelector('#tracker-btn-back').onclick = () => {
+      closeTracker();
+    };
+
+    container.querySelector('#tracker-btn-swap').onclick = () => {
+      const slots = session.slots || [null, null];
+      session.slots = [slots[1], slots[0]];
+      Store.save();
+      haptic(40);
+      renderTracker();
+    };
+
+    // Marcador: Botones de puntuación local y visitante
+    const updateScoreUI = () => {
+      const hEl = container.querySelector('#score-home-val');
+      const aEl = container.querySelector('#score-away-val');
+      if (hEl) hEl.textContent = (session.score && session.score.home) || 0;
+      if (aEl) aEl.textContent = (session.score && session.score.away) || 0;
+    };
+
+    const btnShm = container.querySelector('#btn-score-home-m');
+    if (btnShm) btnShm.onclick = () => {
+      session.score = session.score || { home: 0, away: 0 };
+      session.score.home = Math.max(0, (session.score.home || 0) - 1);
+      Store.updateScore(session.id, session.score.home, session.score.away);
+      if (window.SyncEngine && SyncEngine.isLive()) SyncEngine.sendScore(session.id, session.score.home, session.score.away);
+      haptic(20);
+      updateScoreUI();
+    };
+
+    const btnShp = container.querySelector('#btn-score-home-p');
+    if (btnShp) btnShp.onclick = () => {
+      session.score = session.score || { home: 0, away: 0 };
+      session.score.home = (session.score.home || 0) + 1;
+      Store.updateScore(session.id, session.score.home, session.score.away);
+      if (window.SyncEngine && SyncEngine.isLive()) SyncEngine.sendScore(session.id, session.score.home, session.score.away);
+      haptic(25);
+      updateScoreUI();
+    };
+
+    const btnSam = container.querySelector('#btn-score-away-m');
+    if (btnSam) btnSam.onclick = () => {
+      session.score = session.score || { home: 0, away: 0 };
+      session.score.away = Math.max(0, (session.score.away || 0) - 1);
+      Store.updateScore(session.id, session.score.home, session.score.away);
+      if (window.SyncEngine && SyncEngine.isLive()) SyncEngine.sendScore(session.id, session.score.home, session.score.away);
+      haptic(20);
+      updateScoreUI();
+    };
+
+    const btnSap = container.querySelector('#btn-score-away-p');
+    if (btnSap) btnSap.onclick = () => {
+      session.score = session.score || { home: 0, away: 0 };
+      session.score.away = (session.score.away || 0) + 1;
+      Store.updateScore(session.id, session.score.home, session.score.away);
+      if (window.SyncEngine && SyncEngine.isLive()) SyncEngine.sendScore(session.id, session.score.home, session.score.away);
+      haptic(25);
+      updateScoreUI();
+    };
+
+    // Periodo (1T, Descanso, 2T...)
+    const btnPeriod = container.querySelector('#btn-period-picker');
+    if (btnPeriod) btnPeriod.onclick = () => showPeriodPickerModal(session);
+
+    // Sincronización en vivo Dual QR
+    const btnSyncQr = container.querySelector('#tracker-btn-sync-qr');
+    if (btnSyncQr) btnSyncQr.onclick = () => showLiveSyncModal(session);
+
+    // Botón para seleccionar qué botones se ven en pantalla
+    container.querySelector('#tracker-btn-filter-buttons').onclick = () => {
+      showCustomizeSessionButtonsModal(session);
+    };
+
+    // Botón para configurar temporizador (Cronómetro / Cuenta atrás)
+    const btnTimerSet = container.querySelector('#btn-timer-settings');
+    if (btnTimerSet) btnTimerSet.onclick = () => showTimerSettingsModal(session);
+
+    container.querySelector('#tracker-btn-finish').onclick = () => {
+      confirmDialog(
+        t('finish'),
+        '¿Deseas dar por terminada esta sesión? Los datos se encuentran guardados automáticamente.',
+        () => {
+          if (session.timerStartedAt) Store.toggleTimer(session);
+          session.status = 'finished';
+          Store.save();
+          if (window.SyncEngine && SyncEngine.isLive()) {
+            SyncEngine.broadcastSessionFinished(session);
+          }
+          closeTracker();
+        },
+        t('finish'),
+        'primary'
+      );
+    };
+
+    [0, 1].forEach(slotIdx => {
+      const pickBtn = container.querySelector(`#btn-pick-slot-${slotIdx}`);
+      if (pickBtn) pickBtn.onclick = () => showPlayerSelectorModal(session, slotIdx);
+
+      const changeBtn = container.querySelector(`#btn-change-player-${slotIdx}`);
+      if (changeBtn) changeBtn.onclick = () => showPlayerSelectorModal(session, slotIdx);
+
+      // Deshacer (Undo) 100% silencioso (sin toast en pantalla) con emisión en vivo
+      const undoBtn = container.querySelector(`#btn-undo-${slotIdx}`);
+      if (undoBtn) {
+        undoBtn.onclick = () => {
+          const playerId = session.slots[slotIdx];
+          if (!playerId) return;
+          const entry = Store.undo(session.id, playerId);
+          if (entry) {
+            if (window.SyncEngine && SyncEngine.isLive()) {
+              SyncEngine.sendUndo(session.id, playerId);
+            }
+            haptic(50);
+            renderTracker();
+          }
+        };
+      }
+    });
+
+    container.querySelectorAll('.counter').forEach(btn => {
+      const playerId = btn.getAttribute('data-player');
+      const statKey = btn.getAttribute('data-key');
+
+      btn.addEventListener('pointerdown', (e) => {
+        btn.classList.add('pressed');
+        createRipple(btn, e);
+      });
+
+      const clearPressed = () => btn.classList.remove('pressed');
+      btn.addEventListener('pointerup', clearPressed);
+      btn.addEventListener('pointercancel', clearPressed);
+      btn.addEventListener('pointerleave', clearPressed);
+
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        haptic(35);
+
+        const entry = Store.record(session.id, playerId, statKey, 1);
+        if (entry) {
+          if (window.SyncEngine && SyncEngine.isLive()) {
+            SyncEngine.sendAction(session.id, playerId, statKey, 1);
+          }
+
+          entry.k.forEach(k => {
+            const valEl = document.getElementById(`val-${playerId}-${k}`);
+            if (valEl) {
+              const current = (session.stats[playerId] || {})[k] || 0;
+              valEl.textContent = current;
+              valEl.parentElement.classList.add('bump');
+              setTimeout(() => valEl.parentElement.classList.remove('bump'), 300);
+            }
+          });
+
+          // Si se anotó un gol en un partido, actualizar también el marcador en vivo
+          if (statKey === 'goal' && session.type === 'match') {
+            const hEl = document.getElementById('score-home-val');
+            if (hEl) hEl.textContent = (session.score && session.score.home) || 0;
+            if (window.SyncEngine && SyncEngine.isLive()) {
+              SyncEngine.sendScore(session.id, session.score.home, session.score.away);
+            }
+          }
+
+          createFloater(btn, '+1', false);
+          updateHeaderRatios(session, playerId);
+
+          // Prompt de zonas del campo táctico para tiros, goles, pérdidas, recuperaciones y asistencias
+          if (['shotOn', 'shotOff', 'goal', 'loss', 'recovery', 'assist'].includes(statKey) && Store.state.settings.askZoneOnShots !== false) {
+            setTimeout(() => {
+              showPitchZoneSelectorModal(session, playerId, statKey);
+            }, 100);
+          }
+        }
+      });
+
+      // Pulsación larga para restar (-1)
+      let pressTimer = null;
+      btn.addEventListener('pointerdown', () => {
+        pressTimer = setTimeout(() => {
+          haptic(70);
+          const current = (session.stats[playerId] || {})[statKey] || 0;
+          if (current > 0) {
+            Store.record(session.id, playerId, statKey, -1);
+            if (window.SyncEngine && SyncEngine.isLive()) {
+              SyncEngine.sendAction(session.id, playerId, statKey, -1);
+            }
+            const valEl = document.getElementById(`val-${playerId}-${statKey}`);
+            if (valEl) valEl.textContent = (session.stats[playerId] || {})[statKey] || 0;
+            createFloater(btn, '-1', true);
+            updateHeaderRatios(session, playerId);
+          }
+        }, 650);
+      });
+      const cancelLongPress = () => { if (pressTimer) clearTimeout(pressTimer); };
+      btn.addEventListener('pointerup', cancelLongPress);
+      btn.addEventListener('pointercancel', cancelLongPress);
+      btn.addEventListener('pointerleave', cancelLongPress);
+    });
+  }
+
+  function updateHeaderRatios(session, playerId) {
+    const panel = document.querySelector(`.panel[data-player="${playerId}"]`);
+    if (!panel) return;
+    const st = session.stats[playerId] || {};
+    const passAcc = Store.ratio(st, Store.RATIOS[0]);
+    const shotAcc = Store.ratio(st, Store.RATIOS[1]);
+    const ratiosEl = panel.querySelector('.ratios');
+    if (ratiosEl) {
+      ratiosEl.innerHTML = `
+        <span>${t('pass')}: <b>${passAcc !== null ? passAcc + '%' : '—'}</b></span>
+        <span>•</span>
+        <span>${t('shot')}: <b>${shotAcc !== null ? shotAcc + '%' : '—'}</b></span>
+      `;
+    }
+  }
+
+  function createRipple(btn, e) {
+    const rect = btn.getBoundingClientRect();
+    const ripple = document.createElement('span');
+    ripple.className = 'ripple';
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    ripple.style.left = x + 'px';
+    ripple.style.top = y + 'px';
+    ripple.style.width = ripple.style.height = Math.max(rect.width, rect.height) + 'px';
+    btn.appendChild(ripple);
+    setTimeout(() => ripple.remove(), 550);
+  }
+
+  function createFloater(btn, text, isNeg) {
+    const floater = document.createElement('span');
+    floater.className = 'floater ' + (isNeg ? 'neg' : '');
+    floater.textContent = text;
+    floater.style.left = '50%';
+    floater.style.top = '30%';
+    btn.appendChild(floater);
+    setTimeout(() => floater.remove(), 700);
+  }
+
+  /* =========================================================
+     MODAL DE CONFIGURACIÓN DE BOTONES EN PANTALLA
+     ========================================================= */
+  function showCustomizeSessionButtonsModal(session) {
+    let currentEnabled = (session.enabledStats && session.enabledStats.length)
+      ? session.enabledStats.slice()
+      : Store.state.settings.enabledStats.slice();
+
+    openSheet(t('customizeButtons'), (body) => {
+      body.innerHTML = `
+        <p class="hint" style="margin-bottom: 12px;">${t('selectButtonsForView')}</p>
+
+        <!-- Presets a 1 toque -->
+        <div class="segmented" style="margin-bottom: 14px;">
+          <button type="button" id="pst-all">${t('presetAll')}</button>
+          <button type="button" id="pst-tp">Toques & Pases</button>
+          <button type="button" id="pst-shots">Solo Tiros</button>
+        </div>
+
+        <div class="card" style="max-height: 50vh; overflow-y: auto;">
+          ${Store.STATS.map(item => {
+            const isChecked = currentEnabled.includes(item.key);
+            return `
+              <div class="toggle-row">
+                <span class="t-emoji" style="background: ${item.color}20;">${item.emoji}</span>
+                <div class="grow">
+                  <h5>${item.label}</h5>
+                  <small>${item.short}</small>
+                </div>
+                <button class="switch ${isChecked ? 'on' : ''}" data-custom-stat="${item.key}"></button>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+
+      function syncSwitches() {
+        body.querySelectorAll('[data-custom-stat]').forEach(sw => {
+          const k = sw.getAttribute('data-custom-stat');
+          sw.classList.toggle('on', currentEnabled.includes(k));
+        });
+      }
+
+      body.querySelector('#pst-all').onclick = () => {
+        currentEnabled = Store.STATS.map(s => s.key);
+        syncSwitches();
+      };
+      body.querySelector('#pst-tp').onclick = () => {
+        currentEnabled = ['touches', 'passOk', 'passKo'];
+        syncSwitches();
+      };
+      body.querySelector('#pst-shots').onclick = () => {
+        currentEnabled = ['shotOn', 'shotOff', 'goal'];
+        syncSwitches();
+      };
+
+      body.querySelectorAll('[data-custom-stat]').forEach(sw => {
+        sw.onclick = () => {
+          const k = sw.getAttribute('data-custom-stat');
+          const idx = currentEnabled.indexOf(k);
+          if (idx >= 0) {
+            if (currentEnabled.length <= 1) {
+              toast(t('minTwoButtons'), 'error');
+              return;
+            }
+            currentEnabled.splice(idx, 1);
+          } else {
+            currentEnabled.push(k);
+          }
+          syncSwitches();
+          haptic(20);
+        };
+      });
+    }, (foot) => {
+      foot.innerHTML = `
+        <div class="btn-row">
+          <button class="btn" id="btn-cancel-custom">${t('cancel')}</button>
+          <button class="btn primary" id="btn-apply-custom">${t('saveChanges')}</button>
+        </div>
+      `;
+
+      foot.querySelector('#btn-cancel-custom').onclick = closeSheet;
+
+      foot.querySelector('#btn-apply-custom').onclick = () => {
+        // Orden canónico estricto
+        const sorted = Store.getSortedStats(currentEnabled).map(s => s.key);
+        Store.setSessionStats(session, sorted);
+        closeSheet();
+        haptic(30);
+        renderTracker();
+      };
+    });
+  }
+
+  /* =========================================================
+     SELECTOR RÁPIDO DE JUGADOR (PARA RANURAS A Y B)
+     ========================================================= */
+  function showPlayerSelectorModal(session, targetSlotIndex) {
+    const otherSlotIndex = targetSlotIndex === 0 ? 1 : 0;
+    const currentSlots = session.slots || [null, null];
+    const otherPlayerId = currentSlots[otherSlotIndex];
+    const teamFilter = session.teamId || 'all';
+
+    let players = Store.sortedPlayers(teamFilter);
+
+    openSheet(t('selectPlayer'), (body) => {
+      body.innerHTML = `
+        <div class="search" style="margin-bottom: 12px;">
+          <input type="text" id="picker-search-input" placeholder="${t('searchPlayerPlaceholder')}" />
+          ${icon('search', 18)}
+        </div>
+
+        <div class="chips" id="picker-team-chips" style="margin-bottom: 14px;">
+          <button class="chip ${teamFilter === 'all' ? 'active' : ''}" data-team="all">${t('all')}</button>
+          ${Store.state.teams.map(t => `
+            <button class="chip ${teamFilter === t.id ? 'active' : ''}" data-team="${t.id}">
+              <span class="dot" style="background: ${t.color}"></span>
+              ${escapeHtml(t.name)}
+            </button>
+          `).join('')}
+        </div>
+
+        <div class="picker-grid" id="picker-players-grid">
+          ${renderPickerGridHtml(players, currentSlots[targetSlotIndex], otherPlayerId)}
+        </div>
+      `;
+
+      const searchInput = body.querySelector('#picker-search-input');
+      const grid = body.querySelector('#picker-players-grid');
+      let currentFilterTeam = teamFilter;
+
+      function updateGrid() {
+        const query = searchInput.value.toLowerCase().trim();
+        let list = Store.sortedPlayers(currentFilterTeam);
+        if (query) {
+          list = list.filter(p => {
+            const matchName = Store.playerName(p).toLowerCase().includes(query);
+            const matchDorsal = p.mainDorsal != null && String(p.mainDorsal).includes(query);
+            return matchName || matchDorsal;
+          });
+        }
+        grid.innerHTML = renderPickerGridHtml(list, currentSlots[targetSlotIndex], otherPlayerId);
+        bindPickerItems(grid);
+      }
+
+      searchInput.oninput = updateGrid;
+
+      body.querySelectorAll('#picker-team-chips .chip').forEach(c => {
+        c.onclick = () => {
+          body.querySelectorAll('#picker-team-chips .chip').forEach(x => x.classList.remove('active'));
+          c.classList.add('active');
+          currentFilterTeam = c.getAttribute('data-team');
+          updateGrid();
+        };
+      });
+
+      bindPickerItems(grid);
+
+      function bindPickerItems(gridEl) {
+        gridEl.querySelectorAll('.pick').forEach(item => {
+          item.onclick = () => {
+            const pid = item.getAttribute('data-id');
+            if (pid === 'remove') {
+              session.slots[targetSlotIndex] = null;
+            } else {
+              if (pid === otherPlayerId) {
+                session.slots[otherSlotIndex] = session.slots[targetSlotIndex];
+              }
+              session.slots[targetSlotIndex] = pid;
+              session.stats[pid] = session.stats[pid] || {};
+            }
+            Store.save();
+            closeSheet();
+            haptic(35);
+            renderTracker();
+          };
+        });
+      }
+    }, (foot) => {
+      foot.innerHTML = `
+        <div class="btn-row">
+          <button class="btn" id="btn-picker-empty">${t('leaveSlotEmpty')}</button>
+          <button class="btn primary" id="btn-picker-new-p">${icon('plus', 16)} ${t('newPlayer')}</button>
+        </div>
+      `;
+      foot.querySelector('#btn-picker-empty').onclick = () => {
+        session.slots[targetSlotIndex] = null;
+        Store.save();
+        closeSheet();
+        renderTracker();
+      };
+      foot.querySelector('#btn-picker-new-p').onclick = () => {
+        closeSheet();
+        showEditPlayerModal(null, (newP) => {
+          session.slots[targetSlotIndex] = newP.id;
+          session.stats[newP.id] = session.stats[newP.id] || {};
+          Store.save();
+          renderTracker();
+        });
+      };
+    });
+  }
+
+  function renderPickerGridHtml(players, currentSlotPid, otherSlotPid) {
+    if (players.length === 0) {
+      return `
+        <div style="grid-column: 1 / -1; text-align: center; padding: 20px; color: var(--muted);">
+          ${t('noPlayersFound')}
+        </div>
+      `;
+    }
+    return players.map(p => {
+      const isCur = p.id === currentSlotPid;
+      const isOth = p.id === otherSlotPid;
+      return `
+        <button class="pick ${isCur ? 'current' : ''} ${isOth ? 'other' : ''}" data-id="${p.id}">
+          ${isOth ? `<span class="slot-tag">${t('inOtherSlot')}</span>` : ''}
+          ${renderAvatar(p, 'sm')}
+          <span class="p-name">${escapeHtml(Store.playerName(p))}</span>
+        </button>
+      `;
+    }).join('');
+  }
+
+  /* Selector modal visual genérico de jugadores (usado en Métricas y otras vistas) */
+  function showPlayerPickerModal(currentPid, onSelect) {
+    let currentFilterTeam = 'all';
+    openSheet(t('selectPlayer'), (body) => {
+      body.innerHTML = `
+        <div class="search" style="margin-bottom: 12px;">
+          <input type="text" id="picker-search-input" placeholder="${t('searchPlayerPlaceholder')}" />
+          ${icon('search', 18)}
+        </div>
+
+        <div class="chips" id="picker-team-chips" style="margin-bottom: 14px;">
+          <button class="chip ${currentFilterTeam === 'all' ? 'active' : ''}" data-team="all">${t('all')}</button>
+          ${Store.state.teams.map(t => `
+            <button class="chip" data-team="${t.id}">
+              <span class="dot" style="background: ${t.color}"></span>
+              ${escapeHtml(t.name)}
+            </button>
+          `).join('')}
+        </div>
+
+        <div class="picker-grid" id="picker-players-grid">
+          ${renderPickerGridHtml(Store.sortedPlayers(), currentPid, null)}
+        </div>
+      `;
+
+      const searchInput = body.querySelector('#picker-search-input');
+      const grid = body.querySelector('#picker-players-grid');
+
+      function updateGrid() {
+        const query = searchInput.value.toLowerCase().trim();
+        let list = Store.sortedPlayers(currentFilterTeam);
+        if (query) {
+          list = list.filter(p => {
+            const matchName = Store.playerName(p).toLowerCase().includes(query);
+            const matchDorsal = p.mainDorsal != null && String(p.mainDorsal).includes(query);
+            return matchName || matchDorsal;
+          });
+        }
+        grid.innerHTML = renderPickerGridHtml(list, currentPid, null);
+        bindPickerItems();
+      }
+
+      function bindPickerItems() {
+        grid.querySelectorAll('.pick').forEach(item => {
+          item.onclick = () => {
+            const pid = item.getAttribute('data-id');
+            closeSheet();
+            if (typeof onSelect === 'function') onSelect(pid === 'remove' ? 'all' : pid);
+          };
+        });
+      }
+
+      searchInput.oninput = updateGrid;
+      body.querySelectorAll('#picker-team-chips .chip').forEach(c => {
+        c.onclick = () => {
+          body.querySelectorAll('#picker-team-chips .chip').forEach(x => x.classList.remove('active'));
+          c.classList.add('active');
+          currentFilterTeam = c.getAttribute('data-team');
+          updateGrid();
+        };
+      });
+
+      bindPickerItems();
+    }, (foot) => {
+      foot.innerHTML = `
+        <button class="btn block" id="btn-pick-all-players">👥 ${t('allPlayersAverage')}</button>
+      `;
+      foot.querySelector('#btn-pick-all-players').onclick = () => {
+        closeSheet();
+        if (typeof onSelect === 'function') onSelect('all');
+      };
+    });
+  }
+
+  /* =========================================================
+     MODAL DE SELECCIÓN DE PERIODO / PARTE DEL PARTIDO
+     ========================================================= */
+  function showPeriodPickerModal(session) {
+    const isMatch = session.type === 'match';
+    const matchOptions = ['1T', 'Descanso', '2T', 'Prórroga', 'Penaltis'];
+    const trainOptions = ['Bloque 1', 'Bloque 2', 'Bloque 3', 'Bloque 4'];
+    const options = isMatch ? matchOptions : trainOptions;
+
+    openSheet(t('period'), (body) => {
+      body.innerHTML = `
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          ${options.map(opt => `
+            <button class="btn block ${session.period === opt ? 'primary' : 'ghost'}" data-period="${opt}" style="text-align:center; font-size:15px; font-weight:700;">
+              ${opt}
+            </button>
+          `).join('')}
+        </div>
+      `;
+      body.querySelectorAll('[data-period]').forEach(btn => {
+        btn.onclick = () => {
+          const val = btn.getAttribute('data-period');
+          Store.updatePeriod(session.id, val);
+          if (window.SyncEngine && SyncEngine.isLive()) SyncEngine.sendPeriod(session.id, val);
+          closeSheet();
+          haptic(25);
+          renderTracker();
+        };
+      });
+    });
+  }
+
+  /* =========================================================
+     MODAL DE SELECCIÓN DE ZONAS DE CAMPO TÁCTICO (PITCH MAP)
+     ========================================================= */
+  function showPitchZoneSelectorModal(session, playerId, key) {
+    const p = Store.player(playerId);
+    const pName = p ? Store.playerName(p, true) : 'Jugador';
+    const stItem = Store.STAT_MAP[key] || { emoji: '⚽', short: key };
+    const isGoal = key === 'goal';
+    const isShot = key === 'shotOn' || key === 'shotOff' || isGoal;
+
+    // Forzar siempre Campo Rival en tiros a puerta, tiros fuera y goles
+    let activeHalf = 'rival';
+
+    openSheet(`${stItem.emoji} ${stItem.short} • ${t('pitchZones')}`, (body) => {
+      function renderPitchGrid() {
+        let hintText = t('selectZone');
+        if (isGoal) hintText = '🎯 Remate a gol (100% Campo Rival / Zona de Ataque)';
+        else if (key === 'shotOn' || key === 'shotOff') hintText = '🎯 Zona de tiro (Forzado a Campo Rival)';
+        else if (activeHalf === 'rival') hintText = '🚩 Campo Rival (Zona ofensiva)';
+        else hintText = '🛡️ Campo Propio (Zona defensiva)';
+
+        body.innerHTML = `
+          <!-- Indicador claro de acción y jugador -->
+          <div style="background: rgba(34, 211, 238, 0.12); border: 1.5px solid var(--cyan); border-radius: 12px; padding: 10px 14px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span style="font-size: 24px;">${stItem.emoji}</span>
+              <div>
+                <b style="font-size: 14px; color: #fff; display: block;">${escapeHtml(stItem.label || stItem.short || key)}</b>
+                <small style="color: var(--cyan); font-weight: 700; font-size: 11.5px;">👤 ${escapeHtml(pName)}</small>
+              </div>
+            </div>
+            <span class="badge" style="background: var(--surface2); color: #fff; font-size: 11px;">Toca una zona</span>
+          </div>
+
+          <!-- Selector Campo Rival / Campo Propio (Solo si no es tiro o gol) -->
+          ${!isShot ? `
+            <div class="segmented" style="margin-bottom: 10px;">
+              <button type="button" class="${activeHalf === 'rival' ? 'active' : ''}" id="btn-pitch-half-rival">
+                🔴 ${t('oppHalf', 'Campo Rival')}
+              </button>
+              <button type="button" class="${activeHalf === 'own' ? 'active' : ''}" id="btn-pitch-half-own">
+                🔵 ${t('ownHalf', 'Campo Propio')}
+              </button>
+            </div>
+          ` : `
+            <div style="text-align: center; margin-bottom: 8px;">
+              <span class="badge" style="background: rgba(239, 68, 68, 0.18); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.35); font-size: 11px; padding: 2px 10px;">
+                🎯 100% Campo Rival (Ataque)
+              </span>
+            </div>
+          `}
+
+          <p class="hint" style="margin-bottom: 8px; text-align: center; font-weight: 700; color: ${isGoal ? '#facc15' : 'var(--text)'};">
+            ${hintText}
+          </p>
+
+          <div class="pitch-field-grid">
+            ${activeHalf === 'rival' ? `
+              <!-- FILA 1 (Arriba): Banda Ofensiva Izq | Área Rival | Banda Ofensiva Der -->
+              <div class="pitch-grid-cell pz-top-l ${isGoal ? 'active' : ''}" data-z="3" style="grid-area: top_l; background: rgba(56, 189, 248, 0.35);">
+                <span class="z-emoji">↖️</span>
+                <span>${t('zone_wing_off_l')}</span>
+              </div>
+              <div class="pitch-grid-cell pz-top-c ${isGoal ? 'active' : ''}" data-z="1" style="grid-area: top_c; background: rgba(239, 68, 68, ${isGoal ? '0.75' : '0.45'}); border-color: ${isGoal ? '#facc15' : 'rgba(239, 68, 68, 0.8)'}; border-style: solid;">
+                <span class="z-emoji">🥅</span>
+                <span style="font-weight: 900; font-size: 11px;">${t('zone_box_opp')}</span>
+              </div>
+              <div class="pitch-grid-cell pz-top-r ${isGoal ? 'active' : ''}" data-z="4" style="grid-area: top_r; background: rgba(6, 182, 212, 0.35);">
+                <span class="z-emoji">↗️</span>
+                <span>${t('zone_wing_off_r')}</span>
+              </div>
+
+              <!-- FILAS 2 & 3: Banda Izquierda (UNIDA, span 2) | Frontal / Centro | Banda Derecha (UNIDA, span 2) -->
+              <div class="pitch-grid-cell pz-wing-l" data-z="7" style="grid-area: wing_l; background: rgba(59, 130, 246, 0.35);">
+                <span class="z-emoji">⬅️</span>
+                <span>${t('zone_wing_l')}</span>
+              </div>
+
+              <!-- Fila 2, Centro: Frontal del Área -->
+              <div class="pitch-grid-cell pz-mid-t" data-z="2" style="grid-area: mid_t; background: rgba(249, 115, 22, 0.45); border-color: #f97316;">
+                <span class="z-emoji">🎯</span>
+                <span style="font-weight: 800;">${t('zone_front')}</span>
+              </div>
+
+              <div class="pitch-grid-cell pz-wing-r" data-z="8" style="grid-area: wing_r; background: rgba(14, 165, 233, 0.35);">
+                <span class="z-emoji">➡️</span>
+                <span>${t('zone_wing_r')}</span>
+              </div>
+
+              <!-- Fila 3, Centro: Centro del Campo (CENTRADO, ABAJO) -->
+              <div class="pitch-grid-cell pz-mid-b" data-z="5" style="grid-area: mid_b; background: rgba(34, 197, 94, 0.45); border-color: #22c55e;">
+                <span class="z-emoji">⚽</span>
+                <span style="font-weight: 800;">${t('zone_mid')}</span>
+              </div>
+            ` : `
+              <!-- CAMPO PROPIO -->
+              <!-- FILA 1 (Arriba): Banda Defensiva Izq | Área de Portería | Banda Defensiva Der -->
+              <div class="pitch-grid-cell pz-top-l" data-z="10" style="grid-area: top_l; background: rgba(99, 102, 241, 0.35);">
+                <span class="z-emoji">↙️</span>
+                <span>${t('zone_wing_def_l')}</span>
+              </div>
+              <div class="pitch-grid-cell pz-top-c" data-z="6" style="grid-area: top_c; background: rgba(139, 92, 246, 0.45); border-color: #8b5cf6;">
+                <span class="z-emoji">🛡️</span>
+                <span style="font-weight: 900; font-size: 11px;">${t('zone_own')}</span>
+              </div>
+              <div class="pitch-grid-cell pz-top-r" data-z="11" style="grid-area: top_r; background: rgba(79, 70, 229, 0.35);">
+                <span class="z-emoji">↘️</span>
+                <span>${t('zone_wing_def_r')}</span>
+              </div>
+
+              <!-- FILAS 2 & 3: Banda Izquierda (UNIDA, span 2) | Frontal Propia / Centro | Banda Derecha (UNIDA, span 2) -->
+              <div class="pitch-grid-cell pz-wing-l" data-z="7" style="grid-area: wing_l; background: rgba(59, 130, 246, 0.35);">
+                <span class="z-emoji">⬅️</span>
+                <span>${t('zone_wing_l')}</span>
+              </div>
+
+              <!-- Fila 2, Centro: Frontal Propia -->
+              <div class="pitch-grid-cell pz-mid-t" data-z="9" style="grid-area: mid_t; background: rgba(168, 85, 247, 0.45); border-color: #a855f7;">
+                <span class="z-emoji">🛡️</span>
+                <span style="font-weight: 800;">${t('zone_front_own')}</span>
+              </div>
+
+              <div class="pitch-grid-cell pz-wing-r" data-z="8" style="grid-area: wing_r; background: rgba(14, 165, 233, 0.35);">
+                <span class="z-emoji">➡️</span>
+                <span>${t('zone_wing_r')}</span>
+              </div>
+
+              <!-- Fila 3, Centro: Centro del Campo (CENTRADO, ABAJO) -->
+              <div class="pitch-grid-cell pz-mid-b" data-z="5" style="grid-area: mid_b; background: rgba(34, 197, 94, 0.45); border-color: #22c55e;">
+                <span class="z-emoji">⚽</span>
+                <span style="font-weight: 800;">${t('zone_mid')}</span>
+              </div>
+            `}
+          </div>
+        `;
+
+        if (!isShot) {
+          const btnRival = body.querySelector('#btn-pitch-half-rival');
+          const btnOwn = body.querySelector('#btn-pitch-half-own');
+          if (btnRival) btnRival.onclick = () => { activeHalf = 'rival'; renderPitchGrid(); };
+          if (btnOwn) btnOwn.onclick = () => { activeHalf = 'own'; renderPitchGrid(); };
+        }
+
+        body.querySelectorAll('.pitch-grid-cell').forEach(cell => {
+          cell.onclick = () => {
+            const zoneId = parseInt(cell.getAttribute('data-z'), 10);
+            Store.recordZone(session.id, playerId, key, zoneId);
+            if (window.SyncEngine && SyncEngine.isLive()) SyncEngine.sendZoneRecord(session.id, playerId, key, zoneId);
+            haptic(30);
+            closeSheet();
+          };
+        });
+      }
+
+      renderPitchGrid();
+    }, (foot) => {
+      foot.innerHTML = `
+        <button class="btn block ghost" id="btn-skip-zone">${t('cancel')}</button>
+      `;
+      foot.querySelector('#btn-skip-zone').onclick = closeSheet;
+    });
+  }
+
+  /* =========================================================
+     MODAL DE SINCRONIZACIÓN EN VIVO (DUAL NUBE + RED LOCAL QR)
+     ========================================================= */
+  function showLiveSyncModal(session, initialMode) {
+    let activeMode = (window.SyncEngine && SyncEngine.mode) || 'cloud';
+    let camStream = null;
+    let camInterval = null;
+
+    function stopCameraScan() {
+      if (camInterval) { clearInterval(camInterval); camInterval = null; }
+      if (camStream) {
+        try { camStream.getTracks().forEach(t => t.stop()); } catch (e) {}
+        camStream = null;
+      }
+    }
+
+    openSheet(t('liveSync'), (body) => {
+      function renderModalContent() {
+        stopCameraScan();
+        const isLive = window.SyncEngine && SyncEngine.isLive();
+        const roomCode = (window.SyncEngine && SyncEngine.activeRoom) || '';
+        const role = (window.SyncEngine && SyncEngine.role) || '';
+
+        if (isLive) {
+          // Vista de Sala Activa
+          const qrData = 'https://streetoh.github.io/Player_Stats/?join=' + roomCode;
+          const qrSvg = SyncEngine.QR.toSVG(qrData, 7);
+
+          body.innerHTML = `
+            <div style="text-align: center; margin-bottom: 12px;">
+              <div class="live-pill">
+                <span class="live-dot"></span>
+                <span>${SyncEngine.mode === 'cloud' ? 'NUBE 4G/5G' : 'RED LOCAL / P2P'} • EN VIVO</span>
+              </div>
+            </div>
+
+            <div class="qr-box">
+              <span class="muted" style="font-size: 12px; font-weight:700;">CÓDIGO DE SALA:</span>
+              <div class="room-code-tag">${roomCode}</div>
+              <div style="background: #fff; padding: 12px; border-radius: 16px; box-shadow: 0 4px 16px rgba(0,0,0,0.3); display: inline-block;">
+                ${qrSvg}
+              </div>
+              <p class="hint" style="margin-top: 8px;">
+                Escanea este código QR con la app o con la cámara de cualquier teléfono, o escribe el código <b>${roomCode}</b> en el otro móvil para sincronizar datos en directo.
+              </p>
+            </div>
+
+            <div style="background: var(--bg2); border-radius: 12px; padding: 10px; font-size: 13px; text-align: center; color: var(--muted); margin-bottom: 12px;">
+              Dispositivos sincronizados: <b style="color: #22c55e;">${SyncEngine.connectedPeers > 0 ? SyncEngine.connectedPeers + ' conectado(s)' : 'Esperando compañero...'}</b>
+            </div>
+
+            <button class="btn block danger" id="btn-sync-disconnect">
+              ${icon('stop', 16)} Desconectar y Finalizar En Vivo
+            </button>
+          `;
+
+          body.querySelector('#btn-sync-disconnect').onclick = () => {
+            SyncEngine.disconnect();
+            toast('Sincronización finalizada', 'info');
+            renderModalContent();
+            renderTracker();
+          };
+        } else {
+          // Vista para Iniciar o Unirse
+          body.innerHTML = `
+            <div class="segmented" style="margin-bottom: 12px;">
+              <button type="button" class="${activeMode === 'cloud' ? 'active' : ''}" id="mode-tab-cloud">
+                🌐 ${t('cloudMode')} (4G/5G)
+              </button>
+              <button type="button" class="${activeMode === 'local' ? 'active' : ''}" id="mode-tab-local">
+                📡 ${t('localMode')} (P2P/Hotspot)
+              </button>
+            </div>
+
+            <div class="info-note" style="margin-bottom: 12px; font-size: 12px;">
+              ${activeMode === 'cloud'
+                ? '🌐 <b>Modo Nube (Recomendado):</b> Conexión ultra-rápida por datos móviles 4G/5G o WiFi. Los dispositivos se sincronizan al instante en cualquier lugar.'
+                : '📡 <b>Modo Red Local / Punto de Acceso:</b> Para conectar sin internet, activa la <b>Zona Wi-Fi (Punto de acceso)</b> de un teléfono y conecta el otro móvil a esa red Wi-Fi.'
+              }
+            </div>
+
+            <div class="card" style="margin-bottom: 12px;">
+              <h4 style="margin: 0 0 6px; font-size: 14px; color: var(--cyan);">1. Ser Anfitrión (Compartir sesión)</h4>
+              <p class="hint" style="margin-bottom: 10px;">Genera una sala única y muestra el código QR para que otros compañeros se conecten a tu sesión.</p>
+              <button class="btn block primary" id="btn-sync-start-host">
+                ${icon('qr', 18)} Crear Sala en Vivo y Mostrar QR
+              </button>
+            </div>
+
+            <div class="card" id="guest-join-section">
+              <h4 style="margin: 0 0 6px; font-size: 14px; color: var(--green);">2. Unirse a una Sala Existente</h4>
+              <p class="hint" style="margin-bottom: 8px;">Introduce el código (formato XXX-000) o escanea el QR del teléfono de tu compañero:</p>
+              
+              <div class="field-row" style="margin-bottom: 10px;">
+                <input type="text" id="sync-input-code" placeholder="FUT-849" maxlength="7" autocapitalize="characters" autocomplete="off" spellcheck="false" style="text-transform: uppercase; font-weight: 800; font-size: 16px; letter-spacing: 2px; text-align: center;" />
+                <button class="btn primary" id="btn-sync-join-code">Unirse</button>
+              </div>
+
+              <button class="btn block ghost" id="btn-sync-open-cam">
+                ${icon('camera', 18)} Escanear QR con la Cámara
+              </button>
+
+              <div id="sync-cam-container" style="display: none; margin-top: 10px; border-radius: 12px; overflow: hidden; background: #000; text-align: center;">
+                <video id="sync-cam-video" style="width: 100%; max-height: 220px; object-fit: cover;" playsinline autoplay></video>
+                <div style="padding: 6px; font-size: 11px; color: var(--muted);">Apunta al código QR del otro teléfono</div>
+              </div>
+            </div>
+          `;
+
+          body.querySelector('#mode-tab-cloud').onclick = () => {
+            activeMode = 'cloud';
+            renderModalContent();
+          };
+          body.querySelector('#mode-tab-local').onclick = () => {
+            activeMode = 'local';
+            renderModalContent();
+          };
+
+          // Forzar mayúsculas y formato XXX-000 en el input
+          const inputCode = body.querySelector('#sync-input-code');
+          if (inputCode) {
+            inputCode.addEventListener('input', () => {
+              let raw = inputCode.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+              let letters = raw.slice(0, 3).replace(/[^A-Z]/g, '');
+              let numbers = raw.slice(3, 6).replace(/[^0-9]/g, '');
+              let formatted = letters;
+              if (letters.length === 3 && raw.length > 3) {
+                formatted += '-' + numbers;
+              }
+              inputCode.value = formatted;
+            });
+          }
+
+          body.querySelector('#btn-sync-start-host').onclick = () => {
+            SyncEngine.startHost(null, activeMode, (code) => {
+              toast(`¡Sala ${code} creada con éxito!`, 'success');
+              renderModalContent();
+              renderTracker();
+            });
+          };
+
+          body.querySelector('#btn-sync-join-code').onclick = () => {
+            const rawCode = document.getElementById('sync-input-code').value.trim().toUpperCase();
+            if (!rawCode || rawCode.length < 3) {
+              toast('Introduce un código de sala válido (ej: FUT-849)', 'error');
+              return;
+            }
+            let code = rawCode;
+            if (code.length === 6 && !code.includes('-')) {
+              code = code.slice(0, 3) + '-' + code.slice(3);
+            }
+            SyncEngine.joinGuest(code, activeMode, () => {
+              toast(`¡Conectado a la sala ${code}!`, 'success');
+              closeSheet();
+              renderTracker();
+            });
+          };
+
+          body.querySelector('#btn-sync-open-cam').onclick = () => {
+            const camBox = body.querySelector('#sync-cam-container');
+            const videoEl = body.querySelector('#sync-cam-video');
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+              toast('Cámara no disponible en este dispositivo', 'error');
+              return;
+            }
+            camBox.style.display = 'block';
+
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } } })
+              .then(stream => {
+                camStream = stream;
+                videoEl.srcObject = stream;
+
+                const scanCanvas = document.createElement('canvas');
+                const scanCtx = scanCanvas.getContext('2d', { willReadFrequently: true });
+
+                camInterval = setInterval(async () => {
+                  try {
+                    if (videoEl.readyState >= videoEl.HAVE_CURRENT_DATA) {
+                      scanCanvas.width = videoEl.videoWidth;
+                      scanCanvas.height = videoEl.videoHeight;
+                      scanCtx.drawImage(videoEl, 0, 0, scanCanvas.width, scanCanvas.height);
+                      const imgData = scanCtx.getImageData(0, 0, scanCanvas.width, scanCanvas.height);
+                      let raw = null;
+
+                      // 1. Escaneo rápido y offline con jsQR
+                      if (window.jsQR) {
+                        const code = window.jsQR(imgData.data, imgData.width, imgData.height, {
+                          inversionAttempts: 'dontInvert'
+                        });
+                        if (code && code.data) raw = code.data;
+                      }
+
+                      // 2. Fallback a BarcodeDetector nativo si está disponible
+                      if (!raw && window.BarcodeDetector) {
+                        const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
+                        const barcodes = await detector.detect(videoEl);
+                        if (barcodes && barcodes.length > 0) raw = barcodes[0].rawValue;
+                      }
+
+                      if (raw) {
+                        let targetCode = raw.trim();
+                        try {
+                          const parsed = JSON.parse(raw);
+                          if (parsed.room) targetCode = parsed.room;
+                        } catch (e) {}
+                        const m = targetCode.match(/([A-Za-z]{3}-?\d{3})/);
+                        if (m) targetCode = m[1].toUpperCase();
+                        if (targetCode.length === 6 && !targetCode.includes('-')) {
+                          targetCode = targetCode.slice(0, 3) + '-' + targetCode.slice(3);
+                        }
+                        stopCameraScan();
+                        SyncEngine.joinGuest(targetCode.toUpperCase(), activeMode, () => {
+                          toast(`¡Conectado a la sala ${targetCode}!`, 'success');
+                          closeSheet();
+                          renderTracker();
+                        });
+                      }
+                    }
+                  } catch (e) {}
+                }, 250);
+              })
+              .catch(err => {
+                toast('Permiso de cámara denegado o error: ' + err.message, 'error');
+              });
+          };
+
+          if (initialMode === 'guest') {
+            setTimeout(() => {
+              const inputEl = body.querySelector('#sync-input-code');
+              if (inputEl) {
+                inputEl.focus();
+                inputEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }
+            }, 150);
+          }
+        }
+      }
+
+      renderModalContent();
+    }, (foot) => {
+      foot.innerHTML = `<button class="btn block ghost" id="btn-sync-close">${t('cancel')}</button>`;
+      foot.querySelector('#btn-sync-close').onclick = () => {
+        stopCameraScan();
+        closeSheet();
+      };
+    });
+  }
+
+  /* =========================================================
+     RADAR DE HABILIDADES Y DESCRIPCIÓN TÁCTICA
+     ========================================================= */
+  const SKILL_INFO = {
+    pas: {
+      name: 'Pase y Distribución',
+      nameEn: 'Passing & Distribution',
+      emoji: '👟',
+      desc: 'Evalúa la precisión y calidad en la entrega del balón tanto en corto como en largo, visión espacial, fluidez asociativa y generación de ventajas tácticas para el equipo.',
+      descEn: 'Evaluates precision and delivery quality in both short and long passing, field vision, associative fluency, and tactical advantage creation.',
+      factors: 'Pases completados (Ok), bajo índice de pérdidas por pase errado (Ko), asistencias de gol creadas.',
+      factorsEn: 'Completed passes (Ok), low turnover rate from missed passes (Ko), goal assists created.'
+    },
+    tir: {
+      name: 'Tiro y Definición',
+      nameEn: 'Shooting & Finishing',
+      emoji: '🎯',
+      desc: 'Evalúa la capacidad de remate, puntería hacia portería, porcentaje de acierto de cara a gol y contundencia ofensiva.',
+      descEn: 'Evaluates finishing ability, shot accuracy on goal, conversion rate and offensive box danger.',
+      factors: 'Tiros a puerta, porcentaje de puntería entre los tres palos, goles anotados en el área o fuera.',
+      factorsEn: 'Shots on target, shooting accuracy between the posts, goals scored inside and outside the box.'
+    },
+    reg: {
+      name: 'Regate y Desborde',
+      nameEn: 'Dribbling & Skill',
+      emoji: '⚡',
+      desc: 'Mide la habilidad técnica individual en el 1 contra 1, capacidad de sobrepasar líneas defensivas, retención del esférico y cambio de ritmo.',
+      descEn: 'Measures 1v1 individual technical skill, ability to beat defensive lines, ball retention and pace changes.',
+      factors: 'Toques de balón en carrera, desborde por bandas, retención bajo presión defensiva.',
+      factorsEn: 'On-the-run touches, wing take-ons, ball retention under defensive pressure.'
+    },
+    fis: {
+      name: 'Físico e Intensidad',
+      nameEn: 'Physical & Workrate',
+      emoji: '💪',
+      desc: 'Mide la presencia activa durante el tiempo de juego, ritmo e intensidad sostenida, despliegue motor y participación continua.',
+      descEn: 'Measures active pitch presence, sustained intensity, motor workrate and continuous involvement.',
+      factors: 'Minutos disputados, volumen de toques de balón e intervenciones totales en la sesión.',
+      factorsEn: 'Minutes played, ball touches volume and total session involvements.'
+    },
+    def: {
+      name: 'Defensa y Recuperación',
+      nameEn: 'Defending & Anticipation',
+      emoji: '🛡️',
+      desc: 'Mide el trabajo táctico sin balón, anticipación de líneas de pase, solidez en disputas defensivas, despejes y recuperación de la posesión.',
+      descEn: 'Measures off-ball tactical work, pass lane anticipation, defensive duel solidity, clearances and ball recoveries.',
+      factors: 'Balones recuperados, duelos ganados, faltas recibidas protegiendo el balón, repliegue defensivo.',
+      factorsEn: 'Ball recoveries, duels won, fouls won shielding the ball, defensive tracking.'
+    },
+    dis: {
+      name: 'Disciplina y Fair Play',
+      nameEn: 'Discipline & Fair Play',
+      emoji: '🧠',
+      desc: 'Mide la actitud táctica, compostura emocional, puntualidad, esfuerzo en entrenamientos y juego limpio.',
+      descEn: 'Measures tactical attitude, emotional composure, punctuality, training effort and fair play.',
+      factors: 'Valoración asignada por el entrenador, bajo número de faltas y ausencia de tarjetas amarillas y rojas.',
+      factorsEn: 'Coach rating score, low foul frequency and absence of yellow and red cards.'
+    }
+  };
+
+  function showSkillDetailModal(skillKey, val) {
+    const isEn = (Store.state.settings && Store.state.settings.lang === 'en');
+    const info = SKILL_INFO[skillKey];
+    const sName = info ? (isEn ? info.nameEn : info.name) : 'Skill';
+    const sDesc = info ? (isEn ? info.descEn : info.desc) : '';
+    const sFactors = info ? (isEn ? info.factorsEn : info.factors) : '';
+    const emoji = info ? info.emoji : '⭐';
+
+    const titleWhat = isEn ? 'What does this skill evaluate?' : '¿Qué evalúa esta cualidad?';
+    const titleFactors = isEn ? 'Key scoring factors:' : 'Factores clave en la puntuación:';
+
+    const bodyHtml = `
+      <div style="text-align: center; margin-bottom: 14px;">
+        <div style="font-size: 40px; font-weight: 900; color: var(--cyan); line-height: 1.1;">
+          ${val != null ? val : '—'} <span style="font-size: 17px; color: var(--muted); font-weight: 700;">/ 99</span>
+        </div>
+        <span class="badge primary" style="font-size: 11px; padding: 2px 9px; margin-top: 4px;">${isEn ? 'Skill Rating' : 'Puntuación de Habilidad'}</span>
+      </div>
+      <div class="card" style="margin-bottom: 10px;">
+        <h4 style="margin: 0 0 6px; font-size: 13.5px; color: var(--text);">${titleWhat}</h4>
+        <p style="font-size: 13px; color: var(--muted); line-height: 1.5; margin: 0;">${sDesc}</p>
+      </div>
+      <div class="card">
+        <h4 style="margin: 0 0 6px; font-size: 13.5px; color: #86efac;">${titleFactors}</h4>
+        <p style="font-size: 13px; color: var(--muted); line-height: 1.5; margin: 0;">${sFactors}</p>
+      </div>
+    `;
+
+    openModalDialog(`${emoji} ${sName}`, bodyHtml);
+  }
+
+  function renderRadarSVG(radarData) {
+    const rd = radarData || { pas: 65, tir: 55, reg: 60, fis: 60, def: 50 };
+    const isEn = (Store.state.settings && Store.state.settings.lang === 'en');
+    const axes = [
+      { key: 'pas', label: t('distribution') || 'Pase', val: rd.pas },
+      { key: 'tir', label: t('shooting') || 'Tiro', val: rd.tir },
+      { key: 'reg', label: t('dribbling') || 'Regate', val: rd.reg },
+      { key: 'fis', label: t('physical') || 'Físico', val: rd.fis },
+      { key: 'def', label: t('defense') || 'Defensa', val: rd.def }
+    ];
+
+    const cx = 130, cy = 130, R = 80;
+    const n = axes.length;
+
+    function getPolygonPoints(radiusRatio) {
+      return axes.map((_, i) => {
+        const angle = -Math.PI / 2 + i * (2 * Math.PI / n);
+        const x = cx + R * radiusRatio * Math.cos(angle);
+        const y = cy + R * radiusRatio * Math.sin(angle);
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+      }).join(' ');
+    }
+
+    const dataPoints = axes.map((a, i) => {
+      const angle = -Math.PI / 2 + i * (2 * Math.PI / n);
+      const ratio = Math.max(0.2, Math.min(1.0, a.val / 100));
+      const x = cx + R * ratio * Math.cos(angle);
+      const y = cy + R * ratio * Math.sin(angle);
+      return { x, y, a, angle };
+    });
+
+    const dataPointsStr = dataPoints.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+
+    return `
+      <div style="text-align: center; width: 100%;">
+        <svg class="radar-svg" viewBox="0 0 260 260">
+          <polygon points="${getPolygonPoints(0.25)}" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+          <polygon points="${getPolygonPoints(0.50)}" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
+          <polygon points="${getPolygonPoints(0.75)}" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+          <polygon points="${getPolygonPoints(1.00)}" fill="rgba(255,255,255,0.02)" stroke="rgba(255,255,255,0.25)" stroke-width="1.5"/>
+
+          ${axes.map((_, i) => {
+            const angle = -Math.PI / 2 + i * (2 * Math.PI / n);
+            const x = cx + R * Math.cos(angle);
+            const y = cy + R * Math.sin(angle);
+            return `<line x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>`;
+          }).join('')}
+
+          <polygon points="${dataPointsStr}" fill="rgba(34, 211, 238, 0.35)" stroke="#22d3ee" stroke-width="2.5" stroke-linejoin="round"/>
+
+          ${dataPoints.map(p => `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4.5" fill="#22d3ee" stroke="#060a13" stroke-width="2" class="radar-vertex" data-skill="${p.a.key}" data-val="${p.a.val}" style="cursor: pointer;"/>`).join('')}
+
+          ${dataPoints.map(p => {
+            const lx = cx + (R + 24) * Math.cos(p.angle);
+            const ly = cy + (R + 24) * Math.sin(p.angle);
+            return `
+              <text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" fill="#e2e8f0" font-size="10.5" font-weight="800" text-anchor="middle" dominant-baseline="central" class="radar-label" data-skill="${p.a.key}" data-val="${p.a.val}" style="cursor: pointer;">
+                ${p.a.label} <tspan fill="#22d3ee" font-weight="900">${p.a.val}</tspan>
+              </text>
+            `;
+          }).join('')}
+        </svg>
+
+        <div style="font-size: 11px; color: var(--muted); margin: 6px 0 8px; text-align: center;">
+          ${isEn ? '💡 Tap any skill to see its tactical breakdown:' : '💡 Pulsa en cualquier habilidad para ver su explicación táctica:'}
+        </div>
+        <div class="skill-chips-grid">
+          ${axes.map(a => `
+            <button type="button" class="skill-chip" data-skill="${a.key}" data-val="${a.val}" title="Ver explicación táctica de ${a.label}">
+              <span>${SKILL_INFO[a.key] ? SKILL_INFO[a.key].emoji : '⭐'} ${a.label}</span>
+              <b>${a.val}</b>
+            </button>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  /* Modal de detalle de zona táctica al pulsar en cualquier cuadrante del campo */
+  function showPitchZoneDetailModal(zoneName, actionsMap, total) {
+    const isEn = (Store.state.settings && Store.state.settings.lang === 'en');
+    const items = Object.entries(actionsMap || {}).filter(([_, count]) => count > 0);
+    const actionsHtml = items.length > 0 ? items.map(([k, cnt]) => {
+      const statObj = Store.STAT_MAP[k] || { emoji: '⚽', label: k, short: k };
+      const statName = statObj ? (statObj.label || statObj.short || k) : k;
+      const pct = total > 0 ? Math.round((cnt / total) * 100) : 0;
+      return `
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 8px;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <span style="font-size: 24px;">${statObj.emoji || '⚽'}</span>
+            <div>
+              <b style="font-size: 14px; color: #fff; display: block;">${escapeHtml(statName)}</b>
+              <small style="color: var(--muted); font-size: 11px;">${statObj.short ? escapeHtml(statObj.short) + ' • ' : ''}${pct}% del total en este sector</small>
+            </div>
+          </div>
+          <div style="text-align: right;">
+            <span style="font-size: 18px; font-weight: 900; color: #22d3ee; font-variant-numeric: tabular-nums;">${cnt}</span>
+            <small style="display: block; font-size: 10px; color: var(--muted);">${cnt === 1 ? (isEn ? 'action' : 'acción') : (isEn ? 'actions' : 'acciones')}</small>
+          </div>
+        </div>
+      `;
+    }).join('') : `<p class="hint">${isEn ? 'No individual actions recorded in this sector' : 'Sin acciones individuales registradas en este sector'}</p>`;
+
+    const dialog = document.createElement('div');
+    dialog.className = 'dialog-overlay';
+    dialog.innerHTML = `
+      <div class="dialog-box" style="max-width: 380px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <div>
+            <span style="font-size: 10.5px; font-weight: 800; color: var(--cyan); text-transform: uppercase;">${isEn ? 'TACTICAL SECTOR DETAILS' : 'DETALLE DE ZONA TÁCTICA'}</span>
+            <h3 style="margin: 2px 0 0; font-size: 17px; font-weight: 900;">${zoneName}</h3>
+          </div>
+          <span style="font-size: 20px; font-weight: 900; color: #facc15; background: rgba(250, 204, 21, 0.15); border: 1px solid rgba(250, 204, 21, 0.35); padding: 4px 10px; border-radius: 10px;">${total}</span>
+        </div>
+        <div style="font-size: 12px; color: var(--muted); margin-bottom: 12px;">
+          ${isEn ? `Breakdown of ${total} action(s) performed in this area:` : `Desglose de las ${total} acción(es) realizadas en esta zona:`}
+        </div>
+        <div style="max-height: 48vh; overflow-y: auto; padding-right: 2px;">
+          ${actionsHtml}
+        </div>
+        <button type="button" class="btn block primary" style="margin-top: 16px;" id="btn-close-zone-detail">
+          ${t('close', 'Entendido')}
+        </button>
+      </div>
+    `;
+    document.body.appendChild(dialog);
+    dialog.querySelector('#btn-close-zone-detail').onclick = () => dialog.remove();
+    dialog.onclick = (e) => { if (e.target === dialog) dialog.remove(); };
+  }
+
+  window.handlePitchZoneCellClick = function(el) {
+    const name = el.getAttribute('data-zone-name') || 'Zona';
+    const total = parseInt(el.getAttribute('data-zone-count'), 10) || 0;
+    const actionsRaw = el.getAttribute('data-zone-actions') || '{}';
+    let actionsMap = {};
+    try { actionsMap = JSON.parse(actionsRaw); } catch (e) { actionsMap = {}; }
+    if (total > 0) {
+      showPitchZoneDetailModal(name, actionsMap, total);
+    } else {
+      toast(t('noActionsInZone', 'Sin acciones registradas en este sector'), 'info');
+    }
+  };
+
+  /* Modal de selección visual de jugador con foto y buscador */
+  function showPlayerPickerModal(currentPlayerId, onSelect) {
+    const isEn = (Store.state.settings && Store.state.settings.lang === 'en');
+    const allPlayers = Store.sortedPlayers();
+    const dialog = document.createElement('div');
+    dialog.className = 'dialog-overlay';
+
+    dialog.innerHTML = `
+      <div class="dialog-box" style="max-width: 400px; padding: 18px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h3 style="margin: 0; font-size: 16px; font-weight: 800;">${isEn ? 'Select Player' : 'Seleccionar Jugador'}</h3>
+          <button type="button" class="icon-btn ghost" id="picker-close-x" style="width: 32px; height: 32px;">${icon('x', 18)}</button>
+        </div>
+
+        <div style="margin-bottom: 12px;">
+          <input type="text" id="picker-search-input" placeholder="${isEn ? 'Search by name or number...' : 'Buscar por nombre o dorsal...'}" style="width: 100%; padding: 10px 14px; font-size: 13.5px; border-radius: 12px;" autofocus autocomplete="off" />
+        </div>
+
+        <div class="player-picker-grid" id="picker-grid-list">
+          ${allPlayers.map(p => {
+            const team = Store.team(p.teamId);
+            const isSelected = p.id === currentPlayerId;
+            return `
+              <div class="player-picker-card" data-pid="${p.id}" style="${isSelected ? 'border-color: var(--cyan); background: rgba(34, 211, 238, 0.12);' : ''}">
+                ${renderAvatar(p, 'sm')}
+                <div class="grow ellipsis">
+                  <b style="font-size: 13px; color: #fff;">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(Store.playerName(p, true))}</b>
+                  <small style="display: block; color: var(--muted); font-size: 11px;">${p.mainPosition || 'Jugador'}${team ? ' • ' + escapeHtml(team.shortName || team.name) : ''}</small>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(dialog);
+
+    const searchInput = dialog.querySelector('#picker-search-input');
+    const cards = dialog.querySelectorAll('.player-picker-card');
+
+    searchInput.addEventListener('input', () => {
+      const q = searchInput.value.trim().toLowerCase();
+      cards.forEach(card => {
+        const pid = card.getAttribute('data-pid');
+        const p = Store.player(pid);
+        const name = p ? Store.playerName(p).toLowerCase() : '';
+        const dorsal = p && p.mainDorsal != null ? String(p.mainDorsal) : '';
+        if (!q || name.includes(q) || dorsal.includes(q)) {
+          card.style.display = 'flex';
+        } else {
+          card.style.display = 'none';
+        }
+      });
+    });
+
+    cards.forEach(card => {
+      card.onclick = () => {
+        const pid = card.getAttribute('data-pid');
+        dialog.remove();
+        if (typeof onSelect === 'function') onSelect(pid);
+      };
+    });
+
+    dialog.querySelector('#picker-close-x').onclick = () => dialog.remove();
+    dialog.onclick = (e) => { if (e.target === dialog) dialog.remove(); };
+  }
+
+  /* Modal para editar/indicar la disciplina del jugador manualmente */
+  function showEditDisciplineModal(player, onDone) {
+    const isEn = (Store.state.settings && Store.state.settings.lang === 'en');
+    const currentScore = (player.disciplineScore !== undefined && player.disciplineScore !== null) ? player.disciplineScore : 100;
+    const bodyHtml = `
+      <p style="font-size: 13px; color: var(--muted); margin-bottom: 14px; line-height: 1.5;">
+        ${isEn 
+          ? 'Set the base discipline rating for this player (0 to 100). Cards and fouls received during matches and trainings will automatically adjust the Fair Play index.' 
+          : 'Indica la valoración de disciplina y conducta de este jugador (0 a 100). Las tarjetas y faltas recibidas en partidos y entrenamientos ajustarán automáticamente el índice final de Fair Play.'}
+      </p>
+      <div style="text-align: center; margin-bottom: 16px;">
+        <div id="disp-val-preview" style="font-size: 42px; font-weight: 900; color: #22c55e;">${currentScore}</div>
+        <span style="font-size: 12px; color: var(--muted);">${isEn ? 'Base Coach Score' : 'Puntuación Base del Entrenador'}</span>
+      </div>
+      <div style="margin-bottom: 16px;">
+        <input type="range" id="disp-slider" min="0" max="100" value="${currentScore}" style="width: 100%; accent-color: #22c55e;" />
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button type="button" class="btn block primary" id="btn-save-disp">${isEn ? 'Save Discipline' : 'Guardar Disciplina'}</button>
+      </div>
+    `;
+
+    const dialog = document.createElement('div');
+    dialog.className = 'dialog-overlay';
+    dialog.innerHTML = `
+      <div class="dialog-box" style="max-width: 380px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h3 style="margin: 0; font-size: 16px; font-weight: 800;">🧠 ${isEn ? 'Adjust Discipline' : 'Ajustar Disciplina'}</h3>
+          <button type="button" class="icon-btn ghost" id="disp-close-x" style="width: 32px; height: 32px;">${icon('x', 18)}</button>
+        </div>
+        ${bodyHtml}
+      </div>
+    `;
+    document.body.appendChild(dialog);
+
+    const slider = dialog.querySelector('#disp-slider');
+    const preview = dialog.querySelector('#disp-val-preview');
+    slider.oninput = () => {
+      preview.textContent = slider.value;
+    };
+
+    dialog.querySelector('#btn-save-disp').onclick = () => {
+      Store.setPlayerDiscipline(player.id, parseInt(slider.value, 10));
+      dialog.remove();
+      toast(isEn ? 'Discipline updated' : 'Disciplina actualizada', 'success');
+      if (typeof onDone === 'function') onDone();
+    };
+    dialog.querySelector('#disp-close-x').onclick = () => dialog.remove();
+    dialog.onclick = (e) => { if (e.target === dialog) dialog.remove(); };
+  }
+
+  /* =========================================================
+     MAPA DE CALOR DE ZONAS EN EL PERFIL DEL JUGADOR
+     ========================================================= */
+  function renderPlayerPitchHeatmapHtml(playerId) {
+    const sessions = Store.state.sessions || [];
+    const playerZones = [];
+    sessions.forEach(s => {
+      (s.zones || []).forEach(z => {
+        if (z.p === playerId) playerZones.push(z);
+      });
+    });
+
+    const counts = {};
+    const zoneActionsMap = {
+      top_l: {},
+      top_c: {},
+      top_r: {},
+      wing_l: {},
+      mid_t: {},
+      wing_r: {},
+      mid_b: {}
+    };
+    for (let i = 1; i <= 11; i++) counts[i] = 0;
+    playerZones.forEach(z => {
+      counts[z.z] = (counts[z.z] || 0) + 1;
+      let areaKey = 'mid_b';
+      if (z.z === 3) areaKey = 'top_l';
+      else if (z.z === 1) areaKey = 'top_c';
+      else if (z.z === 4) areaKey = 'top_r';
+      else if (z.z === 7 || z.z === 10) areaKey = 'wing_l';
+      else if (z.z === 2) areaKey = 'mid_t';
+      else if (z.z === 8 || z.z === 11) areaKey = 'wing_r';
+      else if (z.z === 5 || z.z === 6) areaKey = 'mid_b';
+
+      zoneActionsMap[areaKey][z.k] = (zoneActionsMap[areaKey][z.k] || 0) + 1;
+    });
+
+    const total = playerZones.length;
+
+    const getHeatBg = (cnt) => {
+      if (!cnt) return 'rgba(0, 0, 0, 0.28)';
+      const pct = cnt / Math.max(1, total * 0.5);
+      if (pct > 0.5) return 'rgba(239, 68, 68, 0.65)';
+      if (pct > 0.25) return 'rgba(249, 115, 22, 0.55)';
+      return 'rgba(34, 197, 94, 0.45)';
+    };
+
+    const cntTopL = counts[3] || 0;
+    const cntTopC = counts[1] || 0;
+    const cntTopR = counts[4] || 0;
+    const cntWingL = (counts[7] || 0) + (counts[10] || 0);
+    const cntMidT = counts[2] || 0;
+    const cntWingR = (counts[8] || 0) + (counts[11] || 0);
+    const cntMidB = (counts[5] || 0) + (counts[6] || 0);
+
+    const getZoneBadgeHtml = (cnt, actMap) => {
+      if (!cnt) return '';
+      const entries = Object.entries(actMap || {}).filter(([_, c]) => c > 0);
+      entries.sort((a, b) => b[1] - a[1]);
+      if (!entries.length) return `<span class="zone-top-action-badge">${cnt} act.</span>`;
+      const [topKey, topCnt] = entries[0];
+      const st = Store.STAT_MAP[topKey] || { emoji: '⚽', short: topKey };
+      const shortName = st.short || st.label || topKey;
+      return `<span class="zone-top-action-badge">${st.emoji || '⚽'} ${escapeHtml(shortName)}: ${topCnt}</span>`;
+    };
+
+    return `
+      <div style="font-size: 11.5px; color: var(--muted); margin-bottom: 8px; text-align: center;">
+        ${total > 0 ? `<b>${total}</b> ${t('actions', 'acciones')} tácticas geolocalizadas • <span style="color: var(--cyan);">Toca cualquier zona para ver detalles</span>` : 'Sin registros de zonas aún'}
+      </div>
+      <div class="pitch-field-grid" style="max-width: 290px; height: 230px; margin: 0 auto;">
+        <!-- Fila 1: Ataque -->
+        <div class="pitch-grid-cell pz-top-l ${cntTopL > 0 ? 'has-actions' : ''}" style="grid-area: top_l; background: ${getHeatBg(cntTopL)}; cursor: pointer;" data-zone-name="${t('zone_wing_off_l', 'Banda Ofensiva Izquierda')}" data-zone-count="${cntTopL}" data-zone-actions='${JSON.stringify(zoneActionsMap.top_l)}' onclick="window.handlePitchZoneCellClick(this)">
+          <span class="z-emoji">↖️</span>
+          <span style="font-size: 11px; font-weight: 900;">${cntTopL}</span>
+          <span style="font-size: 9px; opacity: 0.85;">${t('zone_wing_off_l')}</span>
+          ${getZoneBadgeHtml(cntTopL, zoneActionsMap.top_l)}
+        </div>
+        <div class="pitch-grid-cell pz-top-c ${cntTopC > 0 ? 'has-actions' : ''}" style="grid-area: top_c; background: ${getHeatBg(cntTopC)}; border-color: rgba(239, 68, 68, 0.8); cursor: pointer;" data-zone-name="${t('zone_box_opp', 'Área Rival')}" data-zone-count="${cntTopC}" data-zone-actions='${JSON.stringify(zoneActionsMap.top_c)}' onclick="window.handlePitchZoneCellClick(this)">
+          <span class="z-emoji">🥅</span>
+          <span style="font-size: 12px; font-weight: 900; color: #fde047;">${cntTopC}</span>
+          <span style="font-size: 9px; opacity: 0.9;">${t('zone_box_opp')}</span>
+          ${getZoneBadgeHtml(cntTopC, zoneActionsMap.top_c)}
+        </div>
+        <div class="pitch-grid-cell pz-top-r ${cntTopR > 0 ? 'has-actions' : ''}" style="grid-area: top_r; background: ${getHeatBg(cntTopR)}; cursor: pointer;" data-zone-name="${t('zone_wing_off_r', 'Banda Ofensiva Derecha')}" data-zone-count="${cntTopR}" data-zone-actions='${JSON.stringify(zoneActionsMap.top_r)}' onclick="window.handlePitchZoneCellClick(this)">
+          <span class="z-emoji">↗️</span>
+          <span style="font-size: 11px; font-weight: 900;">${cntTopR}</span>
+          <span style="font-size: 9px; opacity: 0.85;">${t('zone_wing_off_r')}</span>
+          ${getZoneBadgeHtml(cntTopR, zoneActionsMap.top_r)}
+        </div>
+
+        <!-- Fila 2-3: Bandas unidas laterales -->
+        <div class="pitch-grid-cell pz-wing-l ${cntWingL > 0 ? 'has-actions' : ''}" style="grid-area: wing_l; background: ${getHeatBg(cntWingL)}; cursor: pointer;" data-zone-name="${t('zone_wing_l', 'Banda Izquierda')}" data-zone-count="${cntWingL}" data-zone-actions='${JSON.stringify(zoneActionsMap.wing_l)}' onclick="window.handlePitchZoneCellClick(this)">
+          <span class="z-emoji">⬅️</span>
+          <span style="font-size: 12px; font-weight: 900;">${cntWingL}</span>
+          <span style="font-size: 9px; opacity: 0.85;">${t('zone_wing_l')}</span>
+          ${getZoneBadgeHtml(cntWingL, zoneActionsMap.wing_l)}
+        </div>
+
+        <!-- Fila 2 Centro: Frontal del Área -->
+        <div class="pitch-grid-cell pz-mid-t ${cntMidT > 0 ? 'has-actions' : ''}" style="grid-area: mid_t; background: ${getHeatBg(cntMidT)}; cursor: pointer;" data-zone-name="${t('zone_front', 'Frontal del Área')}" data-zone-count="${cntMidT}" data-zone-actions='${JSON.stringify(zoneActionsMap.mid_t)}' onclick="window.handlePitchZoneCellClick(this)">
+          <span class="z-emoji">🎯</span>
+          <span style="font-size: 11.5px; font-weight: 900;">${cntMidT}</span>
+          <span style="font-size: 9px; opacity: 0.85;">${t('zone_front')}</span>
+          ${getZoneBadgeHtml(cntMidT, zoneActionsMap.mid_t)}
+        </div>
+
+        <div class="pitch-grid-cell pz-wing-r ${cntWingR > 0 ? 'has-actions' : ''}" style="grid-area: wing_r; background: ${getHeatBg(cntWingR)}; cursor: pointer;" data-zone-name="${t('zone_wing_r', 'Banda Derecha')}" data-zone-count="${cntWingR}" data-zone-actions='${JSON.stringify(zoneActionsMap.wing_r)}' onclick="window.handlePitchZoneCellClick(this)">
+          <span class="z-emoji">➡️</span>
+          <span style="font-size: 12px; font-weight: 900;">${cntWingR}</span>
+          <span style="font-size: 9px; opacity: 0.85;">${t('zone_wing_r')}</span>
+          ${getZoneBadgeHtml(cntWingR, zoneActionsMap.wing_r)}
+        </div>
+
+        <!-- Fila 3 Centro: Centro del Campo -->
+        <div class="pitch-grid-cell pz-mid-b ${cntMidB > 0 ? 'has-actions' : ''}" style="grid-area: mid_b; background: ${getHeatBg(cntMidB)}; cursor: pointer;" data-zone-name="${t('zone_mid', 'Centro del Campo')}" data-zone-count="${cntMidB}" data-zone-actions='${JSON.stringify(zoneActionsMap.mid_b)}' onclick="window.handlePitchZoneCellClick(this)">
+          <span class="z-emoji">⚽</span>
+          <span style="font-size: 11.5px; font-weight: 900;">${cntMidB}</span>
+          <span style="font-size: 9px; opacity: 0.85;">${t('zone_mid')}</span>
+          ${getZoneBadgeHtml(cntMidB, zoneActionsMap.mid_b)}
+        </div>
+      </div>
+    `;
+  }
+
+  /* =========================================================
+     GRÁFICA DE EVOLUCIÓN TEMPORAL (TIMELINE PROGRESS)
+     ========================================================= */
+  function renderTimelineSVG(points) {
+    if (!points || points.length < 2) {
+      return `<div style="text-align: center; color: var(--muted); padding: 14px 10px; font-size: 12px;">Se necesitan al menos 2 sesiones registradas para trazar la línea de evolución.</div>`;
+    }
+
+    const W = 320, H = 120, padX = 26, padY = 20;
+    const vals = points.map(p => p.val);
+    const minVal = Math.max(1, Math.min(...vals) - 0.5);
+    const maxVal = Math.min(10, Math.max(...vals) + 0.5);
+    const range = (maxVal - minVal) || 1;
+
+    const pts = points.map((p, idx) => {
+      const x = padX + (idx / (points.length - 1)) * (W - padX * 2);
+      const y = H - padY - ((p.val - minVal) / range) * (H - padY * 2);
+      return { x, y, p };
+    });
+
+    const polylineStr = pts.map(pt => `${pt.x.toFixed(1)},${pt.y.toFixed(1)}`).join(' ');
+    const areaStr = `${pts[0].x},${H - padY} ${polylineStr} ${pts[pts.length - 1].x},${H - padY}`;
+
+    return `
+      <svg viewBox="0 0 ${W} ${H}" style="width: 100%; height: auto; max-height: 140px; overflow: visible;">
+        <defs>
+          <linearGradient id="trendGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#22d3ee" stop-opacity="0.35"/>
+            <stop offset="100%" stop-color="#22d3ee" stop-opacity="0.0"/>
+          </linearGradient>
+        </defs>
+        <line x1="${padX}" y1="${H - padY}" x2="${W - padX}" y2="${H - padY}" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+        <polygon points="${areaStr}" fill="url(#trendGrad)"/>
+        <polyline points="${polylineStr}" fill="none" stroke="#22d3ee" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        ${pts.map(pt => `
+          <circle cx="${pt.x.toFixed(1)}" cy="${pt.y.toFixed(1)}" r="4" fill="#22d3ee" stroke="#060a13" stroke-width="2"/>
+          <text x="${pt.x.toFixed(1)}" y="${(pt.y - 6).toFixed(1)}" font-size="10" fill="#f8fafc" font-weight="800" text-anchor="middle">${pt.p.val}</text>
+          <text x="${pt.x.toFixed(1)}" y="${(H - 4).toFixed(1)}" font-size="8.5" fill="var(--muted)" font-weight="600" text-anchor="middle">${pt.p.date ? pt.p.date.slice(5) : ''}</text>
+        `).join('')}
+      </svg>
+    `;
+  }
+
+  /* =========================================================
+     MODAL COMPARADOR CARA A CARA (HEAD-TO-HEAD)
+     ========================================================= */
+  function showHeadToHeadModal(p1Id, p2Id) {
+    const allPlayers = Store.sortedPlayers();
+    if (allPlayers.length < 2) {
+      toast('Se necesitan al menos 2 jugadores creados para comparar', 'error');
+      return;
+    }
+    let id1 = p1Id || allPlayers[0].id;
+    let id2 = p2Id || (allPlayers[1] ? allPlayers[1].id : allPlayers[0].id);
+    if (id1 === id2 && allPlayers.length > 1) {
+      id2 = allPlayers.find(p => p.id !== id1).id;
+    }
+    let selectedScope = 'global';
+
+    openSheet(t('headToHead'), (body) => {
+      function renderH2H() {
+        const sessionSubset = (selectedScope === 'global') ? null : [Store.session(selectedScope)].filter(Boolean);
+        const data = Store.comparePlayers(id1, id2, sessionSubset);
+        if (!data) return;
+        const { p1, p2, rating1, rating2, metrics } = data;
+
+        const allSessions = (Store.state.sessions || []).slice().sort((a, b) => {
+          return (b.date + (b.createdAt || '')).localeCompare(a.date + (a.createdAt || ''));
+        });
+
+        const bothTrackedSessions = allSessions.filter(s => {
+          const has1 = s.stats && s.stats[id1] && Object.values(s.stats[id1]).some(v => v > 0);
+          const has2 = s.stats && s.stats[id2] && Object.values(s.stats[id2]).some(v => v > 0);
+          return has1 && has2;
+        });
+
+        const curSession = (selectedScope !== 'global') ? Store.session(selectedScope) : null;
+        const p1HasSessionStats = curSession && curSession.stats && curSession.stats[id1] && Object.values(curSession.stats[id1]).some(v => v > 0);
+        const p2HasSessionStats = curSession && curSession.stats && curSession.stats[id2] && Object.values(curSession.stats[id2]).some(v => v > 0);
+
+        body.innerHTML = `
+          <div class="h2h-wrapper">
+            <!-- Selector de Ámbito / Scope (Global vs Sesión/Partido específico) -->
+            <div style="margin-bottom: 14px; background: var(--bg2); padding: 12px; border-radius: 14px; border: 1px solid var(--border);">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <label for="h2h-scope-select" style="font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px;">
+                  🎯 ${t('h2hScopeLabel', 'Comparar en base a:')}
+                </label>
+                ${bothTrackedSessions.length > 0 ? `
+                  <span style="font-size: 11px; color: #86efac; font-weight: 700; background: rgba(34, 197, 94, 0.15); padding: 2px 8px; border-radius: 10px;">
+                    👥 ${bothTrackedSessions.length} partidos juntos
+                  </span>
+                ` : ''}
+              </div>
+              <select id="h2h-scope-select" class="input" style="width: 100%; font-size: 13px; font-weight: 700; background: var(--surface); color: #fff; border: 1px solid rgba(255,255,255,0.14); border-radius: 10px; padding: 9px 12px;">
+                <option value="global" ${selectedScope === 'global' ? 'selected' : ''}>
+                  🌐 ${t('h2hScopeGlobal', 'Historial Global (Todas las sesiones acumuladas)')}
+                </option>
+                ${allSessions.length > 0 ? `
+                  <optgroup label="${t('h2hGroupSessions', 'Partidos y Entrenamientos')}">
+                    ${allSessions.map(s => {
+                      const has1 = s.stats && s.stats[id1] && Object.values(s.stats[id1]).some(v => v > 0);
+                      const has2 = s.stats && s.stats[id2] && Object.values(s.stats[id2]).some(v => v > 0);
+                      const both = has1 && has2;
+                      let badge = '';
+                      if (both) badge = '👥 Ambos seguidos';
+                      else if (has1) badge = `👤 Solo ${Store.playerName(p1)}`;
+                      else if (has2) badge = `👤 Solo ${Store.playerName(p2)}`;
+                      else badge = '⚪ Sin seguimiento';
+
+                      const sTitle = Store.sessionTitle(s);
+                      const iconType = s.type === 'match' ? '🏆' : '⚽';
+                      return `<option value="${s.id}" ${selectedScope === s.id ? 'selected' : ''}>${iconType} ${s.date} • ${escapeHtml(sTitle)} [${badge}]</option>`;
+                    }).join('')}
+                  </optgroup>
+                ` : ''}
+              </select>
+              ${curSession ? `
+                <div style="margin-top: 8px; font-size: 11.5px; padding: 6px 10px; border-radius: 8px; background: rgba(0,0,0,0.25); display: flex; align-items: center; justify-content: space-between;">
+                  <span style="color: var(--muted);">Evento: <b>${escapeHtml(Store.sessionTitle(curSession))}</b></span>
+                  ${p1HasSessionStats && p2HasSessionStats 
+                    ? '<span style="color: #86efac; font-weight: 800;">✓ Datos de ambos</span>'
+                    : (!p1HasSessionStats && !p2HasSessionStats
+                      ? '<span style="color: #fca5a5; font-weight: 800;">⚠️ Sin datos registrados</span>'
+                      : `<span style="color: #fde047; font-weight: 800;">⚠️ Incompleto</span>`)}
+                </div>
+              ` : ''}
+            </div>
+
+            <div class="h2h-header">
+              <!-- Jugador 1 -->
+              <div class="h2h-player-col">
+                ${renderAvatar(p1, 'md')}
+                <button type="button" class="h2h-player-btn" id="btn-pick-h2h-p1" title="Cambiar jugador 1">
+                  <span style="color: #22d3ee; font-weight: 800; font-size: 13px;">${escapeHtml(Store.playerName(p1))} ▾</span>
+                </button>
+                <div class="rating-pill" style="border-color: #22d3ee; color: #22d3ee; background: rgba(34, 211, 238, .15);">
+                  ⭐ ${rating1.toFixed(1)}
+                </div>
+              </div>
+
+              <div class="h2h-vs">VS</div>
+
+              <!-- Jugador 2 -->
+              <div class="h2h-player-col">
+                ${renderAvatar(p2, 'md')}
+                <button type="button" class="h2h-player-btn" id="btn-pick-h2h-p2" title="Cambiar jugador 2">
+                  <span style="color: #86efac; font-weight: 800; font-size: 13px;">${escapeHtml(Store.playerName(p2))} ▾</span>
+                </button>
+                <div class="rating-pill" style="border-color: #22c55e; color: #22c55e; background: rgba(34, 197, 94, .15);">
+                  ⭐ ${rating2.toFixed(1)}
+                </div>
+              </div>
+            </div>
+
+            <!-- Métricas comparativas -->
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              ${metrics.map(m => {
+                const v1 = m.v1 || 0;
+                const v2 = m.v2 || 0;
+                const sum = v1 + v2;
+                let pct1 = 50, pct2 = 50;
+                if (sum > 0) {
+                  pct1 = Math.round((v1 / sum) * 100);
+                  pct2 = 100 - pct1;
+                }
+                const p1Wins = v1 > v2;
+                const p2Wins = v2 > v1;
+                const label = t(m.labelKey, m.key);
+                return `
+                  <div class="h2h-metric-row">
+                    <div class="h2h-labels">
+                      <span style="color: ${p1Wins ? '#22d3ee' : 'var(--text)'}; font-weight: ${p1Wins ? '900' : '700'};">
+                        ${v1}${m.suffix} ${p1Wins ? '👑' : ''}
+                      </span>
+                      <span class="h2h-metric-title">${label}</span>
+                      <span style="color: ${p2Wins ? '#22c55e' : 'var(--text)'}; font-weight: ${p2Wins ? '900' : '700'};">
+                        ${p2Wins ? '👑' : ''} ${v2}${m.suffix}
+                      </span>
+                    </div>
+                    <div class="h2h-bars">
+                      <div class="h2h-bar-p1" style="width: ${pct1}%;"></div>
+                      <div class="h2h-bar-p2" style="width: ${pct2}%;"></div>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        `;
+
+        const scopeSelect = body.querySelector('#h2h-scope-select');
+        if (scopeSelect) {
+          scopeSelect.onchange = (e) => {
+            selectedScope = e.target.value;
+            renderH2H();
+          };
+        }
+
+        body.querySelector('#btn-pick-h2h-p1').onclick = () => {
+          showPlayerPickerModal(id1, (newId) => {
+            id1 = newId;
+            renderH2H();
+          });
+        };
+        body.querySelector('#btn-pick-h2h-p2').onclick = () => {
+          showPlayerPickerModal(id2, (newId) => {
+            id2 = newId;
+            renderH2H();
+          });
+        };
+      }
+
+      renderH2H();
+    }, (foot) => {
+      foot.innerHTML = `<button class="btn block ghost" id="btn-close-h2h">${t('cancel')}</button>`;
+      foot.querySelector('#btn-close-h2h').onclick = closeSheet;
+    });
+  }
+
+  /* =========================================================
+     MODAL DE FICHA DE PARTIDO / MATCH CARD (DESCARGABLE Y WHATSAPP)
+     ========================================================= */
+  /* =========================================================
+     MODAL DE FICHA DE JUGADOR (DESCARGABLE Y WHATSAPP)
+     ========================================================= */
+  function showPlayerCardModal(player, session) {
+    if (!player) return;
+    const sess = session || (Store.state.sessions.length > 0 ? Store.state.sessions[0] : null);
+    const st = sess ? (sess.stats[player.id] || {}) : Store.playerAggregate(player.id).totals;
+    const rating = Store.calculateMatchRating(st, player.mainPosition);
+    const radar = Store.calculatePlayerRadar(player.id);
+    const team = Store.team(player.teamId);
+    const isEn = (Store.state.settings.lang === 'en');
+
+    openSheet(t('playerCardTitle', 'Ficha de Jugador'), (body) => {
+      body.innerHTML = `
+        <div style="text-align: center; margin-bottom: 12px;">
+          <div id="match-card-loading" style="padding: 20px; color: var(--muted);">${t('generatingCard')}</div>
+          <canvas id="match-card-canvas" width="600" height="850" style="display: none;"></canvas>
+          <img id="match-card-preview" style="display: none; width: 100%; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); margin-bottom: 10px;" />
+        </div>
+
+        <div style="margin-bottom: 12px;">
+          <button id="btn-download-match-card" class="btn primary block" style="text-align: center; margin-bottom: 10px;">
+            ${icon('download', 18)} ${t('downloadCard', 'Descargar Ficha (PNG)')}
+          </button>
+
+          <div style="font-size: 11.5px; font-weight: 800; color: var(--muted); margin-bottom: 6px; text-align: left;">
+            ${t('shareCardWithImage', 'COMPARTIR FICHA CON IMAGEN PNG:')}
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px;">
+            <button class="btn btn-social" id="btn-share-wa" style="background: #16a34a; color: #fff; border-color: #22c55e;">
+              ${icon('whatsapp', 18)} WhatsApp
+            </button>
+            <button class="btn btn-social" id="btn-share-tg" style="background: #0284c7; color: #fff; border-color: #38bdf8;">
+              ${icon('send', 18)} Telegram
+            </button>
+            <button class="btn btn-social" id="btn-share-viber" style="background: #7c3aed; color: #fff; border-color: #a855f7;">
+              💜 Viber
+            </button>
+            <button class="btn btn-social" id="btn-share-all" style="background: var(--surface2); color: #fff;">
+              ${icon('share', 18)} ${t('shareGeneric', 'Más...')}
+            </button>
+          </div>
+
+          <button class="btn block secondary" id="btn-share-guide" style="margin-top: 8px;">
+            📘 ${t('downloadSkillGuide', 'Descargar / Compartir Guía de Habilidades (PNG)')}
+          </button>
+        </div>
+      `;
+
+      const canvas = body.querySelector('#match-card-canvas');
+      const imgPreview = body.querySelector('#match-card-preview');
+      const loadEl = body.querySelector('#match-card-loading');
+      const downBtn = body.querySelector('#btn-download-match-card');
+
+      setTimeout(() => {
+        const ctx = canvas.getContext('2d');
+        const W = 600, H = 850;
+
+        // Función que dibuja el contenido tras resolver la foto del jugador
+        const renderCanvasContent = (avatarImg) => {
+          // Fondo degradado futurista
+          const grad = ctx.createLinearGradient(0, 0, 0, H);
+          grad.addColorStop(0, '#0b1329');
+          grad.addColorStop(0.5, '#070b18');
+          grad.addColorStop(1, '#020617');
+          ctx.fillStyle = grad;
+          ctx.fillRect(0, 0, W, H);
+
+          // Borde cian neón
+          ctx.strokeStyle = '#22d3ee';
+          ctx.lineWidth = 3;
+          ctx.strokeRect(12, 12, W - 24, H - 24);
+
+          // Encabezado alineado a la izquierda para no solapar la medalla de valoración
+          ctx.textAlign = 'left';
+          ctx.fillStyle = '#64748b';
+          ctx.font = 'bold 12px system-ui';
+          ctx.fillText(isEn ? 'PLAYER STATS • OFFICIAL SCOUT CARD' : 'ESTADÍSTICAS JUGADORES • FICHA OFICIAL', 28, 42);
+
+          ctx.fillStyle = '#94a3b8';
+          ctx.font = 'bold 12px system-ui';
+          const subText = sess ? `${Store.sessionTitle(sess)} • ${sess.date}` : (isEn ? 'OVERALL ALL-TIME PERFORMANCE' : 'RENDIMIENTO GENERAL GLOBAL');
+          ctx.fillText(subText, 28, 62);
+
+          // Medalla de Rating (esquina superior derecha, posición limpia y sin colisión)
+          ctx.fillStyle = 'rgba(250, 204, 21, 0.2)';
+          ctx.strokeStyle = '#facc15';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.roundRect(476, 28, 96, 42, 10);
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.fillStyle = '#fde047';
+          ctx.font = 'bold 20px system-ui';
+          ctx.textAlign = 'center';
+          ctx.fillText(`⭐ ${rating.toFixed(1)}`, 524, 56);
+
+          // Foto del Jugador (o Inicial en círculo con clip)
+          if (avatarImg) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(W / 2, 145, 48, 0, Math.PI * 2);
+            ctx.clip();
+            ctx.drawImage(avatarImg, W / 2 - 48, 145 - 48, 96, 96);
+            ctx.restore();
+            ctx.strokeStyle = '#22d3ee';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(W / 2, 145, 48, 0, Math.PI * 2);
+            ctx.stroke();
+          } else {
+            ctx.fillStyle = '#1e293b';
+            ctx.beginPath();
+            ctx.arc(W / 2, 145, 48, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#22d3ee';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 40px system-ui';
+            ctx.textAlign = 'center';
+            ctx.fillText((player.name ? player.name[0] : 'J').toUpperCase(), W / 2, 158);
+          }
+
+          // Nombre y Posición
+          ctx.fillStyle = '#ffffff';
+          ctx.font = 'bold 26px system-ui';
+          ctx.textAlign = 'center';
+          ctx.fillText(Store.playerName(player).toUpperCase(), W / 2, 224);
+
+          ctx.fillStyle = '#38bdf8';
+          ctx.font = 'bold 15px system-ui';
+          const posLabel = player.mainPosition || (isEn ? 'PLAYER' : 'JUGADOR');
+          ctx.fillText(`#${player.mainDorsal != null ? player.mainDorsal : '-'} • ${posLabel}${team ? ' • ' + team.name.toUpperCase() : ''}`, W / 2, 248);
+
+          // Radar Chart en Canvas (Pentágono de 5 cualidades deportivas)
+          const rcx = W / 2, rcy = 375, rr = 75;
+          const rAxes = [
+            { l: 'PAS', v: radar.pas },
+            { l: isEn ? 'SHT' : 'TIR', v: radar.tir },
+            { l: isEn ? 'DRI' : 'REG', v: radar.reg },
+            { l: isEn ? 'PHY' : 'FÍS', v: radar.fis },
+            { l: 'DEF', v: radar.def }
+          ];
+
+          // Redes concéntricas pentagonales
+          [0.33, 0.66, 1.0].forEach(factor => {
+            ctx.beginPath();
+            rAxes.forEach((_, i) => {
+              const angle = -Math.PI / 2 + i * (2 * Math.PI / 5);
+              const x = rcx + rr * factor * Math.cos(angle);
+              const y = rcy + rr * factor * Math.sin(angle);
+              if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            });
+            ctx.closePath();
+            ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+          });
+
+          // Polígono del jugador
+          ctx.beginPath();
+          rAxes.forEach((a, i) => {
+            const angle = -Math.PI / 2 + i * (2 * Math.PI / 5);
+            const ratio = Math.max(0.2, a.v / 100);
+            const x = rcx + rr * ratio * Math.cos(angle);
+            const y = rcy + rr * ratio * Math.sin(angle);
+            if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+          });
+          ctx.closePath();
+          ctx.fillStyle = 'rgba(34, 211, 238, 0.4)';
+          ctx.fill();
+          ctx.strokeStyle = '#22d3ee';
+          ctx.lineWidth = 2.5;
+          ctx.stroke();
+
+          // Etiquetas del radar
+          rAxes.forEach((a, i) => {
+            const angle = -Math.PI / 2 + i * (2 * Math.PI / 5);
+            const lx = rcx + (rr + 20) * Math.cos(angle);
+            const ly = rcy + (rr + 20) * Math.sin(angle);
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = 'bold 11px system-ui';
+            ctx.textAlign = 'center';
+            ctx.fillText(`${a.l} ${a.v}`, lx, ly);
+          });
+
+          // Insignia de Disciplina & Fair Play en Canvas
+          ctx.fillStyle = 'rgba(34, 197, 94, 0.15)';
+          ctx.strokeStyle = '#22c55e';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.roundRect(W / 2 - 120, 472, 240, 26, 8);
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.fillStyle = '#86efac';
+          ctx.font = 'bold 11px system-ui';
+          ctx.textAlign = 'center';
+          ctx.fillText(`FAIR PLAY / DISCIPLINA: ${radar.dis || 100} / 99`, W / 2, 489);
+
+          // 6 Tarjetas de Estadísticas clave
+          const totPass = (st.passOk || 0) + (st.passKo || 0);
+          const passPct = totPass > 0 ? Math.round(((st.passOk || 0) / totPass) * 100) + '%' : '-';
+          const statsCards = [
+            { l: isEn ? 'GOALS' : 'GOLES', v: st.goal || 0, c: '#facc15' },
+            { l: isEn ? 'SHOTS ON TARGET' : 'TIROS PUERTA', v: st.shotOn || 0, c: '#06b6d4' },
+            { l: isEn ? 'PASS ACCURACY' : 'PRECISIÓN PASE', v: passPct, c: '#22c55e' },
+            { l: isEn ? 'ASSISTS' : 'ASISTENCIAS', v: st.assist || 0, c: '#a855f7' },
+            { l: isEn ? 'RECOVERIES' : 'RECUPERACIONES', v: st.recovery || 0, c: '#3b82f6' },
+            { l: isEn ? 'BALL TOUCHES' : 'TOQUES BALÓN', v: st.touches || 0, c: '#94a3b8' }
+          ];
+
+          statsCards.forEach((sc, i) => {
+            const col = i % 2;
+            const row = Math.floor(i / 2);
+            const bx = 45 + col * 260;
+            const by = 520 + row * 82;
+
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.roundRect(bx, by, 245, 68, 12);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = 'bold 11px system-ui';
+            ctx.textAlign = 'left';
+            ctx.fillText(sc.l, bx + 16, by + 28);
+
+            ctx.fillStyle = sc.c;
+            ctx.font = 'bold 24px system-ui';
+            ctx.fillText(String(sc.v), bx + 16, by + 56);
+          });
+
+          // Pie de tarjeta
+          ctx.fillStyle = '#475569';
+          ctx.font = '11px system-ui';
+          ctx.textAlign = 'center';
+          ctx.fillText('SCOUTING & DATA ANALYSIS REPORT • PROPRIETARY SYSTEM', W / 2, 810);
+
+          const dataUrl = canvas.toDataURL('image/png');
+          imgPreview.src = dataUrl;
+          imgPreview.style.display = 'block';
+          loadEl.style.display = 'none';
+
+          downBtn.onclick = (e) => {
+            e.preventDefault();
+            const filename = `Ficha_${(player.name || 'jugador').replace(/[^a-zA-Z0-9_]/g, '_')}.png`;
+            if (window.AndroidBridge && window.AndroidBridge.saveImage) {
+              window.AndroidBridge.saveImage(dataUrl, filename);
+            } else {
+              const a = document.createElement('a');
+              a.href = dataUrl;
+              a.download = filename;
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+              toast(t('cardSavedGallery', 'Ficha guardada en galería'), 'success');
+            }
+          };
+
+          const pName = Store.playerName(player);
+          const filename = `Ficha_${(player.name || 'jugador').replace(/[^a-zA-Z0-9_]/g, '_')}.png`;
+          const shareText = `⚽ *${t('playerCardTitle', 'Ficha de Jugador')}: ${pName}*\n` +
+            `⭐ Nota Media: ${rating.toFixed(1)}/10\n` +
+            `📊 Radar: Pase ${radar.pas} | Tiro ${radar.tir} | Regate ${radar.reg} | Físico ${radar.fis} | Defensa ${radar.def} | Disciplina ${radar.dis}\n` +
+            `🥅 Goles: ${st.goal || 0} | 🎯 Tiros: ${st.shotOn || 0} | 👟 Pase: ${passPct}\n\n` +
+            `Estadísticas Jugadores`;
+
+          function handleSocialShare(targetApp) {
+            if (window.AndroidBridge && window.AndroidBridge.shareImage) {
+              window.AndroidBridge.shareImage(dataUrl, filename, targetApp, shareText);
+            } else {
+              if (targetApp === 'whatsapp') {
+                window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`, '_blank');
+              } else if (targetApp === 'telegram') {
+                window.open(`https://t.me/share/url?url=${encodeURIComponent('https://streetoh.github.io/Player_Stats/')}&text=${encodeURIComponent(shareText)}`, '_blank');
+              } else if (targetApp === 'viber') {
+                window.open(`viber://forward?text=${encodeURIComponent(shareText)}`, '_blank');
+              } else {
+                if (navigator.share) {
+                  navigator.share({ title: pName, text: shareText }).catch(() => {});
+                } else {
+                  prompt('Copia este texto para compartir:', shareText);
+                }
+              }
+            }
+          }
+
+          body.querySelector('#btn-share-wa').onclick = () => handleSocialShare('whatsapp');
+          body.querySelector('#btn-share-tg').onclick = () => handleSocialShare('telegram');
+          body.querySelector('#btn-share-viber').onclick = () => handleSocialShare('viber');
+          body.querySelector('#btn-share-all').onclick = () => handleSocialShare('all');
+          body.querySelector('#btn-share-guide').onclick = () => showSkillGuideModal();
+        };
+
+        // Si el jugador tiene foto, cargarla como imagen HTML antes de pintar
+        if (player.photo) {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => renderCanvasContent(img);
+          img.onerror = () => renderCanvasContent(null);
+          img.src = player.photo;
+        } else {
+          renderCanvasContent(null);
+        }
+      }, 50);
+    });
+  }
+
+  // Alias para mantener compatibilidad con llamadas existentes
+  const showMatchCardModal = showPlayerCardModal;
+
+  /* =========================================================
+     MODAL DE GUÍA TÁCTICA DE HABILIDADES (DESCARGABLE Y COMPARTIBLE)
+     ========================================================= */
+  function showSkillGuideModal() {
+    const isEn = (Store.state.settings.lang === 'en');
+    openSheet(t('downloadSkillGuide', 'Guía de Habilidades'), (body) => {
+      body.innerHTML = `
+        <div style="text-align: center; margin-bottom: 12px;">
+          <div id="guide-loading" style="padding: 20px; color: var(--muted);">${t('generatingCard')}</div>
+          <canvas id="guide-canvas" width="600" height="850" style="display: none;"></canvas>
+          <img id="guide-preview" style="display: none; width: 100%; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); margin-bottom: 10px;" />
+        </div>
+
+        <button id="btn-guide-download" class="btn primary block" style="margin-bottom: 10px;">
+          ${icon('download', 18)} ${t('downloadCard', 'Descargar Guía (PNG)')}
+        </button>
+
+        <div style="font-size: 11.5px; font-weight: 800; color: var(--muted); margin-bottom: 6px; text-align: left;">
+          COMPARTIR GUÍA CON IMAGEN (PNG):
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+          <button class="btn btn-social" id="btn-guide-wa" style="background: #16a34a; color: #fff; border-color: #22c55e;">
+            ${icon('whatsapp', 18)} WhatsApp
+          </button>
+          <button class="btn btn-social" id="btn-guide-tg" style="background: #0284c7; color: #fff; border-color: #38bdf8;">
+            ${icon('send', 18)} Telegram
+          </button>
+          <button class="btn btn-social" id="btn-guide-viber" style="background: #7c3aed; color: #fff; border-color: #a855f7;">
+            💜 Viber
+          </button>
+          <button class="btn btn-social" id="btn-guide-all" style="background: var(--surface2); color: #fff;">
+            ${icon('share', 18)} ${t('shareGeneric', 'Más...')}
+          </button>
+        </div>
+      `;
+
+      setTimeout(() => {
+        const canvas = body.querySelector('#guide-canvas');
+        const imgPreview = body.querySelector('#guide-preview');
+        const loadEl = body.querySelector('#guide-loading');
+        const ctx = canvas.getContext('2d');
+        const W = 600, H = 850;
+
+        // Fondo degradado
+        const grad = ctx.createLinearGradient(0, 0, 0, H);
+        grad.addColorStop(0, '#0b1329');
+        grad.addColorStop(0.5, '#070b18');
+        grad.addColorStop(1, '#020617');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, W, H);
+
+        ctx.strokeStyle = '#22d3ee';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(12, 12, W - 24, H - 24);
+
+        ctx.fillStyle = '#64748b';
+        ctx.font = 'bold 12px system-ui';
+        ctx.textAlign = 'center';
+        ctx.fillText(isEn ? 'PLAYER STATS • TACTICAL RADAR SKILL GUIDE' : 'ESTADÍSTICAS JUGADORES • GUÍA TÁCTICA DE HABILIDADES', W / 2, 44);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 22px system-ui';
+        ctx.fillText(isEn ? 'TACTICAL SKILLS & PERFORMANCE GUIDE' : 'SIGNIFICADO Y VALORACIÓN DE CUALIDADES', W / 2, 74);
+
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '12px system-ui';
+        ctx.fillText(isEn ? 'Explanation of performance scores and metrics tracked during matches' : 'Explicación del radar de habilidades y métricas registradas en partidos y entrenamientos', W / 2, 96);
+
+        const skills = [
+          { k: 'pas', icon: '👟', name: isEn ? 'Passing & Vision (PAS)' : 'Pase y Distribución (PAS)', desc: isEn ? 'Precision in distribution, associative play, low turnover rate on passes and goal assists created.' : 'Precisión en corto y largo, fluidez asociativa, bajo porcentaje de pérdidas y asistencias creadas.' },
+          { k: 'tir', icon: '🎯', name: isEn ? 'Shooting & Finishing (SHT)' : 'Tiro y Definición (TIR)', desc: isEn ? 'Finishing accuracy, conversion rate (goals per shots on target) and attacking penalty box danger.' : 'Puntería en lanzamientos, porcentaje de acierto a puerta, goles anotados y peligro en el área rival.' },
+          { k: 'reg', icon: '⚡', name: isEn ? 'Dribbling & Skill (DRI)' : 'Regate y Desborde (REG)', desc: isEn ? '1vs1 success, breaking defensive lines, pace changes and beating pressing opponents.' : 'Desequilibrio individual, éxito en el 1 contra 1, cambios de ritmo y superación de líneas rivales.' },
+          { k: 'fis', icon: '💪', name: isEn ? 'Physical & Workrate (PHY)' : 'Físico e Intensidad (FÍS)', desc: isEn ? 'Ball disputes, aerial and ground duels won, continuous involvement and total pitch actions.' : 'Intensidad en disputas, duelos aéreos y terrestres ganados, despliegue físico y volumen de toques.' },
+          { k: 'def', icon: '🛡️', name: isEn ? 'Defending & Anticipation (DEF)' : 'Defensa y Recuperación (DEF)', desc: isEn ? 'Interceptions in passing lanes, contested ball recoveries, clearances and defensive actions.' : 'Anticipación, balones recuperados, intercepciones defensivas, despejes y solidez sin balón.' },
+          { k: 'dis', icon: '🧠', name: isEn ? 'Discipline & Focus (DIS)' : 'Disciplina y Concentración (DIS)', desc: isEn ? 'Composure, tactical discipline, low foul frequency, fair play and avoidance of cards.' : 'Control emocional, juego limpio, bajo número de faltas y ausencia de tarjetas amarillas/rojas.' }
+        ];
+
+        skills.forEach((s, i) => {
+          const sy = 120 + i * 110;
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
+          ctx.strokeStyle = 'rgba(34, 211, 238, 0.2)';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.roundRect(36, sy, W - 72, 98, 12);
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.fillStyle = '#22d3ee';
+          ctx.font = 'bold 15px system-ui';
+          ctx.textAlign = 'left';
+          ctx.fillText(`${s.icon} ${s.name}`, 52, sy + 30);
+
+          ctx.fillStyle = '#cbd5e1';
+          ctx.font = '12px system-ui';
+          ctx.fillText(s.desc, 52, sy + 58, W - 104);
+        });
+
+        ctx.fillStyle = '#475569';
+        ctx.font = '11px system-ui';
+        ctx.textAlign = 'center';
+        ctx.fillText('SCOUTING & DATA ANALYSIS REPORT • PROPRIETARY SYSTEM', W / 2, 816);
+
+        const dataUrl = canvas.toDataURL('image/png');
+        imgPreview.src = dataUrl;
+        imgPreview.style.display = 'block';
+        loadEl.style.display = 'none';
+
+        const filename = 'Guia_Habilidades_Futbol.png';
+        const guideText = '📘 Guía Táctica de Habilidades y Rendimiento - Estadísticas Jugadores';
+
+        body.querySelector('#btn-guide-download').onclick = () => {
+          if (window.AndroidBridge && window.AndroidBridge.saveImage) {
+            window.AndroidBridge.saveImage(dataUrl, filename);
+          } else {
+            const a = document.createElement('a');
+            a.href = dataUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            toast(t('guideSavedGallery', 'Guía guardada en la galería'), 'success');
+          }
+        };
+
+        function shareGuide(app) {
+          if (window.AndroidBridge && window.AndroidBridge.shareImage) {
+            window.AndroidBridge.shareImage(dataUrl, filename, app, guideText);
+          } else {
+            if (app === 'whatsapp') {
+              window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(guideText)}`, '_blank');
+            } else if (app === 'telegram') {
+              window.open(`https://t.me/share/url?url=${encodeURIComponent('https://streetoh.github.io/Player_Stats/')}&text=${encodeURIComponent(guideText)}`, '_blank');
+            } else if (app === 'viber') {
+              window.open(`viber://forward?text=${encodeURIComponent(guideText)}`, '_blank');
+            } else {
+              if (navigator.share) navigator.share({ title: 'Guía de Habilidades', text: guideText }).catch(() => {});
+            }
+          }
+        }
+
+        body.querySelector('#btn-guide-wa').onclick = () => shareGuide('whatsapp');
+        body.querySelector('#btn-guide-tg').onclick = () => shareGuide('telegram');
+        body.querySelector('#btn-guide-viber').onclick = () => shareGuide('viber');
+        body.querySelector('#btn-guide-all').onclick = () => shareGuide('all');
+      }, 50);
+    }, (foot) => {
+      foot.innerHTML = `<button class="btn block ghost" id="btn-guide-close">${t('close', 'Cerrar')}</button>`;
+      foot.querySelector('#btn-guide-close').onclick = closeSheet;
+    });
+  }
+
+  /* =========================================================
+     VISTA 2: SESIONES / HISTORIAL
+     ========================================================= */
+  function renderHistoryView(view) {
+    let filter = 'all';
+
+    function build() {
+      const list = Store.filterSessions(filter, 'all');
+
+      view.innerHTML = `
+        <div class="topbar">
+          <div>
+            <h1>${t('sessions')}</h1>
+            <span class="sub">${Store.state.sessions.length} registradas</span>
+          </div>
+          <div class="row">
+            <button class="icon-btn" id="btn-history-export-json" title="${t('exportJSON')}">
+              ${icon('file', 20)}
+            </button>
+            <button class="icon-btn" id="btn-history-export-csv" title="${t('exportCSV')}">
+              ${icon('download', 20)}
+            </button>
+          </div>
+        </div>
+
+        <div style="margin-bottom: 12px;">
+          <button class="btn block ghost" id="btn-history-join-live" style="border: 1.5px dashed var(--cyan); background: rgba(34, 211, 238, 0.08); color: var(--cyan); font-weight: 800; font-size: 13px; border-radius: 12px; padding: 9px; display: flex; align-items: center; justify-content: center; gap: 8px;">
+            ${icon('qr', 16)} <span>${t('joinLive', '📡 Unirse a sesión en vivo')}</span>
+          </button>
+        </div>
+
+        <div class="segmented" style="margin-bottom: 12px;">
+          <button class="${filter === 'all' ? 'active' : ''}" data-f="all">${t('all')}</button>
+          <button class="${filter === 'training' ? 'active t-training' : ''}" data-f="training">${t('training')}</button>
+          <button class="${filter === 'match' ? 'active t-match' : ''}" data-f="match">${t('match')}</button>
+        </div>
+
+        <div id="history-list">
+          ${list.length === 0 ? `
+            <div class="empty">
+              <div class="big">📂</div>
+              <h3>${t('noSessionsYet')}</h3>
+              <p>${t('noSessionsDesc')}</p>
+            </div>
+          ` : list.map(s => renderSessionItemHtml(s)).join('')}
+        </div>
+      `;
+
+      const btnJoin = view.querySelector('#btn-history-join-live');
+      if (btnJoin) btnJoin.onclick = () => showLiveSyncModal(null, 'guest');
+
+      view.querySelectorAll('.segmented button').forEach(b => {
+        b.onclick = () => {
+          filter = b.getAttribute('data-f');
+          build();
+        };
+      });
+
+      view.querySelectorAll('.session-item').forEach(el => {
+        el.onclick = () => {
+          const sid = el.getAttribute('data-id');
+          showSessionDetailModal(sid);
+        };
+      });
+
+      view.querySelector('#btn-history-export-json').onclick = () => IO.exportBackup();
+      view.querySelector('#btn-history-export-csv').onclick = () => IO.exportStatsCSV(list);
+    }
+
+    build();
+  }
+
+  function renderSessionPlayerZonesHeatmapHtml(session, playerId) {
+    const zones = (session.zones || []).filter(z => z.p === playerId);
+    const counts = {};
+    const zoneActionsMap = {
+      top_l: {},
+      top_c: {},
+      top_r: {},
+      wing_l: {},
+      mid_t: {},
+      wing_r: {},
+      mid_b: {}
+    };
+    for (let i = 1; i <= 11; i++) counts[i] = 0;
+    zones.forEach(z => {
+      counts[z.z] = (counts[z.z] || 0) + 1;
+      let areaKey = 'mid_b';
+      if (z.z === 3) areaKey = 'top_l';
+      else if (z.z === 1) areaKey = 'top_c';
+      else if (z.z === 4) areaKey = 'top_r';
+      else if (z.z === 7 || z.z === 10) areaKey = 'wing_l';
+      else if (z.z === 2) areaKey = 'mid_t';
+      else if (z.z === 8 || z.z === 11) areaKey = 'wing_r';
+      else if (z.z === 5 || z.z === 6) areaKey = 'mid_b';
+
+      zoneActionsMap[areaKey][z.k] = (zoneActionsMap[areaKey][z.k] || 0) + 1;
+    });
+    const total = zones.length;
+
+    const getHeatBg = (cnt) => {
+      if (!cnt) return 'rgba(0, 0, 0, 0.28)';
+      const pct = cnt / Math.max(1, total * 0.4);
+      if (pct > 0.4) return 'rgba(239, 68, 68, 0.75)';
+      if (pct > 0.2) return 'rgba(249, 115, 22, 0.65)';
+      return 'rgba(34, 197, 94, 0.55)';
+    };
+
+    const cntTopL = counts[3] || 0;
+    const cntTopC = counts[1] || 0;
+    const cntTopR = counts[4] || 0;
+    const cntWingL = (counts[7] || 0) + (counts[10] || 0);
+    const cntMidT = counts[2] || 0;
+    const cntWingR = (counts[8] || 0) + (counts[11] || 0);
+    const cntMidB = (counts[5] || 0) + (counts[6] || 0);
+
+    const getZoneBadgeHtml = (cnt, actMap) => {
+      if (!cnt) return '';
+      const entries = Object.entries(actMap || {}).filter(([_, c]) => c > 0);
+      entries.sort((a, b) => b[1] - a[1]);
+      if (!entries.length) return `<span class="zone-top-action-badge">${cnt} act.</span>`;
+      const [topKey, topCnt] = entries[0];
+      const st = Store.STAT_MAP[topKey] || { emoji: '⚽', short: topKey };
+      const shortName = st.short || st.label || topKey;
+      return `<span class="zone-top-action-badge">${st.emoji || '⚽'} ${escapeHtml(shortName)}: ${topCnt}</span>`;
+    };
+
+    return `
+      <div style="font-size: 11.5px; color: var(--muted); margin-bottom: 8px; text-align: center;">
+        ${total > 0 ? `<b>${total}</b> ${t('actions', 'acciones')} geolocalizadas • <span style="color: var(--cyan);">Toca cualquier zona para ver detalles</span>` : 'Sin registros de campo para este jugador en este partido'}
+      </div>
+      <div class="pitch-field-grid" style="max-width: 290px; height: 230px; margin: 0 auto;">
+        <!-- Fila 1: Ataque -->
+        <div class="pitch-grid-cell pz-top-l ${cntTopL > 0 ? 'has-actions' : ''}" style="grid-area: top_l; background: ${getHeatBg(cntTopL)}; cursor: pointer;" data-zone-name="${t('zone_wing_off_l', 'Banda Ofensiva Izquierda')}" data-zone-count="${cntTopL}" data-zone-actions='${JSON.stringify(zoneActionsMap.top_l)}' onclick="window.handlePitchZoneCellClick(this)">
+          <span class="z-emoji">↖️</span>
+          <span style="font-size: 11px; font-weight: 900;">${cntTopL}</span>
+          <span style="font-size: 9px; opacity: 0.85;">${t('zone_wing_off_l')}</span>
+          ${getZoneBadgeHtml(cntTopL, zoneActionsMap.top_l)}
+        </div>
+        <div class="pitch-grid-cell pz-top-c ${cntTopC > 0 ? 'has-actions' : ''}" style="grid-area: top_c; background: ${getHeatBg(cntTopC)}; border-color: rgba(239, 68, 68, 0.8); cursor: pointer;" data-zone-name="${t('zone_box_opp', 'Área Rival')}" data-zone-count="${cntTopC}" data-zone-actions='${JSON.stringify(zoneActionsMap.top_c)}' onclick="window.handlePitchZoneCellClick(this)">
+          <span class="z-emoji">🥅</span>
+          <span style="font-size: 12px; font-weight: 900; color: #fde047;">${cntTopC}</span>
+          <span style="font-size: 9px; opacity: 0.9;">${t('zone_box_opp')}</span>
+          ${getZoneBadgeHtml(cntTopC, zoneActionsMap.top_c)}
+        </div>
+        <div class="pitch-grid-cell pz-top-r ${cntTopR > 0 ? 'has-actions' : ''}" style="grid-area: top_r; background: ${getHeatBg(cntTopR)}; cursor: pointer;" data-zone-name="${t('zone_wing_off_r', 'Banda Ofensiva Derecha')}" data-zone-count="${cntTopR}" data-zone-actions='${JSON.stringify(zoneActionsMap.top_r)}' onclick="window.handlePitchZoneCellClick(this)">
+          <span class="z-emoji">↗️</span>
+          <span style="font-size: 11px; font-weight: 900;">${cntTopR}</span>
+          <span style="font-size: 9px; opacity: 0.85;">${t('zone_wing_off_r')}</span>
+          ${getZoneBadgeHtml(cntTopR, zoneActionsMap.top_r)}
+        </div>
+
+        <!-- Fila 2-3: Bandas unidas laterales -->
+        <div class="pitch-grid-cell pz-wing-l ${cntWingL > 0 ? 'has-actions' : ''}" style="grid-area: wing_l; background: ${getHeatBg(cntWingL)}; cursor: pointer;" data-zone-name="${t('zone_wing_l', 'Banda Izquierda')}" data-zone-count="${cntWingL}" data-zone-actions='${JSON.stringify(zoneActionsMap.wing_l)}' onclick="window.handlePitchZoneCellClick(this)">
+          <span class="z-emoji">⬅️</span>
+          <span style="font-size: 12px; font-weight: 900;">${cntWingL}</span>
+          <span style="font-size: 9px; opacity: 0.85;">${t('zone_wing_l')}</span>
+          ${getZoneBadgeHtml(cntWingL, zoneActionsMap.wing_l)}
+        </div>
+
+        <!-- Fila 2 Centro: Frontal -->
+        <div class="pitch-grid-cell pz-mid-t ${cntMidT > 0 ? 'has-actions' : ''}" style="grid-area: mid_t; background: ${getHeatBg(cntMidT)}; cursor: pointer;" data-zone-name="${t('zone_front', 'Frontal del Área')}" data-zone-count="${cntMidT}" data-zone-actions='${JSON.stringify(zoneActionsMap.mid_t)}' onclick="window.handlePitchZoneCellClick(this)">
+          <span class="z-emoji">🎯</span>
+          <span style="font-size: 11.5px; font-weight: 900;">${cntMidT}</span>
+          <span style="font-size: 9px; opacity: 0.85;">${t('zone_front')}</span>
+          ${getZoneBadgeHtml(cntMidT, zoneActionsMap.mid_t)}
+        </div>
+
+        <div class="pitch-grid-cell pz-wing-r ${cntWingR > 0 ? 'has-actions' : ''}" style="grid-area: wing_r; background: ${getHeatBg(cntWingR)}; cursor: pointer;" data-zone-name="${t('zone_wing_r', 'Banda Derecha')}" data-zone-count="${cntWingR}" data-zone-actions='${JSON.stringify(zoneActionsMap.wing_r)}' onclick="window.handlePitchZoneCellClick(this)">
+          <span class="z-emoji">➡️</span>
+          <span style="font-size: 12px; font-weight: 900;">${cntWingR}</span>
+          <span style="font-size: 9px; opacity: 0.85;">${t('zone_wing_r')}</span>
+          ${getZoneBadgeHtml(cntWingR, zoneActionsMap.wing_r)}
+        </div>
+
+        <!-- Fila 3 Centro: Centro del campo -->
+        <div class="pitch-grid-cell pz-mid-b ${cntMidB > 0 ? 'has-actions' : ''}" style="grid-area: mid_b; background: ${getHeatBg(cntMidB)}; cursor: pointer;" data-zone-name="${t('zone_mid', 'Centro del Campo')}" data-zone-count="${cntMidB}" data-zone-actions='${JSON.stringify(zoneActionsMap.mid_b)}' onclick="window.handlePitchZoneCellClick(this)">
+          <span class="z-emoji">⚽</span>
+          <span style="font-size: 11.5px; font-weight: 900;">${cntMidB}</span>
+          <span style="font-size: 9px; opacity: 0.85;">${t('zone_mid')}</span>
+          ${getZoneBadgeHtml(cntMidB, zoneActionsMap.mid_b)}
+        </div>
+      </div>
+    `;
+  }
+
+  /* =========================================================
+     MODAL DE EXPLICACIÓN DETALLADA DE KPIs
+     ========================================================= */
+  function showKpiExplanationModal(title, valStr, desc, detail) {
+    const dialog = document.createElement('div');
+    dialog.className = 'dialog-overlay';
+    dialog.innerHTML = `
+      <div class="dialog-box" style="max-width: 380px; text-align: center;">
+        <div style="font-size: 34px; margin-bottom: 8px;">📊</div>
+        <h3 style="margin: 0 0 4px; font-size: 18px; font-weight: 900;">${title}</h3>
+        <div style="font-size: 26px; font-weight: 900; color: #22d3ee; margin-bottom: 12px;">${valStr}</div>
+        <p style="color: var(--text); font-size: 13.5px; line-height: 1.5; margin-bottom: 10px; text-align: left; background: var(--bg2); padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border);">
+          ${desc}
+        </p>
+        ${detail ? `
+          <p style="color: var(--muted); font-size: 12px; line-height: 1.45; margin-bottom: 16px; text-align: left;">
+            💡 ${detail}
+          </p>
+        ` : ''}
+        <button class="btn block primary" id="btn-close-kpi-info">${t('close', 'Entendido')}</button>
+      </div>
+    `;
+    document.body.appendChild(dialog);
+    dialog.querySelector('#btn-close-kpi-info').onclick = () => dialog.remove();
+    dialog.onclick = (e) => { if (e.target === dialog) dialog.remove(); };
+  }
+
+  function showPlayerMatchDetailModal(session, player) {
+    const st = (session.stats && session.stats[player.id]) || {};
+    const rating = Store.calculateMatchRating(st, player.mainPosition);
+    const totPass = (st.passOk || 0) + (st.passKo || 0);
+    const passPct = totPass > 0 ? Math.round(((st.passOk || 0) / totPass) * 100) : 0;
+    const team = Store.team(player.teamId);
+
+    openSheet(`Estadísticas: ${Store.playerName(player, true)}`, (body) => {
+      body.innerHTML = `
+        <div class="p-hero" style="margin-bottom: 12px;">
+          ${renderAvatar(player, 'lg')}
+          <div class="grow">
+            <h2>${escapeHtml(Store.playerName(player))}</h2>
+            <div class="meta">
+              <span class="pos-tag">${player.mainPosition || 'Jugador'}</span>
+              <span>#${player.mainDorsal != null ? player.mainDorsal : '—'}</span>
+              ${team ? `<span>${escapeHtml(team.name)}</span>` : ''}
+            </div>
+            <div style="margin-top: 6px;">
+              <span class="rating-pill">⭐ ${rating.toFixed(1)} / 10 Nota en el partido</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="info-note" style="margin-bottom: 12px;">
+          🏆 <b>${escapeHtml(Store.sessionTitle(session))}</b> • ${formatDateDDMMAAAA(session.date)} • Duración: ${Store.fmtTime(Store.elapsed(session), session)}
+          ${session.type === 'match' && session.score ? `<div style="font-weight: 800; margin-top: 2px;">Marcador: ${session.score.home || 0} - ${session.score.away || 0}</div>` : ''}
+        </div>
+
+        <div style="font-size: 11px; color: var(--muted); margin-bottom: 6px; text-align: center;">
+          💡 Toca en cualquier estadística para ver su explicación detallada:
+        </div>
+        <div class="kpis" style="margin-bottom: 12px;">
+          <div class="kpi clickable" id="kpi-detail-goal" title="Ver explicación de Goles">
+            <span class="k-emoji">⚽</span>
+            <b class="num" style="color: #facc15;">${st.goal || 0}</b>
+            <span>${t('stat_goal')}</span>
+          </div>
+          <div class="kpi clickable" id="kpi-detail-shotOn" title="Ver explicación de Tiros a puerta">
+            <span class="k-emoji">🎯</span>
+            <b class="num" style="color: #06b6d4;">${st.shotOn || 0}</b>
+            <span>${t('stat_shotOn')}</span>
+          </div>
+          <div class="kpi clickable" id="kpi-detail-pass" title="Ver explicación de % de Pase">
+            <span class="k-emoji">👟</span>
+            <b class="num" style="color: #22c55e;">${totPass > 0 ? passPct + '%' : '—'}</b>
+            <span>% Pase (${st.passOk || 0}/${totPass})</span>
+          </div>
+          <div class="kpi clickable" id="kpi-detail-assist" title="Ver explicación de Asistencias">
+            <span class="k-emoji">🅰️</span>
+            <b class="num" style="color: #a855f7;">${st.assist || 0}</b>
+            <span>${t('stat_assist')}</span>
+          </div>
+          <div class="kpi clickable" id="kpi-detail-recovery" title="Ver explicación de Balones recuperados">
+            <span class="k-emoji">🛡️</span>
+            <b class="num" style="color: #3b82f6;">${st.recovery || 0}</b>
+            <span>${t('stat_recovery')}</span>
+          </div>
+          <div class="kpi clickable" id="kpi-detail-loss" title="Ver explicación de Pérdidas de balón">
+            <span class="k-emoji">⚠️</span>
+            <b class="num" style="color: #f87171;">${st.loss || 0}</b>
+            <span>${t('stat_loss')}</span>
+          </div>
+        </div>
+
+        <!-- Mapa táctico de zonas en este partido -->
+        <div class="section-title"><span>Zonas del campo en este partido</span></div>
+        <div class="card" style="margin-bottom: 14px;">
+          ${renderSessionPlayerZonesHeatmapHtml(session, player.id)}
+        </div>
+
+        <div class="btn-row">
+          <button class="btn primary grow" id="btn-match-generate-card">
+            ${icon('medal', 16)} Ficha de Jugador
+          </button>
+          <button class="btn grow" id="btn-match-adjust-data">
+            ${icon('edit', 16)} Ajustar Cifras
+          </button>
+        </div>
+      `;
+
+      // Clic interactivo en cada KPI con explicaciones completas
+      body.querySelector('#kpi-detail-goal').onclick = () => {
+        showKpiExplanationModal('Goles Marcados', `${st.goal || 0} goles`, 'Total de goles anotados por el jugador durante este partido.', 'Cada gol registrado suma automáticamente al marcador del partido y al perfil personal acumulado del jugador.');
+      };
+      body.querySelector('#kpi-detail-shotOn').onclick = () => {
+        showKpiExplanationModal('Tiros a Puerta', `${st.shotOn || 0} tiros`, 'Disparos dirigidos entre los tres palos que exigieron parada o terminaron en gol.', 'Mide la puntería y la capacidad ofensiva directa en el área rival.');
+      };
+      body.querySelector('#kpi-detail-pass').onclick = () => {
+        const explText = totPass > 0 
+          ? `( ${st.passOk || 0} / ${totPass} ) significa que el jugador completó con éxito ${st.passOk || 0} pases de ${totPass} intentos totales en este partido (${st.passOk || 0} pases buenos y ${st.passKo || 0} fallados).`
+          : 'El jugador aún no tiene registros de pases en este partido.';
+        showKpiExplanationModal('% de Pase (Efectividad)', (totPass > 0 ? passPct + '%' : '—'), 'Porcentaje de pases completados con éxito respecto al total de pases intentados.', explText);
+      };
+      body.querySelector('#kpi-detail-assist').onclick = () => {
+        showKpiExplanationModal('Asistencias de Gol', `${st.assist || 0} asistencias`, 'Pases directos que culminaron en un gol anotado por un compañero.', 'Mide la visión de juego y la calidad en el último tercio.');
+      };
+      body.querySelector('#kpi-detail-recovery').onclick = () => {
+        showKpiExplanationModal('Balones Recuperados', `${st.recovery || 0} recuperaciones`, 'Acciones defensivas donde el jugador recuperó la posesión (entradas, robos, intercepciones).', 'Refleja la agresividad táctica y solidez defensiva.');
+      };
+      body.querySelector('#kpi-detail-loss').onclick = () => {
+        showKpiExplanationModal('Pérdidas de Balón', `${st.loss || 0} pérdidas`, 'Pérdidas de posesión en controles erróneos, regates fallidos o pases interceptados.', 'Un menor número de pérdidas refleja seguridad y madurez con el balón.');
+      };
+
+      body.querySelector('#btn-match-generate-card').onclick = () => {
+        closeSheet();
+        showPlayerCardModal(player, session);
+      };
+
+      body.querySelector('#btn-match-adjust-data').onclick = () => {
+        closeSheet();
+        showEditSessionStatsModal(session.id, player.id);
+      };
+    }, (foot) => {
+      foot.innerHTML = `<button class="btn block ghost" id="btn-close-match-detail">Volver al Resumen</button>`;
+      foot.querySelector('#btn-close-match-detail').onclick = () => {
+        closeSheet();
+        showSessionDetailModal(session.id);
+      };
+    }, () => {
+      // Al cerrar con la X del encabezado o al tocar fuera de la hoja
+      showSessionDetailModal(session.id);
+    });
+  }
+
+  function showSessionDetailModal(sessionId) {
+    const s = Store.session(sessionId);
+    if (!s) return;
+
+    const allPlayers = Store.state.players || [];
+    // Determinar equipo de la sesión o de los jugadores seguidos
+    const trackedPlayerIds = new Set([
+      ...Object.keys(s.stats || {}),
+      ...(s.slots || []).filter(Boolean)
+    ]);
+
+    let defaultTeamId = s.teamId || null;
+    if (!defaultTeamId && trackedPlayerIds.size > 0) {
+      for (const pid of trackedPlayerIds) {
+        const p = Store.player(pid);
+        if (p && p.teamId) { defaultTeamId = p.teamId; break; }
+      }
+    }
+
+    let selectedTeamFilter = defaultTeamId || 'all';
+
+    openSheet(Store.sessionTitle(s), (body) => {
+      function renderSquadContent() {
+        const teams = Store.state.teams || [];
+        const filteredPlayers = allPlayers.filter(p => selectedTeamFilter === 'all' || p.teamId === selectedTeamFilter);
+        const sortedSquad = filteredPlayers.slice().sort((a, b) => {
+          const aTracked = trackedPlayerIds.has(a.id) ? 1 : 0;
+          const bTracked = trackedPlayerIds.has(b.id) ? 1 : 0;
+          if (bTracked !== aTracked) return bTracked - aTracked;
+          return (a.name || '').localeCompare(b.name || '');
+        });
+        const trackedCount = sortedSquad.filter(p => trackedPlayerIds.has(p.id)).length;
+
+        // Calcular MVP del partido con volumen de juego
+        let mvpMatchPlayer = null;
+        let mvpMatchRating = 0;
+        if (s.type === 'match' && trackedPlayerIds.size > 0) {
+          allPlayers.forEach(p => {
+            if (trackedPlayerIds.has(p.id)) {
+              const st = (s.stats && s.stats[p.id]) || {};
+              let actCount = 0;
+              Object.keys(st).forEach(k => { actCount += (st[k] || 0); });
+              const r = Store.calculateMatchRating(st, p.mainPosition);
+              if (actCount >= 4 && r > mvpMatchRating) {
+                mvpMatchRating = r;
+                mvpMatchPlayer = p;
+              }
+            }
+          });
+          if (!mvpMatchPlayer) {
+            allPlayers.forEach(p => {
+              if (trackedPlayerIds.has(p.id)) {
+                const st = (s.stats && s.stats[p.id]) || {};
+                let actCount = 0;
+                Object.keys(st).forEach(k => { actCount += (st[k] || 0); });
+                const r = Store.calculateMatchRating(st, p.mainPosition);
+                if (actCount > 0 && r > mvpMatchRating && r >= 5.5) {
+                  mvpMatchRating = r;
+                  mvpMatchPlayer = p;
+                }
+              }
+            });
+          }
+        }
+
+        body.innerHTML = `
+          <!-- Cabecera del partido o entrenamiento -->
+          ${s.type === 'match' ? `
+            <div style="background: linear-gradient(135deg, rgba(250, 204, 21, 0.12), rgba(34, 211, 238, 0.12)); border: 1px solid rgba(250, 204, 21, 0.35); border-radius: 16px; padding: 14px; text-align: center; margin-bottom: 12px;">
+              <span class="badge match" style="font-size: 10.5px; padding: 2px 8px; margin-bottom: 6px;">PARTIDO FINALIZADO</span>
+              <div style="font-size: 34px; font-weight: 900; font-variant-numeric: tabular-nums; margin: 4px 0;">
+                <span>${(s.score && s.score.home) || 0}</span>
+                <span style="color: var(--dim); margin: 0 10px;">:</span>
+                <span>${(s.score && s.score.away) || 0}</span>
+              </div>
+              <div style="font-size: 15px; font-weight: 800; color: var(--text);">
+                ${escapeHtml(Store.sessionTitle(s))}
+              </div>
+              <div class="muted" style="font-size: 12px; margin-top: 4px;">
+                📅 ${formatDateDDMMAAAA(s.date)} • ⏱️ ${Store.fmtTime(Store.elapsed(s), s)} ${s.venue ? '• 📍 ' + escapeHtml(s.venue) : ''}
+              </div>
+            </div>
+
+            ${(mvpMatchPlayer && mvpMatchRating >= 5.5) ? `
+              <div class="mvp-match-banner" id="banner-match-mvp" style="cursor: pointer;" title="Toca para ver ficha de ${escapeHtml(Store.playerName(mvpMatchPlayer))}">
+                <div style="font-size: 26px;">⭐</div>
+                ${renderAvatar(mvpMatchPlayer, 'md')}
+                <div class="grow" style="line-height: 1.2;">
+                  <div style="font-size: 10px; font-weight: 800; color: #facc15; text-transform: uppercase; letter-spacing: 0.5px;">MEJOR JUGADOR DEL PARTIDO • MVP</div>
+                  <div style="font-size: 15px; font-weight: 900; color: #fff;">${escapeHtml(Store.playerName(mvpMatchPlayer))} #${mvpMatchPlayer.mainDorsal || ''}</div>
+                  <div style="font-size: 11.5px; color: var(--muted); margin-top: 2px;">
+                    ${mvpMatchPlayer.mainPosition || 'Jugador'} • Nota: <b style="color: #22c55e;">${mvpMatchRating.toFixed(1)} / 10</b>
+                  </div>
+                </div>
+                <button type="button" class="btn sm ghost" style="color: #facc15; border-color: rgba(250, 204, 21, 0.4); font-size: 11px; padding: 6px 10px;">Ver ficha ></button>
+              </div>
+            ` : ''}
+          ` : `
+            <div class="card" style="margin-bottom: 12px;">
+              <div class="row" style="justify-content: space-between;">
+                <span class="badge training">${t('training').toUpperCase()}</span>
+                <span class="muted">${formatDateDDMMAAAA(s.date)}</span>
+              </div>
+              <div class="meta" style="margin-top: 8px;">
+                <div>⏱️ Tiempo de entrenamiento: <b>${Store.fmtTime(Store.elapsed(s))}</b></div>
+                ${s.venue ? `<div>📍 Lugar: <b>${escapeHtml(s.venue)}</b></div>` : ''}
+              </div>
+            </div>
+          `}
+
+          <!-- Selector de filtro de equipo -->
+          ${teams.length > 0 ? `
+            <div style="margin-bottom: 10px;">
+              <label style="font-size: 11.5px; font-weight: 700; color: var(--muted); margin-bottom: 4px; display: block;">Equipo del partido:</label>
+              <select id="session-team-filter" style="width: 100%; font-weight: 800; font-size: 13.5px; padding: 8px 10px; border-radius: 10px;">
+                <option value="all" ${selectedTeamFilter === 'all' ? 'selected' : ''}>Todos los jugadores (${allPlayers.length})</option>
+                ${teams.map(tm => `
+                  <option value="${tm.id}" ${selectedTeamFilter === tm.id ? 'selected' : ''}>${escapeHtml(tm.name)}</option>
+                `).join('')}
+              </select>
+            </div>
+          ` : ''}
+
+          <!-- Botón de exportación JSON individual -->
+          <div class="row" style="margin-bottom: 12px;">
+            <button class="btn sm block ghost" id="btn-export-single-session-json" style="width: 100%;">
+              ${icon('file', 16)} ${t('exportJSON')} de esta sesión
+            </button>
+          </div>
+
+          <div class="section-title">
+            <span>Plantilla de Jugadores (${trackedCount} seguidos / ${filteredPlayers.length} total)</span>
+          </div>
+          <p class="hint" style="margin-bottom: 10px;">Pulsa en cualquier jugador para consultar su rendimiento específico en este partido:</p>
+
+          <!-- Lista de jugadores con destacados interactivos -->
+          <div style="max-height: 48vh; overflow-y: auto; padding-right: 2px;">
+            ${sortedSquad.length === 0 ? `
+              <div class="empty" style="padding: 16px;">
+                <p>No hay jugadores registrados en el equipo seleccionado.</p>
+              </div>
+            ` : sortedSquad.map(p => {
+              const isTracked = trackedPlayerIds.has(p.id);
+              const pStats = (s.stats && s.stats[p.id]) || {};
+              const rating = Store.calculateMatchRating(pStats, p.mainPosition);
+
+              return `
+                <div class="player-match-row ${isTracked ? 'tracked' : ''}" data-player-id="${p.id}">
+                  ${renderAvatar(p, 'sm')}
+                  <div class="grow ellipsis">
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                      <b style="font-size: 14px;">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(Store.playerName(p))}</b>
+                      ${isTracked ? '<span class="tracked-badge">🟢 Seguido</span>' : ''}
+                    </div>
+                    <small style="color: var(--muted); font-size: 11.5px; display: block; margin-top: 1px;">
+                      ${p.mainPosition || 'Jugador'} ${isTracked ? `• ⭐ ${rating.toFixed(1)} nota` : '• (No registrado / Suplente)'}
+                    </small>
+                  </div>
+                  ${isTracked ? `
+                    <div style="font-size: 12px; font-weight: 800; text-align: right; color: var(--cyan);">
+                      <div>${pStats.goal ? `⚽ ${pStats.goal} ` : ''}${pStats.shotOn ? `🎯 ${pStats.shotOn} ` : ''}</div>
+                      <div style="color: var(--dim); font-size: 11px;">Ver ficha ></div>
+                    </div>
+                  ` : `
+                    <div class="chev" style="opacity: 0.4;">${icon('chevR', 16)}</div>
+                  `}
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `;
+
+        const filterSelect = body.querySelector('#session-team-filter');
+        if (filterSelect) {
+          filterSelect.onchange = (e) => {
+            selectedTeamFilter = e.target.value;
+            renderSquadContent();
+          };
+        }
+
+        const bannerMvp = body.querySelector('#banner-match-mvp');
+        if (bannerMvp && mvpMatchPlayer) {
+          bannerMvp.onclick = () => {
+            showPlayerMatchDetailModal(s, mvpMatchPlayer);
+          };
+        }
+
+        body.querySelector('#btn-export-single-session-json').onclick = () => {
+          IO.exportSessionJSON(s.id);
+        };
+
+        body.querySelectorAll('.player-match-row').forEach(row => {
+          row.onclick = () => {
+            const pid = row.getAttribute('data-player-id');
+            const p = Store.player(pid);
+            if (p) {
+              showPlayerMatchDetailModal(s, p);
+            }
+          };
+        });
+      }
+
+      renderSquadContent();
+    }, (foot) => {
+      foot.innerHTML = `
+        <div class="btn-row">
+          <button class="btn danger" id="btn-del-session">${icon('trash', 16)} ${t('delete')}</button>
+          <button class="btn primary" id="btn-reopen-tracker">${icon('play', 16)} Abrir Tracker</button>
+        </div>
+      `;
+
+      foot.querySelector('#btn-reopen-tracker').onclick = () => {
+        closeSheet();
+        openTracker(s.id);
+      };
+
+      foot.querySelector('#btn-del-session').onclick = () => {
+        confirmDialog(t('delete'), '¿Estás seguro de eliminar esta sesión?', () => {
+          Store.deleteSession(s.id);
+          closeSheet();
+          navigate('history');
+        });
+      };
+    });
+  }
+
+  function showEditSessionStatsModal(sessionId, playerId) {
+    const s = Store.session(sessionId);
+    const p = Store.player(playerId);
+    if (!s || !p) return;
+    const st = s.stats[playerId] || {};
+
+    openSheet(`Ajustar cifras: ${Store.playerName(p, true)}`, (body) => {
+      body.innerHTML = `
+        <div class="edit-grid">
+          ${Store.STATS.map(item => {
+            const count = st[item.key] || 0;
+            return `
+              <div class="edit-row">
+                <span class="e-emoji">${item.emoji}</span>
+                <span class="e-lbl">${item.label}</span>
+                <div class="stepper">
+                  <button type="button" class="btn-step-m" data-k="${item.key}">-</button>
+                  <input type="number" min="0" max="999" class="step-num-input" id="step-val-${item.key}" data-k="${item.key}" value="${count}" inputmode="numeric" />
+                  <button type="button" class="btn-step-p" data-k="${item.key}">+</button>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+
+      body.querySelectorAll('.step-num-input').forEach(inp => {
+        const k = inp.getAttribute('data-k');
+        inp.addEventListener('focus', () => inp.select());
+        inp.addEventListener('input', () => {
+          const val = Math.max(0, parseInt(inp.value, 10) || 0);
+          Store.setCount(s.id, p.id, k, val);
+          st[k] = val;
+        });
+        inp.addEventListener('blur', () => {
+          inp.value = st[k] || 0;
+        });
+      });
+
+      body.querySelectorAll('.btn-step-m').forEach(btn => {
+        btn.onclick = () => {
+          const k = btn.getAttribute('data-k');
+          const cur = st[k] || 0;
+          if (cur > 0) {
+            const next = cur - 1;
+            Store.setCount(s.id, p.id, k, next);
+            st[k] = next;
+            const inp = body.querySelector(`#step-val-${k}`);
+            if (inp) inp.value = next;
+          }
+        };
+      });
+
+      body.querySelectorAll('.btn-step-p').forEach(btn => {
+        btn.onclick = () => {
+          const k = btn.getAttribute('data-k');
+          const cur = st[k] || 0;
+          const next = cur + 1;
+          Store.setCount(s.id, p.id, k, next);
+          st[k] = next;
+          const inp = body.querySelector(`#step-val-${k}`);
+          if (inp) inp.value = next;
+        };
+      });
+    }, (foot) => {
+      foot.innerHTML = `<button class="btn block primary" id="btn-done-edit">${t('saveChanges')}</button>`;
+      foot.querySelector('#btn-done-edit').onclick = () => {
+        closeSheet();
+        showSessionDetailModal(sessionId);
+      };
+    });
+  }
+
+  /* =========================================================
+     VISTA 3: JUGADORES & EQUIPOS
+     ========================================================= */
+  function renderPlayersView(view) {
+    function build() {
+      let players = Store.sortedPlayers(playerListTeam);
+      if (playerListSearch) {
+        const q = playerListSearch.toLowerCase();
+        players = players.filter(p => {
+          const name = Store.playerName(p).toLowerCase();
+          const dorsal = p.mainDorsal != null ? String(p.mainDorsal) : '';
+          return name.includes(q) || dorsal.includes(q);
+        });
+      }
+
+      view.innerHTML = `
+        <div class="topbar">
+          <div>
+            <h1>${t('playerSquad')}</h1>
+            <span class="sub">${Store.state.players.length} ${t('totalPlayersSuffix')}</span>
+          </div>
+          <div class="row">
+            <button class="icon-btn" id="btn-manage-teams" title="${t('manageTeams')}">${icon('shield', 20)}</button>
+            <button class="icon-btn" id="btn-import-players" title="${t('importPlayers')}">${icon('upload', 20)}</button>
+          </div>
+        </div>
+
+        <div class="search">
+          <input type="text" id="player-search-bar" placeholder="${t('searchPlayerPlaceholder')}" value="${escapeHtml(playerListSearch)}" />
+          ${icon('search', 18)}
+        </div>
+
+        <div class="chips" id="team-filter-chips" style="margin-bottom: 12px;">
+          <button class="chip ${playerListTeam === 'all' ? 'active' : ''}" data-t="all">${t('all')}</button>
+          ${Store.state.teams.map(t => `
+            <button class="chip ${playerListTeam === t.id ? 'active' : ''}" data-t="${t.id}">
+              <span class="dot" style="background: ${t.color}"></span>
+              ${escapeHtml(t.name)}
+            </button>
+          `).join('')}
+          <button class="chip ghost" id="btn-manage-teams-chip" style="border-style: dashed;" title="${t('manageTeams')}">
+            ${icon('sliders', 14)} ${t('teams')}
+          </button>
+        </div>
+
+        <div id="players-list-container">
+          ${players.length === 0 ? `
+            <div class="empty">
+              <div class="big">👤</div>
+              <h3>${t('noPlayersTitle')}</h3>
+              <p>${t('noPlayersDesc')}</p>
+            </div>
+          ` : players.map(p => {
+            const team = Store.team(p.teamId);
+            return `
+              <div class="player-item" data-id="${p.id}">
+                ${renderAvatar(p)}
+                <div class="grow ellipsis">
+                  <h4>${escapeHtml(Store.playerName(p))}</h4>
+                  <div class="meta">
+                    <span class="pos-tag">${p.mainPosition || 'Jugador'}</span>
+                    <span>•</span>
+                    <span>${getPlayerFootLabel(p.foot)}</span>
+                    ${team ? `<span>•</span><span style="color: ${team.color}; font-weight: 700;">${escapeHtml(team.name)}</span>` : ''}
+                  </div>
+                </div>
+                ${icon('chevR', 18, 'dim')}
+              </div>
+            `;
+          }).join('')}
+        </div>
+
+        <button class="fab" id="btn-add-player-fab" title="${t('newPlayer')}">
+          ${icon('plus', 26)}
+        </button>
+      `;
+
+      const search = view.querySelector('#player-search-bar');
+      search.oninput = (e) => {
+        playerListSearch = e.target.value;
+        build();
+      };
+
+      view.querySelectorAll('#team-filter-chips .chip[data-t]').forEach(c => {
+        c.onclick = () => {
+          playerListTeam = c.getAttribute('data-t');
+          build();
+        };
+      });
+
+      const btnTeamsChip = view.querySelector('#btn-manage-teams-chip');
+      if (btnTeamsChip) btnTeamsChip.onclick = () => showManageTeamsModal(() => build());
+
+      const btnTeamsTop = view.querySelector('#btn-manage-teams');
+      if (btnTeamsTop) btnTeamsTop.onclick = () => showManageTeamsModal(() => build());
+
+      view.querySelectorAll('.player-item').forEach(el => {
+        el.onclick = () => {
+          const pid = el.getAttribute('data-id');
+          showPlayerProfileModal(pid);
+        };
+      });
+
+      view.querySelector('#btn-add-player-fab').onclick = () => {
+        showEditPlayerModal(null, () => build());
+      };
+
+      view.querySelector('#btn-import-players').onclick = () => {
+        showImportModal(() => build());
+      };
+    }
+
+    build();
+  }
+
+  function showPlayerProfileModal(playerId) {
+    const p = Store.player(playerId);
+    if (!p) return;
+    const team = Store.team(p.teamId);
+
+    const aggAll = Store.playerAggregate(p.id, Store.state.sessions);
+    const aggTraining = Store.playerAggregate(p.id, Store.filterSessions('training', 'all'));
+    const aggMatch = Store.playerAggregate(p.id, Store.filterSessions('match', 'all'));
+
+    const matchRating = Store.calculateMatchRating(aggAll.totals, p.mainPosition);
+    const playerRadar = Store.calculatePlayerRadar(p.id);
+    const playerTimeline = Store.playerTimeline(p.id, 'rating');
+
+    // Estadísticas porcentuales clave
+    const passOk = aggAll.totals.passOk || 0;
+    const passKo = aggAll.totals.passKo || 0;
+    const totalPass = passOk + passKo;
+    const passPct = totalPass > 0 ? Math.round((passOk / totalPass) * 100) : 0;
+
+    const shotOn = aggAll.totals.shotOn || 0;
+    const shotOff = aggAll.totals.shotOff || 0;
+    const totalShots = shotOn + shotOff;
+    const shotPct = totalShots > 0 ? Math.round((shotOn / totalShots) * 100) : 0;
+
+    const totalGoals = aggAll.totals.goal || 0;
+    const convPct = totalShots > 0 ? Math.round((totalGoals / totalShots) * 100) : (totalGoals > 0 ? 100 : 0);
+
+    const isEn = (Store.state.settings && Store.state.settings.lang === 'en');
+    const footText = getPlayerFootLabel(p.foot);
+
+    openSheet(Store.playerName(p), (body) => {
+      body.innerHTML = `
+        <div class="p-hero">
+          ${renderAvatar(p, 'lg')}
+          <div class="grow">
+            <h2>${escapeHtml(Store.playerName(p))}</h2>
+            <div class="meta">
+              <span class="pos-tag">${p.mainPosition || 'Jugador'}</span>
+              <span>#${p.mainDorsal != null ? p.mainDorsal : '—'}</span>
+              <span>${footText}</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px; margin-top: 5px; flex-wrap: wrap;">
+              ${team ? `<span class="badge" style="background: ${team.color}25; color: ${team.color}; border: 1px solid ${team.color}60; font-weight: 800;">🛡️ ${escapeHtml(team.name)}</span>` : `<span class="badge" style="background: var(--surface2); color: var(--muted);">⚪ ${t('unassignedTeam')}</span>`}
+              <button type="button" class="btn sm ghost" id="btn-reassign-team-profile" style="padding: 2px 8px; font-size: 11.5px; height: auto;" title="${t('reassignTeam')}">
+                ${icon('edit', 12)} ${t('reassignTeam')}
+              </button>
+            </div>
+            <div style="margin-top: 6px;">
+              <span class="rating-pill">⭐ ${matchRating.toFixed(1)} ${t('matchRating')}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Botones de Acción de este Jugador -->
+        <div class="btn-row" style="margin-bottom: 8px;">
+          <button class="btn sm primary grow" id="btn-player-add-manual-data">
+            ${icon('plus', 16)} ${t('addDataManually')}
+          </button>
+          <button class="btn sm grow" id="btn-player-export-json">
+            ${icon('file', 16)} ${t('exportJSON')}
+          </button>
+        </div>
+
+        <!-- Accesos directos a Comparador H2H y Ficha de Partido -->
+        <div class="btn-row" style="margin-bottom: 14px;">
+          <button class="btn sm ghost grow" id="btn-player-h2h">
+            ${icon('compare', 16)} ${t('headToHead')}
+          </button>
+          <button class="btn sm ghost grow" id="btn-player-match-card">
+            ${icon('medal', 16)} ${t('playerCard')}
+          </button>
+        </div>
+
+        <!-- Estadísticas clave en porcentaje: % Pase, % Puntería, % Conversión -->
+        <div class="rings" style="margin-bottom: 12px;">
+          <div class="ring-card">
+            <div class="ring">
+              ${renderProgressRing(passPct, '#22c55e')}
+              <span class="r-val" style="color: #22c55e;">${passPct}%</span>
+            </div>
+            <span>${t('passAccuracy')}</span>
+            <small>${passOk}/${totalPass}</small>
+          </div>
+
+          <div class="ring-card">
+            <div class="ring">
+              ${renderProgressRing(shotPct, '#06b6d4')}
+              <span class="r-val" style="color: #06b6d4;">${shotPct}%</span>
+            </div>
+            <span>${t('shotAccuracy')}</span>
+            <small>${shotOn}/${totalShots}</small>
+          </div>
+
+          <div class="ring-card">
+            <div class="ring">
+              ${renderProgressRing(Math.min(100, convPct), '#facc15')}
+              <span class="r-val" style="color: #facc15;">${convPct}%</span>
+            </div>
+            <span>${t('goalConversion')}</span>
+            <small>${totalGoals} ${t('stat_goal')}</small>
+          </div>
+        </div>
+
+        <!-- Radar de Habilidades (Spider Chart de 5 cualidades deportivas) -->
+        <div class="section-title"><span>${t('skillRadar')}</span></div>
+        <div class="radar-container card" style="margin-bottom: 12px;">
+          ${renderRadarSVG(playerRadar)}
+        </div>
+
+        <!-- Cuadro de Información Aparte para Disciplina y Fair Play -->
+        <div class="discipline-card" id="btn-profile-discipline" style="cursor: pointer;" title="${t('adjustDiscipline')}">
+          <div class="discipline-score">${playerRadar.dis || 100}</div>
+          <div class="grow" style="text-align: left;">
+            <div style="font-size: 13.5px; font-weight: 800; color: var(--text);">
+              🧠 ${t('disciplineFairPlay')} (${playerRadar.dis || 100} / 99)
+            </div>
+            <div style="font-size: 11.5px; color: var(--muted); margin-top: 2px;">
+              ${(aggAll.totals.yellow || 0) === 0 && (aggAll.totals.red || 0) === 0 
+                ? (isEn ? 'Exemplary conduct • No cards accumulated' : 'Conducta ejemplar • Sin tarjetas acumuladas') 
+                : (isEn ? `Accumulated cards: 🟨 ${aggAll.totals.yellow || 0} • 🟥 ${aggAll.totals.red || 0}` : `Tarjetas acumuladas: 🟨 ${aggAll.totals.yellow || 0} • 🟥 ${aggAll.totals.red || 0}`)}
+            </div>
+          </div>
+          <div class="chev" style="opacity: 0.8; color: #22c55e;">${icon('edit', 16)}</div>
+        </div>
+
+        <div class="kpis" style="margin-bottom: 14px;">
+          <div class="kpi">
+            <span class="k-emoji">⚽</span>
+            <b class="num">${aggAll.totals.touches || 0}</b>
+            <span>${t('stat_touches')}</span>
+          </div>
+          <div class="kpi">
+            <span class="k-emoji">🅰️</span>
+            <b class="num" style="color: #a855f7;">${aggAll.totals.assist || 0}</b>
+            <span>${t('stat_assist')}</span>
+          </div>
+          <div class="kpi">
+            <span class="k-emoji">🛡️</span>
+            <b class="num" style="color: #3b82f6;">${aggAll.totals.recovery || 0}</b>
+            <span>${t('stat_recovery')}</span>
+          </div>
+        </div>
+
+        <!-- Zonas del campo táctico (Heatmap) -->
+        <div class="section-title"><span>${t('pitchZones')} (Puntos Calientes)</span></div>
+        <div class="card" style="margin-bottom: 14px; text-align: center;">
+          ${renderPlayerPitchHeatmapHtml(p.id)}
+        </div>
+
+        <!-- Evolución Temporal / Curva de Progreso -->
+        <div class="section-title"><span>${t('evolution')} (Nota de Rendimiento)</span></div>
+        <div class="card" style="margin-bottom: 14px; text-align: center;">
+          ${renderTimelineSVG(playerTimeline)}
+        </div>
+
+        <div class="section-title"><span>Desglose por tipo</span></div>
+
+        <table class="stat-table card">
+          <thead>
+            <tr>
+              <th>Acción</th>
+              <th class="tr">${t('training')}</th>
+              <th class="mt">${t('match')}</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${Store.STATS.map(x => {
+              const tr = aggTraining.totals[x.key] || 0;
+              const mt = aggMatch.totals[x.key] || 0;
+              const tot = aggAll.totals[x.key] || 0;
+              if (tot === 0) return '';
+              return `
+                <tr>
+                  <td><span class="e">${x.emoji}</span>${x.short}</td>
+                  <td class="tr">${tr}</td>
+                  <td class="mt">${mt}</td>
+                  <td><b>${tot}</b></td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+
+        <div class="section-title" style="margin-top: 18px;">
+          <span>Sesiones con registro (${aggAll.count})</span>
+        </div>
+
+        ${aggAll.sessions.slice(-5).reverse().map(item => `
+          <div class="session-line">
+            <div class="sl-head">
+              <span class="badge ${item.session.type}">${item.session.type === 'match' ? t('match') : t('training')}</span>
+              <b>${escapeHtml(Store.sessionTitle(item.session))}</b>
+              <span class="muted" style="font-size: 11px;">${item.session.date}</span>
+            </div>
+            <div class="mini-stats">
+              ${Store.STATS.filter(x => (item.stats[x.key] || 0) > 0).map(x => `
+                <span>${x.emoji} ${x.short}: <b>${item.stats[x.key]}</b></span>
+              `).join('')}
+            </div>
+          </div>
+        `).join('')}
+      `;
+
+      // Añadir datos manuales
+      body.querySelector('#btn-player-add-manual-data').onclick = () => {
+        showAddManualDataModal(p, () => {
+          closeSheet();
+          showPlayerProfileModal(p.id);
+        });
+      };
+
+      // Exportar en JSON
+      body.querySelector('#btn-player-export-json').onclick = () => {
+        IO.exportPlayerJSON(p.id);
+      };
+
+      // Cambiar de Equipo directamente desde el perfil
+      const btnReassign = body.querySelector('#btn-reassign-team-profile');
+      if (btnReassign) {
+        btnReassign.onclick = () => {
+          showQuickAssignTeamModal(p, () => {
+            closeSheet();
+            showPlayerProfileModal(p.id);
+          });
+        };
+      }
+
+      // Comparador Cara a Cara
+      body.querySelector('#btn-player-h2h').onclick = () => {
+        closeSheet();
+        showHeadToHeadModal(p.id, null);
+      };
+
+      // Ficha de Jugador
+      body.querySelector('#btn-player-match-card').onclick = () => {
+        closeSheet();
+        showPlayerCardModal(p, aggAll.sessions.length ? aggAll.sessions[aggAll.sessions.length - 1].session : null);
+      };
+
+      // Clic en la tarjeta de Disciplina -> Abrir modal para ajustar puntuación base
+      const btnDisProfile = body.querySelector('#btn-profile-discipline');
+      if (btnDisProfile) {
+        btnDisProfile.onclick = () => {
+          showEditDisciplineModal(p, () => {
+            closeSheet();
+            showPlayerProfileModal(p.id);
+          });
+        };
+      }
+
+      // Clic interactivo en cualquier habilidad del radar
+      body.querySelectorAll('[data-skill]').forEach(el => {
+        el.onclick = () => {
+          const sk = el.getAttribute('data-skill');
+          const val = el.getAttribute('data-val');
+          showSkillDetailModal(sk, val);
+        };
+      });
+    }, (foot) => {
+      foot.innerHTML = `
+        <div class="btn-row">
+          <button class="btn" id="btn-edit-p-profile">${icon('edit', 16)} ${t('editPlayer')}</button>
+          <button class="btn danger" id="btn-del-p-profile">${icon('trash', 16)}</button>
+        </div>
+      `;
+
+      foot.querySelector('#btn-edit-p-profile').onclick = () => {
+        closeSheet();
+        showEditPlayerModal(p, () => navigate('players'));
+      };
+
+      foot.querySelector('#btn-del-p-profile').onclick = () => {
+        confirmDialog(t('deletePlayer'), `${t('confirmDeletePlayer')} (${Store.playerName(p)})`, () => {
+          Store.deletePlayer(p.id);
+          closeSheet();
+          navigate('players');
+        });
+      };
+    });
+  }
+
+  /* =========================================================
+     MODAL PARA AÑADIR DATOS MANUALMENTE A UN JUGADOR
+     ========================================================= */
+  function showAddManualDataModal(player, onDone) {
+    let sessType = 'match';
+    const counts = {};
+    Store.STATS.forEach(s => { counts[s.key] = 0; });
+
+    openSheet(`${t('addDataManually')}: ${Store.playerName(player, true)}`, (body) => {
+      body.innerHTML = `
+        <p class="hint" style="margin-bottom: 12px;">${t('manualDataDesc')}</p>
+
+        <div class="type-pick">
+          <button type="button" class="" id="man-training">
+            <span>⚽</span><b>${t('training')}</b>
+          </button>
+          <button type="button" class="active match" id="man-match">
+            <span>🏆</span><b>${t('match')}</b>
+          </button>
+        </div>
+
+        ${renderDatePickerFieldHtml('man-date', new Date().toISOString().slice(0, 10), t('date'))}
+        <div class="field">
+          <label>Minutos jugados (aprox)</label>
+          <input type="number" id="man-mins" value="45" />
+        </div>
+
+        <div class="field" id="man-rival-field">
+          <label>${t('rivalTeam')}</label>
+          <input type="text" id="man-rival" placeholder="${t('rivalPlaceholder')}" />
+        </div>
+
+        <div class="section-title"><span>Cifras acumuladas</span></div>
+
+        <div class="edit-grid" style="max-height: 40vh; overflow-y: auto;">
+          ${Store.STATS.map(item => `
+            <div class="edit-row">
+              <span class="e-emoji">${item.emoji}</span>
+              <span class="e-lbl">${item.label}</span>
+              <div class="stepper">
+                <button type="button" class="btn-m-step" data-k="${item.key}">-</button>
+                <input type="number" min="0" max="999" class="step-num-input" id="m-val-${item.key}" data-k="${item.key}" value="0" inputmode="numeric" />
+                <button type="button" class="btn-p-step" data-k="${item.key}">+</button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+
+      const bTr = body.querySelector('#man-training');
+      const bMt = body.querySelector('#man-match');
+      const fRiv = body.querySelector('#man-rival-field');
+
+      bTr.onclick = () => {
+        sessType = 'training';
+        bTr.className = 'active training';
+        bMt.className = '';
+        fRiv.style.display = 'none';
+      };
+      bMt.onclick = () => {
+        sessType = 'match';
+        bMt.className = 'active match';
+        bTr.className = '';
+        fRiv.style.display = '';
+      };
+
+      body.querySelectorAll('.step-num-input').forEach(inp => {
+        const k = inp.getAttribute('data-k');
+        inp.addEventListener('focus', () => inp.select());
+        inp.addEventListener('input', () => {
+          const val = Math.max(0, parseInt(inp.value, 10) || 0);
+          counts[k] = val;
+        });
+        inp.addEventListener('blur', () => {
+          inp.value = counts[k] || 0;
+        });
+      });
+
+      body.querySelectorAll('.btn-m-step').forEach(btn => {
+        btn.onclick = () => {
+          const k = btn.getAttribute('data-k');
+          if (counts[k] > 0) {
+            counts[k]--;
+            const inp = body.querySelector(`#m-val-${k}`);
+            if (inp) inp.value = counts[k];
+          }
+        };
+      });
+
+      body.querySelectorAll('.btn-p-step').forEach(btn => {
+        btn.onclick = () => {
+          const k = btn.getAttribute('data-k');
+          counts[k]++;
+          const inp = body.querySelector(`#m-val-${k}`);
+          if (inp) inp.value = counts[k];
+        };
+      });
+
+      bindDatePickerField('man-date', body);
+    }, (foot) => {
+      foot.innerHTML = `
+        <div class="btn-row">
+          <button class="btn" id="btn-cancel-man">${t('cancel')}</button>
+          <button class="btn primary" id="btn-save-man">${t('saveChanges')}</button>
+        </div>
+      `;
+
+      foot.querySelector('#btn-cancel-man').onclick = closeSheet;
+
+      foot.querySelector('#btn-save-man').onclick = () => {
+        const textInp = document.getElementById('man-date-text');
+        const hiddenInp = document.getElementById('man-date');
+        if (textInp && hiddenInp) {
+          const parsed = parseInputDateToIso(textInp.value);
+          if (parsed) hiddenInp.value = parsed;
+        }
+        const date = hiddenInp ? hiddenInp.value : new Date().toISOString().slice(0, 10);
+        const mins = parseInt(document.getElementById('man-mins').value, 10) || 0;
+        const rival = document.getElementById('man-rival').value.trim();
+
+        Store.addManualPlayerSession(player.id, {
+          type: sessType,
+          date,
+          minutes: mins,
+          rival
+        }, counts);
+
+        toast(t('savedSuccess'), 'success');
+        closeSheet();
+        if (onDone) onDone();
+      };
+    });
+  }
+
+  /* Modal de creación/edición de jugador */
+  function showEditPlayerModal(player, onSaved) {
+    const isEdit = !!player;
+    let photoData = player ? player.photo || '' : '';
+
+    openSheet(isEdit ? t('editPlayer') : t('newPlayer'), (body) => {
+      body.innerHTML = `
+        <div class="photo-pick">
+          <div class="avatar lg" id="photo-preview">
+            ${photoData ? `<img src="${photoData}" alt="" />` : `<span>${isEdit ? (player.name[0] || 'J') : '+'}</span>`}
+            <div class="cam">${icon('camera', 16)}</div>
+          </div>
+          <input type="file" id="photo-input" accept="image/*" style="display: none;" />
+          <span class="hint">${t('tapToChangePhoto')}</span>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label>${t('firstName')}</label>
+            <input type="text" id="p-name" value="${isEdit ? escapeHtml(player.name) : ''}" placeholder="Ej. Carlos" />
+          </div>
+          <div class="field">
+            <label>${t('lastName')}</label>
+            <input type="text" id="p-lastname" value="${isEdit ? escapeHtml(player.lastName) : ''}" placeholder="Ej. Gómez" />
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label>${t('mainDorsal')}</label>
+            <input type="number" id="p-dorsal" value="${isEdit && player.mainDorsal != null ? player.mainDorsal : ''}" placeholder="10" />
+          </div>
+          <div class="field">
+            <label>${t('position')}</label>
+            <select id="p-pos">
+              ${Store.POSITIONS.map(pos => `
+                <option value="${pos.v}" ${isEdit && player.mainPosition === pos.v ? 'selected' : ''}>
+                  ${pos.v} - ${pos.l}
+                </option>
+              `).join('')}
+            </select>
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label>${t('foot')}</label>
+            <select id="p-foot">
+              <option value="Diestro" ${isEdit && player.foot === 'Diestro' ? 'selected' : ''}>${t('footRight')}</option>
+              <option value="Zurdo" ${isEdit && player.foot === 'Zurdo' ? 'selected' : ''}>${t('footLeft')}</option>
+              <option value="Ambidiestro" ${isEdit && player.foot === 'Ambidiestro' ? 'selected' : ''}>${t('footBoth')}</option>
+            </select>
+          </div>
+          <div class="field">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <label>${t('team')}</label>
+              <button type="button" class="btn sm ghost" id="btn-player-new-team-quick" style="padding: 1px 6px; font-size: 11px; height: auto;">+ ${t('newTeam')}</button>
+            </div>
+            <select id="p-team">
+              <option value="">${t('unassignedTeam')}</option>
+              ${Store.state.teams.map(t => `
+                <option value="${t.id}" ${isEdit && player.teamId === t.id ? 'selected' : ''}>${escapeHtml(t.name)}</option>
+              `).join('')}
+            </select>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>${t('nickname')}</label>
+          <input type="text" id="p-nick" value="${isEdit ? escapeHtml(player.nickname || '') : ''}" placeholder="Carlitos" />
+        </div>
+      `;
+
+      const btnNewTeam = body.querySelector('#btn-player-new-team-quick');
+      if (btnNewTeam) {
+        btnNewTeam.onclick = () => {
+          showEditTeamModal(null, (newTeam) => {
+            const teamSelect = document.getElementById('p-team');
+            if (teamSelect && newTeam) {
+              const opt = document.createElement('option');
+              opt.value = newTeam.id;
+              opt.textContent = newTeam.name;
+              opt.selected = true;
+              teamSelect.appendChild(opt);
+            }
+          });
+        };
+      }
+
+      const photoPreview = body.querySelector('#photo-preview');
+      const photoInput = body.querySelector('#photo-input');
+      photoPreview.onclick = () => photoInput.click();
+
+      photoInput.onchange = async () => {
+        if (!photoInput.files || !photoInput.files[0]) return;
+        const file = photoInput.files[0];
+        const dataUrl = await IO.readFileDataURL(file);
+        const shrunken = await IO.shrinkPhoto(dataUrl, 180);
+        photoData = shrunken;
+        photoPreview.innerHTML = `<img src="${shrunken}" alt="" /><div class="cam">${icon('camera', 16)}</div>`;
+      };
+    }, (foot) => {
+      foot.innerHTML = `
+        <button class="btn block primary" id="btn-save-player">
+          ${isEdit ? t('saveChanges') : t('createPlayer')}
+        </button>
+      `;
+
+      foot.querySelector('#btn-save-player').onclick = () => {
+        const name = document.getElementById('p-name').value.trim();
+        const lastName = document.getElementById('p-lastname').value.trim();
+        const dorsalStr = document.getElementById('p-dorsal').value.trim();
+        const mainPosition = document.getElementById('p-pos').value;
+        const foot = document.getElementById('p-foot').value;
+        const teamId = document.getElementById('p-team').value;
+        const nickname = document.getElementById('p-nick').value.trim();
+
+        if (!name && !nickname) {
+          toast('Introduce al menos el nombre o apodo', 'error');
+          return;
+        }
+
+        const mainDorsal = dorsalStr ? parseInt(dorsalStr, 10) : null;
+
+        const saved = Store.upsertPlayer({
+          id: isEdit ? player.id : null,
+          name,
+          lastName,
+          nickname,
+          mainDorsal,
+          mainPosition,
+          foot,
+          teamId,
+          photo: photoData
+        });
+
+        closeSheet();
+        toast(t('savedSuccess'), 'success');
+        if (onSaved) onSaved(saved);
+      };
+    });
+  }
+
+  /* =========================================================
+     MODAL DE GESTIÓN DE EQUIPOS (CREAR, EDITAR Y REASIGNAR)
+     ========================================================= */
+  function showManageTeamsModal(onDone) {
+    openSheet(t('manageTeams'), (body) => {
+      function renderList() {
+        const teams = Store.state.teams || [];
+        const players = Store.state.players || [];
+
+        body.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <span class="hint">${teams.length} ${teams.length === 1 ? 'equipo registrado' : 'equipos registrados'}</span>
+            <button class="btn sm primary" id="btn-modal-create-team">
+              ${icon('plus', 16)} ${t('newTeam')}
+            </button>
+          </div>
+
+          <div class="menu-list" style="margin-bottom: 14px;">
+            ${teams.length === 0 ? `
+              <div style="text-align: center; padding: 24px 10px; color: var(--muted);">
+                <div style="font-size: 28px; margin-bottom: 6px;">🛡️</div>
+                <b>No hay equipos creados</b>
+                <p style="font-size: 12px; margin-top: 4px;">Crea tu primer equipo para organizar tu plantilla.</p>
+              </div>
+            ` : teams.map(tm => {
+              const memberCount = players.filter(p => p.teamId === tm.id).length;
+              return `
+                <div class="team-row" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 8px;">
+                  <div style="display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0;">
+                    <span style="width: 18px; height: 18px; border-radius: 50%; background: ${tm.color || '#22c55e'}; flex-shrink: 0; box-shadow: 0 0 8px ${tm.color || '#22c55e'}60;"></span>
+                    <div style="min-width: 0;">
+                      <b style="display: block; font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(tm.name)}</b>
+                      <small style="color: var(--muted); font-size: 12px;">${memberCount} jugadores asignados${tm.shortName ? ' • ' + escapeHtml(tm.shortName) : ''}</small>
+                    </div>
+                  </div>
+                  <div style="display: flex; gap: 6px; flex-shrink: 0;">
+                    <button class="icon-btn sm" data-edit-team="${tm.id}" title="${t('editTeam')}">${icon('edit', 16)}</button>
+                    <button class="icon-btn sm danger" data-del-team="${tm.id}" title="${t('deleteTeam')}">${icon('trash', 16)}</button>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `;
+
+        body.querySelector('#btn-modal-create-team').onclick = () => {
+          showEditTeamModal(null, () => renderList());
+        };
+
+        body.querySelectorAll('[data-edit-team]').forEach(btn => {
+          btn.onclick = () => {
+            const tid = btn.getAttribute('data-edit-team');
+            const tm = Store.team(tid);
+            if (tm) showEditTeamModal(tm, () => renderList());
+          };
+        });
+
+        body.querySelectorAll('[data-del-team]').forEach(btn => {
+          btn.onclick = () => {
+            const tid = btn.getAttribute('data-del-team');
+            const tm = Store.team(tid);
+            if (tm) {
+              confirmDialog(t('deleteTeam'), `${t('confirmDeleteTeam')} (${tm.name})`, () => {
+                Store.deleteTeam(tid);
+                renderList();
+                if (onDone) onDone();
+              });
+            }
+          };
+        });
+      }
+
+      renderList();
+    }, (foot) => {
+      foot.innerHTML = `<button class="btn block ghost" id="btn-close-manage-teams">${t('cancel')}</button>`;
+      foot.querySelector('#btn-close-manage-teams').onclick = () => {
+        closeSheet();
+        if (onDone) onDone();
+      };
+    });
+  }
+
+  /* =========================================================
+     MODAL DE CREAR / EDITAR EQUIPO Y ASIGNAR JUGADORES
+     ========================================================= */
+  function showEditTeamModal(team, onSaved) {
+    const isEdit = !!team;
+    const tData = Object.assign({
+      name: '',
+      shortName: '',
+      color: '#10b981'
+    }, team || {});
+
+    const COLOR_PALETTE = [
+      '#10b981', '#3b82f6', '#ef4444', '#f59e0b', '#8b5cf6',
+      '#06b6d4', '#ec4899', '#f97316', '#64748b', '#14b8a6',
+      '#84cc16', '#e11d48'
+    ];
+
+    let selectedColor = tData.color || '#10b981';
+    const allPlayers = Store.sortedPlayers();
+    const assignedPlayerIds = new Set(
+      isEdit ? allPlayers.filter(p => p.teamId === team.id).map(p => p.id) : []
+    );
+
+    openSheet(isEdit ? t('editTeam') : t('newTeam'), (body) => {
+      function render() {
+        body.innerHTML = `
+          <div class="field">
+            <label>${t('teamName')} *</label>
+            <input type="text" id="team-input-name" placeholder="${t('teamNamePlaceholder')}" value="${escapeHtml(tData.name)}" />
+          </div>
+
+          <div class="field">
+            <label>${t('teamShortName')}</label>
+            <input type="text" id="team-input-short" placeholder="Ej. U12, CADETE, SENIOR" value="${escapeHtml(tData.shortName || '')}" />
+          </div>
+
+          <div class="field">
+            <label>${t('teamColor')}</label>
+            <div class="color-swatches" id="team-color-swatches" style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px;">
+              ${COLOR_PALETTE.map(c => `
+                <button type="button" data-col="${c}" style="width: 32px; height: 32px; border-radius: 50%; background: ${c}; border: 3px solid ${selectedColor === c ? '#fff' : 'transparent'}; box-shadow: ${selectedColor === c ? '0 0 8px ' + c : 'none'}; cursor: pointer;"></button>
+              `).join('')}
+            </div>
+          </div>
+
+          <div class="section-title" style="margin-top: 14px;">
+            <span>${t('assignedPlayers')} (${assignedPlayerIds.size})</span>
+          </div>
+          <p class="hint" style="margin-bottom: 8px;">${t('assignPlayersHint')}</p>
+
+          <div class="card" style="max-height: 35vh; overflow-y: auto; padding: 4px 10px;">
+            ${allPlayers.length === 0 ? `
+              <div style="text-align: center; padding: 15px; color: var(--muted);">No hay jugadores en la plantilla</div>
+            ` : allPlayers.map(p => {
+              const isAssigned = assignedPlayerIds.has(p.id);
+              const curTeam = Store.team(p.teamId);
+              return `
+                <div class="conv-player-row" data-toggle-pid="${p.id}" style="cursor: pointer; user-select: none;">
+                  ${renderAvatar(p, 'sm')}
+                  <div class="conv-player-name ellipsis">
+                    <b>#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(Store.playerName(p))}</b>
+                    <small style="display: block; color: var(--muted); font-size: 11px;">
+                      ${curTeam && curTeam.id !== (team ? team.id : '') ? `Equipo actual: <span style="color:${curTeam.color}; font-weight:700;">${escapeHtml(curTeam.name)}</span>` : (p.mainPosition || 'Jugador')}
+                    </small>
+                  </div>
+                  <div style="font-size: 18px;">
+                    ${isAssigned ? '✅' : '⚪'}
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `;
+
+        body.querySelectorAll('#team-color-swatches button').forEach(b => {
+          b.onclick = () => {
+            selectedColor = b.getAttribute('data-col');
+            tData.name = document.getElementById('team-input-name').value;
+            tData.shortName = document.getElementById('team-input-short').value;
+            render();
+          };
+        });
+
+        body.querySelectorAll('[data-toggle-pid]').forEach(row => {
+          row.onclick = () => {
+            const pid = row.getAttribute('data-toggle-pid');
+            if (assignedPlayerIds.has(pid)) {
+              assignedPlayerIds.delete(pid);
+            } else {
+              assignedPlayerIds.add(pid);
+            }
+            haptic(15);
+            tData.name = document.getElementById('team-input-name').value;
+            tData.shortName = document.getElementById('team-input-short').value;
+            render();
+          };
+        });
+      }
+
+      render();
+    }, (foot) => {
+      foot.innerHTML = `
+        <div class="btn-row">
+          <button class="btn ghost grow" id="btn-cancel-team-edit">${t('cancel')}</button>
+          <button class="btn primary grow" id="btn-save-team-edit">${t('saveChanges')}</button>
+        </div>
+      `;
+
+      foot.querySelector('#btn-cancel-team-edit').onclick = closeSheet;
+
+      foot.querySelector('#btn-save-team-edit').onclick = () => {
+        const name = document.getElementById('team-input-name').value.trim();
+        const shortName = document.getElementById('team-input-short').value.trim();
+
+        if (!name) {
+          toast('El nombre del equipo es obligatorio', 'error');
+          return;
+        }
+
+        const savedTeam = Store.upsertTeam({
+          id: isEdit ? team.id : null,
+          name,
+          shortName,
+          color: selectedColor
+        });
+
+        // Actualizar la asignación de jugadores en lote
+        Store.state.players.forEach(p => {
+          if (assignedPlayerIds.has(p.id)) {
+            p.teamId = savedTeam.id;
+          } else if (isEdit && p.teamId === savedTeam.id) {
+            p.teamId = '';
+          }
+        });
+        Store.save();
+
+        toast(t('savedSuccess'), 'success');
+        closeSheet();
+        if (onSaved) onSaved(savedTeam);
+      };
+    });
+  }
+
+  /* =========================================================
+     MODAL DE REASIGNACIÓN RÁPIDA DE EQUIPO PARA UN JUGADOR
+     ========================================================= */
+  function showQuickAssignTeamModal(player, onDone) {
+    openSheet(`${t('reassignTeam')}: ${Store.playerName(player, true)}`, (body) => {
+      const teams = Store.state.teams || [];
+      body.innerHTML = `
+        <p class="hint" style="margin-bottom: 10px;">Selecciona el equipo al que pertenece este jugador:</p>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <button class="btn block ${!player.teamId ? 'primary' : 'ghost'}" data-tid="" style="text-align: left; font-size: 14px;">
+            ⚪ ${t('unassignedTeam')}
+          </button>
+          ${teams.map(tm => `
+            <button class="btn block ${player.teamId === tm.id ? 'primary' : 'ghost'}" data-tid="${tm.id}" style="text-align: left; display: flex; align-items: center; gap: 10px; font-size: 14px;">
+              <span style="width: 14px; height: 14px; border-radius: 50%; background: ${tm.color}; flex-shrink: 0;"></span>
+              <span style="flex: 1;">${escapeHtml(tm.name)}</span>
+              ${player.teamId === tm.id ? '✓' : ''}
+            </button>
+          `).join('')}
+        </div>
+        <div style="margin-top: 14px; text-align: center;">
+          <button class="btn sm" id="btn-create-new-team-quick">${icon('plus', 16)} ${t('newTeam')}</button>
+        </div>
+      `;
+
+      body.querySelectorAll('[data-tid]').forEach(btn => {
+        btn.onclick = () => {
+          const tid = btn.getAttribute('data-tid');
+          player.teamId = tid;
+          Store.save();
+          toast('Equipo asignado correctamente', 'success');
+          closeSheet();
+          if (onDone) onDone();
+        };
+      });
+
+      body.querySelector('#btn-create-new-team-quick').onclick = () => {
+        showEditTeamModal(null, (newTeam) => {
+          player.teamId = newTeam.id;
+          Store.save();
+          toast('Equipo creado y asignado', 'success');
+          closeSheet();
+          if (onDone) onDone();
+        });
+      };
+    });
+  }
+
+  /* =========================================================
+     MODAL DE IMPORTACIÓN CON FUSIÓN POR NOMBRE (SIN DUPLICADOS)
+     ========================================================= */
+  function showImportModal(onDone) {
+    openSheet(t('importPlayers'), (body) => {
+      body.innerHTML = `
+        <div class="info-note" style="margin-bottom: 14px;">
+          ${t('importNote')}
+        </div>
+
+        <div class="field">
+          <label>${t('selectFile')}</label>
+          <input type="file" id="import-file-input" accept=".json,.csv,.txt" />
+        </div>
+
+        <div class="section-title"><span>${t('pasteList')}</span></div>
+        <div class="field">
+          <textarea id="import-paste-area" placeholder="10 Juan Pérez DC&#10;7 Carlos Ruiz MC&#10;1 Marc Ter Stegen POR"></textarea>
+          <span class="hint">Detecta dorsales y posiciones automáticamente</span>
+        </div>
+      `;
+    }, (foot) => {
+      foot.innerHTML = `
+        <div class="btn-row">
+          <button class="btn" id="btn-cancel-imp">${t('cancel')}</button>
+          <button class="btn primary" id="btn-do-import">${t('processImport')}</button>
+        </div>
+      `;
+
+      foot.querySelector('#btn-cancel-imp').onclick = closeSheet;
+
+      foot.querySelector('#btn-do-import').onclick = async () => {
+        const fileInput = document.getElementById('import-file-input');
+        const pasteText = document.getElementById('import-paste-area').value.trim();
+
+        try {
+          if (fileInput.files && fileInput.files[0]) {
+            const res = await IO.importFile(fileInput.files[0]);
+            let msg = `Importación: ${res.playersAdded} jugadores nuevos, ${res.playersMatched} vinculados por nombre sin duplicar`;
+            if (res.sessionsAdded) msg += `, ${res.sessionsAdded} sesiones añadidas`;
+            toast(msg, 'success');
+          } else if (pasteText) {
+            const res = await IO.importText(pasteText);
+            toast(`Importados: ${res.playersAdded} nuevos, ${res.playersMatched} vinculados`, 'success');
+          } else {
+            toast('Selecciona un archivo o pega una lista', 'error');
+            return;
+          }
+
+          closeSheet();
+          if (onDone) onDone();
+          else navigate(currentTab);
+        } catch (err) {
+          toast('Error: ' + err.message, 'error');
+        }
+      };
+    });
+  }
+
+  /* =========================================================
+     SECCIÓN CONVOCATORIAS: FORMATEADOR Y COMPARTIR POR VIBER
+     ========================================================= */
+  function dispatchViberShare(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).catch(() => {});
+    }
+    toast(t('copiedToClipboard'), 'success');
+
+    if (window.AndroidBridge && window.AndroidBridge.shareText) {
+      try {
+        window.AndroidBridge.shareText(text, 'viber');
+        return;
+      } catch (e) {
+        console.error('Error invoking native shareText:', e);
+      }
+    }
+
+    const viberUrl = `viber://forward?text=${encodeURIComponent(text)}`;
+    window.location.href = viberUrl;
+    setTimeout(() => {
+      window.open(viberUrl, '_blank');
+    }, 350);
+  }
+
+  function formatConvocationWhatsAppText(conv, lang) {
+    const isEn = (lang === 'en' || (lang !== 'es' && Store.state.settings && Store.state.settings.lang === 'en'));
+    const team = Store.team(conv.teamId);
+    const teamName = team ? team.name : '';
+    const dateStr = conv.date || '';
+    const timeStr = conv.time || '';
+    const venueStr = conv.venue ? (isEn ? `📍 *Venue:* ${conv.venue}\n` : `📍 *Lugar:* ${conv.venue}\n`) : '';
+    const rivalStr = conv.rival ? (isEn ? `⚔️ *Opponent:* ${conv.rival}\n` : `🆚 *Rival:* ${conv.rival}\n`) : '';
+    const notesStr = conv.notes ? (isEn ? `📝 *Notes:* ${conv.notes}\n` : `📝 *Notas:* ${conv.notes}\n`) : '';
+
+    const defTitle = conv.type === 'match' ? (isEn ? 'MATCH' : 'PARTIDO') : (isEn ? 'TRAINING' : 'ENTRENAMIENTO');
+    let text = isEn 
+      ? `📋 *OFFICIAL CALL-UP: ${conv.title || defTitle}*\n`
+      : `📋 *CONVOCATORIA: ${conv.title || defTitle}*\n`;
+    if (teamName) text += isEn ? `🛡️ *Team:* ${teamName}\n` : `🛡️ *Equipo:* ${teamName}\n`;
+    text += isEn ? `📅 *Date:* ${dateStr} • ⏰ *Time:* ${timeStr}\n` : `📅 *Fecha:* ${dateStr} • ⏰ *Hora:* ${timeStr}\n`;
+    if (rivalStr) text += rivalStr;
+    if (venueStr) text += venueStr;
+    if (notesStr) text += notesStr;
+
+    const list = conv.list || {};
+    const called = [];
+    const bench = [];
+    const injured = [];
+    const absent = [];
+    const calledNamesSimple = [];
+
+    const allPlayersMap = {};
+    Store.sortedPlayers().forEach(p => { allPlayersMap[p.id] = p; });
+
+    Object.keys(list).forEach(pid => {
+      const st = list[pid];
+      if (!st || st === 'uncalled') return;
+      const p = allPlayersMap[pid] || { id: pid, name: pid.replace(/^manual_/, ''), mainPosition: 'Jugador' };
+      const dorsal = p.mainDorsal != null ? `#${p.mainDorsal} ` : '';
+      const pos = p.mainPosition ? ` (${p.mainPosition})` : '';
+      const name = `${dorsal}${Store.playerName(p)}${pos}`;
+
+      if (st === 'called') {
+        called.push(name);
+        calledNamesSimple.push(Store.playerName(p));
+      } else if (st === 'bench') {
+        bench.push(name);
+      } else if (st === 'injured') {
+        injured.push(name);
+      } else if (st === 'absent') {
+        absent.push(name);
+      }
+    });
+
+    // Enlace web de confirmación arriba destacado
+    const webBaseUrl = (conv.webUrl || (Store.state.settings && Store.state.settings.convocatoriaWebUrl) || 'https://streetoh.github.io/Player_Stats/convocatoria.html').trim();
+    if (webBaseUrl) {
+      const qParams = new URLSearchParams();
+      const titleVal = conv.title || (conv.type === 'match' ? (isEn ? 'Match' : 'Partido') : (isEn ? 'Training' : 'Entrenamiento'));
+      qParams.set('t', titleVal);
+      if (teamName) qParams.set('tm', teamName);
+      if (dateStr) qParams.set('d', dateStr);
+      if (timeStr) qParams.set('h', timeStr);
+      if (conv.venue) qParams.set('v', conv.venue);
+      if (conv.rival) qParams.set('r', conv.rival);
+      if (calledNamesSimple.length > 0) {
+        qParams.set('p', calledNamesSimple.join(','));
+      }
+      if (isEn) qParams.set('lang', 'en');
+
+      const sep = webBaseUrl.includes('?') ? '&' : '?';
+      text += isEn
+        ? `\n🌐 *Confirm online attendance:*\n👉 ${webBaseUrl}${sep}${qParams.toString()}\n`
+        : `\n🌐 *Confirmar asistencia en enlace web:*\n👉 ${webBaseUrl}${sep}${qParams.toString()}\n`;
+    }
+
+    if (called.length > 0) {
+      text += isEn ? `\n🟢 *CALLED UP (${called.length}):*\n` : `\n🟢 *CONVOCADOS (${called.length}):*\n`;
+      called.forEach(item => { text += `  • ${item}\n`; });
+    } else {
+      text += isEn ? `\n🟢 *CALLED UP (0):*\n  (No players selected yet)\n` : `\n🟢 *CONVOCADOS (0):*\n  (Sin jugadores seleccionados aún)\n`;
+    }
+
+    if (bench.length > 0) {
+      text += isEn ? `\n🟡 *BENCH (${bench.length}):*\n` : `\n🟡 *SUPLENTES (${bench.length}):*\n`;
+      bench.forEach(item => { text += `  • ${item}\n`; });
+    }
+
+    if (injured.length > 0) {
+      text += isEn ? `\n🏥 *INJURED (${injured.length}):*\n` : `\n🏥 *LESIONADOS (${injured.length}):*\n`;
+      injured.forEach(item => { text += `  • ${item}\n`; });
+    }
+
+    if (absent.length > 0) {
+      text += isEn ? `\n❌ *UNAVAILABLE (${absent.length}):*\n` : `\n❌ *NO DISPONIBLES (${absent.length}):*\n`;
+      absent.forEach(item => { text += `  • ${item}\n`; });
+    }
+
+    text += isEn
+      ? `\n📲 *Please confirm attendance by replying via Viber:*
+  👉 Reply: "🟢 ATTENDING" or "❌ CANNOT ATTEND"
+⚽ _Sent from Player Stats_`
+      : `\n📲 *Por favor confirma tu asistencia respondiendo por Viber:*
+  👉 Responde: "🟢 VOY" o "❌ NO PUEDO"
+⚽ _Enviado desde Estadísticas Jugadores_`;
+    return text;
+  }
+
+  function showConvocationDetailsModal(conv, onDone) {
+    if (!conv) return;
+    const team = Store.team(conv.teamId);
+    conv.list = conv.list || {};
+    conv.responses = conv.responses || {};
+
+    openSheet(conv.title || (conv.rival ? 'vs ' + conv.rival : 'Convocatoria'), (body) => {
+      function renderDetails() {
+        const allPlayersMap = {};
+        Store.sortedPlayers().forEach(p => { allPlayersMap[p.id] = p; });
+
+        const calledPlayerIds = Object.keys(conv.list).filter(pid => {
+          const st = conv.list[pid];
+          return st && st !== 'uncalled';
+        });
+
+        const respondedYes = [];
+        const respondedNo = [];
+        const pending = [];
+
+        calledPlayerIds.forEach(pid => {
+          const p = allPlayersMap[pid] || { id: pid, name: pid.replace(/^manual_/, ''), mainPosition: 'Jugador' };
+          const resp = conv.responses[pid];
+          const st = conv.list[pid];
+
+          if (resp) {
+            if (resp.status === 'attending' || resp.status === 'yes') {
+              respondedYes.push({ player: p, resp, st });
+            } else if (resp.status === 'absent' || resp.status === 'no') {
+              respondedNo.push({ player: p, resp, st });
+            } else {
+              pending.push({ player: p, resp, st });
+            }
+          } else {
+            if (st === 'absent') {
+              respondedNo.push({ player: p, resp: null, st });
+            } else {
+              pending.push({ player: p, resp: null, st });
+            }
+          }
+        });
+
+        body.innerHTML = `
+          <!-- Cabecera del evento -->
+          <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 10px; flex-wrap: wrap;">
+            <span class="badge ${conv.type}">
+              ${conv.type === 'match' ? '🏆 ' + t('match') : '⚽ ' + t('training')}
+            </span>
+            ${team ? `<span class="badge" style="background: rgba(34, 211, 238, 0.15); color: var(--cyan); border-color: rgba(34, 211, 238, 0.3);">🛡️ ${escapeHtml(team.name)}</span>` : ''}
+          </div>
+
+          <div class="conv-detail-meta" style="margin-bottom: 12px; font-size: 13px; line-height: 1.5;">
+            <div>📅 <b>${t('date')}:</b> ${conv.date} ${conv.time ? '• ⏰ ' + conv.time : ''}</div>
+            ${conv.venue ? `<div>📍 <b>Lugar / Campo:</b> ${escapeHtml(conv.venue)}</div>` : ''}
+            ${conv.rival ? `<div>⚔️ <b>Rival:</b> ${escapeHtml(conv.rival)}</div>` : ''}
+            ${conv.notes ? `<div style="margin-top: 4px; color: var(--muted);">📝 <b>Notas:</b> ${escapeHtml(conv.notes)}</div>` : ''}
+          </div>
+
+          <!-- BOTÓN DESTACADO: PEGAR MENSAJES DE VIBER -->
+          <div style="background: rgba(124, 58, 237, 0.14); border: 1.5px solid rgba(168, 85, 247, 0.4); border-radius: 14px; padding: 12px; margin-bottom: 12px;">
+            <div style="font-size: 12px; font-weight: 800; color: #d8b4fe; margin-bottom: 6px;">
+              💬 REGISTRAR RESPUESTAS RECIBIDAS:
+            </div>
+            <button type="button" class="btn block" id="btn-prominent-paste-replies" style="background: #7c3aed; color: #fff; font-size: 13.5px; font-weight: 800; border-color: #a855f7;">
+              📥 Pegar mensaje de Viber
+            </button>
+          </div>
+
+          <!-- BOTONES COMPARTIR POR VIBER -->
+          <div style="font-size: 11px; font-weight: 800; color: var(--muted); margin-bottom: 6px; text-transform: uppercase;">
+            COMPARTIR CONVOCATORIA:
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px;">
+            <button type="button" class="btn" id="btn-conv-share-viber-es" style="background: #7c3aed; color: #fff; font-weight: 800; font-size: 12.5px; border-color: #a855f7;">
+              💜 Viber (Español)
+            </button>
+            <button type="button" class="btn" id="btn-conv-share-viber-en" style="background: #6d28d9; color: #fff; font-weight: 800; font-size: 12.5px; border-color: #9333ea;">
+              💜 Viber (English)
+            </button>
+          </div>
+
+          <!-- Barra de recuento de confirmaciones -->
+          <div class="conv-badge-row" style="margin-bottom: 14px;">
+            <span class="conv-status-chip called" style="font-size: 11.5px; padding: 5px 10px; font-weight: 800;">🟢 ${respondedYes.length} Confirmados (SÍ)</span>
+            <span class="conv-status-chip" style="background: rgba(239, 68, 68, 0.18); color: #fca5a5; font-size: 11.5px; padding: 5px 10px; font-weight: 800;">❌ ${respondedNo.length} Bajas (NO)</span>
+            <span class="conv-status-chip" style="background: rgba(250, 204, 21, 0.15); color: #fde047; font-size: 11.5px; padding: 5px 10px; font-weight: 800;">⏳ ${pending.length} Sin respuesta</span>
+          </div>
+
+          ${calledPlayerIds.length === 0 ? `
+            <div style="padding: 16px; text-align: center; background: var(--bg2); border: 1.5px dashed var(--border); border-radius: 14px; margin-bottom: 12px;">
+              <div style="font-size: 24px; margin-bottom: 6px;">📋</div>
+              <b style="display: block; font-size: 13.5px; color: #fff; margin-bottom: 4px;">Aún no has seleccionado jugadores convocados</b>
+              <p style="font-size: 12px; color: var(--muted); margin: 0 0 12px;">Pulsa el botón de abajo para elegir qué jugadores convocas para este evento.</p>
+              <button type="button" class="btn primary sm" id="btn-quick-open-editor">
+                ${icon('edit', 16)} Seleccionar Jugadores de la Plantilla
+              </button>
+            </div>
+          ` : `
+            <!-- SECCIÓN 1: Respuestas Recibidas -->
+            <div class="conv-detail-group" style="margin-bottom: 14px;">
+              <div class="conv-detail-group-title" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1.5px solid rgba(34, 197, 94, 0.4); padding-bottom: 4px; margin-bottom: 8px;">
+                <span style="color: #86efac; font-weight: 900; font-size: 12.5px;">✅ RESPUESTAS RECIBIDAS (${respondedYes.length + respondedNo.length})</span>
+              </div>
+              ${(respondedYes.length === 0 && respondedNo.length === 0) ? `
+                <div style="padding: 10px; text-align: center; color: var(--muted); font-size: 11.5px; background: var(--bg2); border: 1px dashed var(--border); border-radius: 10px;">
+                  Ningún jugador ha confirmado aún. Cuando respondan por Viber, pulsa "Pegar mensaje de Viber".
+                </div>
+              ` : `
+                <div style="display: flex; flex-direction: column; gap: 6px;">
+                  ${respondedYes.map(item => {
+                    const p = item.player;
+                    return `
+                      <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(34, 197, 94, 0.1); border: 1.5px solid rgba(34, 197, 94, 0.4); border-radius: 10px;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                          ${renderAvatar(p, 'sm')}
+                          <div>
+                            <b style="font-size: 13px; color: #fff;">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(Store.playerName(p))}</b>
+                            <small style="display: block; color: var(--muted); font-size: 11px;">${p.mainPosition || 'Jugador'}</small>
+                          </div>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                          <span class="badge" style="background: rgba(34, 197, 94, 0.25); color: #86efac; border: 1px solid rgba(34, 197, 94, 0.6); font-size: 11px; font-weight: 800;">🟢 ASISTE</span>
+                          <button type="button" class="btn sm ghost" data-toggle-resp="${p.id}" style="padding: 3px 6px; font-size: 11px;">Cambiar</button>
+                        </div>
+                      </div>
+                    `;
+                  }).join('')}
+                  ${respondedNo.map(item => {
+                    const p = item.player;
+                    return `
+                      <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(239, 68, 68, 0.1); border: 1.5px solid rgba(239, 68, 68, 0.4); border-radius: 10px;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                          ${renderAvatar(p, 'sm')}
+                          <div>
+                            <b style="font-size: 13px; color: #fff;">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(Store.playerName(p))}</b>
+                            <small style="display: block; color: var(--muted); font-size: 11px;">${p.mainPosition || 'Jugador'}</small>
+                          </div>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                          <span class="badge" style="background: rgba(239, 68, 68, 0.25); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.6); font-size: 11px; font-weight: 800;">❌ BAJA</span>
+                          <button type="button" class="btn sm ghost" data-toggle-resp="${p.id}" style="padding: 3px 6px; font-size: 11px;">Cambiar</button>
+                        </div>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              `}
+            </div>
+
+            <!-- SECCIÓN 2: Pendientes de Respuesta -->
+            <div class="conv-detail-group" style="margin-bottom: 14px;">
+              <div class="conv-detail-group-title" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1.5px solid rgba(250, 204, 21, 0.4); padding-bottom: 4px; margin-bottom: 8px;">
+                <span style="color: #fde047; font-weight: 900; font-size: 12.5px;">⏳ PENDIENTES DE RESPUESTA / SIN CONTESTAR (${pending.length})</span>
+              </div>
+              ${pending.length === 0 ? `
+                <div style="padding: 12px; text-align: center; color: #86efac; font-size: 12px; background: rgba(34, 197, 94, 0.08); border: 1px solid rgba(34, 197, 94, 0.3); border-radius: 10px; font-weight: 700;">
+                  🎉 ¡Todos los jugadores convocados han dado respuesta!
+                </div>
+              ` : `
+                <div style="display: flex; flex-direction: column; gap: 6px;">
+                  ${pending.map(item => {
+                    const p = item.player;
+                    return `
+                      <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                          ${renderAvatar(p, 'sm')}
+                          <div>
+                            <b style="font-size: 13px; color: #fff;">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(Store.playerName(p))}</b>
+                            <small style="display: block; color: var(--muted); font-size: 11px;">${p.mainPosition || 'Jugador'}</small>
+                          </div>
+                        </div>
+                        <div style="display: flex; gap: 6px;">
+                          <button type="button" class="btn sm" data-quick-confirm="${p.id}" style="background: rgba(34, 197, 94, 0.2); color: #86efac; border: 1px solid rgba(34, 197, 94, 0.5); padding: 4px 8px; font-size: 11px; font-weight: 700;">
+                            ✓ Asiste
+                          </button>
+                          <button type="button" class="btn sm" data-quick-decline="${p.id}" style="background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.5); padding: 4px 8px; font-size: 11px; font-weight: 700;">
+                            ✕ Baja
+                          </button>
+                        </div>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              `}
+            </div>
+          `}
+        `;
+
+        // Eventos en el cuerpo
+        const btnPasteProm = body.querySelector('#btn-prominent-paste-replies');
+        if (btnPasteProm) btnPasteProm.onclick = () => openPasteDialog();
+
+        const btnViberEs = body.querySelector('#btn-conv-share-viber-es');
+        if (btnViberEs) btnViberEs.onclick = () => dispatchViberShare(formatConvocationWhatsAppText(conv, 'es'));
+
+        const btnViberEn = body.querySelector('#btn-conv-share-viber-en');
+        if (btnViberEn) btnViberEn.onclick = () => dispatchViberShare(formatConvocationWhatsAppText(conv, 'en'));
+
+        const btnQuickEdit = body.querySelector('#btn-quick-open-editor');
+        if (btnQuickEdit) {
+          btnQuickEdit.onclick = () => {
+            closeSheet();
+            showEditConvocationModal(conv.id, onDone);
+          };
+        }
+
+        body.querySelectorAll('[data-quick-confirm]').forEach(b => {
+          b.onclick = () => {
+            const pid = b.getAttribute('data-quick-confirm');
+            conv.responses = conv.responses || {};
+            conv.responses[pid] = { status: 'attending', time: Date.now() };
+            conv.list = conv.list || {};
+            conv.list[pid] = 'called';
+            Store.save();
+            haptic(25);
+            renderDetails();
+          };
+        });
+
+        body.querySelectorAll('[data-quick-decline]').forEach(b => {
+          b.onclick = () => {
+            const pid = b.getAttribute('data-quick-decline');
+            conv.responses = conv.responses || {};
+            conv.responses[pid] = { status: 'absent', time: Date.now() };
+            conv.list = conv.list || {};
+            conv.list[pid] = 'absent';
+            Store.save();
+            haptic(20);
+            renderDetails();
+          };
+        });
+
+        body.querySelectorAll('[data-toggle-resp]').forEach(b => {
+          b.onclick = () => {
+            const pid = b.getAttribute('data-toggle-resp');
+            conv.responses = conv.responses || {};
+            const cur = conv.responses[pid] ? conv.responses[pid].status : 'attending';
+            const next = cur === 'attending' ? 'absent' : 'attending';
+            conv.responses[pid] = { status: next, time: Date.now() };
+            conv.list = conv.list || {};
+            conv.list[pid] = next === 'attending' ? 'called' : 'absent';
+            Store.save();
+            haptic(20);
+            renderDetails();
+          };
+        });
+      }
+
+      function openPasteDialog() {
+        const bodyHtml = `
+          <p class="hint" style="margin-bottom: 8px;">
+            Pega aquí el mensaje recibido por Viber del padre o jugador:
+          </p>
+          <textarea id="paste-replies-textarea" rows="6" style="width: 100%; border-radius: 12px; padding: 10px; font-size: 12.5px; background: var(--bg2); color: #fff; border: 1px solid var(--border); box-sizing: border-box;" placeholder="Ej:
+👤 Jugador: Alex Tamm (#9)
+📢 Estado: 🟢 CONFIRMO ASISTENCIA
+..."></textarea>
+          <div style="margin-top: 12px; display: flex; gap: 8px;">
+            <button class="btn primary grow" id="btn-proc-paste">Procesar y Actualizar</button>
+          </div>
+        `;
+
+        const dialog = openModalDialog('📥 Registrar Confirmación (Viber)', bodyHtml);
+        const txtArea = dialog.querySelector('#paste-replies-textarea');
+        if (navigator.clipboard && navigator.clipboard.readText) {
+          navigator.clipboard.readText().then(clip => {
+            if (clip && txtArea) txtArea.value = clip;
+          }).catch(() => {});
+        }
+
+        dialog.querySelector('#btn-proc-paste').onclick = () => {
+          const raw = (txtArea ? txtArea.value : '').trim();
+          if (!raw) {
+            toast('No se ha introducido ningún texto', 'error');
+            return;
+          }
+
+          let updatedCount = 0;
+          const allPlayers = Store.sortedPlayers();
+          const lines = raw.split('\n');
+          let detectedName = null;
+          let detectedStatus = null;
+
+          function parseAttendanceStatus(str) {
+            const s = str.toLowerCase();
+            if (s.includes('confirm') || s.includes('asistir') || s.includes('asist') || s.includes('🟢') || s.includes('si voy') || s.includes('cuenta conmigo') || s.includes('attending') || s.includes('yes') || s.includes('will attend')) return 'called';
+            if (s.includes('duda') || s.includes('pendiente') || s.includes('🟡') || s.includes('quizas') || s.includes('quizá') || s.includes('veremos') || s.includes('maybe') || s.includes('doubt')) return 'bench';
+            if (s.includes('no puedo') || s.includes('baja') || s.includes('❌') || s.includes('no podre') || s.includes('no asist') || s.includes('lesion') || s.includes('lesión') || s.includes('not attending') || s.includes('cannot attend') || s.includes('absent')) return 'absent';
+            return null;
+          }
+
+          for (const line of lines) {
+            const mName = line.match(/(?:Jugador|Player|Nombre):\s*([^\n\r]+)/i);
+            if (mName) {
+              detectedName = mName[1].trim();
+            }
+            const mStatus = line.match(/(?:Estado|Status|Asistencia):\s*([^\n\r]+)/i);
+            if (mStatus) {
+              detectedStatus = parseAttendanceStatus(mStatus[1]);
+            } else {
+              const directSt = parseAttendanceStatus(line);
+              if (directSt) detectedStatus = directSt;
+            }
+
+            if (detectedName && detectedStatus) {
+              const cleanQuery = detectedName.replace(/[\*\_]/g, '').toLowerCase().replace(/#\d+\s*/g, '').trim();
+              let matchedP = allPlayers.find(p => (p.name || '').toLowerCase().trim() === cleanQuery);
+              if (!matchedP) {
+                matchedP = allPlayers.find(p => {
+                  const pNorm = (p.name || '').toLowerCase().trim();
+                  return pNorm && (cleanQuery.includes(pNorm) || pNorm.includes(cleanQuery));
+                });
+              }
+              if (matchedP) {
+                conv.list = conv.list || {};
+                conv.responses = conv.responses || {};
+                if (detectedStatus === 'called') {
+                  conv.responses[matchedP.id] = { status: 'attending', time: Date.now() };
+                  conv.list[matchedP.id] = 'called';
+                } else if (detectedStatus === 'absent') {
+                  conv.responses[matchedP.id] = { status: 'absent', time: Date.now() };
+                  conv.list[matchedP.id] = 'absent';
+                } else {
+                  conv.list[matchedP.id] = detectedStatus;
+                }
+                updatedCount++;
+              }
+              detectedName = null;
+              detectedStatus = null;
+            }
+          }
+
+          if (updatedCount === 0) {
+            const st = parseAttendanceStatus(raw);
+            if (st) {
+              for (const p of allPlayers) {
+                if (raw.toLowerCase().includes((p.name || '').toLowerCase().trim())) {
+                  conv.list = conv.list || {};
+                  conv.responses = conv.responses || {};
+                  if (st === 'called') {
+                    conv.responses[p.id] = { status: 'attending', time: Date.now() };
+                    conv.list[p.id] = 'called';
+                  } else if (st === 'absent') {
+                    conv.responses[p.id] = { status: 'absent', time: Date.now() };
+                    conv.list[p.id] = 'absent';
+                  } else {
+                    conv.list[p.id] = st;
+                  }
+                  updatedCount++;
+                  break;
+                }
+              }
+            }
+          }
+
+          if (updatedCount > 0) {
+            Store.save();
+            toast(`¡${updatedCount} confirmación(es) registrada(s)!`, 'success');
+            dialog.remove();
+            renderDetails();
+            if (onDone) onDone();
+          } else {
+            toast('No se detectó ningún jugador conocido en el texto', 'error');
+          }
+        };
+      }
+
+      renderDetails();
+    }, (foot) => {
+      foot.innerHTML = `
+        <div class="btn-row">
+          <button class="btn danger" id="btn-detail-del" title="${t('delete')}">${icon('trash', 16)}</button>
+          <button class="btn ghost grow" id="btn-detail-close">${t('close', 'Cerrar')}</button>
+          <button class="btn primary grow" id="btn-detail-edit">${icon('edit', 16)} Modificar Convocatoria</button>
+        </div>
+      `;
+
+      foot.querySelector('#btn-detail-close').onclick = closeSheet;
+
+      foot.querySelector('#btn-detail-del').onclick = () => {
+        confirmDialog(t('delete'), '¿Deseas eliminar esta convocatoria?', () => {
+          Store.deleteConvocation(conv.id);
+          closeSheet();
+          if (onDone) onDone();
+        });
+      };
+
+      foot.querySelector('#btn-detail-edit').onclick = () => {
+        closeSheet();
+        setTimeout(() => {
+          showEditConvocationModal(conv.id, onDone);
+        }, 150);
+      };
+    });
+  }
+
+  function showEditConvocationModal(convId, onDone) {
+    const existing = convId ? Store.convocation(convId) : null;
+    const c = Object.assign({
+      id: convId || null,
+      title: '',
+      type: 'match',
+      date: new Date().toISOString().slice(0, 10),
+      time: '10:00',
+      venue: '',
+      rival: '',
+      teamId: '',
+      notes: '',
+      list: {}
+    }, existing || {});
+
+    const list = Object.assign({}, c.list || {});
+    let currentType = c.type;
+    const teams = Store.state.teams || [];
+    let initialFilter = c.teamId || 'all';
+
+    openSheet(c.id ? 'Editar Convocatoria' : t('newConvocation'), (body) => {
+      const allPlayers = Store.sortedPlayers();
+
+      let countCalled = 0, countBench = 0, countInjured = 0, countAbsent = 0;
+      allPlayers.forEach(p => {
+        const st = list[p.id];
+        if (st === 'called') countCalled++;
+        else if (st === 'bench') countBench++;
+        else if (st === 'injured') countInjured++;
+        else if (st === 'absent') countAbsent++;
+      });
+
+      body.innerHTML = `
+        <div class="field">
+          <label>${t('convocationTitle')}</label>
+          <input type="text" id="conv-title" placeholder="${t('convocationTitlePlaceholder')}" value="${escapeHtml(c.title)}" />
+        </div>
+
+        <div class="segmented" style="margin-bottom: 12px;">
+          <button type="button" class="${currentType === 'match' ? 'active' : ''}" id="conv-type-match">
+            🏆 ${t('match')}
+          </button>
+          <button type="button" class="${currentType === 'training' ? 'active' : ''}" id="conv-type-training">
+            ⚽ ${t('training')}
+          </button>
+        </div>
+
+        <div class="field">
+          <label>${t('team')}</label>
+          <input type="hidden" id="conv-team" value="${c.teamId || ''}" />
+          <div class="team-bubbles-container" id="conv-team-bubbles">
+            <div class="team-bubble ${!c.teamId ? 'active' : ''}" data-tid="" style="border-color: rgba(255, 255, 255, 0.25);">
+              <span class="dot" style="background: #94a3b8;"></span>
+              <span>${t('allTeams')}</span>
+              <span class="check-icon">✓</span>
+            </div>
+            ${teams.map(tm => {
+              const tmColor = tm.color || '#22d3ee';
+              return `
+                <div class="team-bubble ${c.teamId === tm.id ? 'active' : ''}" data-tid="${tm.id}" style="border-color: ${tmColor}; color: #fff;">
+                  <span class="dot" style="background: ${tmColor};"></span>
+                  <span>${escapeHtml(tm.name)}</span>
+                  <span class="check-icon" style="color: ${tmColor};">✓</span>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+
+        ${renderDatePickerFieldHtml('conv-date', c.date, t('date'))}
+        <div class="field">
+          <label>Hora</label>
+          <input type="time" id="conv-time" value="${c.time || '10:00'}" />
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label>Lugar / Campo</label>
+            <input type="text" id="conv-venue" placeholder="Ej: Campo Municipal" value="${escapeHtml(c.venue || '')}" />
+          </div>
+          <div class="field">
+            <label>${t('rivalTeam')}</label>
+            <input type="text" id="conv-rival" placeholder="${t('rivalPlaceholder')}" value="${escapeHtml(c.rival || '')}" />
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Notas adicionales</label>
+          <input type="text" id="conv-notes" placeholder="Ej: Llevar equipación azul, puntualidad..." value="${escapeHtml(c.notes || '')}" />
+        </div>
+
+        <div class="field" style="margin-top: 4px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <label style="margin: 0; font-size: 11.5px; font-weight: 700;">🌐 Web de Confirmación (GitHub Pages)</label>
+            <span id="conv-help-github" style="color: var(--cyan); cursor: pointer; font-size: 11px; font-weight: 700;">ℹ️ ¿Cómo funciona?</span>
+          </div>
+          <input type="text" id="conv-web-url" placeholder="https://tu-usuario.github.io/app/convocatoria.html" value="${escapeHtml(Store.state.settings.convocatoriaWebUrl || '')}" style="font-size: 12px;" />
+        </div>
+
+        <div class="section-title" style="margin-top: 16px;">
+          <span>Plantilla de Convocados</span>
+        </div>
+
+        <!-- Filtro por equipo y acciones rápidas -->
+        <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 10px; margin-bottom: 10px;">
+          <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
+            <label style="font-size: 11.5px; font-weight: 800; color: var(--muted); white-space: nowrap; margin: 0;">Filtrar:</label>
+            <select id="conv-filter-team" style="flex: 1; padding: 6px 10px; font-size: 12.5px; border-radius: 8px;">
+              <option value="all">Todos los jugadores (${allPlayers.length})</option>
+              ${teams.map(t => {
+                const count = allPlayers.filter(p => p.teamId === t.id).length;
+                return `<option value="${t.id}" ${initialFilter === t.id ? 'selected' : ''}>${escapeHtml(t.name)} (${count})</option>`;
+              }).join('')}
+            </select>
+          </div>
+
+          <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+            <button type="button" class="btn sm" id="btn-conv-call-all" style="background: rgba(34, 197, 94, 0.18); color: #86efac; border: 1px solid rgba(34, 197, 94, 0.4); font-size: 11.5px; padding: 4px 8px;">
+              ⚡ Convocar visibles
+            </button>
+            <button type="button" class="btn sm ghost" id="btn-conv-clear-all" style="font-size: 11.5px; padding: 4px 8px;">
+              Desmarcar visibles
+            </button>
+            <button type="button" class="btn sm secondary" id="btn-conv-add-manual" style="margin-left: auto; font-size: 11.5px; padding: 4px 8px;">
+              + Jugador puntual
+            </button>
+          </div>
+        </div>
+
+        <!-- Barra de recuento en vivo -->
+        <div class="conv-badge-row" id="conv-counters-row" style="margin-bottom: 10px;">
+          <span class="conv-status-chip called" id="chip-called">🟢 ${countCalled} ${t('calledStatus')}</span>
+          <span class="conv-status-chip bench" id="chip-bench">🟡 ${countBench} ${t('benchStatus')}</span>
+          <span class="conv-status-chip injured" id="chip-injured">🏥 ${countInjured} ${t('injuredStatus')}</span>
+          <span class="conv-status-chip" id="chip-absent" style="background: rgba(148,163,184,0.15); color: #cbd5e1; ${countAbsent > 0 ? '' : 'display: none;'}">❌ ${countAbsent} ${t('absentStatus')}</span>
+        </div>
+
+        <!-- Lista de jugadores con botones táctiles (scroll mantenido sin saltos) -->
+        <div class="card" id="conv-players-container" style="max-height: 38vh; overflow-y: auto; padding: 6px 12px;">
+          ${allPlayers.map(p => {
+            const cur = list[p.id];
+            const pTeam = Store.team(p.teamId);
+            return `
+              <div class="conv-player-row" data-pid="${p.id}" data-team="${p.teamId || ''}">
+                ${renderAvatar(p, 'sm')}
+                <div class="conv-player-name ellipsis">
+                  <b>#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(Store.playerName(p))}</b>
+                  <small style="display: block; color: var(--muted); font-size: 11px;">
+                    ${p.mainPosition || 'Jugador'} ${pTeam ? '• ' + escapeHtml(pTeam.name) : ''}
+                  </small>
+                </div>
+                <div class="conv-btn-group">
+                  <button type="button" class="conv-pick-btn ${cur === 'called' ? 'active called' : ''}" data-p="${p.id}" data-st="called" title="${t('calledStatus')}">🟢</button>
+                  <button type="button" class="conv-pick-btn ${cur === 'bench' ? 'active bench' : ''}" data-p="${p.id}" data-st="bench" title="${t('benchStatus')}">🟡</button>
+                  <button type="button" class="conv-pick-btn ${cur === 'injured' ? 'active injured' : ''}" data-p="${p.id}" data-st="injured" title="${t('injuredStatus')}">🏥</button>
+                  <button type="button" class="conv-pick-btn ${cur === 'absent' ? 'active absent' : ''}" data-p="${p.id}" data-st="absent" title="${t('absentStatus')}">❌</button>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+
+      function updateCounterChips() {
+        let nCalled = 0, nBench = 0, nInjured = 0, nAbsent = 0;
+        const pList = Store.state.players || [];
+        pList.forEach(p => {
+          const st = list[p.id];
+          if (st === 'called') nCalled++;
+          else if (st === 'bench') nBench++;
+          else if (st === 'injured') nInjured++;
+          else if (st === 'absent') nAbsent++;
+        });
+        const cChip = body.querySelector('#chip-called');
+        const bChip = body.querySelector('#chip-bench');
+        const iChip = body.querySelector('#chip-injured');
+        const aChip = body.querySelector('#chip-absent');
+        if (cChip) cChip.textContent = `🟢 ${nCalled} ${t('calledStatus')}`;
+        if (bChip) bChip.textContent = `🟡 ${nBench} ${t('benchStatus')}`;
+        if (iChip) iChip.textContent = `🏥 ${nInjured} ${t('injuredStatus')}`;
+        if (aChip) {
+          aChip.textContent = `❌ ${nAbsent} ${t('absentStatus')}`;
+          aChip.style.display = nAbsent > 0 ? 'inline-flex' : 'none';
+        }
+      }
+
+      const typeMatchBtn = body.querySelector('#conv-type-match');
+      const typeTrainBtn = body.querySelector('#conv-type-training');
+      if (typeMatchBtn && typeTrainBtn) {
+        typeMatchBtn.onclick = () => {
+          currentType = 'match';
+          typeMatchBtn.className = 'active';
+          typeTrainBtn.className = '';
+        };
+        typeTrainBtn.onclick = () => {
+          currentType = 'training';
+          typeTrainBtn.className = 'active';
+          typeMatchBtn.className = '';
+        };
+      }
+
+      const filterSelect = body.querySelector('#conv-filter-team');
+      const container = body.querySelector('#conv-players-container');
+
+      function applyFilter(teamVal) {
+        if (!container) return;
+        const rows = container.querySelectorAll('.conv-player-row');
+        rows.forEach(r => {
+          const rTeam = r.getAttribute('data-team');
+          if (teamVal === 'all' || rTeam === teamVal) {
+            r.style.display = 'flex';
+          } else {
+            r.style.display = 'none';
+          }
+        });
+      }
+
+      const convTeamInput = body.querySelector('#conv-team');
+      const convTeamBubbles = body.querySelectorAll('#conv-team-bubbles .team-bubble');
+
+      convTeamBubbles.forEach(tb => {
+        tb.onclick = () => {
+          convTeamBubbles.forEach(x => x.classList.remove('active'));
+          tb.classList.add('active');
+          const tid = tb.getAttribute('data-tid') || '';
+          if (convTeamInput) convTeamInput.value = tid;
+          if (filterSelect) {
+            filterSelect.value = tid || 'all';
+          }
+          applyFilter(tid || 'all');
+          haptic(20);
+        };
+      });
+
+      if (filterSelect) {
+        filterSelect.onchange = () => {
+          const val = filterSelect.value;
+          const tid = val === 'all' ? '' : val;
+          if (convTeamInput) convTeamInput.value = tid;
+          convTeamBubbles.forEach(tb => {
+            const bTid = tb.getAttribute('data-tid') || '';
+            if (bTid === tid) {
+              tb.classList.add('active');
+            } else {
+              tb.classList.remove('active');
+            }
+          });
+          applyFilter(val);
+        };
+        if (initialFilter !== 'all') {
+          applyFilter(initialFilter);
+        }
+      }
+
+      // Conexión por delegación de eventos: ¡Evita redibujar el contenedor y previene el salto de scroll!
+      if (container) {
+        container.addEventListener('click', (e) => {
+          const btn = e.target.closest('.conv-pick-btn');
+          if (!btn) return;
+          const pid = btn.getAttribute('data-p');
+          const st = btn.getAttribute('data-st');
+          const group = btn.closest('.conv-btn-group');
+
+          if (list[pid] === st) {
+            delete list[pid];
+            group.querySelectorAll('.conv-pick-btn').forEach(b => {
+              b.className = 'conv-pick-btn';
+            });
+          } else {
+            list[pid] = st;
+            group.querySelectorAll('.conv-pick-btn').forEach(b => {
+              b.className = 'conv-pick-btn';
+            });
+            btn.className = `conv-pick-btn active ${st}`;
+          }
+          haptic(20);
+          updateCounterChips();
+        });
+      }
+
+      // Convocar visibles
+      const btnCallAll = body.querySelector('#btn-conv-call-all');
+      if (btnCallAll && container) {
+        btnCallAll.onclick = () => {
+          const rows = container.querySelectorAll('.conv-player-row');
+          let count = 0;
+          rows.forEach(r => {
+            if (r.style.display !== 'none') {
+              const pid = r.getAttribute('data-pid');
+              list[pid] = 'called';
+              const group = r.querySelector('.conv-btn-group');
+              if (group) {
+                group.querySelectorAll('.conv-pick-btn').forEach(b => {
+                  b.className = b.getAttribute('data-st') === 'called' ? 'conv-pick-btn active called' : 'conv-pick-btn';
+                });
+              }
+              count++;
+            }
+          });
+          haptic(35);
+          updateCounterChips();
+          toast(`${count} jugadores convocados`, 'success');
+        };
+      }
+
+      // Desmarcar visibles
+      const btnClearAll = body.querySelector('#btn-conv-clear-all');
+      if (btnClearAll && container) {
+        btnClearAll.onclick = () => {
+          const rows = container.querySelectorAll('.conv-player-row');
+          rows.forEach(r => {
+            if (r.style.display !== 'none') {
+              const pid = r.getAttribute('data-pid');
+              delete list[pid];
+              const group = r.querySelector('.conv-btn-group');
+              if (group) {
+                group.querySelectorAll('.conv-pick-btn').forEach(b => {
+                  b.className = 'conv-pick-btn';
+                });
+              }
+            }
+          });
+          haptic(20);
+          updateCounterChips();
+        };
+      }
+
+      // Añadir jugador puntual
+      const btnAddManual = body.querySelector('#btn-conv-add-manual');
+      if (btnAddManual && container) {
+        btnAddManual.onclick = () => {
+          const name = prompt('Nombre del jugador puntual:');
+          if (!name || !name.trim()) return;
+          const dorsalInput = prompt('Número de dorsal (opcional):', '');
+          const dorsal = dorsalInput && !isNaN(parseInt(dorsalInput, 10)) ? parseInt(dorsalInput, 10) : null;
+          const currentTeamVal = (filterSelect && filterSelect.value !== 'all') ? filterSelect.value : (body.querySelector('#conv-team') ? body.querySelector('#conv-team').value : '');
+          const newPlayer = Store.upsertPlayer({
+            name: name.trim(),
+            mainDorsal: dorsal,
+            mainPosition: 'Jugador',
+            teamId: currentTeamVal || ''
+          });
+          list[newPlayer.id] = 'called';
+          const pTeam = Store.team(newPlayer.teamId);
+          const rowHtml = `
+            <div class="conv-player-row" data-pid="${newPlayer.id}" data-team="${newPlayer.teamId || ''}">
+              ${renderAvatar(newPlayer, 'sm')}
+              <div class="conv-player-name ellipsis">
+                <b>#${newPlayer.mainDorsal != null ? newPlayer.mainDorsal : '-'} ${escapeHtml(Store.playerName(newPlayer))}</b>
+                <small style="display: block; color: var(--muted); font-size: 11px;">
+                  ${newPlayer.mainPosition || 'Jugador'} ${pTeam ? '• ' + escapeHtml(pTeam.name) : ''}
+                </small>
+              </div>
+              <div class="conv-btn-group">
+                <button type="button" class="conv-pick-btn active called" data-p="${newPlayer.id}" data-st="called" title="${t('calledStatus')}">🟢</button>
+                <button type="button" class="conv-pick-btn" data-p="${newPlayer.id}" data-st="bench" title="${t('benchStatus')}">🟡</button>
+                <button type="button" class="conv-pick-btn" data-p="${newPlayer.id}" data-st="injured" title="${t('injuredStatus')}">🏥</button>
+                <button type="button" class="conv-pick-btn" data-p="${newPlayer.id}" data-st="absent" title="${t('absentStatus')}">❌</button>
+              </div>
+            </div>
+          `;
+          container.insertAdjacentHTML('afterbegin', rowHtml);
+          haptic(30);
+          updateCounterChips();
+          toast(`Jugador ${escapeHtml(name.trim())} añadido y convocado`, 'success');
+        };
+      }
+
+      // Ayuda GitHub Pages
+      const btnHelpGithub = body.querySelector('#conv-help-github');
+      if (btnHelpGithub) {
+        btnHelpGithub.onclick = () => {
+          alert(
+            '🌐 FORMULARIO WEB DE ASISTENCIA EN GITHUB:\n\n' +
+            '1. Sube el archivo "convocatoria.html" (incluido en la app) a un repositorio público en tu GitHub.\n' +
+            '2. En Configuración del repositorio -> Pages, activa GitHub Pages en la rama main.\n' +
+            '3. Pega aquí el enlace que te genere GitHub (ej: https://tu-usuario.github.io/repo/convocatoria.html).\n\n' +
+            '¡Listo! Al compartir la convocatoria por Viber, se incluirá el enlace y cada jugador podrá elegir su nombre y marcar si asiste o no.'
+          );
+        };
+      }
+
+      bindDatePickerField('conv-date', body);
+    }, (foot) => {
+      foot.innerHTML = `
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+          <button class="btn" id="btn-conv-share-viber-es" style="background: #7c3aed; color: #fff; border-color: #a855f7; font-weight: 800; font-size: 12.5px;">
+            💜 Viber (ES)
+          </button>
+          <button class="btn" id="btn-conv-share-viber-en" style="background: #6d28d9; color: #fff; border-color: #9333ea; font-weight: 800; font-size: 12.5px;">
+            💜 Viber (EN)
+          </button>
+        </div>
+        <div class="btn-row">
+          ${c.id ? `<button class="btn danger" id="btn-conv-del" title="${t('delete')}">${icon('trash', 16)}</button>` : ''}
+          <button class="btn ghost grow" id="btn-conv-cancel">${t('cancel')}</button>
+          <button class="btn primary grow" id="btn-conv-save">${t('saveChanges')}</button>
+        </div>
+      `;
+
+      function triggerViberShare(lang) {
+        const textInp = document.getElementById('conv-date-text');
+        const hiddenInp = document.getElementById('conv-date');
+        if (textInp && hiddenInp) {
+          const parsed = parseInputDateToIso(textInp.value);
+          if (parsed) hiddenInp.value = parsed;
+        }
+
+        const formData = {
+          title: document.getElementById('conv-title').value.trim(),
+          type: currentType,
+          date: hiddenInp ? hiddenInp.value : (c.date || new Date().toISOString().slice(0, 10)),
+          time: document.getElementById('conv-time').value,
+          venue: document.getElementById('conv-venue').value.trim(),
+          rival: document.getElementById('conv-rival').value.trim(),
+          teamId: document.getElementById('conv-team') ? document.getElementById('conv-team').value : '',
+          notes: document.getElementById('conv-notes').value.trim(),
+          list
+        };
+        const text = formatConvocationWhatsAppText(formData, lang);
+        dispatchViberShare(text);
+      }
+
+      foot.querySelector('#btn-conv-share-viber-es').onclick = () => triggerViberShare('es');
+      foot.querySelector('#btn-conv-share-viber-en').onclick = () => triggerViberShare('en');
+
+      foot.querySelector('#btn-conv-cancel').onclick = closeSheet;
+
+      if (c.id) {
+        foot.querySelector('#btn-conv-del').onclick = () => {
+          confirmDialog(t('delete'), '¿Deseas eliminar esta convocatoria?', () => {
+            Store.deleteConvocation(c.id);
+            closeSheet();
+            if (onDone) onDone();
+          });
+        };
+      }
+
+      foot.querySelector('#btn-conv-save').onclick = () => {
+        const textInp = document.getElementById('conv-date-text');
+        const hiddenInp = document.getElementById('conv-date');
+        if (textInp && hiddenInp) {
+          const parsed = parseInputDateToIso(textInp.value);
+          if (parsed) hiddenInp.value = parsed;
+        }
+
+        const title = document.getElementById('conv-title').value.trim();
+        const date = hiddenInp ? hiddenInp.value : (c.date || new Date().toISOString().slice(0, 10));
+        const time = document.getElementById('conv-time').value;
+        const venue = document.getElementById('conv-venue').value.trim();
+        const rival = document.getElementById('conv-rival').value.trim();
+        const notes = document.getElementById('conv-notes').value.trim();
+        const teamId = document.getElementById('conv-team') ? document.getElementById('conv-team').value : '';
+
+        const webUrlInput = document.getElementById('conv-web-url');
+        if (webUrlInput) {
+          Store.state.settings.convocatoriaWebUrl = webUrlInput.value.trim();
+          Store.save();
+        }
+
+        const isNew = !c.id;
+        const savedConv = Store.upsertConvocation({
+          id: c.id,
+          title: title || (currentType === 'match' ? (rival ? 'vs ' + rival : 'Partido') : 'Entrenamiento'),
+          type: currentType,
+          date,
+          time,
+          venue,
+          rival,
+          teamId,
+          notes,
+          list
+        });
+
+        // Crear automáticamente la sesión en la lista de sesiones si es una convocatoria nueva
+        if (isNew) {
+          try {
+            Store.createSession({
+              type: currentType,
+              date,
+              rival: rival || '',
+              title: title || (currentType === 'match' ? (rival ? 'vs ' + rival : 'Partido') : 'Entrenamiento'),
+              teamId: teamId || '',
+              convocationId: savedConv.id
+            });
+          } catch (err) {
+            console.error('Error auto-creando sesión desde convocatoria:', err);
+          }
+        }
+
+        toast(t('savedSuccess'), 'success');
+        closeSheet();
+        if (onDone) onDone();
+        setTimeout(() => {
+          showConvocationDetailsModal(savedConv, onDone);
+        }, 180);
+      };
+    });
+  }
+
+  /* =========================================================
+     VISTA 5: CONVOCATORIAS Y ASISTENCIA (MENÚ INDEPENDIENTE)
+     ========================================================= */
+  function renderConvocationsView(view) {
+    function build() {
+      const list = Store.state.convocations || [];
+
+      view.innerHTML = `
+        <div class="topbar">
+          <div>
+            <h1>${t('convocations')}</h1>
+            <span class="sub">${list.length} convocatorias registradas</span>
+          </div>
+          <button class="btn sm primary" id="btn-create-conv">
+            ${icon('plus', 16)} ${t('newConvocation')}
+          </button>
+        </div>
+
+        ${list.length === 0 ? `
+          <div class="empty-state card">
+            <div class="e-ic">📋</div>
+            <h3>${t('convocations')}</h3>
+            <p>${t('convocationsDesc')}</p>
+            <button class="btn primary" id="btn-empty-conv">
+              ${icon('plus', 18)} ${t('newConvocation')}
+            </button>
+          </div>
+        ` : `
+          <div class="conv-list">
+            ${list.map(c => {
+              const allPlayers = Store.sortedPlayers();
+              let countCalled = 0, countBench = 0, countInjured = 0, countAbsent = 0;
+              allPlayers.forEach(p => {
+                const st = (c.list || {})[p.id];
+                if (st === 'called') countCalled++;
+                else if (st === 'bench') countBench++;
+                else if (st === 'injured') countInjured++;
+                else if (st === 'absent') countAbsent++;
+              });
+
+              return `
+                <div class="conv-card" data-cid="${c.id}" style="cursor: pointer;">
+                  <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+                    <div>
+                      <span class="badge ${c.type}" style="margin-bottom: 4px; display: inline-block;">
+                        ${c.type === 'match' ? '🏆 ' + t('match') : '⚽ ' + t('training')}
+                      </span>
+                      <h3 style="margin: 0; font-size: 16px; font-weight: 800;">
+                        ${escapeHtml(c.title || (c.rival ? 'vs ' + c.rival : 'Convocatoria'))}
+                      </h3>
+                      <div class="muted" style="font-size: 12px; margin-top: 3px;">
+                        📅 ${c.date} ${c.time ? '• ⏰ ' + c.time : ''} ${c.venue ? '• 📍 ' + escapeHtml(c.venue) : ''}
+                      </div>
+                    </div>
+                    <button class="btn sm" data-quick-viber="${c.id}" style="background: #7c3aed; color: #fff; border-color: #a855f7; flex-shrink: 0; font-size: 11.5px; font-weight: 800; padding: 4px 8px;" title="Viber">
+                      💜 Viber
+                    </button>
+                  </div>
+
+                  <div class="conv-badge-row">
+                    <span class="conv-status-chip called">🟢 ${countCalled} ${t('calledStatus')}</span>
+                    <span class="conv-status-chip bench">🟡 ${countBench} ${t('benchStatus')}</span>
+                    ${countInjured > 0 ? `<span class="conv-status-chip injured">🏥 ${countInjured} ${t('injuredStatus')}</span>` : ''}
+                    ${countAbsent > 0 ? `<span class="conv-status-chip" style="background: rgba(148,163,184,0.15); color: #cbd5e1;">❌ ${countAbsent} ${t('absentStatus')}</span>` : ''}
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `}
+      `;
+
+      const btnCreate = view.querySelector('#btn-create-conv');
+      if (btnCreate) btnCreate.onclick = () => showEditConvocationModal(null, () => build());
+
+      const btnEmpty = view.querySelector('#btn-empty-conv');
+      if (btnEmpty) btnEmpty.onclick = () => showEditConvocationModal(null, () => build());
+
+      view.querySelectorAll('[data-quick-viber]').forEach(btn => {
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          const cid = btn.getAttribute('data-quick-viber');
+          const conv = Store.convocation(cid);
+          if (conv) {
+            const lang = Store.state.settings.lang || 'es';
+            const viberText = formatConvocationWhatsAppText(conv, lang);
+            dispatchViberShare(viberText);
+          }
+        };
+      });
+
+      // Al pulsar en una convocatoria de la lista: abre la ventana con información y resumen de esa convocatoria
+      view.querySelectorAll('.conv-card').forEach(card => {
+        card.onclick = () => {
+          const cid = card.getAttribute('data-cid');
+          const conv = Store.convocation(cid);
+          if (conv) {
+            showConvocationDetailsModal(conv, () => build());
+          }
+        };
+      });
+    }
+
+    build();
+  }
+
+  /* =========================================================
+     VISTA 4: MÉTRICAS Y ESTADÍSTICAS GLOBALES
+     ========================================================= */
+  function renderStatsView(view) {
+    function build() {
+      const sessions = Store.filterSessions(statsFilterType, statsFilterPeriod);
+      const allPlayers = Store.sortedPlayers();
+
+      let totalTouches = 0, totalPassOk = 0, totalPassKo = 0, totalShotOn = 0, totalShotOff = 0, totalGoals = 0;
+
+      sessions.forEach(s => {
+        const pids = statsSelectedPlayerId === 'all' ? Store.sessionPlayerIds(s) : [statsSelectedPlayerId];
+        pids.forEach(pid => {
+          const st = s.stats[pid] || {};
+          totalTouches += (st.touches || 0);
+          totalPassOk += (st.passOk || 0);
+          totalPassKo += (st.passKo || 0);
+          totalShotOn += (st.shotOn || 0);
+          totalShotOff += (st.shotOff || 0);
+          totalGoals += (st.goal || 0);
+        });
+      });
+
+      const totalPass = totalPassOk + totalPassKo;
+      const passPct = totalPass ? Math.round((totalPassOk / totalPass) * 100) : 0;
+      const totalShots = totalShotOn + totalShotOff;
+      const shotPct = totalShots ? Math.round((totalShotOn / totalShots) * 100) : 0;
+
+      view.innerHTML = `
+        <div class="topbar">
+          <div>
+            <h1>${t('globalStats')}</h1>
+            <span class="sub">${sessions.length} ${t('sessionsAnalyzedSuffix')}</span>
+          </div>
+          <div class="row">
+            <button class="icon-btn" id="btn-stats-h2h" title="${t('headToHead')}">${icon('compare', 20)}</button>
+            <button class="icon-btn" id="btn-export-stats-json" title="${t('exportJSON')}">${icon('file', 20)}</button>
+            <button class="icon-btn" id="btn-export-stats-csv" title="${t('exportCSV')}">${icon('download', 20)}</button>
+          </div>
+        </div>
+
+        <div class="segmented" style="margin-bottom: 8px;">
+          <button class="${statsFilterType === 'all' ? 'active' : ''}" data-type="all">${t('all')}</button>
+          <button class="${statsFilterType === 'training' ? 'active t-training' : ''}" data-type="training">${t('training')}</button>
+          <button class="${statsFilterType === 'match' ? 'active t-match' : ''}" data-type="match">${t('match')}</button>
+        </div>
+
+        <!-- Selector visual de jugador para Métricas -->
+        <div class="metrics-player-selector">
+          <div class="metrics-player-card" id="btn-metrics-open-picker">
+            ${statsSelectedPlayerId === 'all' ? `
+              <div class="all-icon">👥</div>
+              <div class="p-info">
+                <div class="p-name">${t('allPlayersAverage')}</div>
+                <div class="p-meta"><span>${allPlayers.length} ${t('playerSquad').toLowerCase()}</span></div>
+              </div>
+              <button class="btn sm ghost" type="button" style="pointer-events: none;">${icon('search', 16)} ${t('changePlayer')}</button>
+            ` : (() => {
+              const sp = Store.player(statsSelectedPlayerId);
+              const sTeam = sp ? Store.team(sp.teamId) : null;
+              return `
+                ${sp ? renderAvatar(sp, 'sm') : ''}
+                <div class="p-info">
+                  <div class="p-name">${escapeHtml(Store.playerName(sp))}</div>
+                  <div class="p-meta">
+                    <span class="pos-tag">${sp ? sp.mainPosition || 'Jugador' : ''}</span>
+                    <span>#${sp && sp.mainDorsal != null ? sp.mainDorsal : '-'}</span>
+                    ${sTeam ? `<b style="color: ${sTeam.color};">${escapeHtml(sTeam.name)}</b>` : ''}
+                  </div>
+                </div>
+                <button class="icon-btn ghost" id="btn-metrics-reset-all" type="button" title="${t('viewAllPlayers')}">${icon('x', 18)}</button>
+              `;
+            })()}
+          </div>
+
+          <!-- Carrusel horizontal visual con avatares -->
+          <div class="metrics-player-carousel">
+            <div class="metrics-p-chip ${statsSelectedPlayerId === 'all' ? 'active' : ''}" data-pid="all">
+              <div class="all-icon">👥</div>
+              <span class="chip-name">${t('all')}</span>
+            </div>
+            ${allPlayers.map(p => `
+              <div class="metrics-p-chip ${statsSelectedPlayerId === p.id ? 'active' : ''}" data-pid="${p.id}">
+                ${renderAvatar(p, 'sm')}
+                <span class="chip-name">#${p.mainDorsal != null ? p.mainDorsal : ''} ${escapeHtml(Store.playerName(p, true))}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <div class="rings" style="margin-bottom: 12px;">
+          <div class="ring-card">
+            <div class="ring">
+              ${renderProgressRing(passPct, '#22c55e')}
+              <span class="r-val" style="color: #22c55e;">${passPct}%</span>
+            </div>
+            <span>${t('passAccuracy')}</span>
+            <small>${totalPassOk}/${totalPass}</small>
+          </div>
+
+          <div class="ring-card">
+            <div class="ring">
+              ${renderProgressRing(shotPct, '#06b6d4')}
+              <span class="r-val" style="color: #06b6d4;">${shotPct}%</span>
+            </div>
+            <span>${t('shotAccuracy')}</span>
+            <small>${totalShotOn}/${totalShots}</small>
+          </div>
+
+          <div class="ring-card">
+            <div class="ring">
+              ${renderProgressRing(Math.min(100, totalGoals * 20), '#facc15')}
+              <span class="r-val" style="color: #facc15;">${totalGoals}</span>
+            </div>
+            <span>${t('totalGoals')}</span>
+            <small>${sessions.length} ses.</small>
+          </div>
+        </div>
+
+        <div class="section-title"><span>${t('performanceLeaders')}</span></div>
+
+        <div class="card" style="margin-bottom: 12px;">
+          <h4 style="margin: 0 0 10px; font-size: 14px; color: var(--muted);">${t('mostTouches')}</h4>
+          ${renderTopRankHtml(allPlayers, sessions, 'touches', '#22c55e')}
+        </div>
+
+        <div class="card" style="margin-bottom: 12px;">
+          <h4 style="margin: 0 0 10px; font-size: 14px; color: var(--muted);">${t('topScorers')}</h4>
+          ${renderTopRankHtml(allPlayers, sessions, 'goal', '#facc15')}
+        </div>
+
+        <div class="card">
+          <h4 style="margin: 0 0 10px; font-size: 14px; color: var(--muted);">${t('topPassers')}</h4>
+          ${renderTopRankHtml(allPlayers, sessions, 'passOk', '#06b6d4')}
+        </div>
+      `;
+
+      view.querySelectorAll('.segmented button').forEach(b => {
+        b.onclick = () => {
+          statsFilterType = b.getAttribute('data-type');
+          build();
+        };
+      });
+
+      view.querySelectorAll('.metrics-p-chip').forEach(chip => {
+        chip.onclick = () => {
+          statsSelectedPlayerId = chip.getAttribute('data-pid');
+          build();
+        };
+      });
+
+      const cardEl = view.querySelector('#btn-metrics-open-picker');
+      if (cardEl) {
+        cardEl.onclick = (e) => {
+          const resetBtn = e.target.closest('#btn-metrics-reset-all');
+          if (resetBtn) {
+            e.stopPropagation();
+            statsSelectedPlayerId = 'all';
+            build();
+            return;
+          }
+          showPlayerPickerModal(statsSelectedPlayerId, (pid) => {
+            statsSelectedPlayerId = pid;
+            build();
+          });
+        };
+      }
+
+      view.querySelector('#btn-stats-h2h').onclick = () => {
+        showHeadToHeadModal(statsSelectedPlayerId !== 'all' ? statsSelectedPlayerId : null, null);
+      };
+      view.querySelector('#btn-export-stats-json').onclick = () => IO.exportBackup();
+      view.querySelector('#btn-export-stats-csv').onclick = () => IO.exportStatsCSV(sessions);
+    }
+
+    build();
+  }
+
+  function renderProgressRing(pct, color) {
+    const r = 26;
+    const circ = 2 * Math.PI * r;
+    const offset = circ - (circ * Math.min(100, Math.max(0, pct))) / 100;
+    return `
+      <svg width="70" height="70">
+        <circle cx="35" cy="35" r="${r}" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="6" />
+        <circle cx="35" cy="35" r="${r}" fill="none" stroke="${color}" stroke-width="6"
+                stroke-dasharray="${circ}" stroke-dashoffset="${offset}" stroke-linecap="round" />
+      </svg>
+    `;
+  }
+
+  function renderTopRankHtml(players, sessions, key, color) {
+    const ranking = players.map(p => {
+      let sum = 0;
+      sessions.forEach(s => {
+        const st = s.stats[p.id] || {};
+        sum += (st[key] || 0);
+      });
+      return { player: p, value: sum };
+    }).filter(x => x.value > 0).sort((a, b) => b.value - a.value).slice(0, 3);
+
+    if (ranking.length === 0) {
+      return `<p class="muted" style="font-size: 13px; margin: 4px 0;">Sin registros</p>`;
+    }
+
+    const maxVal = ranking[0].value || 1;
+
+    return ranking.map((item, idx) => {
+      const pct = Math.round((item.value / maxVal) * 100);
+      return `
+        <div class="rank-item" style="padding: 6px 0; background: none; border: 0;">
+          <div class="rank-pos">#${idx + 1}</div>
+          ${renderAvatar(item.player, 'sm')}
+          <div class="grow ellipsis">
+            <b>${escapeHtml(Store.playerName(item.player))}</b>
+            <div class="rank-bar"><i style="--rc: ${color}; width: ${pct}%;"></i></div>
+          </div>
+          <div class="rank-val" style="color: ${color};">${item.value}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  /* =========================================================
+     VISTA 5: AJUSTES / CONFIGURACIÓN
+     ========================================================= */
+  function renderConfigView(view) {
+    const settings = Store.state.settings;
+
+    view.innerHTML = `
+      <div class="topbar">
+        <div>
+          <h1>${t('configTitle')}</h1>
+          <span class="sub">${t('configSubtitle')}</span>
+        </div>
+        ${renderLangButton()}
+      </div>
+
+      <!-- Selector de Idioma -->
+      <div class="section-title"><span>${t('appLanguage')}</span></div>
+      <div class="card" style="margin-bottom: 14px;">
+        <div class="segmented">
+          <button type="button" class="${I18N.getLang() === 'es' ? 'active' : ''}" id="lang-pick-es">Español 🇪🇸</button>
+          <button type="button" class="${I18N.getLang() === 'en' ? 'active' : ''}" id="lang-pick-en">English 🇬🇧</button>
+        </div>
+      </div>
+
+      <div class="section-title"><span>${t('customizeButtons')} (Orden Canónico Fijo)</span></div>
+      <div class="card" style="margin-bottom: 14px;">
+        ${Store.STATS.map(item => {
+          const isEnabled = settings.enabledStats.includes(item.key);
+          return `
+            <div class="toggle-row">
+              <span class="t-emoji" style="background: ${item.color}20;">${item.emoji}</span>
+              <div class="grow">
+                <h5>${item.label}</h5>
+                <small>${item.short}</small>
+              </div>
+              <button class="switch ${isEnabled ? 'on' : ''}" data-stat="${item.key}"></button>
+            </div>
+          `;
+        }).join('')}
+      </div>
+
+      <div class="section-title"><span>Comportamiento</span></div>
+      <div class="card" style="margin-bottom: 14px;">
+        <div class="toggle-row">
+          <div class="grow">
+            <h5>${t('hapticVibration')}</h5>
+            <small>${t('hapticDesc')}</small>
+          </div>
+          <button class="switch ${settings.vibrate ? 'on' : ''}" id="toggle-vibrate"></button>
+        </div>
+
+        <div class="toggle-row">
+          <div class="grow">
+            <h5>${t('linkGoalToShot')}</h5>
+            <small>${t('linkGoalToShotDesc')}</small>
+          </div>
+          <button class="switch ${settings.linkGoalShot ? 'on' : ''}" id="toggle-link-goal"></button>
+        </div>
+
+        <div class="toggle-row">
+          <div class="grow">
+            <h5>${t('askZoneOnShots')}</h5>
+            <small>${t('askZoneOnShotsDesc')}</small>
+          </div>
+          <button class="switch ${settings.askZoneOnShots !== false ? 'on' : ''}" id="toggle-ask-zone"></button>
+        </div>
+      </div>
+
+      <div class="section-title"><span>🌐 Nube y Portal de Jugadores (Firebase)</span></div>
+      <div class="card" style="margin-bottom: 14px; background: linear-gradient(135deg, rgba(34, 211, 238, 0.08) 0%, rgba(19, 31, 56, 0.6) 100%); border-color: rgba(34, 211, 238, 0.3);">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+          <div>
+            <h5 style="margin: 0; font-size: 14px; font-weight: 800; color: #fff;">Conexión en Vivo</h5>
+            <small style="color: var(--muted); font-size: 11px;">Sincroniza plantilla, convocatorias y votos en tiempo real</small>
+          </div>
+          <span class="badge" id="cloud-status-badge" style="background: rgba(34, 197, 94, 0.15); color: #86efac; font-size: 11px;">🟢 Conectado</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <button class="btn btn-primary" id="btn-cloud-sync-now" style="height: 40px; font-size: 13px; font-weight: 800;">
+            ☁️ Sincronizar Todo a la Nube Ahora
+          </button>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <button class="btn btn-secondary" id="btn-copy-portal-link" style="height: 38px; font-size: 12px; font-weight: 700;">
+              🔗 Copiar Enlace Portal
+            </button>
+            <button class="btn btn-secondary" id="btn-share-portal-viber" style="height: 38px; font-size: 12px; font-weight: 700; background: rgba(115, 96, 242, 0.2); border-color: rgba(115, 96, 242, 0.5); color: #c4b5fd;">
+              📱 Enviar por Viber
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-title"><span>${t('teams')}</span></div>
+      <div class="menu-list" style="margin-bottom: 14px;">
+        <button class="menu-item" id="btn-config-manage-teams">
+          <div class="m-ic">${icon('shield', 20)}</div>
+          <div class="grow">
+            <h5>${t('manageTeams')}</h5>
+            <small>Crear, modificar equipos y reasignar jugadores</small>
+          </div>
+          ${icon('chevR', 18, 'dim')}
+        </button>
+      </div>
+
+      <div class="section-title"><span>${t('exportJSON')} y Copias de Seguridad</span></div>
+      <div class="menu-list" style="margin-bottom: 14px;">
+        <button class="menu-item" id="btn-export-backup">
+          <div class="m-ic">${icon('file', 20)}</div>
+          <div class="grow">
+            <h5>${t('fullBackup')}</h5>
+            <small>${t('fullBackupDesc')}</small>
+          </div>
+          ${icon('chevR', 18, 'dim')}
+        </button>
+
+        <button class="menu-item" id="btn-restore-backup">
+          <div class="m-ic">${icon('upload', 20)}</div>
+          <div class="grow">
+            <h5>${t('restoreBackup')}</h5>
+            <small>${t('restoreBackupDesc')}</small>
+          </div>
+          ${icon('chevR', 18, 'dim')}
+        </button>
+
+        <button class="menu-item" id="btn-export-all-csv">
+          <div class="m-ic">${icon('download', 20)}</div>
+          <div class="grow">
+            <h5>${t('exportCSV')}</h5>
+            <small>Hoja de cálculo para Excel</small>
+          </div>
+          ${icon('chevR', 18, 'dim')}
+        </button>
+      </div>
+
+      <div class="menu-list">
+        <button class="menu-item danger" id="btn-reset-all">
+          <div class="m-ic">${icon('trash', 20)}</div>
+          <div class="grow">
+            <h5>${t('resetAll')}</h5>
+            <small>${t('resetAllDesc')}</small>
+          </div>
+          ${icon('chevR', 18, 'dim')}
+        </button>
+      </div>
+
+      <div style="text-align: center; padding: 20px 0; color: var(--dim); font-size: 12px;">
+        ${t('appName')} v1.1 • APK Android
+      </div>
+    `;
+
+    const btnLang = view.querySelector('#btn-toggle-lang');
+    if (btnLang) btnLang.onclick = toggleLanguage;
+
+    view.querySelector('#lang-pick-es').onclick = () => {
+      I18N.setLang('es');
+      renderTabbar();
+      navigate('config');
+    };
+    view.querySelector('#lang-pick-en').onclick = () => {
+      I18N.setLang('en');
+      renderTabbar();
+      navigate('config');
+    };
+
+    view.querySelectorAll('[data-stat]').forEach(sw => {
+      sw.onclick = () => {
+        const k = sw.getAttribute('data-stat');
+        const list = settings.enabledStats;
+        const idx = list.indexOf(k);
+        if (idx >= 0) {
+          if (list.length <= 1) {
+            toast(t('minTwoButtons'), 'error');
+            return;
+          }
+          list.splice(idx, 1);
+          sw.classList.remove('on');
+        } else {
+          list.push(k);
+          sw.classList.add('on');
+        }
+        // Guardar siempre en orden canónico
+        settings.enabledStats = Store.getSortedStats(list).map(s => s.key);
+        Store.save();
+        haptic(25);
+      };
+    });
+
+    view.querySelector('#toggle-vibrate').onclick = (e) => {
+      settings.vibrate = !settings.vibrate;
+      e.currentTarget.classList.toggle('on', settings.vibrate);
+      Store.save();
+    };
+
+    view.querySelector('#toggle-link-goal').onclick = (e) => {
+      settings.linkGoalShot = !settings.linkGoalShot;
+      e.currentTarget.classList.toggle('on', settings.linkGoalShot);
+      Store.save();
+    };
+
+    view.querySelector('#toggle-ask-zone').onclick = (e) => {
+      settings.askZoneOnShots = !(settings.askZoneOnShots !== false);
+      e.currentTarget.classList.toggle('on', settings.askZoneOnShots);
+      Store.save();
+    };
+
+    const btnCfgTeams = view.querySelector('#btn-config-manage-teams');
+    if (btnCfgTeams) btnCfgTeams.onclick = () => showManageTeamsModal();
+
+    const btnSyncNow = view.querySelector('#btn-cloud-sync-now');
+    if (btnSyncNow) {
+      btnSyncNow.onclick = async () => {
+        btnSyncNow.disabled = true;
+        btnSyncNow.textContent = '⏳ Sincronizando...';
+        if (window.Cloud) {
+          const ok = await window.Cloud.pushCoachState(Store.state);
+          if (ok) {
+            toast('¡Datos sincronizados en la nube en tiempo real!', 'success');
+          } else {
+            toast('Asegúrate de haber pulsado "Crear base de datos" en Firestore.', 'warning');
+          }
+        }
+        btnSyncNow.disabled = false;
+        btnSyncNow.textContent = '☁️ Sincronizar Todo a la Nube Ahora';
+      };
+    }
+
+    const portalUrl = 'https://streetoh.github.io/Player_Stats/jugadores.html';
+    const btnCopyPortal = view.querySelector('#btn-copy-portal-link');
+    if (btnCopyPortal) {
+      btnCopyPortal.onclick = () => {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(portalUrl).then(() => {
+            toast('Enlace del Portal copiado al portapapeles', 'success');
+          }).catch(() => {
+            prompt('Copia el enlace del portal:', portalUrl);
+          });
+        } else {
+          prompt('Copia el enlace del portal:', portalUrl);
+        }
+      };
+    }
+
+    const btnSharePortalViber = view.querySelector('#btn-share-portal-viber');
+    if (btnSharePortalViber) {
+      btnSharePortalViber.onclick = () => {
+        const viberMsg = `⚽ *Portal Oficial del Jugador - Jõhvi JK Noova*\nConsulta tus estadísticas individuales, convocatorias y confirma tu asistencia en vivo:\n👉 ${portalUrl}`;
+        dispatchViberShare(viberMsg);
+      };
+    }
+
+    view.querySelector('#btn-export-backup').onclick = () => IO.exportBackup();
+    view.querySelector('#btn-restore-backup').onclick = () => showImportModal();
+    view.querySelector('#btn-export-all-csv').onclick = () => IO.exportStatsCSV();
+
+    view.querySelector('#btn-reset-all').onclick = () => {
+      confirmDialog(t('resetAll'), t('resetAllDesc'), () => {
+        localStorage.clear();
+        location.reload();
+      });
+    };
+  }
+
+  function escapeHtml(str) {
+    return String(str || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
