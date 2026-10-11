@@ -719,6 +719,122 @@
         console.error('[Cloud] Error reaccionando a mensaje:', err);
         return false;
       }
+    },
+
+    removeChatParticipant: async function (chatId, participantId) {
+      if (!this.init() || !chatId || !participantId) return false;
+      try {
+        const ref = db.collection('clubs').doc(CLUB_ID).collection('chats').doc(chatId);
+        await ref.update({
+          participants: global.firebase.firestore.FieldValue.arrayRemove(participantId)
+        });
+        return true;
+      } catch (err) {
+        console.error('[Cloud] Error quitando participante:', err);
+        return false;
+      }
+    },
+
+    deleteChat: async function (chatId) {
+      if (!this.init() || !chatId) return false;
+      try {
+        const ref = db.collection('clubs').doc(CLUB_ID).collection('chats').doc(chatId);
+        await ref.set({ deleted: true, isDeleted: true, lastMessage: '', lastMessageTime: 0 }, { merge: true });
+        try {
+          await ref.delete();
+        } catch (e) {}
+        return true;
+      } catch (err) {
+        console.error('[Cloud] Error eliminando chat:', err);
+        return false;
+      }
+    },
+
+    /* =========================================================
+       SOLICITUDES DE CONFIRMACIÓN Y CÓDIGO DE ACCESO A PERFIL
+       ========================================================= */
+    submitProfileClaimRequest: async function (claimData) {
+      if (!this.init()) throw new Error('No hay conexión con la nube.');
+      if (!claimData || !claimData.id) throw new Error('Datos de solicitud incompletos.');
+      await db.collection('clubs')
+        .doc(CLUB_ID)
+        .collection('profile_claim_requests')
+        .doc(claimData.id)
+        .set({
+          ...claimData,
+          status: 'pending',
+          serverTime: global.firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+      return true;
+    },
+
+    listenToProfileClaimRequests: function (callback) {
+      if (!this.init()) return null;
+      try {
+        return db.collection('clubs')
+          .doc(CLUB_ID)
+          .collection('profile_claim_requests')
+          .onSnapshot((snapshot) => {
+            const requests = [];
+            snapshot.forEach(doc => {
+              const data = doc.data();
+              if (data && data.status === 'pending') {
+                requests.push(data);
+              }
+            });
+            requests.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+            if (typeof callback === 'function') callback(requests);
+          }, (err) => {
+            console.warn('[Cloud] Error escuchando solicitudes de acceso:', err);
+          });
+      } catch (err) {
+        console.error('[Cloud] Error listener acceso perfil:', err);
+        return null;
+      }
+    },
+
+    listenToProfileClaimRequest: function (reqId, callback) {
+      if (!this.init() || !reqId) return null;
+      try {
+        return db.collection('clubs')
+          .doc(CLUB_ID)
+          .collection('profile_claim_requests')
+          .doc(reqId)
+          .onSnapshot((doc) => {
+            if (doc.exists && typeof callback === 'function') {
+              callback(doc.data());
+            }
+          });
+      } catch (err) {
+        return null;
+      }
+    },
+
+    resolveProfileClaimRequest: async function (reqId, status) {
+      if (!this.init() || !reqId) return false;
+      try {
+        await db.collection('clubs')
+          .doc(CLUB_ID)
+          .collection('profile_claim_requests')
+          .doc(reqId)
+          .update({
+            status: status,
+            resolvedAt: Date.now()
+          });
+        setTimeout(async () => {
+          try {
+            await db.collection('clubs')
+              .doc(CLUB_ID)
+              .collection('profile_claim_requests')
+              .doc(reqId)
+              .delete();
+          } catch (e) {}
+        }, 8000);
+        return true;
+      } catch (err) {
+        console.error('[Cloud] Error resolviendo solicitud de acceso a perfil:', err);
+        return false;
+      }
     }
   };
 

@@ -331,6 +331,7 @@
       function renderRooms() {
         if (!listEl) return;
         const q = activeSearch.toLowerCase().trim();
+        const isEn = (global.Store && global.Store.state && global.Store.state.lang === 'en') || (localStorage.getItem('preferred_lang') === 'en');
 
         // Identificar equipo del jugador si no es coach
         const myP = allPlayers.find(p => p.id === curId);
@@ -341,7 +342,7 @@
         const defaultTeamChats = allTeams.map(tm => ({
           id: `team_${tm.id}`,
           type: 'team',
-          name: `🛡️ Chat: ${tm.name}`,
+          name: `🛡️ ${tm.name}`,
           teamId: tm.id,
           participants: allPlayers.filter(p => p.teamId === tm.id).map(p => p.id).concat(['coach']),
           lastMessage: '',
@@ -359,7 +360,7 @@
 
         if (!isCoach) {
           pinnedTeamId = myTeamId ? `team_${myTeamId}` : 'team_general';
-          const teamDisplayName = myTeam ? myTeam.name : t('squadGeneral', 'General del Equipo');
+          const teamDisplayName = myTeam ? myTeam.name : t('squadGeneral', isEn ? 'Team General' : 'General del Equipo');
           mergedMap[pinnedTeamId] = Object.assign({
             id: pinnedTeamId,
             type: 'team',
@@ -367,7 +368,7 @@
             participants: myTeamId ? allPlayers.filter(p => p.teamId === myTeamId).map(p => p.id).concat(['coach']) : allPlayers.map(p => p.id).concat(['coach'])
           }, mergedMap[pinnedTeamId] || {}, {
             isPinned: true,
-            name: `🛡️ Chat: ${teamDisplayName} (${t('coachAndTeammates', 'con Entrenador y jugadores')})`
+            name: `🛡️ ${teamDisplayName} (${t('coachAndTeammates', isEn ? 'with Coach & teammates' : 'con Entrenador y compañeros')})`
           });
 
           pinnedCoachChatId = `coach_${curId}`;
@@ -377,7 +378,7 @@
             participants: [curId, 'coach']
           }, mergedMap[pinnedCoachChatId] || {}, {
             isPinned: true,
-            name: `👨‍🏫 ${t('privateWithCoach', 'Chat Privado con el Entrenador')}`
+            name: `👨‍🏫 ${t('pinnedCoachChat', isEn ? 'Private Chat with Coach' : 'Chat Privado con el Entrenador')}`
           });
         }
 
@@ -391,6 +392,10 @@
         });
 
         let displayChats = Object.values(mergedMap).filter(c => {
+          // Filtrar chats borrados por el usuario
+          if (localStorage.getItem('chat_deleted_' + c.id) === 'true' || c.deleted === true) {
+            return false;
+          }
           // Filtrar por membresía: coach ve todo, jugador ve donde es participante o de su equipo
           if (!isCoach) {
             if (c.type === 'team') {
@@ -400,7 +405,8 @@
             }
           }
           if (q) {
-            const nameMatch = (c.name || '').toLowerCase().includes(q);
+            const cleanName = (c.name || '').replace(/^Chat:\s*/i, '').replace(/^🛡️\s*Chat:\s*/i, '🛡️ ');
+            const nameMatch = cleanName.toLowerCase().includes(q);
             const lastMsgMatch = (c.lastMessage || '').toLowerCase().includes(q);
             return nameMatch || lastMsgMatch;
           }
@@ -440,12 +446,12 @@
         }
 
         listEl.innerHTML = displayChats.map(c => {
-          let displayName = c.name || 'Chat';
-          if (c.type === 'direct' || c.id.startsWith('direct_')) {
+          let displayName = (c.name || 'Chat').replace(/^Chat:\s*/i, '').replace(/^🛡️\s*Chat:\s*/i, '🛡️ ');
+          if (c.type === 'direct' || c.id.startsWith('direct_') || c.id.startsWith('coach_')) {
             const parts = c.participants || [];
             const otherId = parts.find(p => p !== curId) || (parts[0] === curId ? parts[1] : parts[0]);
             if (!otherId || otherId === 'coach') {
-              displayName = `👨‍🏫 ${t('coach', 'Entrenador (Coach)')}`;
+              displayName = `👨‍🏫 ${t('coach', isEn ? 'Coach' : 'Entrenador (Coach)')}`;
             } else {
               const p = (allPlayers || []).find(x => x.id === otherId);
               if (p) displayName = `#${p.mainDorsal != null ? p.mainDorsal : '-'} ${p.name || ''} ${p.lastName || ''}`.trim();
@@ -468,13 +474,15 @@
                 ${avatarHtml}
                 ${isUnread ? `<span class="chat-card-unread-dot" style="position: absolute; top: -3px; right: -3px; width: 11px; height: 11px; border-radius: 50%; background: #ef4444; border: 2px solid var(--surface2);"></span>` : ''}
               </div>
-              <div style="flex: 1; min-width: 0;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
-                  <b style="font-size: 14.5px; color: #fff; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; display: flex; align-items: center; gap: 6px;">
-                    ${c.isPinned ? '<span style="font-size: 13px;" title="' + t('pinned', 'Fijado') + '">📌</span>' : ''}
-                    ${escapeHtml(displayName)}
-                    ${isMuted ? '<small style="font-size: 11px; opacity: 0.6;">🔕</small>' : ''}
-                  </b>
+              <div style="flex: 1; min-width: 0; overflow: hidden;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; gap: 6px;">
+                  <div style="overflow-x: auto; white-space: nowrap; scrollbar-width: none; -ms-overflow-style: none; flex: 1; min-width: 0;">
+                    <b style="font-size: 14.5px; color: #fff; display: inline-flex; align-items: center; gap: 6px;">
+                      ${c.isPinned ? '<span style="font-size: 13px;" title="' + t('pinned', 'Fijado') + '">📌</span>' : ''}
+                      <span>${escapeHtml(displayName)}</span>
+                      ${isMuted ? '<small style="font-size: 11px; opacity: 0.6;">🔕</small>' : ''}
+                    </b>
+                  </div>
                   <div style="display: flex; align-items: center; gap: 4px; flex-shrink: 0;">
                     ${isUnread ? `<span class="badge chat-card-new-badge" style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.5); font-weight: 900; font-size: 9.5px; padding: 1px 5px; border-radius: 8px;">● ${t('newBadge', 'NUEVO')}</span>` : ''}
                     <small style="font-size: 11px; color: var(--muted);">${timeStr}</small>
@@ -493,12 +501,13 @@
             const cid = item.getAttribute('data-chat-id');
             const targetChat = displayChats.find(x => x.id === cid);
             haptic(20);
+            const cleanTitle = (targetChat ? targetChat.name : 'Chat').replace(/^Chat:\s*/i, '').replace(/^🛡️\s*Chat:\s*/i, '🛡️ ');
             ChatUI.markChatAsRead(curId, cid, targetChat ? targetChat.lastMessageTime : 0);
             ChatUI.openConversationModal(cid, {
               currentUserId: curId,
               currentUserName: curName,
               isCoach: isCoach,
-              title: targetChat ? targetChat.name : 'Chat',
+              title: cleanTitle,
               chatData: targetChat,
               players: allPlayers,
               teams: allTeams,
@@ -575,8 +584,11 @@
           isCoach: options.isCoach,
           players: options.players,
           teams: options.teams,
-          onCreated: (chatId) => {
-            ChatUI.openConversationModal(chatId, options);
+          onCreated: (chatId, chatData) => {
+            ChatUI.openConversationModal(chatId, Object.assign({}, options, {
+              title: chatData ? chatData.name : 'Grupo',
+              chatData: chatData
+            }));
           }
         });
       };
@@ -799,7 +811,7 @@
       btnSubmit.onclick = async () => {
         const name = overlay.querySelector('#inp-group-name').value.trim();
         if (!name) {
-          if (global.UI && global.UI.toast) global.UI.toast('Introduce un nombre para el grupo', 'error');
+          if (global.UI && global.UI.toast) global.UI.toast(t('enterGroupName', 'Introduce un nombre para el grupo'), 'error');
           return;
         }
 
@@ -809,7 +821,7 @@
         });
 
         if (selectedIds.length === 0) {
-          if (global.UI && global.UI.toast) global.UI.toast('Selecciona al menos un participante para el grupo', 'error');
+          if (global.UI && global.UI.toast) global.UI.toast(t('selectAtLeastOneMember', 'Selecciona al menos un participante para el grupo'), 'error');
           return;
         }
 
@@ -830,13 +842,18 @@
           createdAt: Date.now()
         };
 
-        if (global.Cloud && global.Cloud.createOrGetChat) {
-          await global.Cloud.createOrGetChat(chatData);
+        try {
+          if (global.Cloud && global.Cloud.createOrGetChat) {
+            await global.Cloud.createOrGetChat(chatData);
+          }
+        } catch (err) {
+          console.error('Error creating group in cloud:', err);
         }
 
         close();
+        if (global.UI && global.UI.toast) global.UI.toast(t('groupCreated', 'Grupo creado con éxito'), 'success');
         if (typeof options.onCreated === 'function') {
-          options.onCreated(groupId);
+          options.onCreated(groupId, chatData);
         }
       };
 
@@ -937,6 +954,130 @@
         close();
         if (onUpdated) onUpdated(updates);
       };
+
+      document.body.appendChild(overlay);
+    },
+
+    // Modal para ver miembros del grupo, con opción a eliminarlos o gestionar el grupo
+    openGroupMembersModal: function (chatId, currentChatData, allPlayers, options = {}) {
+      const curId = options.currentUserId || 'coach';
+      const isCoach = !!options.isCoach;
+      const isCreator = currentChatData.createdBy === curId;
+      const canManage = isCoach || isCreator;
+      const participants = currentChatData.participants || [];
+
+      const overlay = document.createElement('div');
+      overlay.className = 'dialog-overlay';
+      overlay.innerHTML = `
+        <div class="dialog-box" style="max-height: 85vh; width: 92%; max-width: 440px; display: flex; flex-direction: column;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
+            <h3 style="margin: 0; font-size: 16px; font-weight: 900; color: #fff;">
+              👥 ${t('groupMembers', 'Miembros del Grupo')} (${participants.length})
+            </h3>
+            <button type="button" class="icon-btn ghost" id="dlg-members-x" style="width: 32px; height: 32px;">✕</button>
+          </div>
+
+          <div style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px;" id="group-members-list">
+            ${participants.map(pid => {
+              if (pid === 'coach') {
+                return `
+                  <div class="card member-item-row" data-pid="coach" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-radius: 12px; background: rgba(250, 204, 21, 0.08); border: 1px solid rgba(250, 204, 21, 0.3);">
+                    <div style="display: flex; align-items: center; gap: 10px; overflow: hidden;">
+                      <span style="font-size: 22px;">👨‍🏫</span>
+                      <div>
+                        <b style="font-size: 13.5px; color: #fff; display: block;">${t('coach', 'Entrenador')}</b>
+                        <small style="color: #fde047; font-size: 11px;">Staff Técnico Principal</small>
+                      </div>
+                    </div>
+                    <span class="badge" style="background: rgba(250, 204, 21, 0.2); color: #fde047; font-size: 10px; padding: 2px 6px;">ADMIN</span>
+                  </div>
+                `;
+              }
+              const p = (allPlayers || []).find(x => x.id === pid);
+              const displayName = p ? `#${p.mainDorsal != null ? p.mainDorsal : '-'} ${p.name || ''} ${p.lastName || ''}`.trim() : `Jugador (${pid})`;
+              const isSelf = pid === curId;
+              return `
+                <div class="card member-item-row" data-pid="${pid}" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-radius: 12px; background: var(--surface2); border: 1px solid var(--border);">
+                  <div style="display: flex; align-items: center; gap: 10px; overflow: hidden; flex: 1;">
+                    <div style="width: 36px; height: 36px; border-radius: 10px; background: rgba(34,211,238,0.15); display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; overflow: hidden;">
+                      ${p && p.photo ? `<img src="${p.photo}" style="width: 100%; height: 100%; object-fit: cover;" />` : '👤'}
+                    </div>
+                    <div style="overflow: hidden; flex: 1;">
+                      <b style="font-size: 13.5px; color: #fff; display: block; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">
+                        ${escapeHtml(displayName)} ${isSelf ? '<small style="color: var(--cyan); font-weight: 700;">(' + t('you', 'Tú') + ')</small>' : ''}
+                      </b>
+                      <small style="color: var(--muted); font-size: 11px;">${p ? p.mainPosition || 'Jugador' : 'Participante'}</small>
+                    </div>
+                  </div>
+                  ${(canManage && !isSelf) ? `
+                    <button type="button" class="btn sm danger ghost btn-remove-member" data-pid="${pid}" data-pname="${escapeHtml(displayName)}" style="height: 32px; font-size: 11.5px; padding: 0 10px; font-weight: 800; border-radius: 8px;">
+                      🗑️ ${t('removeMember', 'Eliminar')}
+                    </button>
+                  ` : ''}
+                </div>
+              `;
+            }).join('')}
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--border); padding-top: 12px;">
+            <button type="button" class="btn primary block" id="btn-modal-add-parts" style="height: 42px; font-weight: 900; font-size: 13.5px;">
+              ➕ ${t('addParticipants', 'Añadir participantes')}
+            </button>
+            ${canManage ? `
+              <button type="button" class="btn danger ghost block" id="btn-modal-del-group" style="height: 38px; font-weight: 800; font-size: 12.5px;">
+                🗑️ ${t('deleteGroup', 'Eliminar grupo')}
+              </button>
+            ` : ''}
+          </div>
+        </div>
+      `;
+
+      function close() { overlay.remove(); }
+      overlay.querySelector('#dlg-members-x').onclick = close;
+      overlay.onclick = (e) => { if (e.target === overlay) close(); };
+
+      // Eliminar miembro
+      overlay.querySelectorAll('.btn-remove-member').forEach(btn => {
+        btn.onclick = async () => {
+          const pid = btn.getAttribute('data-pid');
+          const pname = btn.getAttribute('data-pname');
+          if (!confirm(`${t('removeMemberConfirm', '¿Eliminar a este miembro del grupo?')}\n${pname}`)) return;
+          btn.disabled = true;
+          if (global.Cloud && global.Cloud.removeChatParticipant) {
+            await global.Cloud.removeChatParticipant(chatId, pid);
+          }
+          currentChatData.participants = (currentChatData.participants || []).filter(x => x !== pid);
+          const row = overlay.querySelector(`.member-item-row[data-pid="${pid}"]`);
+          if (row) row.remove();
+          if (global.UI && global.UI.toast) global.UI.toast(t('memberRemoved', 'Miembro eliminado del grupo'), 'info');
+        };
+      });
+
+      // Añadir participantes
+      const btnAddParts = overlay.querySelector('#btn-modal-add-parts');
+      if (btnAddParts) {
+        btnAddParts.onclick = () => {
+          close();
+          ChatUI.openAddParticipantsModal(chatId, currentChatData, allPlayers, (added) => {
+            currentChatData.participants = (currentChatData.participants || []).concat(added);
+          });
+        };
+      }
+
+      // Eliminar grupo
+      const btnDelGroup = overlay.querySelector('#btn-modal-del-group');
+      if (btnDelGroup) {
+        btnDelGroup.onclick = async () => {
+          if (!confirm(t('deleteGroupConfirm', '¿Eliminar este grupo de forma definitiva?'))) return;
+          localStorage.setItem('chat_deleted_' + chatId, 'true');
+          if (global.Cloud && global.Cloud.deleteChat) {
+            await global.Cloud.deleteChat(chatId);
+          }
+          if (global.UI && global.UI.toast) global.UI.toast(t('groupDeleted', 'Grupo eliminado'), 'info');
+          close();
+          if (typeof options.onDeleted === 'function') options.onDeleted();
+        };
+      }
 
       document.body.appendChild(overlay);
     },
@@ -1057,22 +1198,29 @@
         <div class="dialog-box chat-modal-box" style="width: 100%; height: 100%; max-width: 600px; max-height: 100%; display: flex; flex-direction: column; background: var(--bg); border: none; border-radius: 0; padding: 0; overflow: hidden;">
           <!-- Barra superior del chat -->
           <div style="display: flex; align-items: center; justify-content: space-between; padding: calc(12px + env(safe-area-inset-top)) 14px 12px; background: var(--surface2); border-bottom: 1px solid var(--border); flex-shrink: 0; gap: 8px;">
-            <div style="display: flex; align-items: center; gap: 8px; overflow: hidden; flex: 1;">
+            <div style="display: flex; align-items: center; gap: 8px; overflow: hidden; flex: 1; min-width: 0;">
               <button type="button" class="icon-btn ghost" id="chat-back-btn" style="width: 36px; height: 36px; flex-shrink: 0;">
                 ◀
               </button>
               <div id="chat-header-avatar" style="width: 36px; height: 36px; border-radius: 10px; background: rgba(34,211,238,0.15); display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; overflow: hidden; cursor: pointer;">
                 ${getChatAvatar(chatData, curId, allPlayers)}
               </div>
-              <div style="overflow: hidden; flex: 1;">
-                <h3 id="chat-header-title" style="margin: 0; font-size: 15.5px; font-weight: 900; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; color: #fff;">
-                  ${escapeHtml(resolvedTitle)}
-                </h3>
+              <div style="overflow: hidden; flex: 1; min-width: 0;">
+                <div style="overflow-x: auto; white-space: nowrap; scrollbar-width: none; -ms-overflow-style: none;">
+                  <h3 id="chat-header-title" style="margin: 0; font-size: 15px; font-weight: 900; color: #fff; display: inline-block;">
+                    ${escapeHtml(resolvedTitle.replace(/^Chat:\s*/i, '').replace(/^🛡️\s*Chat:\s*/i, '🛡️ '))}
+                  </h3>
+                </div>
                 <span id="chat-presence-indicator" style="font-size: 11px; color: #22d3ee; font-weight: 700;">🟢 ${t('live', 'En vivo')}</span>
               </div>
             </div>
 
             <div style="display: flex; align-items: center; gap: 4px; flex-shrink: 0;">
+              ${(chatData.type === 'group' || chatData.type === 'team' || chatId.startsWith('group_') || chatId.startsWith('team_')) ? `
+                <button type="button" class="icon-btn ghost" id="chat-members-btn" style="width: 36px; height: 36px; font-size: 17px; color: var(--cyan);" title="${t('groupMembers', 'Miembros del Grupo')}">
+                  👥
+                </button>
+              ` : ''}
               <button type="button" class="icon-btn ghost" id="chat-menu-btn" style="width: 36px; height: 36px; font-size: 18px;" title="Opciones">
                 ⋮
               </button>
@@ -1084,12 +1232,17 @@
 
           <!-- Menú desplegable de opciones de chat -->
           <div id="chat-options-dropdown" style="display: none; background: var(--surface); border-bottom: 1.5px solid var(--border); padding: 8px 12px; flex-direction: column; gap: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
-            ${(chatData.type === 'group' || chatId.startsWith('group_')) ? `
-              <button type="button" class="btn sm ghost" id="opt-edit-group" style="justify-content: flex-start; gap: 8px; width: 100%; height: 36px;">
-                ✏️ ${t('editGroup', 'Cambiar nombre e icono del grupo')}
+            ${(chatData.type === 'group' || chatData.type === 'team' || chatId.startsWith('group_') || chatId.startsWith('team_')) ? `
+              <button type="button" class="btn sm ghost" id="opt-view-members" style="justify-content: flex-start; gap: 8px; width: 100%; height: 36px;">
+                👥 ${t('groupMembers', 'Ver miembros del grupo')}
               </button>
               <button type="button" class="btn sm ghost" id="opt-add-participants" style="justify-content: flex-start; gap: 8px; width: 100%; height: 36px;">
                 ➕ ${t('addParticipants', 'Añadir jugadores al grupo')}
+              </button>
+            ` : ''}
+            ${(chatData.type === 'group' || chatId.startsWith('group_')) ? `
+              <button type="button" class="btn sm ghost" id="opt-edit-group" style="justify-content: flex-start; gap: 8px; width: 100%; height: 36px;">
+                ✏️ ${t('editGroup', 'Cambiar nombre e icono del grupo')}
               </button>
             ` : ''}
             <button type="button" class="btn sm ghost" id="opt-mute-chat" style="justify-content: flex-start; gap: 8px; width: 100%; height: 36px;">
@@ -1101,7 +1254,7 @@
               </button>
             ` : ''}
             <button type="button" class="btn sm danger ghost" id="opt-delete-chat" style="justify-content: flex-start; gap: 8px; width: 100%; height: 36px;">
-              🗑️ ${t('deleteChat', 'Eliminar conversación')}
+              🗑️ ${(isCoach || chatData.type === 'group' || chatId.startsWith('group_') || chatData.type === 'team') ? t('deleteGroup', 'Eliminar grupo') : t('deleteChat', 'Eliminar conversación')}
             </button>
           </div>
 
@@ -1113,7 +1266,10 @@
           </div>
 
           <!-- Barra de entrada inferior -->
-          <div style="display: flex; flex-direction: column; background: var(--surface); border-top: 1px solid var(--border); flex-shrink: 0;">
+          <div style="display: flex; flex-direction: column; background: var(--surface); border-top: 1px solid var(--border); flex-shrink: 0; position: relative;">
+            <!-- Autocomplete de menciones (@jugador) -->
+            <div id="chat-mention-popup" style="display: none; position: absolute; bottom: 100%; left: 8px; right: 8px; max-height: 180px; overflow-y: auto; background: var(--surface); border: 1.5px solid var(--border); border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); z-index: 100; flex-direction: column; gap: 4px; padding: 6px;">
+            </div>
             <!-- Barra de respuesta / cita (reply) -->
             <div id="chat-reply-preview" style="display: none; padding: 8px 14px; background: rgba(34, 211, 238, 0.12); border-bottom: 1px solid var(--border); align-items: center; justify-content: space-between; font-size: 12px; color: #38bdf8;">
               <div style="display: flex; align-items: center; gap: 6px; overflow: hidden; flex: 1;">
@@ -1182,6 +1338,8 @@
       const clearAttachBtn = overlay.querySelector('#chat-clear-attach');
       const menuBtn = overlay.querySelector('#chat-menu-btn');
       const menuDropdown = overlay.querySelector('#chat-options-dropdown');
+      const membersBtn = overlay.querySelector('#chat-members-btn');
+      const optViewMembers = overlay.querySelector('#opt-view-members');
       const optMute = overlay.querySelector('#opt-mute-chat');
       const optLeave = overlay.querySelector('#opt-leave-group');
       const optDelete = overlay.querySelector('#opt-delete-chat');
@@ -1193,6 +1351,7 @@
       const clearReplyBtn = overlay.querySelector('#chat-clear-reply');
       const headerAvatar = overlay.querySelector('#chat-header-avatar');
       const headerTitle = overlay.querySelector('#chat-header-title');
+      const mentionPopup = overlay.querySelector('#chat-mention-popup');
 
       if (headerAvatar && chatData.photo) {
         headerAvatar.onclick = () => openPhotoLightbox(chatData.photo);
@@ -1226,6 +1385,21 @@
           menuDropdown.style.display = menuDropdown.style.display === 'none' ? 'flex' : 'none';
         };
       }
+
+      function handleOpenMembers() {
+        if (menuDropdown) menuDropdown.style.display = 'none';
+        ChatUI.openGroupMembersModal(chatId, chatData, allPlayers, {
+          currentUserId: curId,
+          currentUserName: curName,
+          isCoach: isCoach,
+          onDeleted: () => {
+            close();
+          }
+        });
+      }
+
+      if (membersBtn) membersBtn.onclick = handleOpenMembers;
+      if (optViewMembers) optViewMembers.onclick = handleOpenMembers;
 
       if (optEditGroup) {
         optEditGroup.onclick = () => {
@@ -1274,13 +1448,81 @@
 
       if (optDelete) {
         optDelete.onclick = async () => {
-          if (!confirm(t('deleteChatConfirm', '¿Eliminar esta conversación?'))) return;
-          if (global.Cloud && global.Cloud.deleteChat) {
-            await global.Cloud.deleteChat(chatId);
+          const isGroupChat = isCoach || chatData.type === 'group' || chatId.startsWith('group_') || chatData.type === 'team';
+          const confirmMsg = isGroupChat ? t('deleteGroupConfirm', '¿Eliminar este grupo de forma definitiva?') : t('deleteChatConfirm', '¿Eliminar esta conversación?');
+          if (!confirm(confirmMsg)) return;
+          try {
+            localStorage.setItem('chat_deleted_' + chatId, 'true');
+            if (global.Cloud && global.Cloud.deleteChat) {
+              await global.Cloud.deleteChat(chatId);
+            }
+          } catch (e) {
+            console.error('Error deleting chat:', e);
           }
-          if (global.UI && global.UI.toast) global.UI.toast(t('deleteChat', 'Chat eliminado'), 'info');
+          if (global.UI && global.UI.toast) global.UI.toast(isGroupChat ? t('groupDeleted', 'Grupo eliminado') : t('deleteChat', 'Chat eliminado'), 'info');
           close();
         };
+      }
+
+      // Autocomplete de menciones (@jugador)
+      if (inputEl && mentionPopup) {
+        inputEl.addEventListener('input', () => {
+          const val = inputEl.value;
+          const selStart = inputEl.selectionStart || val.length;
+          const beforeCursor = val.slice(0, selStart);
+          const match = beforeCursor.match(/@([a-zA-Z0-9áéíóúÁÉÍÓÚñÑ_]*)$/);
+
+          if (match) {
+            const q = match[1].toLowerCase();
+            const candidateList = [];
+            if (!isCoach) candidateList.push({ id: 'coach', name: 'Entrenador' });
+            allPlayers.forEach(p => {
+              if (p.id !== curId) {
+                candidateList.push({
+                  id: p.id,
+                  name: `${p.name || ''} ${p.lastName || ''}`.trim() || `Jugador #${p.mainDorsal || ''}`,
+                  dorsal: p.mainDorsal,
+                  photo: p.photo
+                });
+              }
+            });
+
+            const filtered = candidateList.filter(c => !q || c.name.toLowerCase().includes(q));
+            if (filtered.length > 0) {
+              mentionPopup.innerHTML = filtered.slice(0, 6).map(c => `
+                <div class="mention-candidate-item" data-cname="${escapeHtml(c.name)}" style="display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 8px; cursor: pointer; background: var(--surface2);">
+                  <div style="width: 26px; height: 26px; border-radius: 50%; background: rgba(34,211,238,0.2); display: flex; align-items: center; justify-content: center; font-size: 13px; overflow: hidden; flex-shrink: 0;">
+                    ${c.photo ? `<img src="${c.photo}" style="width: 100%; height: 100%; object-fit: cover;" />` : (c.id === 'coach' ? '👨‍🏫' : '👤')}
+                  </div>
+                  <b style="font-size: 13px; color: #fff;">@${escapeHtml(c.name)}</b>
+                </div>
+              `).join('');
+
+              mentionPopup.style.display = 'flex';
+
+              mentionPopup.querySelectorAll('.mention-candidate-item').forEach(it => {
+                it.onclick = (e) => {
+                  e.stopPropagation();
+                  const targetName = it.getAttribute('data-cname').replace(/\s+/g, '_');
+                  const prefix = val.slice(0, match.index);
+                  const suffix = val.slice(selStart);
+                  inputEl.value = `${prefix}@${targetName} ${suffix}`;
+                  mentionPopup.style.display = 'none';
+                  inputEl.focus();
+                };
+              });
+              return;
+            }
+          }
+
+          mentionPopup.style.display = 'none';
+        });
+
+        document.addEventListener('click', (e) => {
+          if (!inputEl.contains(e.target) && !mentionPopup.contains(e.target)) {
+            mentionPopup.style.display = 'none';
+          }
+        });
       }
 
       // Emojis en entrada
@@ -1377,6 +1619,12 @@
 
         const AVAILABLE_REACTIONS = ['👍', '❤️', '😂', '🔥', '👏', '⚽'];
 
+        function formatMessageText(txt) {
+          if (!txt) return '';
+          const escaped = escapeHtml(txt);
+          return escaped.replace(/@([a-zA-Z0-9áéíóúÁÉÍÓÚñÑ_]+)/g, '<span style="background: rgba(34, 211, 238, 0.2); color: #38bdf8; font-weight: 800; padding: 1px 6px; border-radius: 6px;">@$1</span>');
+        }
+
         msgsContainer.innerHTML = messagesList.map((m, idx) => {
           const isMine = m.senderId === curId;
           const time = formatTime(m.timestamp);
@@ -1439,7 +1687,7 @@
                 <div style="padding: 10px 14px; border-radius: ${isMine ? '16px 16px 4px 16px' : '16px 16px 16px 4px'}; background: ${isMine ? 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)' : 'var(--surface2)'}; color: ${isMine ? '#031206' : '#fff'}; border: ${isMine ? 'none' : '1px solid var(--border)'}; font-size: 14px; line-height: 1.45; word-break: break-word; box-shadow: 0 2px 8px rgba(0,0,0,0.15); position: relative;">
                   ${quoteHtml}
                   ${mediaHtml}
-                  ${m.text ? `<div>${escapeHtml(m.text)}</div>` : ''}
+                  ${m.text ? `<div>${formatMessageText(m.text)}</div>` : ''}
                 </div>
 
                 <!-- Barra de acciones rápidas (Reaccionar y Citar) y fecha -->
@@ -1614,27 +1862,41 @@
       // No forzamos auto-focus para no abrir el teclado automáticamente en móviles
     },
 
-    // Iniciar chat directo con un jugador concreto
+    // Iniciar chat directo con un jugador concreto o con el entrenador
     startDirectChat: function (otherUserId, otherUserName, options = {}) {
       const curId = options.currentUserId || 'coach';
       const curName = options.currentUserName || 'Usuario';
       const isCoach = !!options.isCoach;
+      const isEn = (global.Store && global.Store.state && global.Store.state.lang === 'en') || (localStorage.getItem('preferred_lang') === 'en');
 
-      const p1 = curId < otherUserId ? curId : otherUserId;
-      const p2 = curId < otherUserId ? otherUserId : curId;
-      const chatId = `direct_${p1}_${p2}`;
+      let chatId;
+      let title = otherUserName || 'Chat';
+      let chatType = 'direct';
+
+      if (otherUserId === 'coach' || curId === 'coach') {
+        const playerId = otherUserId === 'coach' ? curId : otherUserId;
+        chatId = `coach_${playerId}`;
+        chatType = 'coach';
+        if (!isCoach) {
+          title = `👨‍🏫 ${t('pinnedCoachChat', isEn ? 'Private Chat with Coach' : 'Chat Privado con el Entrenador')}`;
+        }
+      } else {
+        const p1 = curId < otherUserId ? curId : otherUserId;
+        const p2 = curId < otherUserId ? otherUserId : curId;
+        chatId = `direct_${p1}_${p2}`;
+      }
 
       ChatUI.openConversationModal(chatId, {
         currentUserId: curId,
         currentUserName: curName,
         isCoach: isCoach,
-        title: otherUserName || 'Chat Directo',
+        title: title,
         players: options.players || [],
         teams: options.teams || [],
         chatData: {
           id: chatId,
-          type: 'direct',
-          name: otherUserName || 'Chat Directo',
+          type: chatType,
+          name: title,
           participants: [curId, otherUserId]
         }
       });

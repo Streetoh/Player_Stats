@@ -1135,24 +1135,151 @@
     listCont.querySelectorAll('.portal-player-pick-item').forEach(it => {
       it.onclick = () => {
         const pid = it.getAttribute('data-pid');
-        myPlayerId = pid;
-        try {
-          localStorage.setItem('portal_player_id', pid);
-          localStorage.setItem('portal_player_locked', 'true');
-        } catch (e) {}
-        haptic(35);
-        if (window.ChatUI && window.ChatUI.initGlobalUnreadListener) {
-          window.ChatUI.initGlobalUnreadListener(myPlayerId);
-        }
-        updateHeaderIdentity();
+        const targetPlayer = (clubData.players || []).find(p => p.id === pid);
+        if (!targetPlayer) return;
         close();
-        toast(t('linkedSuccess'), 'success');
-        renderCurrentTab();
+        showConfirmIdentitySecurityCodeModal(targetPlayer);
       };
     });
 
     document.body.appendChild(overlay);
     if (searchInp) setTimeout(() => searchInp.focus(), 80);
+  }
+
+  /* -------------------------------------------------------------
+     CONFIRMACIÓN CON CÓDIGO DE SEGURIDAD AL RECLAMAR PERFIL
+     ------------------------------------------------------------- */
+  function showConfirmIdentitySecurityCodeModal(player) {
+    if (!player) return;
+
+    // Generar código de seguridad de 3 letras y 3 números (ej. JKN-742)
+    const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+    const digits = '23456789';
+    let codeL = '';
+    for (let i = 0; i < 3; i++) {
+      codeL += letters.charAt(Math.floor(Math.random() * letters.length));
+    }
+    let codeD = '';
+    for (let i = 0; i < 3; i++) {
+      codeD += digits.charAt(Math.floor(Math.random() * digits.length));
+    }
+    const securityCode = `${codeL}-${codeD}`;
+
+    const claimReqId = 'claim_' + player.id + '_' + Date.now().toString(36);
+    let claimUnsub = null;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'dialog-overlay';
+
+    const pName = `${player.name || ''} ${player.lastName || ''}`.trim();
+    const pDorsal = player.mainDorsal != null ? `#${player.mainDorsal}` : '';
+    const team = clubData.teams ? clubData.teams.find(t => t.id === player.teamId) : null;
+
+    overlay.innerHTML = `
+      <div class="dialog-box" style="max-height: 88vh; width: 92%; max-width: 440px; padding: 22px 18px; text-align: center;">
+        <div style="font-size: 40px; margin-bottom: 8px;">🔐</div>
+        
+        <h3 style="margin: 0 0 4px; font-size: 18px; font-weight: 900; color: #fff;">
+          ${t('confirmPlayerIdentity', 'Confirmar Identidad')}
+        </h3>
+        <p style="margin: 0 0 16px; font-size: 13.5px; color: var(--cyan); font-weight: 800;">
+          ${t('areYouPlayer', '¿Eres {name}?').replace('{name}', pName)}
+        </p>
+
+        <!-- Tarjeta del jugador seleccionado -->
+        <div style="display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 12px; background: var(--surface2); border: 1px solid var(--border); margin-bottom: 16px; text-align: left;">
+          ${renderAvatar(player, 'md')}
+          <div style="flex: 1; overflow: hidden;">
+            <b style="font-size: 15px; color: #fff; display: block;" class="ellipsis">
+              ${pDorsal} ${escapeHtml(pName)}
+            </b>
+            <small style="color: var(--muted); font-size: 12px;">
+              ${player.mainPosition || 'Jugador'} ${team ? '• ' + escapeHtml(team.name) : ''}
+            </small>
+          </div>
+        </div>
+
+        <!-- Explicación de seguridad -->
+        <p style="font-size: 12.5px; color: #cbd5e1; line-height: 1.45; margin: 0 0 14px; text-align: left;">
+          ${t('securityCodeDesc', 'Para proteger tu perfil, se ha generado este código de seguridad. Dáselo a tu entrenador para que confirme y autorice tu acceso en tu dispositivo.')}
+        </p>
+
+        <!-- Código de seguridad destacado -->
+        <div style="background: var(--bg2); border: 2.5px dashed #22d3ee; border-radius: 14px; padding: 14px 10px; margin-bottom: 16px; box-shadow: 0 0 20px rgba(34, 211, 238, 0.15);">
+          <span style="font-size: 11px; color: var(--muted); text-transform: uppercase; font-weight: 800; letter-spacing: 1px; display: block; margin-bottom: 4px;">
+            ${t('securityCodeTitle', 'Código de Seguridad')}
+          </span>
+          <b style="font-size: 32px; color: #22d3ee; letter-spacing: 5px; font-family: monospace; font-weight: 900; display: block;">
+            ${securityCode}
+          </b>
+        </div>
+
+        <!-- Indicador de espera -->
+        <div style="display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 20px; background: rgba(250, 204, 21, 0.15); border: 1px solid rgba(250, 204, 21, 0.4); font-size: 12px; color: #fde047; font-weight: 800; margin-bottom: 16px;">
+          <span>⏳</span>
+          <span>${t('waitingCoachApproval', 'Esperando que tu entrenador autorice el código...')}</span>
+        </div>
+
+        <button type="button" class="btn sm ghost block" id="btn-cancel-claim-req" style="height: 38px; font-weight: 800; font-size: 12.5px;">
+          ✕ ${t('cancel', 'Cancelar y elegir otro jugador')}
+        </button>
+      </div>
+    `;
+
+    function close() {
+      if (claimUnsub) {
+        try { claimUnsub(); } catch (e) {}
+      }
+      overlay.remove();
+    }
+
+    overlay.querySelector('#btn-cancel-claim-req').onclick = () => {
+      close();
+      showSelectIdentityModal();
+    };
+
+    document.body.appendChild(overlay);
+
+    // Enviar solicitud a Firestore
+    if (window.Cloud && window.Cloud.submitProfileClaimRequest) {
+      window.Cloud.submitProfileClaimRequest({
+        id: claimReqId,
+        targetPlayerId: player.id,
+        targetPlayerName: pName,
+        targetPlayerDorsal: player.mainDorsal != null ? player.mainDorsal : null,
+        securityCode: securityCode,
+        createdAt: Date.now()
+      }).catch(err => {
+        console.error('Error enviando solicitud de acceso:', err);
+      });
+    }
+
+    // Escuchar respuesta en tiempo real
+    if (window.Cloud && window.Cloud.listenToProfileClaimRequest) {
+      claimUnsub = window.Cloud.listenToProfileClaimRequest(claimReqId, (data) => {
+        if (!data) return;
+        if (data.status === 'approved') {
+          close();
+          myPlayerId = player.id;
+          try {
+            localStorage.setItem('portal_player_id', player.id);
+            localStorage.setItem('portal_player_locked', 'true');
+          } catch (e) {}
+          haptic(50);
+          if (window.ChatUI && window.ChatUI.initGlobalUnreadListener) {
+            window.ChatUI.initGlobalUnreadListener(myPlayerId);
+          }
+          updateHeaderIdentity();
+          toast(t('profileAccessApproved', '🎉 ¡Acceso autorizado por el entrenador! Ya puedes ver tu perfil.'), 'success');
+          renderCurrentTab();
+        } else if (data.status === 'rejected') {
+          close();
+          toast(t('profileAccessDenied', '❌ Acceso denegado por el entrenador'), 'error');
+          haptic(30);
+          showSelectIdentityModal();
+        }
+      });
+    }
   }
 
   function showRequestProfileChangeModal() {
@@ -1383,12 +1510,28 @@
               const responses = liveVotes[c.id] || {};
 
               // SÓLO jugadores efectivamente convocados (st !== 'uncalled')
-              const calledPlayerIds = Object.keys(list).filter(pid => {
+              let calledPlayerIds = Object.keys(list).filter(pid => {
                 const st = list[pid];
                 return st && st !== 'uncalled';
               });
 
-              const isCalled = myPlayerId ? calledPlayerIds.includes(myPlayerId) : false;
+              let isCalled = false;
+              if (myPlayerId) {
+                if (calledPlayerIds.includes(myPlayerId)) {
+                  isCalled = true;
+                } else if (list[myPlayerId] === 'uncalled' || list[myPlayerId] === 'absent') {
+                  isCalled = false;
+                } else {
+                  // Si no está explícitamente excluido: pertenece al equipo convocado o es convocatoria general
+                  const belongsToTeam = !c.teamId || (myP && myP.teamId === c.teamId) || (c.teamIds && myP && c.teamIds.includes(myP.teamId));
+                  if (belongsToTeam) {
+                    isCalled = true;
+                    if (!calledPlayerIds.includes(myPlayerId)) {
+                      calledPlayerIds.push(myPlayerId);
+                    }
+                  }
+                }
+              }
 
               // Recuentos reales entre los convocados
               let nAttending = 0;

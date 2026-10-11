@@ -571,6 +571,15 @@
     }
   };
 
+  // Compatibilidad universal e inmediata para llamadas Sync.push()
+  window.Sync = {
+    push: function () {
+      if (window.Cloud && window.Cloud.pushCoachState && window.Store) {
+        window.Cloud.pushCoachState(window.Store.state, true);
+      }
+    }
+  };
+
   let pendingProfileRequests = [];
   let knownProfileRequestIds = new Set();
   let isFirstRequestsSnapshot = true;
@@ -579,9 +588,13 @@
   let knownPlayerCreationRequestIds = new Set();
   let isFirstCreationRequestsSnapshot = true;
 
+  let pendingProfileClaimRequests = [];
+  let knownProfileClaimRequestIds = new Set();
+  let isFirstClaimRequestsSnapshot = true;
+
   function updateRequestsBadge() {
     const unreadCount = NotifManager.getUnreadCount();
-    const reqsCount = (pendingProfileRequests || []).length + (pendingPlayerCreationRequests || []).length;
+    const reqsCount = (pendingProfileRequests || []).length + (pendingPlayerCreationRequests || []).length + (pendingProfileClaimRequests || []).length;
     const count = Math.max(unreadCount, reqsCount);
     document.querySelectorAll('#requests-badge').forEach(badge => {
       if (count > 0) {
@@ -698,6 +711,48 @@
     knownPlayerCreationRequestIds = new Set((requests || []).map(r => r.id));
   }
 
+  function handleIncomingProfileClaimRequests(requests) {
+    pendingProfileClaimRequests = requests || [];
+    const validIds = new Set((requests || []).map(r => r.id));
+
+    let stored = NotifManager.getAll();
+    stored = stored.filter(n => {
+      if (n.type === 'claim_req' && !validIds.has(n.targetId)) return false;
+      return true;
+    });
+    NotifManager.save(stored);
+
+    (requests || []).forEach(cl => {
+      NotifManager.add({
+        id: 'claim_' + cl.id,
+        type: 'claim_req',
+        title: t('profileClaimRequestTitle', '🔐 Solicitud de acceso a perfil'),
+        body: `${cl.targetPlayerName || 'Jugador'} • ${t('securityCodeTitle', 'Código')}: ${cl.securityCode}`,
+        targetId: cl.id,
+        time: cl.createdAt || Date.now()
+      });
+    });
+
+    updateRequestsBadge();
+
+    if (!isFirstClaimRequestsSnapshot) {
+      requests.forEach(r => {
+        if (!knownProfileClaimRequestIds.has(r.id)) {
+          const reqPlayerName = r.targetPlayerName || 'Jugador';
+          toast(`🔐 Acceso: ${reqPlayerName} (Código ${r.securityCode})`, 'info', () => showNotificationsCenterModal());
+          haptic(50);
+          if (window.AndroidBridge && window.AndroidBridge.showSystemNotification) {
+            try { window.AndroidBridge.showSystemNotification('Player Stats', `Solicitud de acceso: ${reqPlayerName} (Código ${r.securityCode})`); } catch (e) {}
+          } else if ('Notification' in window && Notification.permission === 'granted') {
+            try { new Notification('Player Stats', { body: `Solicitud de acceso: ${reqPlayerName} (Código ${r.securityCode})`, icon: 'icons/icon-192.png' }); } catch (e) {}
+          }
+        }
+      });
+    }
+    isFirstClaimRequestsSnapshot = false;
+    knownProfileClaimRequestIds = new Set((requests || []).map(r => r.id));
+  }
+
   window.__handleAppBack = function () {
     const lightbox = document.querySelector('.chat-photo-lightbox');
     if (lightbox) {
@@ -734,13 +789,14 @@
       function renderRequests() {
         const curReqs = pendingProfileRequests || [];
         const curCreations = pendingPlayerCreationRequests || [];
+        const curClaims = pendingProfileClaimRequests || [];
 
-        if (!curReqs.length && !curCreations.length) {
+        if (!curReqs.length && !curCreations.length && !curClaims.length) {
           body.innerHTML = `
             <div style="text-align: center; padding: 36px 16px; color: var(--muted);">
               <div style="font-size: 36px; margin-bottom: 10px;">🔔</div>
               <h3 style="margin: 0 0 6px; color: #fff; font-size: 15px;">${t('noProfileRequests', 'Sin solicitudes pendientes')}</h3>
-              <p style="margin: 0; font-size: 12.5px;">${t('noProfileRequestsDesc', 'Cuando un jugador solicite cambiar de perfil o solicitar alta en el club, aparecerá aquí para que puedas autorizarlo.')}</p>
+              <p style="margin: 0; font-size: 12.5px;">${t('noProfileRequestsDesc', 'Cuando un jugador solicite entrar a un perfil, cambiar de perfil o solicitar alta en el club, aparecerá aquí para que puedas autorizarlo.')}</p>
             </div>
           `;
           return;
@@ -748,7 +804,42 @@
 
         let html = '';
 
-        // 1. Solicitudes de Alta de Nuevo Jugador
+        // 1. Solicitudes de Código de Acceso a Perfil (Seguridad de 6 caracteres)
+        if (curClaims.length > 0) {
+          html += `
+            <div style="font-size: 12.5px; font-weight: 800; color: #facc15; margin-bottom: 8px;">
+              🔐 ${t('profileClaimRequestTitle', 'Solicitudes de Acceso a Perfil')} (${curClaims.length})
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px;">
+              ${curClaims.map(cl => `
+                <div class="card" style="padding: 14px; border: 1.5px solid rgba(250, 204, 21, 0.5); border-radius: 14px; background: rgba(250, 204, 21, 0.08);">
+                  <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">
+                    <b style="font-size: 14.5px; color: #fff;">👤 ${escapeHtml(cl.targetPlayerName || 'Jugador')}</b>
+                    <span class="badge" style="background: rgba(250, 204, 21, 0.25); color: #fde047; font-size: 11px; font-weight: 900;">ACCESO</span>
+                  </div>
+                  <div style="font-size: 12px; color: var(--muted); margin-bottom: 8px;">
+                    ${cl.targetPlayerDorsal != null ? `<span>#${escapeHtml(cl.targetPlayerDorsal)}</span> • ` : ''}
+                    <span>${t('confirmPlayerIdentity', 'Confirmar identidad del jugador')}</span>
+                  </div>
+                  <div style="background: var(--bg2); border: 2px dashed #facc15; border-radius: 10px; padding: 10px; text-align: center; margin-bottom: 12px;">
+                    <span style="font-size: 11px; color: var(--muted); text-transform: uppercase; font-weight: 800; display: block; margin-bottom: 2px;">${t('securityCodeTitle', 'Código de Seguridad')}</span>
+                    <b style="font-size: 24px; color: #fde047; letter-spacing: 4px; font-family: monospace;">${escapeHtml(cl.securityCode)}</b>
+                  </div>
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                    <button type="button" class="btn sm" data-approve-claim="${cl.id}" style="background: #22c55e; color: #04140a; font-weight: 900; font-size: 12px; height: 38px; border: none;">
+                      ${t('authorizeAccess', '✅ Autorizar Acceso')}
+                    </button>
+                    <button type="button" class="btn sm danger ghost" data-reject-claim="${cl.id}" style="font-weight: 800; font-size: 12px; height: 38px;">
+                      ${t('denyAccess', '❌ Denegar')}
+                    </button>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          `;
+        }
+
+        // 2. Solicitudes de Alta de Nuevo Jugador
         if (curCreations.length > 0) {
           html += `
             <div style="font-size: 12.5px; font-weight: 800; color: var(--cyan); margin-bottom: 8px;">
@@ -780,7 +871,7 @@
           `;
         }
 
-        // 2. Solicitudes de Cambio de Perfil
+        // 3. Solicitudes de Cambio de Perfil
         if (curReqs.length > 0) {
           html += `
             <div style="font-size: 12.5px; font-weight: 800; color: #fde047; margin-bottom: 8px;">
@@ -838,6 +929,54 @@
 
         body.innerHTML = html;
 
+        // Listeners para solicitudes de código de acceso
+        body.querySelectorAll('[data-approve-claim]').forEach(btn => {
+          btn.onclick = async () => {
+            const claimId = btn.getAttribute('data-approve-claim');
+            btn.disabled = true;
+            btn.textContent = '...';
+            try {
+              if (window.Cloud && window.Cloud.resolveProfileClaimRequest) {
+                await window.Cloud.resolveProfileClaimRequest(claimId, 'approved');
+              }
+              pendingProfileClaimRequests = pendingProfileClaimRequests.filter(x => x.id !== claimId);
+              NotifManager.removeByTarget(claimId);
+              toast('✅ Acceso autorizado al jugador', 'success');
+              haptic(40);
+              updateRequestsBadge();
+              closeSheet();
+            } catch (err) {
+              console.error('Error aprobando acceso:', err);
+              toast('Error: ' + err.message, 'error');
+              btn.disabled = false;
+              btn.textContent = t('authorizeAccess', '✅ Autorizar Acceso');
+            }
+          };
+        });
+
+        body.querySelectorAll('[data-reject-claim]').forEach(btn => {
+          btn.onclick = async () => {
+            const claimId = btn.getAttribute('data-reject-claim');
+            btn.disabled = true;
+            btn.textContent = '...';
+            try {
+              if (window.Cloud && window.Cloud.resolveProfileClaimRequest) {
+                await window.Cloud.resolveProfileClaimRequest(claimId, 'rejected');
+              }
+              pendingProfileClaimRequests = pendingProfileClaimRequests.filter(x => x.id !== claimId);
+              NotifManager.removeByTarget(claimId);
+              toast('❌ Solicitud de acceso denegada', 'info');
+              haptic(25);
+              updateRequestsBadge();
+              closeSheet();
+            } catch (err) {
+              console.error('Error rechazando acceso:', err);
+              btn.disabled = false;
+              btn.textContent = t('denyAccess', '❌ Denegar');
+            }
+          };
+        });
+
         // Listeners para altas
         body.querySelectorAll('[data-approve-create]').forEach(btn => {
           btn.onclick = async () => {
@@ -848,27 +987,34 @@
             btn.disabled = true;
             btn.textContent = '...';
 
-            // Crear jugador en Store
-            const newPlayer = Store.upsertPlayer({
-              name: item.name,
-              mainDorsal: item.dorsal ? parseInt(item.dorsal, 10) : null,
-              mainPosition: item.position || 'Delantero',
-              notes: item.notes || ''
-            });
-            Sync.push();
-            if (window.Cloud && window.Cloud.pushCoachState) {
-              window.Cloud.pushCoachState(Store.state, true);
-            }
-            if (window.Cloud && window.Cloud.resolvePlayerCreationRequest) {
-              await window.Cloud.resolvePlayerCreationRequest(reqId, 'approved', newPlayer ? newPlayer.id : null);
-            }
+            try {
+              // Crear jugador en Store
+              const newPlayer = Store.upsertPlayer({
+                name: item.name,
+                mainDorsal: item.dorsal ? parseInt(item.dorsal, 10) : null,
+                mainPosition: item.position || 'Delantero',
+                notes: item.notes || ''
+              });
 
-            pendingPlayerCreationRequests = pendingPlayerCreationRequests.filter(x => x.id !== reqId);
-            NotifManager.removeByTarget(reqId);
-            toast('✅ Jugador creado y añadido al sistema', 'success');
-            haptic(40);
-            updateRequestsBadge();
-            closeSheet();
+              if (window.Cloud && window.Cloud.pushCoachState) {
+                await window.Cloud.pushCoachState(Store.state, true);
+              }
+              if (window.Cloud && window.Cloud.resolvePlayerCreationRequest) {
+                await window.Cloud.resolvePlayerCreationRequest(reqId, 'approved', newPlayer ? newPlayer.id : null);
+              }
+
+              pendingPlayerCreationRequests = pendingPlayerCreationRequests.filter(x => x.id !== reqId);
+              NotifManager.removeByTarget(reqId);
+              toast('✅ Jugador creado y añadido al sistema', 'success');
+              haptic(40);
+              updateRequestsBadge();
+              closeSheet();
+            } catch (err) {
+              console.error('Error aprobando jugador:', err);
+              toast('Error: ' + err.message, 'error');
+              btn.disabled = false;
+              btn.textContent = '✅ Crear Jugador';
+            }
           };
         });
 
@@ -877,15 +1023,20 @@
             const reqId = btn.getAttribute('data-reject-create');
             btn.disabled = true;
             btn.textContent = '...';
-            if (window.Cloud && window.Cloud.resolvePlayerCreationRequest) {
-              await window.Cloud.resolvePlayerCreationRequest(reqId, 'rejected');
+            try {
+              if (window.Cloud && window.Cloud.resolvePlayerCreationRequest) {
+                await window.Cloud.resolvePlayerCreationRequest(reqId, 'rejected');
+              }
+              pendingPlayerCreationRequests = pendingPlayerCreationRequests.filter(x => x.id !== reqId);
+              NotifManager.removeByTarget(reqId);
+              toast('❌ Solicitud rechazada', 'info');
+              haptic(25);
+              updateRequestsBadge();
+              closeSheet();
+            } catch (err) {
+              btn.disabled = false;
+              btn.textContent = '❌ Denegar';
             }
-            pendingPlayerCreationRequests = pendingPlayerCreationRequests.filter(x => x.id !== reqId);
-            NotifManager.removeByTarget(reqId);
-            toast('❌ Solicitud rechazada', 'info');
-            haptic(25);
-            updateRequestsBadge();
-            closeSheet();
           };
         });
 
@@ -1039,7 +1190,7 @@
 
             closeSheet();
 
-            if (type === 'profile_req' || type === 'creation_req') {
+            if (type === 'profile_req' || type === 'creation_req' || type === 'claim_req') {
               showProfileRequestsModal();
             } else if (type === 'attendance') {
               navigate('convocations');
@@ -1146,6 +1297,11 @@
       window.Cloud.listenToPlayerCreationRequests((requests) => {
         handleIncomingPlayerCreationRequests(requests);
       });
+      if (window.Cloud.listenToProfileClaimRequests) {
+        window.Cloud.listenToProfileClaimRequests((requests) => {
+          handleIncomingProfileClaimRequests(requests);
+        });
+      }
       if (window.ChatUI && window.ChatUI.initPresenceHeartbeat) {
         window.ChatUI.initPresenceHeartbeat('coach', 'Entrenador');
       }
@@ -1617,14 +1773,42 @@
       const fTitle = body.querySelector('#field-title');
       const customContainer = body.querySelector('#custom-buttons-container');
 
-      // Selección de burbujas de equipo
-      body.querySelectorAll('#sess-team-bubbles .team-bubble').forEach(tb => {
-        tb.onclick = () => {
-          body.querySelectorAll('#sess-team-bubbles .team-bubble').forEach(x => x.classList.remove('active'));
-          tb.classList.add('active');
-          const tid = tb.getAttribute('data-tid') || '';
+      let selectedTeamIds = [];
+
+      // Selección de burbujas de equipo (permite seleccionar múltiples equipos a la vez)
+      const allTeamsBubble = body.querySelector('#sess-team-bubbles .team-bubble[data-tid=""]');
+      const specificTeamBubbles = body.querySelectorAll('#sess-team-bubbles .team-bubble:not([data-tid=""])');
+
+      if (allTeamsBubble) {
+        allTeamsBubble.onclick = () => {
+          selectedTeamIds = [];
+          allTeamsBubble.classList.add('active');
+          specificTeamBubbles.forEach(x => x.classList.remove('active'));
           const inp = document.getElementById('sess-team');
-          if (inp) inp.value = tid;
+          if (inp) inp.value = '';
+          haptic(20);
+        };
+      }
+
+      specificTeamBubbles.forEach(tb => {
+        tb.onclick = () => {
+          const tid = tb.getAttribute('data-tid');
+          if (selectedTeamIds.includes(tid)) {
+            selectedTeamIds = selectedTeamIds.filter(x => x !== tid);
+            tb.classList.remove('active');
+          } else {
+            selectedTeamIds.push(tid);
+            tb.classList.add('active');
+          }
+
+          if (selectedTeamIds.length === 0) {
+            if (allTeamsBubble) allTeamsBubble.classList.add('active');
+          } else {
+            if (allTeamsBubble) allTeamsBubble.classList.remove('active');
+          }
+
+          const inp = document.getElementById('sess-team');
+          if (inp) inp.value = selectedTeamIds.join(',');
           haptic(20);
         };
       });
@@ -1704,17 +1888,48 @@
         const date = hiddenInp ? hiddenInp.value : new Date().toISOString().slice(0, 10);
         const rival = document.getElementById('sess-rival').value.trim();
         const title = document.getElementById('sess-title').value.trim();
-        const teamInp = document.getElementById('sess-team');
-        const teamId = teamInp ? teamInp.value : '';
 
         const s = Store.createSession({
           type: selectedType,
           date,
           rival,
           title,
-          teamId,
+          teamId: selectedTeamIds[0] || '',
+          teamIds: selectedTeamIds,
           enabledStats: chosenButtonKeys
         });
+
+        // Crear automáticamente la convocatoria vinculada para que los jugadores la reciban en su app
+        try {
+          const targetPlayers = Store.state.players.filter(p => {
+            if (!selectedTeamIds.length) return true;
+            return selectedTeamIds.includes(p.teamId);
+          });
+          const convList = {};
+          targetPlayers.forEach(p => { convList[p.id] = 'called'; });
+
+          const autoTitle = title || (selectedType === 'match' ? (rival ? 'vs ' + rival : t('match', 'Partido')) : t('training', 'Entrenamiento'));
+
+          Store.upsertConvocation({
+            id: 'conv_' + s.id,
+            sessionId: s.id,
+            type: selectedType,
+            title: autoTitle,
+            date: date,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            rival: rival || '',
+            teamId: selectedTeamIds[0] || '',
+            teamIds: selectedTeamIds,
+            list: convList
+          });
+        } catch (err) {
+          console.error('Error auto-creando convocatoria desde sesión:', err);
+        }
+
+        // Sincronizar inmediatamente a la nube
+        if (window.Cloud && window.Cloud.pushCoachState) {
+          window.Cloud.pushCoachState(Store.state, true);
+        }
 
         closeSheet();
         openTracker(s.id);
@@ -5570,7 +5785,6 @@
           photo: photoData
         });
 
-        Sync.push();
         if (window.Cloud && window.Cloud.pushCoachState) {
           window.Cloud.pushCoachState(Store.state, true);
         }
@@ -5799,7 +6013,6 @@
           }
         });
         Store.save();
-        Sync.push();
         if (window.Cloud && window.Cloud.pushCoachState) {
           window.Cloud.pushCoachState(Store.state, true);
         }
@@ -5841,7 +6054,6 @@
           const tid = btn.getAttribute('data-tid');
           player.teamId = tid;
           Store.save();
-          Sync.push();
           if (window.Cloud && window.Cloud.pushCoachState) {
             window.Cloud.pushCoachState(Store.state, true);
           }
@@ -5855,7 +6067,6 @@
         showEditTeamModal(null, (newTeam) => {
           player.teamId = newTeam.id;
           Store.save();
-          Sync.push();
           if (window.Cloud && window.Cloud.pushCoachState) {
             window.Cloud.pushCoachState(Store.state, true);
           }
@@ -6445,7 +6656,6 @@
       foot.querySelector('#btn-detail-del').onclick = () => {
         confirmDialog(t('delete'), '¿Deseas eliminar esta convocatoria?', () => {
           Store.deleteConvocation(conv.id);
-          Sync.push();
           if (window.Cloud && window.Cloud.pushCoachState) {
             window.Cloud.pushCoachState(Store.state, true);
           }
@@ -7045,7 +7255,6 @@
         foot.querySelector('#btn-conv-del').onclick = () => {
           confirmDialog(t('delete'), '¿Deseas eliminar esta convocatoria?', () => {
             Store.deleteConvocation(c.id);
-            Sync.push();
             if (window.Cloud && window.Cloud.pushCoachState) {
               window.Cloud.pushCoachState(Store.state, true);
             }
@@ -7109,7 +7318,6 @@
           }
         }
 
-        Sync.push();
         if (window.Cloud && window.Cloud.pushCoachState) {
           window.Cloud.pushCoachState(Store.state, true);
         }
@@ -7217,7 +7425,6 @@
         if (btnGen) {
           btnGen.onclick = () => {
             const count = Store.generateRecurringConvocations(14);
-            Sync.push();
             if (window.Cloud && window.Cloud.pushCoachState) {
               window.Cloud.pushCoachState(Store.state, true);
             }
@@ -7239,7 +7446,6 @@
             const sid = b.getAttribute('data-delete-sched');
             confirmDialog(t('delete', 'Eliminar'), t('deleteRecurringConfirm', '¿Eliminar este horario recurrente?'), () => {
               Store.deleteRecurringSchedule(sid);
-              Sync.push();
               if (window.Cloud && window.Cloud.pushCoachState) {
                 window.Cloud.pushCoachState(Store.state, true);
               }
@@ -7403,7 +7609,6 @@
             active: true
           });
 
-          Sync.push();
           if (window.Cloud && window.Cloud.pushCoachState) {
             window.Cloud.pushCoachState(Store.state, true);
           }
@@ -7883,7 +8088,6 @@
           photo: photoData
         });
 
-        Sync.push();
         if (window.Cloud && window.Cloud.pushCoachState) {
           window.Cloud.pushCoachState(Store.state, true);
         }
