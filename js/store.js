@@ -108,6 +108,7 @@
       teams: [],
       sessions: [],
       convocations: [],
+      recurringSchedules: [],
       settings: {
         lang: 'en',
         enabledStats: STATS.filter(s => s.def).map(s => s.key),
@@ -127,6 +128,7 @@
     s.teams = Array.isArray(s.teams) ? s.teams : [];
     s.sessions = Array.isArray(s.sessions) ? s.sessions : [];
     s.convocations = Array.isArray(s.convocations) ? s.convocations : [];
+    s.recurringSchedules = Array.isArray(s.recurringSchedules) ? s.recurringSchedules : [];
     s.settings = Object.assign({}, d.settings, s.settings || {});
     if (!s.settings.convocatoriaWebUrl) s.settings.convocatoriaWebUrl = d.settings.convocatoriaWebUrl;
     s.settings.enabledStats = (s.settings.enabledStats || []).filter(k => STAT_MAP[k]);
@@ -813,6 +815,102 @@
     deleteConvocation(id) {
       this.state.convocations = (this.state.convocations || []).filter(c => c.id !== id);
       this.save();
+    },
+
+    recurringSchedule(id) {
+      return (this.state.recurringSchedules || []).find(r => r.id === id) || null;
+    },
+
+    upsertRecurringSchedule(data) {
+      this.state.recurringSchedules = this.state.recurringSchedules || [];
+      if (data.id) {
+        const i = this.state.recurringSchedules.findIndex(r => r.id === data.id);
+        if (i >= 0) {
+          this.state.recurringSchedules[i] = Object.assign({}, this.state.recurringSchedules[i], data);
+          this.save();
+          this.generateRecurringConvocations(14);
+          return this.state.recurringSchedules[i];
+        }
+      }
+      const item = Object.assign({
+        id: uid('rec'),
+        title: '',
+        teamId: '',
+        daysOfWeek: [2, 4], // 1=Lun, 2=Mar, 3=Mie, 4=Jue, 5=Vie, 6=Sab, 0=Dom
+        time: '18:00',
+        venue: '',
+        address: '',
+        notes: '',
+        active: true,
+        createdAt: Date.now()
+      }, data);
+      if (!item.id) item.id = uid('rec');
+      this.state.recurringSchedules.push(item);
+      this.save();
+      this.generateRecurringConvocations(14);
+      return item;
+    },
+
+    deleteRecurringSchedule(id) {
+      this.state.recurringSchedules = (this.state.recurringSchedules || []).filter(r => r.id !== id);
+      this.save();
+    },
+
+    generateRecurringConvocations(daysAhead = 14) {
+      this.state.recurringSchedules = this.state.recurringSchedules || [];
+      const activeSchedules = this.state.recurringSchedules.filter(r => r.active !== false);
+      if (!activeSchedules.length) return 0;
+
+      let generatedCount = 0;
+      const today = new Date();
+
+      activeSchedules.forEach(sched => {
+        const targetDays = Array.isArray(sched.daysOfWeek) ? sched.daysOfWeek : [2, 4];
+        const teamPlayers = this.state.players.filter(p => !sched.teamId || p.teamId === sched.teamId);
+
+        for (let i = 0; i <= daysAhead; i++) {
+          const d = new Date(today);
+          d.setDate(today.getDate() + i);
+          const dayOfWeek = d.getDay(); // 0=Dom, 1=Lun, 2=Mar, etc.
+
+          if (targetDays.includes(dayOfWeek)) {
+            const dateStr = d.toISOString().slice(0, 10);
+            const exists = (this.state.convocations || []).some(c => 
+              c.date === dateStr && (c.scheduleId === sched.id || (c.type === 'training' && (c.teamId || '') === (sched.teamId || '') && c.time === (sched.time || '18:00')))
+            );
+
+            if (!exists) {
+              const defaultList = {};
+              teamPlayers.forEach(p => { defaultList[p.id] = 'called'; });
+
+              const teamObj = this.team(sched.teamId);
+              const autoTitle = sched.title || (teamObj ? 'Entrenamiento ' + teamObj.name : 'Entrenamiento');
+
+              this.upsertConvocation({
+                id: `rec_${sched.id}_${dateStr.replace(/-/g, '')}`,
+                scheduleId: sched.id,
+                isRecurring: true,
+                title: autoTitle,
+                type: 'training',
+                date: dateStr,
+                time: sched.time || '18:00',
+                venue: sched.venue || '',
+                address: sched.address || '',
+                teamId: sched.teamId || '',
+                notes: sched.notes || '',
+                list: defaultList,
+                responses: {}
+              });
+              generatedCount++;
+            }
+          }
+        }
+      });
+
+      if (generatedCount > 0) {
+        this.save();
+      }
+      return generatedCount;
     },
 
     fmtTime(ms, session) {

@@ -34,6 +34,7 @@
       myProfile: 'My Profile',
       squad: 'Squad',
       h2h: 'Face to Face',
+      chat: 'Chat',
       live: 'Live',
       selectIdentity: 'Select who you are...',
       profileLocked: 'Profile Locked',
@@ -130,6 +131,7 @@
       myProfile: 'Mi Ficha',
       squad: 'Plantilla',
       h2h: 'Face to Face',
+      chat: 'Chat',
       live: 'En vivo',
       selectIdentity: 'Seleccionar quién eres...',
       profileLocked: 'Perfil Bloqueado',
@@ -739,36 +741,52 @@
     const myP = getMyPlayer();
     const curName = myP ? `${myP.name || ''} ${myP.lastName || ''}`.trim() : 'Jugador Actual';
     const players = (clubData.players || []).filter(p => p.id !== myPlayerId).sort((a,b) => (a.name||'').localeCompare(b.name||''));
+    let selectedTargetPid = null;
 
     const overlay = document.createElement('div');
     overlay.className = 'dialog-overlay';
     overlay.innerHTML = `
-      <div class="dialog-box" style="max-height: 85vh; width: 92%; max-width: 440px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+      <div class="dialog-box" style="max-height: 88vh; width: 92%; max-width: 440px; display: flex; flex-direction: column;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
           <div>
             <h3 style="margin: 0; font-size: 16px; font-weight: 900; color: #facc15;">🔒 ${t('reqChangeTitle')}</h3>
           </div>
           <button type="button" class="icon-btn ghost" id="dlg-req-close" style="width: 32px; height: 32px;">✕</button>
         </div>
 
-        <p style="font-size: 12px; color: var(--muted); margin-bottom: 12px; line-height: 1.5;">
+        <p style="font-size: 12px; color: var(--muted); margin-bottom: 10px; line-height: 1.4;">
           ${t('reqChangeDesc').replace('{name}', `<b>${escapeHtml(curName)}</b>`)}
         </p>
 
         <label style="display: block; font-size: 11.5px; font-weight: 800; color: var(--cyan); margin-bottom: 6px;">
           ${t('selectNewPlayer')}
         </label>
-        <select id="sel-target-player" style="width: 100%; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg2); color: #fff; font-size: 13.5px; margin-bottom: 10px; font-weight: 700;">
-          <option value="">${t('chooseWhoYouAre')}</option>
-          ${players.map(p => `
-            <option value="${p.id}">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(p.name || '')} ${escapeHtml(p.lastName || '')} (${p.mainPosition || 'Jugador'})</option>
-          `).join('')}
-        </select>
+        <input type="text" id="req-player-search" placeholder="${t('searchTeammate')}" style="width: 100%; margin-bottom: 8px; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg2); color: #fff; font-size: 12.5px;" />
 
-        <label style="display: block; font-size: 11.5px; font-weight: 800; color: var(--muted); margin-bottom: 6px;">
+        <div style="flex: 1; max-height: 38vh; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; padding: 2px;" id="req-players-list">
+          ${players.map(p => {
+            const team = clubData.teams ? clubData.teams.find(t => t.id === p.teamId) : null;
+            return `
+              <div class="portal-req-pick-item" data-pid="${p.id}" style="display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; background: var(--surface2); border: 2px solid var(--border); cursor: pointer; transition: all 0.15s;">
+                ${renderAvatar(p, 'sm')}
+                <div style="flex: 1; overflow: hidden;">
+                  <b style="font-size: 13.5px; display: block; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; color: #fff;">
+                    #${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(p.name || '')} ${escapeHtml(p.lastName || '')}
+                  </b>
+                  <small style="color: var(--muted); font-size: 11px;">
+                    ${p.mainPosition || 'Jugador'} ${team ? '• ' + escapeHtml(team.name) : ''}
+                  </small>
+                </div>
+                <span class="req-check" style="display: none; font-size: 16px;">✅</span>
+              </div>
+            `;
+          }).join('')}
+        </div>
+
+        <label style="display: block; font-size: 11.5px; font-weight: 800; color: var(--muted); margin-bottom: 4px;">
           ${t('reasonLabel')}
         </label>
-        <input type="text" id="inp-req-reason" placeholder="${t('reasonPlaceholder')}" style="width: 100%; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg2); color: #fff; font-size: 13px; margin-bottom: 14px;" />
+        <input type="text" id="inp-req-reason" placeholder="${t('reasonPlaceholder')}" style="width: 100%; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg2); color: #fff; font-size: 13px; margin-bottom: 12px;" />
 
         <button type="button" class="btn block primary" id="btn-submit-req" style="height: 44px; font-weight: 800; font-size: 13.5px;">
           ${t('sendReqBtn')}
@@ -780,14 +798,41 @@
     overlay.querySelector('#dlg-req-close').onclick = close;
     overlay.onclick = (e) => { if (e.target === overlay) close(); };
 
+    const searchInp = overlay.querySelector('#req-player-search');
+    const listCont = overlay.querySelector('#req-players-list');
+    if (searchInp && listCont) {
+      searchInp.oninput = () => {
+        const q = searchInp.value.toLowerCase().trim();
+        listCont.querySelectorAll('.portal-req-pick-item').forEach(it => {
+          it.style.display = (!q || it.textContent.toLowerCase().includes(q)) ? 'flex' : 'none';
+        });
+      };
+    }
+
+    listCont.querySelectorAll('.portal-req-pick-item').forEach(it => {
+      it.onclick = () => {
+        listCont.querySelectorAll('.portal-req-pick-item').forEach(el => {
+          el.style.borderColor = 'var(--border)';
+          el.style.background = 'var(--surface2)';
+          const chk = el.querySelector('.req-check');
+          if (chk) chk.style.display = 'none';
+        });
+        it.style.borderColor = 'var(--cyan)';
+        it.style.background = 'rgba(34, 211, 238, 0.15)';
+        const chk = it.querySelector('.req-check');
+        if (chk) chk.style.display = 'inline';
+        selectedTargetPid = it.getAttribute('data-pid');
+        haptic(20);
+      };
+    });
+
     const btnSubmit = overlay.querySelector('#btn-submit-req');
     btnSubmit.onclick = async () => {
-      const targetPid = overlay.querySelector('#sel-target-player').value;
-      if (!targetPid) {
+      if (!selectedTargetPid) {
         toast(t('reqSelectTargetErr'), 'error');
         return;
       }
-      const targetP = (clubData.players || []).find(p => p.id === targetPid);
+      const targetP = (clubData.players || []).find(p => p.id === selectedTargetPid);
       const targetName = targetP ? `${targetP.name || ''} ${targetP.lastName || ''}`.trim() : 'Nuevo Jugador';
       const reason = overlay.querySelector('#inp-req-reason').value.trim();
 
@@ -800,7 +845,7 @@
         deviceId: getDeviceId(),
         fromPlayerId: myPlayerId,
         fromPlayerName: curName,
-        toPlayerId: targetPid,
+        toPlayerId: selectedTargetPid,
         toPlayerName: targetName,
         reason: reason,
         status: 'pending',
@@ -827,6 +872,7 @@
     };
 
     document.body.appendChild(overlay);
+    if (searchInp) setTimeout(() => searchInp.focus(), 60);
   }
 
   function listenToMyPendingRequest(reqId) {
@@ -912,8 +958,8 @@
             let nPending = 0;
 
             calledPlayerIds.forEach(pid => {
-              const r = responses[pid];
-              const st = r ? r.status : list[pid];
+              const r = responses[pid] || (c.responses && c.responses[pid]);
+              const st = r ? r.status : null;
               if (st === 'called' || st === 'attending' || st === 'yes') nAttending++;
               else if (st === 'absent' || st === 'no') nAbsent++;
               else nPending++;
@@ -921,9 +967,9 @@
 
             // Voto del usuario actual
             const myVoteObj = myPlayerId ? (responses[myPlayerId] || (c.responses && c.responses[myPlayerId])) : null;
-            const mySt = myVoteObj ? myVoteObj.status : (list[myPlayerId] || null);
-            const isAttending = (mySt === 'called' || mySt === 'attending' || mySt === 'yes');
-            const isAbsent = (mySt === 'absent' || mySt === 'no');
+            const mySt = myVoteObj ? myVoteObj.status : null;
+            const isAttending = mySt && (mySt === 'called' || mySt === 'attending' || mySt === 'yes');
+            const isAbsent = mySt && (mySt === 'absent' || mySt === 'no');
 
             const isMatch = c.type === 'match';
 
@@ -1067,8 +1113,8 @@
 
     calledPids.forEach(pid => {
       const p = allPlayersMap[pid] || { id: pid, name: pid.replace(/^manual_/, ''), mainPosition: 'Jugador' };
-      const r = responses[pid];
-      const st = r ? r.status : list[pid];
+      const r = responses[pid] || (conv.responses && conv.responses[pid]);
+      const st = r ? r.status : null;
 
       if (st === 'called' || st === 'attending' || st === 'yes') attending.push(p);
       else if (st === 'absent' || st === 'no') absent.push(p);
@@ -1699,12 +1745,28 @@
       convocations: t('convocations'),
       stats: t('myProfile'),
       squad: t('squad'),
-      h2h: t('h2h')
+      h2h: t('h2h'),
+      chat: t('chat', 'Chat')
     };
     tabbar.querySelectorAll('.tab-btn').forEach(btn => {
       const tab = btn.getAttribute('data-tab');
       const lbl = btn.querySelector('.t-lbl');
       if (lbl && labels[tab]) lbl.textContent = labels[tab];
+    });
+  }
+
+  function renderChatTab() {
+    if (!window.ChatUI) {
+      view.innerHTML = '<div style="padding: 24px; text-align: center; color: var(--muted);">Chat no disponible</div>';
+      return;
+    }
+    const myP = getMyPlayer();
+    window.ChatUI.renderChatList(view, {
+      currentUserId: myPlayerId || 'player_guest',
+      currentUserName: myP ? `${myP.name || ''} ${myP.lastName || ''}`.trim() : 'Player',
+      isCoach: false,
+      players: (clubData && clubData.players) ? clubData.players : [],
+      teams: (clubData && clubData.teams) ? clubData.teams : []
     });
   }
 
@@ -1714,6 +1776,7 @@
     else if (currentTab === 'stats') renderMyStatsView();
     else if (currentTab === 'squad') renderSquadView();
     else if (currentTab === 'h2h') renderH2HView();
+    else if (currentTab === 'chat') renderChatTab();
   }
 
   function setupNavigation() {
@@ -1761,6 +1824,14 @@
     setupNavigation();
     updateHeaderIdentity();
     renderCurrentTab();
+
+    // Solicitar activación de notificaciones nativas de Android / PWA
+    if (window.AndroidBridge && window.AndroidBridge.requestNotificationPermission) {
+      try { window.AndroidBridge.requestNotificationPermission(); } catch (e) {}
+    }
+    if ('Notification' in window && Notification.permission === 'default') {
+      try { Notification.requestPermission(); } catch (e) {}
+    }
 
     // 2. Conectar en tiempo real con Firebase Firestore
     if (window.Cloud) {

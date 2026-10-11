@@ -287,6 +287,18 @@
             status: status, // 'approved' o 'rejected'
             resolvedAt: Date.now()
           });
+
+        // Eliminar definitivamente tras breve plazo para que el jugador reciba el aviso
+        setTimeout(async () => {
+          try {
+            await db.collection('clubs')
+              .doc(CLUB_ID)
+              .collection('profile_requests')
+              .doc(reqId)
+              .delete();
+          } catch (e) {}
+        }, 4000);
+
         return true;
       } catch (err) {
         console.error('[Cloud] Error resolviendo solicitud:', err);
@@ -314,6 +326,115 @@
       } catch (err) {
         console.error(err);
         return null;
+      }
+    },
+
+    /* =========================================================
+       CHAT EN VIVO (DIRECTO, EQUIPO, GRUPOS Y ENTRENADOR)
+       ========================================================= */
+    createOrGetChat: async function (chatData) {
+      if (!this.init() || !chatData || !chatData.id) return null;
+
+      try {
+        const ref = db.collection('clubs').doc(CLUB_ID).collection('chats').doc(chatData.id);
+        const doc = await ref.get();
+        if (!doc.exists) {
+          await ref.set({
+            ...chatData,
+            createdAt: Date.now(),
+            lastMessageTime: Date.now(),
+            lastMessage: '',
+            lastSenderName: ''
+          });
+        }
+        return true;
+      } catch (err) {
+        console.error('[Cloud] Error creating chat:', err);
+        return false;
+      }
+    },
+
+    listenToChats: function (callback) {
+      if (!this.init()) return null;
+
+      try {
+        return db.collection('clubs')
+          .doc(CLUB_ID)
+          .collection('chats')
+          .onSnapshot((snapshot) => {
+            const list = [];
+            snapshot.forEach(d => {
+              list.push(d.data());
+            });
+            list.sort((a, b) => (b.lastMessageTime || b.createdAt || 0) - (a.lastMessageTime || a.createdAt || 0));
+            if (typeof callback === 'function') callback(list);
+          }, (err) => {
+            console.warn('[Cloud] Error escuchando chats:', err);
+          });
+      } catch (err) {
+        console.error('[Cloud] Error listener chats:', err);
+        return null;
+      }
+    },
+
+    listenToChatMessages: function (chatId, callback) {
+      if (!this.init() || !chatId) return null;
+
+      try {
+        return db.collection('clubs')
+          .doc(CLUB_ID)
+          .collection('chats')
+          .doc(chatId)
+          .collection('messages')
+          .orderBy('timestamp', 'asc')
+          .limitToLast(100)
+          .onSnapshot((snapshot) => {
+            const msgs = [];
+            snapshot.forEach(d => {
+              msgs.push(d.data());
+            });
+            if (typeof callback === 'function') callback(msgs);
+          }, (err) => {
+            console.warn('[Cloud] Error escuchando mensajes:', err);
+          });
+      } catch (err) {
+        console.error('[Cloud] Error listener messages:', err);
+        return null;
+      }
+    },
+
+    sendChatMessage: async function (chatId, msg) {
+      if (!this.init() || !chatId || !msg || !msg.text) return false;
+
+      try {
+        const msgId = 'msg_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
+        const payload = {
+          id: msgId,
+          chatId: chatId,
+          senderId: msg.senderId || 'anon',
+          senderName: msg.senderName || 'Usuario',
+          text: msg.text.trim(),
+          timestamp: Date.now(),
+          serverTime: global.firebase.firestore.FieldValue.serverTimestamp()
+        };
+
+        const chatRef = db.collection('clubs').doc(CLUB_ID).collection('chats').doc(chatId);
+
+        // 1. Añadir mensaje a subcolección
+        await chatRef.collection('messages').doc(msgId).set(payload);
+
+        // 2. Actualizar último mensaje en la cabecera del chat
+        await chatRef.set({
+          lastMessage: payload.text,
+          lastMessageTime: payload.timestamp,
+          lastSenderName: payload.senderName,
+          lastSenderId: payload.senderId
+        }, { merge: true });
+
+        return true;
+      } catch (err) {
+        console.error('[Cloud] Error enviando mensaje de chat:', err);
+        return false;
       }
     }
   };

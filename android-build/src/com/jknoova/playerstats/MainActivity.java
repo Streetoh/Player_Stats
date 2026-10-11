@@ -379,6 +379,72 @@ public class MainActivity extends Activity {
                 }
             });
         }
+
+        @JavascriptInterface
+        public void requestNotificationPermission() {
+            if (Build.VERSION.SDK_INT >= 33) {
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            if (checkSelfPermission("android.permission.POST_NOTIFICATIONS") != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                                requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 102);
+                            }
+                        } catch (Exception e) {
+                            Log.e(TAG, "Error requesting notification permission", e);
+                        }
+                    }
+                });
+            }
+        }
+
+        @JavascriptInterface
+        public void showSystemNotification(final String title, final String message) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        android.app.NotificationManager nm = (android.app.NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                        if (nm == null) return;
+                        String channelId = "player_stats_channel";
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            android.app.NotificationChannel channel = new android.app.NotificationChannel(
+                                channelId, "Player Stats", android.app.NotificationManager.IMPORTANCE_HIGH
+                            );
+                            channel.setDescription("Notificaciones de convocatorias, chat y asistencia");
+                            channel.enableVibration(true);
+                            nm.createNotificationChannel(channel);
+                        }
+
+                        android.content.Intent intent = new android.content.Intent(MainActivity.this, MainActivity.class);
+                        intent.setFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP | android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                        android.app.PendingIntent pendingIntent = android.app.PendingIntent.getActivity(
+                            MainActivity.this, 0, intent,
+                            Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? (android.app.PendingIntent.FLAG_UPDATE_CURRENT | android.app.PendingIntent.FLAG_IMMUTABLE) : android.app.PendingIntent.FLAG_UPDATE_CURRENT
+                        );
+
+                        android.app.Notification.Builder builder;
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            builder = new android.app.Notification.Builder(MainActivity.this, channelId);
+                        } else {
+                            builder = new android.app.Notification.Builder(MainActivity.this);
+                        }
+
+                        builder.setContentTitle(title)
+                               .setContentText(message)
+                               .setSmallIcon(R.mipmap.ic_launcher)
+                               .setAutoCancel(true)
+                               .setContentIntent(pendingIntent)
+                               .setPriority(android.app.Notification.PRIORITY_HIGH)
+                               .setDefaults(android.app.Notification.DEFAULT_ALL);
+
+                        nm.notify((int) System.currentTimeMillis(), builder.build());
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error showing system notification", e);
+                    }
+                }
+            });
+        }
     }
 
     @Override
@@ -399,8 +465,17 @@ public class MainActivity extends Activity {
         setupWebView();
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            java.util.List<String> perms = new java.util.ArrayList<String>();
             if (checkSelfPermission(android.Manifest.permission.CAMERA) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                requestPermissions(new String[]{android.Manifest.permission.CAMERA}, 101);
+                perms.add(android.Manifest.permission.CAMERA);
+            }
+            if (Build.VERSION.SDK_INT >= 33) {
+                if (checkSelfPermission("android.permission.POST_NOTIFICATIONS") != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    perms.add("android.permission.POST_NOTIFICATIONS");
+                }
+            }
+            if (!perms.isEmpty()) {
+                requestPermissions(perms.toArray(new String[0]), 101);
             }
         }
 

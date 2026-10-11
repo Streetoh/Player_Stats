@@ -69,10 +69,11 @@ button { font-family: inherit; color: inherit; border: 0; background: none; curs
   background: rgba(15, 23, 40, .88); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--border2); border-radius: 22px; box-shadow: var(--shadow);
 }
-.tab { flex: 1; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: var(--dim); font-size: 11px; font-weight: 600; position: relative; transition: color .2s; }
+.tab { flex: 1; min-width: 0; padding: 0 1px; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: var(--dim); font-size: 10px; font-weight: 700; position: relative; transition: color .2s; }
+.tab span:last-child { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 9.5px; }
 .tab.active { color: var(--text); }
 .tab.active .tab-ic { background: linear-gradient(135deg, rgba(34, 197, 94, .25), rgba(34, 211, 238, .2)); color: var(--green); }
-.tab-ic { width: 46px; height: 30px; border-radius: 12px; display: flex; align-items: center; justify-content: center; transition: background .25s; }
+.tab-ic { width: 38px; height: 28px; border-radius: 10px; display: flex; align-items: center; justify-content: center; transition: background .25s; }
 
 /* ---------- Elementos comunes ---------- */
 .section-title { display: flex; align-items: center; justify-content: space-between; margin: 22px 2px 10px; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); }

@@ -501,6 +501,11 @@
           const reqPlayerName = r.toPlayerName || 'Jugador';
           toast(`🔔 ${t('newProfileRequest', 'Nueva solicitud de cambio de perfil')}: ${reqPlayerName}`, 'info');
           haptic(50);
+          if (window.AndroidBridge && window.AndroidBridge.showSystemNotification) {
+            try { window.AndroidBridge.showSystemNotification('Player Stats', `Nueva solicitud de perfil: ${reqPlayerName}`); } catch(e) {}
+          } else if ('Notification' in window && Notification.permission === 'granted') {
+            try { new Notification('Player Stats', { body: `Nueva solicitud de perfil: ${reqPlayerName}`, icon: 'icons/icon-192.png' }); } catch(e) {}
+          }
         }
       });
     }
@@ -509,10 +514,10 @@
   }
 
   function showProfileRequestsModal() {
-    const reqs = pendingProfileRequests || [];
     openSheet(t('profileRequests', 'Solicitudes de Perfil'), (body) => {
       function renderRequests() {
-        if (!reqs.length) {
+        const curReqs = pendingProfileRequests || [];
+        if (!curReqs.length) {
           body.innerHTML = `
             <div style="text-align: center; padding: 36px 16px; color: var(--muted);">
               <div style="font-size: 36px; margin-bottom: 10px;">🔔</div>
@@ -528,7 +533,7 @@
             ${t('profileRequestsDesc', 'Los siguientes jugadores solicitan cambiar su perfil en este club:')}
           </div>
           <div style="display: flex; flex-direction: column; gap: 10px;" id="profile-requests-list">
-            ${reqs.map(r => {
+            ${curReqs.map(r => {
               const fromPlayer = Store.player(r.fromPlayerId);
               const toPlayer = Store.player(r.toPlayerId);
               const dateStr = r.createdAt ? new Date(r.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
@@ -673,6 +678,14 @@
     autoSeedIfEmpty();
     navigate('home');
 
+    // Solicitar permiso de notificaciones nativas de Android / PWA
+    if (window.AndroidBridge && window.AndroidBridge.requestNotificationPermission) {
+      try { window.AndroidBridge.requestNotificationPermission(); } catch (e) {}
+    }
+    if ('Notification' in window && Notification.permission === 'default') {
+      try { Notification.requestPermission(); } catch (e) {}
+    }
+
     // Sincronización en la Nube Firebase (App Jugadores <-> App Entrenador)
     if (window.Cloud) {
       window.Cloud.init();
@@ -736,6 +749,7 @@
       { id: 'history',      label: t('sessions'),     ic: 'calendar' },
       { id: 'players',      label: t('players'),      ic: 'users' },
       { id: 'convocations', label: t('convocations'), ic: 'clipboard' },
+      { id: 'chat',         label: t('chat', 'Chat'), ic: 'message' },
       { id: 'stats',        label: t('metrics'),      ic: 'chart' },
       { id: 'config',       label: t('settings'),     ic: 'sliders' }
     ];
@@ -754,6 +768,21 @@
     });
   }
 
+  function renderChatView(view) {
+    if (!window.ChatUI) {
+      view.innerHTML = '<div style="padding: 24px; text-align: center; color: var(--muted);">Chat no disponible</div>';
+      return;
+    }
+    const coachName = (Store.state.settings && Store.state.settings.coachName) ? Store.state.settings.coachName : 'Entrenador';
+    window.ChatUI.renderChatList(view, {
+      currentUserId: 'coach',
+      currentUserName: coachName,
+      isCoach: true,
+      players: Store.state.players || [],
+      teams: Store.state.teams || []
+    });
+  }
+
   function navigate(tab) {
     currentTab = tab;
     renderTabbar();
@@ -766,6 +795,7 @@
       case 'history':      renderHistoryView(view); break;
       case 'players':      renderPlayersView(view); break;
       case 'convocations': renderConvocationsView(view); break;
+      case 'chat':         renderChatView(view); break;
       case 'stats':        renderStatsView(view); break;
       case 'config':       renderConfigView(view); break;
     }
@@ -6388,6 +6418,245 @@
   }
 
   /* =========================================================
+     ENTRENAMIENTOS RECURRENTES (HORARIOS SEMANALES)
+     ========================================================= */
+  function showRecurringTrainingsModal(onDone) {
+    openSheet(t('recurringTrainings', 'Entrenamientos Recurrentes'), (body) => {
+      function renderSchedulesList() {
+        const schedules = Store.state.recurringSchedules || [];
+        const dayNames = [
+          t('daySun', 'Dom'),
+          t('dayMon', 'Lun'),
+          t('dayTue', 'Mar'),
+          t('dayWed', 'Mié'),
+          t('dayThu', 'Jue'),
+          t('dayFri', 'Vie'),
+          t('daySat', 'Sáb')
+        ];
+
+        body.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <div style="font-size: 12px; color: var(--muted);">
+              ${t('recurringDesc', 'Crea calendarios semanales. Las convocatorias se generan automáticamente:')}
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 8px; margin-bottom: 14px;">
+            <button type="button" class="btn sm primary" id="btn-add-recurring" style="flex: 1; font-weight: 800; font-size: 12.5px;">
+              ➕ ${t('addRecurring', 'Nuevo Horario')}
+            </button>
+            <button type="button" class="btn sm" id="btn-generate-now" style="background: var(--surface2); color: #86efac; border-color: rgba(34,197,94,0.4); font-weight: 800; font-size: 12px;">
+              ⚡ ${t('generateNow', 'Generar 14 días')}
+            </button>
+          </div>
+
+          ${schedules.length === 0 ? `
+            <div style="text-align: center; padding: 32px 14px; color: var(--muted);">
+              <div style="font-size: 32px; margin-bottom: 8px;">🔄</div>
+              <h4 style="margin: 0 0 4px; color: #fff;">${t('noRecurring', 'Sin horarios recurrentes')}</h4>
+              <p style="font-size: 12px; margin: 0;">${t('noRecurringDesc', 'Pulsa en "+ Nuevo Horario" para configurar entrenamientos semanales fijos (ej. Martes y Jueves).')}</p>
+            </div>
+          ` : `
+            <div style="display: flex; flex-direction: column; gap: 10px;" id="recurring-list">
+              ${schedules.map(sc => {
+                const team = sc.teamId ? Store.team(sc.teamId) : null;
+                const daysLabels = (sc.daysOfWeek || []).map(d => dayNames[d] || d).join(', ');
+                return `
+                  <div class="card" style="padding: 12px; border: 1.5px solid var(--border); border-radius: 14px; background: var(--surface2);">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">
+                      <div>
+                        <h4 style="margin: 0; font-size: 15px; font-weight: 900; color: #fff;">
+                          ${escapeHtml(sc.title || (team ? 'Entrenamiento ' + team.name : 'Entrenamiento'))}
+                        </h4>
+                        <div style="font-size: 12px; color: var(--muted); margin-top: 3px;">
+                          ⏰ <b>${sc.time || '18:00'}</b> • 🗓️ <span style="color: var(--cyan); font-weight: 800;">${daysLabels}</span>
+                        </div>
+                        ${sc.venue ? `<div style="font-size: 11.5px; color: var(--dim);">📍 ${escapeHtml(sc.venue)}</div>` : ''}
+                        ${team ? `<span class="badge" style="background: ${team.color || 'var(--cyan)'}22; color: ${team.color || 'var(--cyan)'}; margin-top: 4px;">🛡️ ${escapeHtml(team.name)}</span>` : ''}
+                      </div>
+                      <span class="badge" style="background: ${sc.active !== false ? 'rgba(34,197,94,0.18)' : 'rgba(148,163,184,0.18)'}; color: ${sc.active !== false ? '#86efac' : '#94a3b8'};">
+                        ${sc.active !== false ? '🟢 ' + t('active', 'Activo') : '⏸️ ' + t('paused', 'Pausado')}
+                      </span>
+                    </div>
+
+                    <div style="display: flex; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border);">
+                      <button type="button" class="btn sm" data-edit-sched="${sc.id}" style="flex: 1; height: 34px; font-size: 12px; font-weight: 800;">
+                        ✏️ ${t('edit', 'Editar')}
+                      </button>
+                      <button type="button" class="btn sm danger ghost" data-delete-sched="${sc.id}" style="height: 34px; font-size: 12px; font-weight: 800; padding: 0 10px;">
+                        🗑️
+                      </button>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          `}
+        `;
+
+        const btnAdd = body.querySelector('#btn-add-recurring');
+        if (btnAdd) btnAdd.onclick = () => showEditScheduleForm(null);
+
+        const btnGen = body.querySelector('#btn-generate-now');
+        if (btnGen) {
+          btnGen.onclick = () => {
+            const count = Store.generateRecurringConvocations(14);
+            Sync.push();
+            toast(`✅ Generadas ${count} convocatorias para los próximos 14 días`, 'success');
+            haptic(35);
+            if (onDone) onDone();
+          };
+        }
+
+        body.querySelectorAll('[data-edit-sched]').forEach(b => {
+          b.onclick = () => {
+            const sid = b.getAttribute('data-edit-sched');
+            showEditScheduleForm(sid);
+          };
+        });
+
+        body.querySelectorAll('[data-delete-sched]').forEach(b => {
+          b.onclick = () => {
+            const sid = b.getAttribute('data-delete-sched');
+            confirmDialog(t('delete', 'Eliminar'), t('deleteRecurringConfirm', '¿Eliminar este horario recurrente?'), () => {
+              Store.deleteRecurringSchedule(sid);
+              Sync.push();
+              toast(t('deleted', 'Eliminado'), 'info');
+              renderSchedulesList();
+              if (onDone) onDone();
+            });
+          };
+        });
+      }
+
+      function showEditScheduleForm(schedId) {
+        const existing = schedId ? Store.recurringSchedule(schedId) : null;
+        const teams = Store.state.teams || [];
+        const daysMap = [
+          { val: 1, label: t('dayMon', 'Lun') },
+          { val: 2, label: t('dayTue', 'Mar') },
+          { val: 3, label: t('dayWed', 'Mié') },
+          { val: 4, label: t('dayThu', 'Jue') },
+          { val: 5, label: t('dayFri', 'Vie') },
+          { val: 6, label: t('daySat', 'Sáb') },
+          { val: 0, label: t('daySun', 'Dom') }
+        ];
+
+        let selectedDays = existing ? (existing.daysOfWeek || [2, 4]) : [2, 4];
+
+        body.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <button type="button" class="btn sm ghost" id="btn-sched-back" style="font-weight: 800; font-size: 13px;">
+              ◀ ${t('back', 'Volver')}
+            </button>
+            <h3 style="margin: 0; font-size: 16px; font-weight: 900;">${existing ? t('editRecurring', 'Editar Horario') : t('newRecurring', 'Nuevo Horario')}</h3>
+          </div>
+
+          <div class="field">
+            <label>${t('title', 'Título (opcional)')}</label>
+            <input type="text" id="sched-title" placeholder="Ej: Entrenamiento Semanal" value="${escapeHtml(existing ? existing.title : '')}" />
+          </div>
+
+          <div class="field">
+            <label>${t('team', 'Equipo')}</label>
+            <select id="sched-team">
+              <option value="">${t('allTeams', 'Todos los equipos')}</option>
+              ${teams.map(tm => `
+                <option value="${tm.id}" ${existing && existing.teamId === tm.id ? 'selected' : ''}>${escapeHtml(tm.name)}</option>
+              `).join('')}
+            </select>
+          </div>
+
+          <div class="field">
+            <label>${t('recurringDays', 'Días de la semana')}</label>
+            <div style="display: flex; gap: 6px; flex-wrap: wrap;" id="sched-days-container">
+              ${daysMap.map(d => {
+                const isActive = selectedDays.includes(d.val);
+                return `
+                  <button type="button" class="btn sm ${isActive ? 'primary' : 'ghost'}" data-day-val="${d.val}" style="border-radius: 10px; font-weight: 800; min-width: 42px; height: 38px;">
+                    ${d.label}
+                  </button>
+                `;
+              }).join('')}
+            </div>
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <label>${t('time', 'Hora')}</label>
+              <input type="time" id="sched-time" value="${existing ? (existing.time || '18:00') : '18:00'}" />
+            </div>
+            <div class="field">
+              <label>${t('venue', 'Lugar / Campo')}</label>
+              <input type="text" id="sched-venue" placeholder="Ej: Campo 2" value="${escapeHtml(existing ? (existing.venue || '') : '')}" />
+            </div>
+          </div>
+
+          <div class="field">
+            <label>📍 ${t('address', 'Dirección exacta')}</label>
+            <input type="text" id="sched-address" placeholder="Ej: Calle Deportes 12" value="${escapeHtml(existing ? (existing.address || '') : '')}" />
+          </div>
+
+          <div class="field">
+            <label>${t('notes', 'Notas')}</label>
+            <input type="text" id="sched-notes" placeholder="Ej: Ropa térmica, llegar 15 min antes" value="${escapeHtml(existing ? (existing.notes || '') : '')}" />
+          </div>
+
+          <button type="button" class="btn block primary" id="btn-save-sched" style="height: 44px; font-weight: 800; font-size: 14px; margin-top: 14px;">
+            💾 ${t('save', 'Guardar Horario')}
+          </button>
+        `;
+
+        body.querySelector('#btn-sched-back').onclick = renderSchedulesList;
+
+        body.querySelectorAll('[data-day-val]').forEach(btn => {
+          btn.onclick = () => {
+            const dayVal = parseInt(btn.getAttribute('data-day-val'), 10);
+            if (selectedDays.includes(dayVal)) {
+              if (selectedDays.length > 1) {
+                selectedDays = selectedDays.filter(x => x !== dayVal);
+                btn.className = 'btn sm ghost';
+              }
+            } else {
+              selectedDays.push(dayVal);
+              btn.className = 'btn sm primary';
+            }
+          };
+        });
+
+        body.querySelector('#btn-save-sched').onclick = () => {
+          const title = body.querySelector('#sched-title').value.trim();
+          const teamId = body.querySelector('#sched-team').value;
+          const time = body.querySelector('#sched-time').value || '18:00';
+          const venue = body.querySelector('#sched-venue').value.trim();
+          const address = body.querySelector('#sched-address').value.trim();
+          const notes = body.querySelector('#sched-notes').value.trim();
+
+          Store.upsertRecurringSchedule({
+            id: existing ? existing.id : null,
+            title: title,
+            teamId: teamId,
+            daysOfWeek: selectedDays,
+            time: time,
+            venue: venue,
+            address: address,
+            notes: notes,
+            active: true
+          });
+
+          Sync.push();
+          toast(t('saved', 'Guardado con éxito'), 'success');
+          haptic(35);
+          renderSchedulesList();
+          if (onDone) onDone();
+        };
+      }
+
+      renderSchedulesList();
+    });
+  }
+
+  /* =========================================================
      VISTA 5: CONVOCATORIAS Y ASISTENCIA (MENÚ INDEPENDIENTE)
      ========================================================= */
   function renderConvocationsView(view) {
@@ -6395,14 +6664,17 @@
       const list = Store.state.convocations || [];
 
       view.innerHTML = `
-        <div class="topbar">
-          <div>
-            <h1>${t('convocations')}</h1>
-            <span class="sub">${list.length} convocatorias registradas</span>
+        <div class="topbar" style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center;">
+          <div style="min-width: 130px; flex: 1;">
+            <h1 style="font-size: 19px; margin: 0;">${t('convocations')}</h1>
+            <span class="sub" style="font-size: 11px;">${list.length} convocatorias registradas</span>
           </div>
-          <div class="row" style="gap: 6px;">
+          <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0; flex-wrap: wrap;">
             ${renderLangButton()}
-            <button class="btn sm primary" id="btn-create-conv">
+            <button class="btn sm" id="btn-recurring-trainings" style="background: var(--surface2); color: var(--cyan); border-color: rgba(34,211,238,0.3); font-weight: 800; font-size: 11.5px; height: 36px; padding: 0 10px;" title="${t('recurringTrainings', 'Entrenamientos Recurrentes')}">
+              🔄 ${t('recurringBtn', 'Recurrentes')}
+            </button>
+            <button class="btn sm primary" id="btn-create-conv" style="font-weight: 800; font-size: 12px; height: 36px; padding: 0 12px; white-space: nowrap;">
               ${icon('plus', 16)} ${t('newConvocation')}
             </button>
           </div>
@@ -6420,14 +6692,24 @@
         ` : `
           <div class="conv-list">
             ${list.map(c => {
-              const allPlayers = Store.sortedPlayers();
-              let countCalled = 0, countBench = 0, countInjured = 0, countAbsent = 0;
-              allPlayers.forEach(p => {
-                const st = (c.list || {})[p.id];
-                if (st === 'called') countCalled++;
-                else if (st === 'bench') countBench++;
-                else if (st === 'injured') countInjured++;
-                else if (st === 'absent') countAbsent++;
+              const cList = c.list || {};
+              const responses = c.responses || {};
+              const calledPids = Object.keys(cList).filter(pid => cList[pid] && cList[pid] !== 'uncalled');
+              const totalCalled = calledPids.length;
+
+              let nAccepted = 0;
+              let nRejected = 0;
+              let nPending = 0;
+
+              calledPids.forEach(pid => {
+                const r = responses[pid];
+                if (r && (r.status === 'called' || r.status === 'attending' || r.status === 'yes')) {
+                  nAccepted++;
+                } else if (r && (r.status === 'absent' || r.status === 'no')) {
+                  nRejected++;
+                } else {
+                  nPending++;
+                }
               });
 
               return `
@@ -6449,11 +6731,19 @@
                     </button>
                   </div>
 
-                  <div class="conv-badge-row">
-                    <span class="conv-status-chip called">🟢 ${countCalled} ${t('calledStatus')}</span>
-                    <span class="conv-status-chip bench">🟡 ${countBench} ${t('benchStatus')}</span>
-                    ${countInjured > 0 ? `<span class="conv-status-chip injured">🏥 ${countInjured} ${t('injuredStatus')}</span>` : ''}
-                    ${countAbsent > 0 ? `<span class="conv-status-chip" style="background: rgba(148,163,184,0.15); color: #cbd5e1;">❌ ${countAbsent} ${t('absentStatus')}</span>` : ''}
+                  <div class="conv-badge-row" style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px;">
+                    <span class="badge" style="background: var(--surface2); color: #cbd5e1; border: 1px solid var(--border); font-weight: 800; font-size: 11px; padding: 3px 8px;">
+                      👤 ${totalCalled} ${t('calledPlayers', 'Convocados')}
+                    </span>
+                    <span class="badge" style="background: rgba(34, 197, 94, 0.16); color: #86efac; border: 1px solid rgba(34, 197, 94, 0.4); font-weight: 800; font-size: 11px; padding: 3px 8px;">
+                      🟢 ${nAccepted}
+                    </span>
+                    <span class="badge" style="background: rgba(239, 68, 68, 0.16); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.4); font-weight: 800; font-size: 11px; padding: 3px 8px;">
+                      ❌ ${nRejected}
+                    </span>
+                    <span class="badge" style="background: rgba(250, 204, 21, 0.16); color: #fde047; border: 1px solid rgba(250, 204, 21, 0.4); font-weight: 800; font-size: 11px; padding: 3px 8px;">
+                      ⏳ ${nPending}
+                    </span>
                   </div>
                 </div>
               `;
@@ -6467,6 +6757,9 @@
 
       const btnEmpty = view.querySelector('#btn-empty-conv');
       if (btnEmpty) btnEmpty.onclick = () => showEditConvocationModal(null, () => build());
+
+      const btnRecurring = view.querySelector('#btn-recurring-trainings');
+      if (btnRecurring) btnRecurring.onclick = () => showRecurringTrainingsModal(() => build());
 
       view.querySelectorAll('[data-quick-viber]').forEach(btn => {
         btn.onclick = (e) => {
