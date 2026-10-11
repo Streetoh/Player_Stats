@@ -1,6 +1,6 @@
 {
-  "name": "Portal del Jugador • Jõhvi JK Noova",
-  "short_name": "JK Noova",
+  "name": "Player stats (Player)",
+  "short_name": "Player stats",
   "start_url": "jugadores.html",
   "display": "standalone",
   "background_color": "#060a13",

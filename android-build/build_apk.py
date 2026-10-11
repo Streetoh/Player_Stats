@@ -29,7 +29,7 @@ ASSETS_DIR = BASE_DIR / "assets"
 SRC_DIR = BASE_DIR / "src"
 MANIFEST = BASE_DIR / "AndroidManifest.xml"
 
-OUTPUT_APK = PROJECT_DIR / "EstadisticasJugadores.apk"
+OUTPUT_APK = PROJECT_DIR / "PlayerStats_Coach.apk"
 
 def run(cmd, cwd=None):
     print(f"--> Running: {' '.join(str(c) for c in cmd)}")

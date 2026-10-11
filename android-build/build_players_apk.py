@@ -31,7 +31,7 @@ MANIFEST_ACTIVE = BASE_DIR / "AndroidManifest.xml"
 MANIFEST_COACH_BACKUP = BASE_DIR / "AndroidManifest_coach_temp.xml"
 MANIFEST_PLAYERS_SRC = BASE_DIR / "AndroidManifest_players.xml"
 
-OUTPUT_APK = PROJECT_DIR / "JugadoresJKNoova.apk"
+OUTPUT_APK = PROJECT_DIR / "PlayerStats_Player.apk"
 
 def run(cmd, cwd=None):
     print(f"--> Running: {' '.join(str(c) for c in cmd)}")

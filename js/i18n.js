@@ -6,7 +6,7 @@
 
   const DICT = {
     es: {
-      appName: 'Estadísticas Jugadores',
+      appName: 'Player stats (Coach)',
       appSubtitle: 'Seguimiento individual en vivo',
       home: 'Inicio',
       sessions: 'Sesiones',
@@ -333,7 +333,7 @@
       shareViber: 'Compartir por Viber'
     },
     en: {
-      appName: 'Player Stats',
+      appName: 'Player stats (Coach)',
       appSubtitle: 'Live individual tracking',
       home: 'Home',
       sessions: 'Sessions',
