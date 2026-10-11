@@ -389,11 +389,20 @@
     return fallback || key;
   }
 
-  function toast(msg, type = 'info') {
+  function toast(msg, type = 'info', onClick) {
     if (!toastRoot) return;
     const el = document.createElement('div');
     el.className = `toast ${type}`;
-    el.textContent = msg;
+    if (onClick) {
+      el.style.cursor = 'pointer';
+      el.innerHTML = `<span style="flex:1;">${msg}</span><span style="font-size:14px; margin-left:8px; opacity:0.85; font-weight:900;">➔</span>`;
+      el.onclick = () => {
+        try { onClick(); } catch(e) {}
+        el.remove();
+      };
+    } else {
+      el.innerHTML = msg;
+    }
     toastRoot.appendChild(el);
     setTimeout(() => {
       el.classList.add('fade-out');
@@ -441,8 +450,23 @@
   }
 
   function getMyPlayer() {
-    if (!clubData || !clubData.players || !myPlayerId) return null;
-    return clubData.players.find(p => p.id === myPlayerId) || null;
+    if (myPlayerId) {
+      const p = (clubData && clubData.players) ? clubData.players.find(x => x.id === myPlayerId) : null;
+      if (p) return p;
+      const pendingCreationId = localStorage.getItem('portal_pending_creation_id');
+      if (myPlayerId === pendingCreationId) {
+        return {
+          id: pendingCreationId,
+          name: localStorage.getItem('portal_pending_creation_name') || 'Jugador',
+          lastName: '',
+          mainDorsal: parseInt(localStorage.getItem('portal_pending_creation_dorsal') || '0', 10) || null,
+          mainPosition: localStorage.getItem('portal_pending_creation_pos') || 'Delantero',
+          teamId: '',
+          isPendingApproval: true
+        };
+      }
+    }
+    return null;
   }
 
   function getPlayerFootLabel(footVal) {
@@ -736,7 +760,11 @@
     const myP = getMyPlayer();
 
     if (myP) {
-      if (nameEl) nameEl.textContent = `#${myP.mainDorsal != null ? myP.mainDorsal : '-'} ${myP.name || ''} ${myP.lastName || ''}`.trim();
+      if (myP.isPendingApproval) {
+        if (nameEl) nameEl.textContent = `⏳ #${myP.mainDorsal != null ? myP.mainDorsal : '-'} ${myP.name || ''} (${t('pendingApproval', 'Pendiente')})`;
+      } else {
+        if (nameEl) nameEl.textContent = `#${myP.mainDorsal != null ? myP.mainDorsal : '-'} ${myP.name || ''} ${myP.lastName || ''}`.trim();
+      }
       if (avatarEl) {
         avatarEl.innerHTML = myP.photo ? `<img src="${myP.photo}" alt="" />` : `<span>${(myP.name ? myP.name[0] : 'P').toUpperCase()}</span>`;
       }
@@ -765,6 +793,43 @@
   /* -------------------------------------------------------------
      SOLICITUD DE ALTA DE NUEVO JUGADOR (SI NO ESTÁ EN LA LISTA)
      ------------------------------------------------------------- */
+  function listenToMyCreationRequest(reqId) {
+    if (!reqId || !window.Cloud || !window.Cloud.listenToPlayerCreationRequest) return;
+    if (window._myCreationRequestUnsub) {
+      try { window._myCreationRequestUnsub(); } catch (e) {}
+    }
+    window._myCreationRequestUnsub = window.Cloud.listenToPlayerCreationRequest(reqId, (r) => {
+      if (!r) return;
+      if (r.status === 'approved') {
+        const newPlayerId = r.createdPlayerId;
+        if (newPlayerId) {
+          myPlayerId = newPlayerId;
+          try {
+            localStorage.setItem('portal_player_id', newPlayerId);
+            localStorage.removeItem('portal_pending_creation_id');
+            localStorage.removeItem('portal_pending_creation_name');
+            localStorage.removeItem('portal_pending_creation_dorsal');
+            localStorage.removeItem('portal_pending_creation_pos');
+          } catch (e) {}
+          toast(t('creationApproved', '🎉 ¡El entrenador ha creado tu perfil! Ya puedes ver tus estadísticas.'), 'success');
+          haptic(50);
+          updateHeaderIdentity();
+          renderCurrentTab();
+        }
+      } else if (r.status === 'rejected') {
+        try {
+          localStorage.removeItem('portal_pending_creation_id');
+          localStorage.removeItem('portal_player_id');
+          localStorage.removeItem('portal_player_locked');
+        } catch (e) {}
+        myPlayerId = null;
+        toast(t('creationRejected', '❌ El entrenador ha denegado la solicitud de alta.'), 'error');
+        updateHeaderIdentity();
+        renderCurrentTab();
+      }
+    });
+  }
+
   function showPlayerCreationRequestModal() {
     const overlay = document.createElement('div');
     overlay.className = 'dialog-overlay';
@@ -837,7 +902,23 @@
             createdAt: Date.now()
           });
         }
-        toast(t('requestSent', '✅ Solicitud enviada al entrenador'), 'success');
+
+        // Auto-seleccionar este perfil en estado pendiente para el usuario actual
+        myPlayerId = reqId;
+        try {
+          localStorage.setItem('portal_player_id', reqId);
+          localStorage.setItem('portal_player_locked', 'true');
+          localStorage.setItem('portal_pending_creation_id', reqId);
+          localStorage.setItem('portal_pending_creation_name', name);
+          localStorage.setItem('portal_pending_creation_dorsal', dorsal || '');
+          localStorage.setItem('portal_pending_creation_pos', pos || 'Delantero');
+        } catch (e) {}
+
+        listenToMyCreationRequest(reqId);
+        updateHeaderIdentity();
+        renderCurrentTab();
+
+        toast(t('requestSent', '✅ Solicitud enviada al entrenador. Tu perfil se activará cuando sea aprobado.'), 'success');
         haptic(40);
         close();
       } catch (err) {
@@ -1660,6 +1741,28 @@
       return;
     }
 
+    if (myP.isPendingApproval) {
+      view.innerHTML = `
+        <div style="padding: 20px 0; text-align: center;">
+          <div class="card" style="padding: 28px 16px; border: 1.5px solid rgba(250, 204, 21, 0.4); background: linear-gradient(135deg, rgba(250, 204, 21, 0.1) 0%, rgba(15, 23, 42, 0.8) 100%); border-radius: 16px;">
+            <div style="font-size: 40px; margin-bottom: 10px;">⏳</div>
+            <h3 style="margin: 0 0 6px; font-size: 18px; color: #fde047; font-weight: 900;">
+              ${t('creationPendingTitle', 'Solicitud enviada al Entrenador')}
+            </h3>
+            <p style="margin: 0 0 14px; font-size: 13px; color: #cbd5e1; line-height: 1.45;">
+              ${t('creationPendingDesc', 'Has solicitado crear el perfil para')} <b>${escapeHtml(myP.name || '')}</b> (${myP.mainDorsal ? '#' + myP.mainDorsal : myP.mainPosition || 'Jugador'}).
+              <br/>
+              ${t('creationPendingNote', 'Tu perfil se vinculará y mostrará tus estadísticas automáticamente en cuanto el entrenador confirme tu alta.')}
+            </p>
+            <div style="display: inline-block; padding: 6px 14px; border-radius: 20px; background: rgba(250, 204, 21, 0.2); border: 1px solid rgba(250, 204, 21, 0.5); font-size: 12px; color: #fde047; font-weight: 800;">
+              🔒 ${t('pendingApproval', 'Esperando confirmación del entrenador')}
+            </div>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
     const team = clubData.teams ? clubData.teams.find(t => t.id === myP.teamId) : null;
     const stats = calculatePlayerStats(myP.id);
     const radar = calculatePlayerRadar(myP.id);
@@ -1908,7 +2011,7 @@
               ${escapeHtml((clubData.coachProfile && clubData.coachProfile.name) || 'Entrenador Principal')}
             </h4>
             <small style="color: var(--muted); font-size: 11px;">
-              ${escapeHtml((clubData.coachProfile && clubData.coachProfile.title) || t('coachProfileSubtitle', 'Director Técnico'))}
+              ${escapeHtml((clubData.coachProfile && (clubData.coachProfile.role || clubData.coachProfile.title)) || t('coachProfileSubtitle', 'Director Técnico'))}
             </small>
           </div>
           <div style="color: #facc15; font-size: 11.5px; font-weight: 800; white-space: nowrap;">
@@ -1984,9 +2087,11 @@
   function showCoachFullProfileModal() {
     const cp = clubData.coachProfile || {
       name: 'Entrenador Principal',
+      role: 'Primer Entrenador',
       title: 'Director Técnico / Head Coach',
       license: 'UEFA Pro / Nivel 3',
       bio: 'Responsable técnico del club.',
+      philosophy: '',
       phone: '',
       email: '',
       photo: ''
@@ -2010,7 +2115,7 @@
               ${escapeHtml(cp.name || 'Entrenador Principal')}
             </h2>
             <div style="font-size: 12px; color: var(--cyan); font-weight: 800;">
-              ${escapeHtml(cp.title || 'Director Técnico')}
+              ${escapeHtml(cp.role || cp.title || 'Director Técnico')}
             </div>
             ${cp.license ? `
               <div style="font-size: 11px; color: var(--muted); margin-top: 2px;">
@@ -2020,12 +2125,20 @@
           </div>
         </div>
 
-        ${cp.bio ? `
+        ${(cp.bio || cp.philosophy) ? `
           <div class="card" style="margin-bottom: 12px; padding: 12px; border: 1px solid var(--border); background: var(--bg2);">
-            <div style="font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase; margin-bottom: 4px;">Información / Filosofía</div>
-            <p style="margin: 0; font-size: 13px; line-height: 1.5; color: #e2e8f0;">
-              ${escapeHtml(cp.bio)}
-            </p>
+            ${cp.bio ? `
+              <div style="font-size: 11px; font-weight: 800; color: var(--cyan); text-transform: uppercase; margin-bottom: 4px;">${t('coachBio', 'Presentación / Trayectoria')}</div>
+              <p style="margin: 0 0 8px; font-size: 13px; line-height: 1.5; color: #e2e8f0;">
+                ${escapeHtml(cp.bio)}
+              </p>
+            ` : ''}
+            ${cp.philosophy ? `
+              <div style="font-size: 11px; font-weight: 800; color: var(--cyan); text-transform: uppercase; margin-bottom: 4px;">${t('notes', 'Filosofía y Metodología')}</div>
+              <p style="margin: 0; font-size: 13px; line-height: 1.5; color: #e2e8f0;">
+                ${escapeHtml(cp.philosophy)}
+              </p>
+            ` : ''}
           </div>
         ` : ''}
 
@@ -2462,6 +2575,15 @@
         } else {
           clubData = remoteState;
         }
+        if (remoteState.coachProfile) {
+          clubData.coachProfile = remoteState.coachProfile;
+        }
+        if (remoteState.recurringSchedules) {
+          clubData.recurringSchedules = remoteState.recurringSchedules;
+        }
+        if (remoteState.convocations) {
+          clubData.convocations = remoteState.convocations;
+        }
         try { localStorage.setItem('cached_club_state', JSON.stringify(clubData)); } catch (e) {}
 
         if (remoteState.settings && remoteState.settings.clubName) {
@@ -2504,6 +2626,12 @@
       if (pendingReqId) {
         listenToMyPendingRequest(pendingReqId);
       }
+
+      // Escuchar si hay alguna solicitud de alta de nuevo jugador pendiente
+      const pendingCreationId = localStorage.getItem('portal_pending_creation_id');
+      if (pendingCreationId) {
+        listenToMyCreationRequest(pendingCreationId);
+      }
     }
 
     // 3. Cargar datos locales de respaldo y pedir identidad si aún no la tiene
@@ -2515,6 +2643,14 @@
       }
     });
   }
+
+  window.__showPlayerProfile = function (pid) {
+    showPlayerFullProfileModal(pid);
+  };
+
+  window.__showCoachProfile = function () {
+    showCoachFullProfileModal();
+  };
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);

@@ -28,17 +28,26 @@
     } catch (e) {}
   }
 
-  function toast(msg, type) {
+  function toast(msg, type, onClick) {
     const root = document.getElementById('toast-root');
     if (!root) return;
     const el = document.createElement('div');
     el.className = 'toast ' + (type || 'info');
-    el.innerHTML = msg;
+    if (onClick) {
+      el.style.cursor = 'pointer';
+      el.innerHTML = `<span style="flex:1;">${msg}</span><span style="font-size:14px; margin-left:8px; opacity:0.85; font-weight:900;">➔</span>`;
+      el.onclick = () => {
+        try { onClick(); } catch (e) {}
+        el.remove();
+      };
+    } else {
+      el.innerHTML = msg;
+    }
     root.appendChild(el);
     setTimeout(() => {
       el.classList.add('out');
       setTimeout(() => el.remove(), 250);
-    }, 2400);
+    }, 2800);
   }
 
   window.UI = { toast, haptic };
@@ -582,10 +591,36 @@
         badge.style.display = 'none';
       }
     });
+
+    // Indicador en el botón de la pestaña Home en la barra de navegación inferior
+    const homeTabBtns = document.querySelectorAll('#tabbar [data-tab="home"], #portal-tabbar [data-tab="home"]');
+    homeTabBtns.forEach(homeTabBtn => {
+      let dot = homeTabBtn.querySelector('.home-notif-dot');
+      if (count > 0) {
+        if (!dot) {
+          dot = document.createElement('span');
+          dot.className = 'home-notif-dot';
+          dot.style.cssText = 'position: absolute; top: 4px; right: calc(50% - 16px); width: 10px; height: 10px; border-radius: 50%; background: #22d3ee; border: 2px solid #0f172a; box-shadow: 0 0 6px #22d3ee; pointer-events: none; z-index: 5;';
+          homeTabBtn.style.position = 'relative';
+          homeTabBtn.appendChild(dot);
+        }
+      } else {
+        if (dot) dot.remove();
+      }
+    });
   }
 
   function handleIncomingProfileRequests(requests) {
     pendingProfileRequests = requests || [];
+    const validIds = new Set((requests || []).map(r => r.id));
+
+    // Limpiar notificaciones obsoletas que ya no estén pendientes
+    let stored = NotifManager.getAll();
+    stored = stored.filter(n => {
+      if (n.type === 'profile_req' && !validIds.has(n.targetId)) return false;
+      return true;
+    });
+    NotifManager.save(stored);
 
     // Registrar en el Centro de Notificaciones
     (requests || []).forEach(r => {
@@ -605,7 +640,7 @@
       requests.forEach(r => {
         if (!knownProfileRequestIds.has(r.id)) {
           const reqPlayerName = r.toPlayerName || 'Jugador';
-          toast(`🔔 ${t('newProfileRequest', 'Nueva solicitud de cambio de perfil')}: ${reqPlayerName}`, 'info');
+          toast(`🔔 ${t('newProfileRequest', 'Nueva solicitud de cambio de perfil')}: ${reqPlayerName}`, 'info', () => showNotificationsCenterModal());
           haptic(50);
           if (window.AndroidBridge && window.AndroidBridge.showSystemNotification) {
             try { window.AndroidBridge.showSystemNotification('Player Stats', `Nueva solicitud de perfil: ${reqPlayerName}`); } catch(e) {}
@@ -621,6 +656,15 @@
 
   function handleIncomingPlayerCreationRequests(requests) {
     pendingPlayerCreationRequests = requests || [];
+    const validIds = new Set((requests || []).map(r => r.id));
+
+    // Limpiar notificaciones obsoletas que ya no estén pendientes
+    let stored = NotifManager.getAll();
+    stored = stored.filter(n => {
+      if (n.type === 'creation_req' && !validIds.has(n.targetId)) return false;
+      return true;
+    });
+    NotifManager.save(stored);
 
     // Registrar en el Centro de Notificaciones
     (requests || []).forEach(cr => {
@@ -640,7 +684,7 @@
       requests.forEach(r => {
         if (!knownPlayerCreationRequestIds.has(r.id)) {
           const reqPlayerName = r.name || 'Nuevo Jugador';
-          toast(`➕ ${t('requestCoachProfileTitle', 'Solicitud de alta de jugador')}: ${reqPlayerName}`, 'info');
+          toast(`➕ ${t('requestCoachProfileTitle', 'Solicitud de alta de jugador')}: ${reqPlayerName}`, 'info', () => showNotificationsCenterModal());
           haptic(50);
           if (window.AndroidBridge && window.AndroidBridge.showSystemNotification) {
             try { window.AndroidBridge.showSystemNotification('Player Stats', `Solicitud de alta: ${reqPlayerName}`); } catch(e) {}
@@ -805,7 +849,7 @@
             btn.textContent = '...';
 
             // Crear jugador en Store
-            Store.upsertPlayer({
+            const newPlayer = Store.upsertPlayer({
               name: item.name,
               mainDorsal: item.dorsal ? parseInt(item.dorsal, 10) : null,
               mainPosition: item.position || 'Delantero',
@@ -813,18 +857,18 @@
             });
             Sync.push();
             if (window.Cloud && window.Cloud.pushCoachState) {
-              window.Cloud.pushCoachState(Store.state);
+              window.Cloud.pushCoachState(Store.state, true);
             }
             if (window.Cloud && window.Cloud.resolvePlayerCreationRequest) {
-              await window.Cloud.resolvePlayerCreationRequest(reqId, 'approved');
+              await window.Cloud.resolvePlayerCreationRequest(reqId, 'approved', newPlayer ? newPlayer.id : null);
             }
 
             pendingPlayerCreationRequests = pendingPlayerCreationRequests.filter(x => x.id !== reqId);
             NotifManager.removeByTarget(reqId);
             toast('✅ Jugador creado y añadido al sistema', 'success');
             haptic(40);
-            renderRequests();
             updateRequestsBadge();
+            closeSheet();
           };
         });
 
@@ -840,8 +884,8 @@
             NotifManager.removeByTarget(reqId);
             toast('❌ Solicitud rechazada', 'info');
             haptic(25);
-            renderRequests();
             updateRequestsBadge();
+            closeSheet();
           };
         });
 
@@ -858,8 +902,8 @@
             NotifManager.removeByTarget(reqId);
             toast(t('requestApproved', '✅ Solicitud de cambio de perfil aprobada'), 'success');
             haptic(40);
-            renderRequests();
             updateRequestsBadge();
+            closeSheet();
           };
         });
 
@@ -875,8 +919,8 @@
             NotifManager.removeByTarget(reqId);
             toast(t('requestRejected', '❌ Solicitud rechazada'), 'info');
             haptic(25);
-            renderRequests();
             updateRequestsBadge();
+            closeSheet();
           };
         });
       }
@@ -908,18 +952,7 @@
             </div>
           </div>
 
-          ${pendingReqs > 0 ? `
-            <div id="btn-jump-to-requests" style="background: rgba(34, 211, 238, 0.12); border: 1.5px solid rgba(34, 211, 238, 0.4); padding: 10px 14px; border-radius: 12px; margin-bottom: 12px; cursor: pointer; display: flex; align-items: center; justify-content: space-between;">
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <span style="font-size: 18px;">📋</span>
-                <div>
-                  <b style="color: #38bdf8; font-size: 13px;">${pendingReqs} ${t('profileRequests', 'Solicitudes pendientes')}</b>
-                  <div style="font-size: 11px; color: var(--muted);">${t('tapToManageRequests', 'Toca para autorizar o denegar cambios y altas')}</div>
-                </div>
-              </div>
-              <span style="color: var(--cyan); font-weight: 900; font-size: 14px;">➔</span>
-            </div>
-          ` : ''}
+
 
           ${notifs.length === 0 ? `
             <div class="empty-state card" style="padding: 30px 16px; text-align: center;">
@@ -4819,6 +4852,14 @@
      VISTA 3: JUGADORES & EQUIPOS
      ========================================================= */
   function renderPlayersView(view) {
+    if (!window._presenceListenerRegistered && window.Cloud && window.Cloud.listenToAllPresence) {
+      window._presenceListenerRegistered = true;
+      window.Cloud.listenToAllPresence((map) => {
+        window._globalPresenceMap = map;
+        if (currentTab === 'players') build();
+      });
+    }
+
     function build() {
       let players = Store.sortedPlayers(playerListTeam);
       if (playerListSearch) {
@@ -4869,11 +4910,24 @@
             </div>
           ` : players.map(p => {
             const team = Store.team(p.teamId);
+            const pres = (window._globalPresenceMap && window._globalPresenceMap[p.id]);
+            let presBadge = '';
+            if (pres && pres.isOnline) {
+              presBadge = `<span title="${t('onlineInApp', 'En línea en la App de Jugadores')}" style="font-size: 13px; margin-left: 6px; display: inline-flex; align-items: center; gap: 2px; color: #4ade80;">📱🟢</span>`;
+            } else if (pres) {
+              presBadge = `<span title="${t('syncedApp', 'App vinculada y sincronizada')}" style="font-size: 13px; margin-left: 6px; display: inline-flex; align-items: center; gap: 2px; color: #38bdf8;">📱</span>`;
+            } else {
+              presBadge = `<span title="${t('notSyncedApp', 'Sin app instalada / no vinculado')}" style="font-size: 13px; margin-left: 6px; display: inline-flex; align-items: center; gap: 2px; opacity: 0.4;">⚪</span>`;
+            }
+
             return `
               <div class="player-item" data-id="${p.id}">
                 ${renderAvatar(p)}
                 <div class="grow ellipsis">
-                  <h4>${escapeHtml(Store.playerName(p))}</h4>
+                  <h4 style="display: flex; align-items: center; justify-content: space-between;">
+                    <span class="ellipsis">${escapeHtml(Store.playerName(p))}</span>
+                    ${presBadge}
+                  </h4>
                   <div class="meta">
                     <span class="pos-tag">${p.mainPosition || 'Jugador'}</span>
                     <span>•</span>
@@ -5516,6 +5570,11 @@
           photo: photoData
         });
 
+        Sync.push();
+        if (window.Cloud && window.Cloud.pushCoachState) {
+          window.Cloud.pushCoachState(Store.state, true);
+        }
+
         closeSheet();
         toast(t('savedSuccess'), 'success');
         if (onSaved) onSaved(saved);
@@ -5740,6 +5799,10 @@
           }
         });
         Store.save();
+        Sync.push();
+        if (window.Cloud && window.Cloud.pushCoachState) {
+          window.Cloud.pushCoachState(Store.state, true);
+        }
 
         toast(t('savedSuccess'), 'success');
         closeSheet();
@@ -5778,6 +5841,10 @@
           const tid = btn.getAttribute('data-tid');
           player.teamId = tid;
           Store.save();
+          Sync.push();
+          if (window.Cloud && window.Cloud.pushCoachState) {
+            window.Cloud.pushCoachState(Store.state, true);
+          }
           toast('Equipo asignado correctamente', 'success');
           closeSheet();
           if (onDone) onDone();
@@ -5788,6 +5855,10 @@
         showEditTeamModal(null, (newTeam) => {
           player.teamId = newTeam.id;
           Store.save();
+          Sync.push();
+          if (window.Cloud && window.Cloud.pushCoachState) {
+            window.Cloud.pushCoachState(Store.state, true);
+          }
           toast('Equipo creado y asignado', 'success');
           closeSheet();
           if (onDone) onDone();
@@ -6374,6 +6445,10 @@
       foot.querySelector('#btn-detail-del').onclick = () => {
         confirmDialog(t('delete'), '¿Deseas eliminar esta convocatoria?', () => {
           Store.deleteConvocation(conv.id);
+          Sync.push();
+          if (window.Cloud && window.Cloud.pushCoachState) {
+            window.Cloud.pushCoachState(Store.state, true);
+          }
           closeSheet();
           if (onDone) onDone();
         });
@@ -6970,6 +7045,10 @@
         foot.querySelector('#btn-conv-del').onclick = () => {
           confirmDialog(t('delete'), '¿Deseas eliminar esta convocatoria?', () => {
             Store.deleteConvocation(c.id);
+            Sync.push();
+            if (window.Cloud && window.Cloud.pushCoachState) {
+              window.Cloud.pushCoachState(Store.state, true);
+            }
             closeSheet();
             if (onDone) onDone();
           });
@@ -7028,6 +7107,11 @@
           } catch (err) {
             console.error('Error auto-creando sesión desde convocatoria:', err);
           }
+        }
+
+        Sync.push();
+        if (window.Cloud && window.Cloud.pushCoachState) {
+          window.Cloud.pushCoachState(Store.state, true);
         }
 
         toast(t('savedSuccess'), 'success');
@@ -7134,6 +7218,9 @@
           btnGen.onclick = () => {
             const count = Store.generateRecurringConvocations(14);
             Sync.push();
+            if (window.Cloud && window.Cloud.pushCoachState) {
+              window.Cloud.pushCoachState(Store.state, true);
+            }
             toast(`✅ Generadas ${count} convocatorias para los próximos 14 días`, 'success');
             haptic(35);
             if (onDone) onDone();
@@ -7153,6 +7240,9 @@
             confirmDialog(t('delete', 'Eliminar'), t('deleteRecurringConfirm', '¿Eliminar este horario recurrente?'), () => {
               Store.deleteRecurringSchedule(sid);
               Sync.push();
+              if (window.Cloud && window.Cloud.pushCoachState) {
+                window.Cloud.pushCoachState(Store.state, true);
+              }
               toast(t('deleted', 'Eliminado'), 'info');
               renderSchedulesList();
               if (onDone) onDone();
@@ -7314,9 +7404,12 @@
           });
 
           Sync.push();
+          if (window.Cloud && window.Cloud.pushCoachState) {
+            window.Cloud.pushCoachState(Store.state, true);
+          }
           toast(t('saved', 'Guardado con éxito'), 'success');
           haptic(35);
-          renderSchedulesList();
+          closeSheet();
           if (onDone) onDone();
         };
       }
@@ -7790,6 +7883,11 @@
           photo: photoData
         });
 
+        Sync.push();
+        if (window.Cloud && window.Cloud.pushCoachState) {
+          window.Cloud.pushCoachState(Store.state, true);
+        }
+
         closeSheet();
         toast(t('savedSuccess', '¡Guardado con éxito!'), 'success');
         haptic(40);
@@ -8092,6 +8190,14 @@
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
   }
+
+  window.__showCoachProfile = function () {
+    showEditCoachProfileModal();
+  };
+
+  window.__showPlayerProfile = function (playerId) {
+    if (playerId) showPlayerProfileModal(playerId);
+  };
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);

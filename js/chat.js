@@ -1,14 +1,18 @@
 /* =========================================================
    Chat en Vivo • Player Stats (Coach & Player)
    - Chat directo 1 a 1 entre jugadores y con el entrenador
-   - Chat grupal automático por equipo
-   - Grupos personalizados con selección libre de participantes (incluyendo entrenador)
-   - Envío de fotos, emojis y archivos
+   - Chats fijados (pinned) en la parte superior para jugadores:
+     1) Chat grupal del equipo (con entrenador y jugadores)
+     2) Chat privado 1 a 1 con el entrenador
+   - Botón "+" compacto con opciones: Crear grupo o Mensaje privado
+   - Grupos personalizados con selección de icono/emoji y foto de grupo (ampliable)
+   - Posibilidad de editar nombre/foto/emoji del grupo y añadir nuevos participantes
+   - Notificaciones canceladas en Android al entrar al chat
+   - Teclado no se abre automáticamente al abrir la ventana de chat
+   - Miniatura y nombre del emisor clicable para abrir su perfil
+   - Reacciones con emojis a los mensajes (👍, ❤️, 😂, 🔥, 👏, ⚽)
+   - Citar / responder mensajes (reply/quote)
    - Presencia en línea (🟢 En línea / Última vez)
-   - Silenciar notificaciones por chat y globales
-   - Indicador / insignia de mensajes no leídos en chats y pestaña
-   - Opciones para eliminar chat y abandonar grupo
-   - Sincronización instantánea con Firebase Firestore
    - Bilingüe (EN / ES)
    ========================================================= */
 (function (global) {
@@ -24,19 +28,11 @@
     }
   }
 
-  function isChatMuted(chatId) {
-    try {
-      if (localStorage.getItem('chat_muted_all') === 'true') return true;
-      if (chatId && localStorage.getItem('chat_muted_' + chatId) === 'true') return true;
-    } catch (e) {}
-    return false;
-  }
-
   let currentlyOpenChatId = null;
 
   function isChatMuted(chatId) {
     try {
-      if (localStorage.getItem('chat_global_muted') === 'true') return true;
+      if (localStorage.getItem('chat_global_muted') === 'true' || localStorage.getItem('chat_muted_all') === 'true') return true;
       if (chatId && localStorage.getItem('chat_muted_' + chatId) === 'true') return true;
     } catch (e) {}
     return false;
@@ -117,6 +113,35 @@
       reader.onerror = reject;
       reader.readAsDataURL(file);
     });
+  }
+
+  function getChatAvatar(c, curId, allPlayers) {
+    if (c.photo) {
+      return `<img src="${c.photo}" style="width: 100%; height: 100%; border-radius: 12px; object-fit: cover; cursor: pointer;" class="chat-avatar-thumb" />`;
+    }
+    if (c.iconEmoji) {
+      return `<span>${c.iconEmoji}</span>`;
+    }
+    if (c.type === 'coach' || c.id.startsWith('coach_')) {
+      return '<span>👨‍🏫</span>';
+    }
+    if (c.type === 'team' || c.id.startsWith('team_')) {
+      return '<span>🛡️</span>';
+    }
+    if (c.type === 'direct' || c.id.startsWith('direct_')) {
+      const parts = c.participants || [];
+      const otherId = parts.find(p => p !== curId) || (parts[0] === curId ? parts[1] : parts[0]);
+      if (!otherId || otherId === 'coach') return '<span>👨‍🏫</span>';
+      const p = (allPlayers || []).find(x => x.id === otherId);
+      if (p && p.photo) {
+        return `<img src="${p.photo}" style="width: 100%; height: 100%; border-radius: 12px; object-fit: cover;" />`;
+      }
+      return '<span>👤</span>';
+    }
+    if (c.type === 'group' || c.id.startsWith('group_')) {
+      return '<span>👥</span>';
+    }
+    return '<span>💬</span>';
   }
 
   const ChatUI = {
@@ -250,12 +275,12 @@
               <h2 style="font-size: 19px; font-weight: 900; margin: 0 0 2px;">💬 ${t('chatTitle', 'Chat de Equipo y Jugadores')}</h2>
               <span style="font-size: 12px; color: var(--muted);">${isCoach ? t('chatCoachRole', 'Canal oficial del Entrenador') : `${curName}`}</span>
             </div>
-            <div style="display: flex; gap: 6px; align-items: center;">
-              <button type="button" class="btn sm ghost" id="btn-toggle-global-mute" style="font-size: 14px; height: 36px; padding: 0 8px;" title="${isMutedGlobal ? t('unmuteNotifications', 'Activar notificaciones') : t('muteNotifications', 'Silenciar notificaciones')}">
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <button type="button" class="btn sm ghost" id="btn-toggle-global-mute" style="font-size: 15px; height: 38px; width: 38px; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 50%;" title="${isMutedGlobal ? t('unmuteNotifications', 'Activar notificaciones') : t('muteNotifications', 'Silenciar notificaciones')}">
                 ${isMutedGlobal ? '🔕' : '🔔'}
               </button>
-              <button type="button" class="btn sm primary" id="btn-create-custom-group" style="font-weight: 800; font-size: 12px; height: 36px; padding: 0 12px;">
-                ➕ ${t('newGroupChat', 'Nuevo Grupo')}
+              <button type="button" class="btn sm primary" id="btn-chat-plus" style="font-weight: 900; font-size: 18px; width: 38px; height: 38px; border-radius: 50%; padding: 0; display: inline-flex; align-items: center; justify-content: center;" title="${t('newChat', 'Nuevo chat o grupo')}">
+                ➕
               </button>
             </div>
           </div>
@@ -276,7 +301,7 @@
 
       const listEl = container.querySelector('#chat-rooms-list');
       const searchInput = container.querySelector('#chat-search-input');
-      const btnNewGroup = container.querySelector('#btn-create-custom-group');
+      const btnChatPlus = container.querySelector('#btn-chat-plus');
       const btnGlobalMute = container.querySelector('#btn-toggle-global-mute');
 
       if (btnGlobalMute) {
@@ -291,21 +316,14 @@
         };
       }
 
-      if (btnNewGroup) {
-        btnNewGroup.onclick = () => {
-          ChatUI.openNewGroupModal({
+      if (btnChatPlus) {
+        btnChatPlus.onclick = () => {
+          ChatUI.openNewChatActionSheet({
             currentUserId: curId,
             currentUserName: curName,
             isCoach: isCoach,
             players: allPlayers,
-            teams: allTeams,
-            onCreated: (chatId) => {
-              ChatUI.openConversationModal(chatId, {
-                currentUserId: curId,
-                currentUserName: curName,
-                isCoach: isCoach
-              });
-            }
+            teams: allTeams
           });
         };
       }
@@ -314,8 +332,13 @@
         if (!listEl) return;
         const q = activeSearch.toLowerCase().trim();
 
-        // 1. Chats por equipo por defecto (siempre disponibles)
-        const teamChats = allTeams.map(tm => ({
+        // Identificar equipo del jugador si no es coach
+        const myP = allPlayers.find(p => p.id === curId);
+        const myTeamId = myP ? myP.teamId : null;
+        const myTeam = allTeams.find(t => t.id === myTeamId);
+
+        // Chats del sistema
+        const defaultTeamChats = allTeams.map(tm => ({
           id: `team_${tm.id}`,
           type: 'team',
           name: `🛡️ Chat: ${tm.name}`,
@@ -325,26 +348,45 @@
           lastMessageTime: 0
         }));
 
-        // 2. Chat directo con Entrenador (para cada jugador)
-        let coachDirectChat = null;
+        const mergedMap = {};
+        defaultTeamChats.forEach(c => { mergedMap[c.id] = c; });
+
+        // PINES OBLIGATORIOS PARA JUGADORES:
+        // 1) Chat grupal de su equipo con el entrenador
+        // 2) Chat privado 1 a 1 con el entrenador
+        let pinnedTeamId = null;
+        let pinnedCoachChatId = null;
+
         if (!isCoach) {
-          coachDirectChat = {
-            id: `coach_${curId}`,
+          pinnedTeamId = myTeamId ? `team_${myTeamId}` : 'team_general';
+          const teamDisplayName = myTeam ? myTeam.name : t('squadGeneral', 'General del Equipo');
+          mergedMap[pinnedTeamId] = Object.assign({
+            id: pinnedTeamId,
+            type: 'team',
+            teamId: myTeamId,
+            participants: myTeamId ? allPlayers.filter(p => p.teamId === myTeamId).map(p => p.id).concat(['coach']) : allPlayers.map(p => p.id).concat(['coach'])
+          }, mergedMap[pinnedTeamId] || {}, {
+            isPinned: true,
+            name: `🛡️ Chat: ${teamDisplayName} (${t('coachAndTeammates', 'con Entrenador y jugadores')})`
+          });
+
+          pinnedCoachChatId = `coach_${curId}`;
+          mergedMap[pinnedCoachChatId] = Object.assign({
+            id: pinnedCoachChatId,
             type: 'coach',
-            name: `👨‍🏫 ${t('chatWithCoach', 'Chat con el Entrenador')}`,
-            participants: [curId, 'coach'],
-            lastMessage: '',
-            lastMessageTime: 0
-          };
+            participants: [curId, 'coach']
+          }, mergedMap[pinnedCoachChatId] || {}, {
+            isPinned: true,
+            name: `👨‍🏫 ${t('privateWithCoach', 'Chat Privado con el Entrenador')}`
+          });
         }
 
         // Combinar con chats de la nube
-        const mergedMap = {};
-        teamChats.forEach(c => { mergedMap[c.id] = c; });
-        if (coachDirectChat) mergedMap[coachDirectChat.id] = coachDirectChat;
         rawChats.forEach(c => {
           if (c && c.id) {
+            const wasPinned = mergedMap[c.id] ? mergedMap[c.id].isPinned : false;
             mergedMap[c.id] = Object.assign({}, mergedMap[c.id] || {}, c);
+            if (wasPinned) mergedMap[c.id].isPinned = true;
           }
         });
 
@@ -352,8 +394,7 @@
           // Filtrar por membresía: coach ve todo, jugador ve donde es participante o de su equipo
           if (!isCoach) {
             if (c.type === 'team') {
-              const myP = allPlayers.find(p => p.id === curId);
-              if (myP && myP.teamId && c.teamId !== myP.teamId) return false;
+              if (c.teamId && myTeamId && c.teamId !== myTeamId) return false;
             } else if (c.participants && !c.participants.includes(curId)) {
               return false;
             }
@@ -366,8 +407,16 @@
           return true;
         });
 
-        // Ordenar: primero los que tienen mensajes más recientes
-        displayChats.sort((a, b) => (b.lastMessageTime || 0) - (a.lastMessageTime || 0));
+        // ORDEN: Fijados (pinned) arriba de todo, luego por fecha de mensaje reciente
+        displayChats.sort((a, b) => {
+          if (a.isPinned && !b.isPinned) return -1;
+          if (!a.isPinned && b.isPinned) return 1;
+          if (a.isPinned && b.isPinned) {
+            if (a.type === 'team') return -1;
+            if (b.type === 'team') return 1;
+          }
+          return (b.lastMessageTime || 0) - (a.lastMessageTime || 0);
+        });
 
         // Calcular mensajes no leídos para actualizar insignia en tab
         let totalUnreadRooms = 0;
@@ -396,7 +445,7 @@
             const parts = c.participants || [];
             const otherId = parts.find(p => p !== curId) || (parts[0] === curId ? parts[1] : parts[0]);
             if (!otherId || otherId === 'coach') {
-              displayName = `🛡️ ${t('coach', 'Entrenador (Coach)')}`;
+              displayName = `👨‍🏫 ${t('coach', 'Entrenador (Coach)')}`;
             } else {
               const p = (allPlayers || []).find(x => x.id === otherId);
               if (p) displayName = `#${p.mainDorsal != null ? p.mainDorsal : '-'} ${p.name || ''} ${p.lastName || ''}`.trim();
@@ -404,7 +453,7 @@
           }
 
           const timeStr = formatTime(c.lastMessageTime);
-          const iconEmoji = (c.id.includes('coach') || (c.participants && c.participants.includes('coach'))) ? '👨‍🏫' : (c.type === 'team' ? '🛡️' : (c.type === 'group' ? '👥' : '👤'));
+          const avatarHtml = getChatAvatar(c, curId, allPlayers);
           const snippet = c.lastMessage
             ? `<span style="color: #cbd5e1;">${escapeHtml(c.lastSenderName ? c.lastSenderName + ': ' : '')}${escapeHtml(c.lastMessage)}</span>`
             : `<span style="color: var(--muted); font-style: italic;">${t('noMessagesYet', 'Toca para empezar a hablar')}</span>`;
@@ -414,14 +463,15 @@
           const isMuted = isChatMuted(c.id);
 
           return `
-            <div class="card chat-room-card" data-chat-id="${c.id}" style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1.5px solid ${isUnread ? 'rgba(34, 211, 238, 0.5)' : 'var(--border)'}; cursor: pointer; transition: all 0.15s; background: ${isUnread ? 'rgba(34, 211, 238, 0.05)' : 'var(--surface2)'}; border-radius: 14px; position: relative;">
-              <div style="width: 44px; height: 44px; border-radius: 13px; background: rgba(34, 211, 238, 0.12); border: 1.5px solid rgba(34, 211, 238, 0.3); display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; position: relative;">
-                ${iconEmoji}
+            <div class="card chat-room-card" data-chat-id="${c.id}" style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1.5px solid ${isUnread ? 'rgba(34, 211, 238, 0.6)' : (c.isPinned ? 'rgba(250, 204, 21, 0.35)' : 'var(--border)')}; cursor: pointer; transition: all 0.15s; background: ${isUnread ? 'rgba(34, 211, 238, 0.06)' : (c.isPinned ? 'rgba(250, 204, 21, 0.04)' : 'var(--surface2)')}; border-radius: 14px; position: relative;">
+              <div style="width: 44px; height: 44px; border-radius: 13px; background: rgba(34, 211, 238, 0.12); border: 1.5px solid rgba(34, 211, 238, 0.3); display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; position: relative; overflow: hidden;">
+                ${avatarHtml}
                 ${isUnread ? `<span class="chat-card-unread-dot" style="position: absolute; top: -3px; right: -3px; width: 11px; height: 11px; border-radius: 50%; background: #ef4444; border: 2px solid var(--surface2);"></span>` : ''}
               </div>
               <div style="flex: 1; min-width: 0;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
                   <b style="font-size: 14.5px; color: #fff; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; display: flex; align-items: center; gap: 6px;">
+                    ${c.isPinned ? '<span style="font-size: 13px;" title="' + t('pinned', 'Fijado') + '">📌</span>' : ''}
                     ${escapeHtml(displayName)}
                     ${isMuted ? '<small style="font-size: 11px; opacity: 0.6;">🔕</small>' : ''}
                   </b>
@@ -450,6 +500,8 @@
               isCoach: isCoach,
               title: targetChat ? targetChat.name : 'Chat',
               chatData: targetChat,
+              players: allPlayers,
+              teams: allTeams,
               onClose: () => {
                 ChatUI.markChatAsRead(curId, cid, targetChat ? targetChat.lastMessageTime : 0);
                 renderRooms();
@@ -480,6 +532,477 @@
       };
     },
 
+    // Menú de acción del botón "+" (Crear grupo o Mandar mensaje privado)
+    openNewChatActionSheet: function (options) {
+      const overlay = document.createElement('div');
+      overlay.className = 'dialog-overlay';
+      overlay.innerHTML = `
+        <div class="dialog-box" style="max-width: 380px; width: 90%; padding: 18px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
+            <h3 style="margin: 0; font-size: 16px; font-weight: 900; color: #fff;">➕ ${t('newChat', 'Nuevo Chat')}</h3>
+            <button type="button" class="icon-btn ghost" id="dlg-action-x" style="width: 32px; height: 32px;">✕</button>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            <button type="button" class="btn primary block" id="btn-action-create-group" style="height: 48px; justify-content: flex-start; padding: 0 16px; gap: 12px; font-weight: 800; font-size: 13.5px;">
+              <span style="font-size: 20px;">👥</span>
+              <div style="text-align: left;">
+                <div>${t('createGroupChat', 'Crear un grupo')}</div>
+                <small style="font-size: 11px; opacity: 0.85; font-weight: 600;">${t('createGroupSub', 'Seleccionar varios compañeros y entrenador')}</small>
+              </div>
+            </button>
+
+            <button type="button" class="btn ghost block" id="btn-action-direct-msg" style="height: 48px; justify-content: flex-start; padding: 0 16px; gap: 12px; font-weight: 800; font-size: 13.5px; border: 1.5px solid var(--border); background: var(--surface2);">
+              <span style="font-size: 20px;">💬</span>
+              <div style="text-align: left;">
+                <div>${t('sendPrivateMsg', 'Mandar mensaje privado')}</div>
+                <small style="font-size: 11px; color: var(--muted); font-weight: 600;">${t('sendPrivateMsgSub', 'Iniciar chat directo 1 a 1')}</small>
+              </div>
+            </button>
+          </div>
+        </div>
+      `;
+
+      function close() { overlay.remove(); }
+      overlay.querySelector('#dlg-action-x').onclick = close;
+      overlay.onclick = (e) => { if (e.target === overlay) close(); };
+
+      overlay.querySelector('#btn-action-create-group').onclick = () => {
+        close();
+        ChatUI.openNewGroupModal({
+          currentUserId: options.currentUserId,
+          currentUserName: options.currentUserName,
+          isCoach: options.isCoach,
+          players: options.players,
+          teams: options.teams,
+          onCreated: (chatId) => {
+            ChatUI.openConversationModal(chatId, options);
+          }
+        });
+      };
+
+      overlay.querySelector('#btn-action-direct-msg').onclick = () => {
+        close();
+        ChatUI.openSelectUserForDirectChatModal(options);
+      };
+
+      document.body.appendChild(overlay);
+    },
+
+    // Selector de usuario para chat directo 1 a 1
+    openSelectUserForDirectChatModal: function (options) {
+      const curId = options.currentUserId || 'coach';
+      const isCoach = !!options.isCoach;
+      const allPlayers = options.players || [];
+      const allTeams = options.teams || [];
+
+      const overlay = document.createElement('div');
+      overlay.className = 'dialog-overlay';
+      overlay.innerHTML = `
+        <div class="dialog-box" style="max-height: 85vh; width: 92%; max-width: 420px; display: flex; flex-direction: column;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
+            <h3 style="margin: 0; font-size: 16px; font-weight: 900; color: #fff;">💬 ${t('sendPrivateMsg', 'Mandar mensaje privado')}</h3>
+            <button type="button" class="icon-btn ghost" id="dlg-direct-x" style="width: 32px; height: 32px;">✕</button>
+          </div>
+
+          <input type="text" id="direct-search-inp" placeholder="${t('searchUser', 'Buscar jugador o entrenador...')}" style="width: 100%; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg2); color: #fff; font-size: 13.5px; margin-bottom: 10px;" />
+
+          <div style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;" id="direct-users-list">
+            ${!isCoach ? `
+              <div class="card direct-user-item" data-uid="coach" data-uname="${t('coach', 'Entrenador')}" style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1.5px solid rgba(250, 204, 21, 0.4); background: rgba(250, 204, 21, 0.08); cursor: pointer; border-radius: 12px;">
+                <span style="font-size: 24px;">👨‍🏫</span>
+                <div style="flex: 1; overflow: hidden;">
+                  <b style="font-size: 14px; color: #fff; display: block;">${t('coach', 'Entrenador')}</b>
+                  <small style="color: #fde047; font-size: 11px;">Staff Técnico Principal</small>
+                </div>
+                <span style="color: #facc15; font-size: 13px;">➔</span>
+              </div>
+            ` : ''}
+
+            ${allPlayers.filter(p => p.id !== curId).map(p => {
+              const tm = allTeams.find(t => t.id === p.teamId);
+              const displayName = `#${p.mainDorsal != null ? p.mainDorsal : '-'} ${p.name || ''} ${p.lastName || ''}`.trim();
+              return `
+                <div class="card direct-user-item" data-uid="${p.id}" data-uname="${escapeHtml(displayName)}" style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); background: var(--surface2); cursor: pointer; border-radius: 12px;">
+                  <div style="width: 38px; height: 38px; border-radius: 10px; background: rgba(34, 211, 238, 0.15); display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; overflow: hidden;">
+                    ${p.photo ? `<img src="${p.photo}" style="width: 100%; height: 100%; object-fit: cover;" />` : '👤'}
+                  </div>
+                  <div style="flex: 1; overflow: hidden;">
+                    <b style="font-size: 13.5px; color: #fff; display: block; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">
+                      ${escapeHtml(displayName)}
+                    </b>
+                    <small style="color: var(--muted); font-size: 11px;">${p.mainPosition || 'Jugador'} ${tm ? '• ' + escapeHtml(tm.name) : ''}</small>
+                  </div>
+                  <span style="color: var(--cyan); font-size: 13px;">➔</span>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `;
+
+      function close() { overlay.remove(); }
+      overlay.querySelector('#dlg-direct-x').onclick = close;
+      overlay.onclick = (e) => { if (e.target === overlay) close(); };
+
+      const searchInp = overlay.querySelector('#direct-search-inp');
+      const listEl = overlay.querySelector('#direct-users-list');
+
+      if (searchInp && listEl) {
+        searchInp.oninput = () => {
+          const q = searchInp.value.toLowerCase().trim();
+          listEl.querySelectorAll('.direct-user-item').forEach(it => {
+            const name = it.getAttribute('data-uname').toLowerCase();
+            it.style.display = (!q || name.includes(q)) ? 'flex' : 'none';
+          });
+        };
+      }
+
+      listEl.querySelectorAll('.direct-user-item').forEach(it => {
+        it.onclick = () => {
+          const uid = it.getAttribute('data-uid');
+          const uname = it.getAttribute('data-uname');
+          close();
+          ChatUI.startDirectChat(uid, uname, options);
+        };
+      });
+
+      document.body.appendChild(overlay);
+    },
+
+    // Modal para crear grupo de chat personalizado con foto y selector de emoji
+    openNewGroupModal: function (options) {
+      const curId = options.currentUserId || 'coach';
+      const allPlayers = options.players || [];
+      const allTeams = options.teams || [];
+
+      let selectedEmoji = '👥';
+      let customPhotoData = null;
+
+      const overlay = document.createElement('div');
+      overlay.className = 'dialog-overlay';
+      overlay.innerHTML = `
+        <div class="dialog-box" style="max-height: 88vh; width: 92%; max-width: 440px; display: flex; flex-direction: column;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
+            <h3 style="margin: 0; font-size: 16px; font-weight: 900; color: #fff;">👥 ${t('newGroupChat', 'Nuevo Grupo de Chat')}</h3>
+            <button type="button" class="icon-btn ghost" id="dlg-group-x" style="width: 32px; height: 32px;">✕</button>
+          </div>
+
+          <div style="overflow-y: auto; flex: 1; padding-right: 2px;">
+            <!-- Nombre del Grupo -->
+            <label style="display: block; font-size: 12px; font-weight: 800; color: var(--cyan); margin-bottom: 4px;">
+              ${t('groupName', 'Nombre del Grupo *')}
+            </label>
+            <input type="text" id="inp-group-name" placeholder="Ej: Delanteros, Torneo Sábado..." style="width: 100%; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg2); color: #fff; font-size: 13.5px; margin-bottom: 12px;" />
+
+            <!-- Icono y Foto del Grupo -->
+            <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; margin-bottom: 12px;">
+              <label style="display: block; font-size: 12px; font-weight: 800; color: #fff; margin-bottom: 6px;">
+                🎨 ${t('groupIconAndPhoto', 'Icono o Foto del Grupo')}
+              </label>
+
+              <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                <div id="group-icon-preview" style="width: 48px; height: 48px; border-radius: 14px; background: rgba(34, 211, 238, 0.15); border: 2px solid var(--cyan); display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0; overflow: hidden; cursor: pointer;">
+                  <span>👥</span>
+                </div>
+                <div style="flex: 1;">
+                  <button type="button" class="btn sm ghost" id="btn-upload-group-photo" style="font-size: 12px; height: 34px; padding: 0 10px; border: 1px dashed var(--cyan); color: var(--cyan); font-weight: 800;">
+                    📷 ${t('uploadGroupPhoto', 'Subir foto de grupo')}
+                  </button>
+                  <input type="file" id="inp-group-photo-file" accept="image/*" style="display: none;" />
+                  <div style="font-size: 11px; color: var(--muted); margin-top: 2px;">${t('groupPhotoSub', 'Se podrá pulsar para ampliarla')}</div>
+                </div>
+              </div>
+
+              <!-- Selector rápido de emojis -->
+              <div style="font-size: 11.5px; font-weight: 700; color: var(--muted); margin-bottom: 4px;">${t('pickGroupEmoji', 'O elige un emoji para el grupo:')}</div>
+              <div style="display: flex; gap: 6px; flex-wrap: wrap;" id="group-emoji-picker">
+                ${['👥', '⚽', '🔥', '🏆', '🎯', '⭐', '💪', '🧤', '⚡', '👑'].map(em => `
+                  <button type="button" class="btn sm ghost group-em-btn ${em === '👥' ? 'primary' : ''}" data-em="${em}" style="font-size: 18px; padding: 4px 6px; min-width: 34px; height: 34px; border-radius: 8px;">${em}</button>
+                `).join('')}
+              </div>
+            </div>
+
+            <!-- Participantes -->
+            <label style="display: block; font-size: 12px; font-weight: 800; color: var(--muted); margin-bottom: 6px;">
+              ${t('groupMembers', 'Seleccionar Participantes:')}
+            </label>
+            <div style="display: flex; flex-direction: column; gap: 6px; max-height: 35vh; overflow-y: auto; margin-bottom: 14px;" id="group-players-picker">
+              ${!options.isCoach ? `
+                <label style="display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; background: rgba(34,211,238,0.1); border: 1px solid rgba(34,211,238,0.3); cursor: pointer;">
+                  <input type="checkbox" value="coach" class="group-p-chk" style="width: 18px; height: 18px; accent-color: var(--cyan);" />
+                  <div style="flex: 1; overflow: hidden;">
+                    <b style="font-size: 13px; color: #fff; display: block;">👨‍🏫 ${t('coach', 'Entrenador')}</b>
+                    <small style="color: var(--cyan); font-size: 11px;">Staff Técnico</small>
+                  </div>
+                </label>
+              ` : ''}
+              ${allPlayers.filter(p => p.id !== curId).map(p => {
+                const tm = allTeams.find(t => t.id === p.teamId);
+                return `
+                  <label style="display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; background: var(--surface2); border: 1px solid var(--border); cursor: pointer;">
+                    <input type="checkbox" value="${p.id}" class="group-p-chk" style="width: 18px; height: 18px; accent-color: var(--cyan);" />
+                    <div style="flex: 1; overflow: hidden;">
+                      <b style="font-size: 13px; color: #fff; display: block; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">
+                        #${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(p.name || '')} ${escapeHtml(p.lastName || '')}
+                      </b>
+                      <small style="color: var(--muted); font-size: 11px;">${p.mainPosition || 'Jugador'} ${tm ? '• ' + escapeHtml(tm.name) : ''}</small>
+                    </div>
+                  </label>
+                `;
+              }).join('')}
+            </div>
+          </div>
+
+          <button type="button" class="btn block primary" id="btn-submit-create-group" style="height: 44px; font-weight: 900; font-size: 13.5px; margin-top: 10px;">
+            🚀 ${t('createGroupBtn', 'Crear y Abrir Grupo')}
+          </button>
+        </div>
+      `;
+
+      function close() { overlay.remove(); }
+      overlay.querySelector('#dlg-group-x').onclick = close;
+      overlay.onclick = (e) => { if (e.target === overlay) close(); };
+
+      const iconPreview = overlay.querySelector('#group-icon-preview');
+      const btnUploadPhoto = overlay.querySelector('#btn-upload-group-photo');
+      const inpPhotoFile = overlay.querySelector('#inp-group-photo-file');
+
+      if (btnUploadPhoto && inpPhotoFile) {
+        btnUploadPhoto.onclick = () => inpPhotoFile.click();
+        inpPhotoFile.onchange = async () => {
+          const file = inpPhotoFile.files && inpPhotoFile.files[0];
+          if (!file) return;
+          try {
+            const base64 = await compressImage(file, 400, 400, 0.8);
+            customPhotoData = base64;
+            iconPreview.innerHTML = `<img src="${base64}" style="width: 100%; height: 100%; object-fit: cover;" />`;
+            haptic(20);
+          } catch (e) {
+            console.error('Error foto grupo:', e);
+          }
+        };
+      }
+
+      overlay.querySelectorAll('.group-em-btn').forEach(b => {
+        b.onclick = () => {
+          overlay.querySelectorAll('.group-em-btn').forEach(x => { x.className = 'btn sm ghost group-em-btn'; });
+          b.className = 'btn sm primary group-em-btn';
+          selectedEmoji = b.getAttribute('data-em');
+          customPhotoData = null;
+          iconPreview.innerHTML = `<span>${selectedEmoji}</span>`;
+          haptic(15);
+        };
+      });
+
+      const btnSubmit = overlay.querySelector('#btn-submit-create-group');
+      btnSubmit.onclick = async () => {
+        const name = overlay.querySelector('#inp-group-name').value.trim();
+        if (!name) {
+          if (global.UI && global.UI.toast) global.UI.toast('Introduce un nombre para el grupo', 'error');
+          return;
+        }
+
+        const selectedIds = [];
+        overlay.querySelectorAll('.group-p-chk:checked').forEach(c => {
+          selectedIds.push(c.value);
+        });
+
+        if (selectedIds.length === 0) {
+          if (global.UI && global.UI.toast) global.UI.toast('Selecciona al menos un participante para el grupo', 'error');
+          return;
+        }
+
+        selectedIds.push(curId);
+
+        btnSubmit.disabled = true;
+        btnSubmit.textContent = t('creating', 'Creando...');
+
+        const groupId = 'group_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
+        const chatData = {
+          id: groupId,
+          name: name,
+          type: 'group',
+          createdBy: curId,
+          participants: selectedIds,
+          iconEmoji: selectedEmoji || '👥',
+          photo: customPhotoData || null,
+          createdAt: Date.now()
+        };
+
+        if (global.Cloud && global.Cloud.createOrGetChat) {
+          await global.Cloud.createOrGetChat(chatData);
+        }
+
+        close();
+        if (typeof options.onCreated === 'function') {
+          options.onCreated(groupId);
+        }
+      };
+
+      document.body.appendChild(overlay);
+    },
+
+    // Modal para editar nombre, foto o emoji de un grupo existente
+    openEditGroupModal: function (chatId, currentChatData, onUpdated) {
+      let selectedEmoji = currentChatData.iconEmoji || '👥';
+      let customPhotoData = currentChatData.photo || null;
+
+      const overlay = document.createElement('div');
+      overlay.className = 'dialog-overlay';
+      overlay.innerHTML = `
+        <div class="dialog-box" style="max-width: 400px; width: 92%; padding: 18px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
+            <h3 style="margin: 0; font-size: 16px; font-weight: 900; color: #fff;">✏️ ${t('editGroup', 'Editar Grupo')}</h3>
+            <button type="button" class="icon-btn ghost" id="dlg-edit-g-x" style="width: 32px; height: 32px;">✕</button>
+          </div>
+
+          <label style="display: block; font-size: 12px; font-weight: 800; color: var(--cyan); margin-bottom: 4px;">
+            ${t('groupName', 'Nombre del Grupo')}
+          </label>
+          <input type="text" id="inp-edit-g-name" value="${escapeHtml(currentChatData.name || '')}" style="width: 100%; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg2); color: #fff; font-size: 13.5px; margin-bottom: 12px;" />
+
+          <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; margin-bottom: 14px;">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+              <div id="edit-g-icon-preview" style="width: 48px; height: 48px; border-radius: 14px; background: rgba(34, 211, 238, 0.15); border: 2px solid var(--cyan); display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0; overflow: hidden; cursor: pointer;">
+                ${customPhotoData ? `<img src="${customPhotoData}" style="width: 100%; height: 100%; object-fit: cover;" />` : `<span>${selectedEmoji}</span>`}
+              </div>
+              <div style="flex: 1;">
+                <button type="button" class="btn sm ghost" id="btn-edit-g-upload-photo" style="font-size: 12px; height: 34px; padding: 0 10px; border: 1px dashed var(--cyan); color: var(--cyan); font-weight: 800;">
+                  📷 ${t('changePhoto', 'Cambiar foto')}
+                </button>
+                <input type="file" id="inp-edit-g-photo-file" accept="image/*" style="display: none;" />
+              </div>
+            </div>
+
+            <div style="font-size: 11.5px; font-weight: 700; color: var(--muted); margin-bottom: 4px;">${t('pickGroupEmoji', 'O elige emoji:')}</div>
+            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+              ${['👥', '⚽', '🔥', '🏆', '🎯', '⭐', '💪', '🧤', '⚡', '👑'].map(em => `
+                <button type="button" class="btn sm ghost edit-em-btn ${em === selectedEmoji && !customPhotoData ? 'primary' : ''}" data-em="${em}" style="font-size: 18px; padding: 4px 6px; min-width: 34px; height: 34px; border-radius: 8px;">${em}</button>
+              `).join('')}
+            </div>
+          </div>
+
+          <button type="button" class="btn block primary" id="btn-save-group-edits" style="height: 44px; font-weight: 900; font-size: 13.5px;">
+            💾 ${t('save', 'Guardar Cambios')}
+          </button>
+        </div>
+      `;
+
+      function close() { overlay.remove(); }
+      overlay.querySelector('#dlg-edit-g-x').onclick = close;
+      overlay.onclick = (e) => { if (e.target === overlay) close(); };
+
+      const iconPreview = overlay.querySelector('#edit-g-icon-preview');
+      const btnUpload = overlay.querySelector('#btn-edit-g-upload-photo');
+      const inpFile = overlay.querySelector('#inp-edit-g-photo-file');
+
+      if (btnUpload && inpFile) {
+        btnUpload.onclick = () => inpFile.click();
+        inpFile.onchange = async () => {
+          const file = inpFile.files && inpFile.files[0];
+          if (!file) return;
+          try {
+            const base64 = await compressImage(file, 400, 400, 0.8);
+            customPhotoData = base64;
+            iconPreview.innerHTML = `<img src="${base64}" style="width: 100%; height: 100%; object-fit: cover;" />`;
+            haptic(20);
+          } catch (e) {}
+        };
+      }
+
+      overlay.querySelectorAll('.edit-em-btn').forEach(b => {
+        b.onclick = () => {
+          overlay.querySelectorAll('.edit-em-btn').forEach(x => { x.className = 'btn sm ghost edit-em-btn'; });
+          b.className = 'btn sm primary edit-em-btn';
+          selectedEmoji = b.getAttribute('data-em');
+          customPhotoData = null;
+          iconPreview.innerHTML = `<span>${selectedEmoji}</span>`;
+          haptic(15);
+        };
+      });
+
+      overlay.querySelector('#btn-save-group-edits').onclick = async () => {
+        const name = overlay.querySelector('#inp-edit-g-name').value.trim();
+        if (!name) return;
+        const updates = {
+          name: name,
+          iconEmoji: selectedEmoji,
+          photo: customPhotoData
+        };
+        if (global.Cloud && global.Cloud.updateChatDetails) {
+          await global.Cloud.updateChatDetails(chatId, updates);
+        }
+        if (global.UI && global.UI.toast) global.UI.toast(t('savedSuccess', 'Guardado con éxito'), 'success');
+        close();
+        if (onUpdated) onUpdated(updates);
+      };
+
+      document.body.appendChild(overlay);
+    },
+
+    // Modal para añadir jugadores a un grupo existente
+    openAddParticipantsModal: function (chatId, currentChatData, allPlayers, onAdded) {
+      const existing = new Set(currentChatData.participants || []);
+      const candidates = (allPlayers || []).filter(p => !existing.has(p.id));
+
+      const overlay = document.createElement('div');
+      overlay.className = 'dialog-overlay';
+      overlay.innerHTML = `
+        <div class="dialog-box" style="max-height: 85vh; width: 92%; max-width: 420px; display: flex; flex-direction: column;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
+            <h3 style="margin: 0; font-size: 16px; font-weight: 900; color: #fff;">➕ ${t('addParticipants', 'Añadir al Grupo')}</h3>
+            <button type="button" class="icon-btn ghost" id="dlg-add-p-x" style="width: 32px; height: 32px;">✕</button>
+          </div>
+
+          <div style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px;">
+            ${candidates.length === 0 ? `
+              <div style="text-align: center; padding: 24px; color: var(--muted); font-size: 12.5px;">
+                ${t('allPlayersAlreadyInGroup', 'Todos los jugadores ya forman parte del grupo.')}
+              </div>
+            ` : candidates.map(p => `
+              <label style="display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; background: var(--surface2); border: 1px solid var(--border); cursor: pointer;">
+                <input type="checkbox" value="${p.id}" class="add-cand-chk" style="width: 18px; height: 18px; accent-color: var(--cyan);" />
+                <div style="flex: 1; overflow: hidden;">
+                  <b style="font-size: 13px; color: #fff; display: block; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">
+                    #${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(p.name || '')} ${escapeHtml(p.lastName || '')}
+                  </b>
+                  <small style="color: var(--muted); font-size: 11px;">${p.mainPosition || 'Jugador'}</small>
+                </div>
+              </label>
+            `).join('')}
+          </div>
+
+          ${candidates.length > 0 ? `
+            <button type="button" class="btn block primary" id="btn-submit-add-cand" style="height: 44px; font-weight: 900; font-size: 13.5px;">
+              🚀 ${t('addSelected', 'Añadir Seleccionados')}
+            </button>
+          ` : ''}
+        </div>
+      `;
+
+      function close() { overlay.remove(); }
+      overlay.querySelector('#dlg-add-p-x').onclick = close;
+      overlay.onclick = (e) => { if (e.target === overlay) close(); };
+
+      const btnSubmit = overlay.querySelector('#btn-submit-add-cand');
+      if (btnSubmit) {
+        btnSubmit.onclick = async () => {
+          const selected = [];
+          overlay.querySelectorAll('.add-cand-chk:checked').forEach(c => selected.push(c.value));
+          if (selected.length === 0) return;
+          if (global.Cloud && global.Cloud.addChatParticipants) {
+            await global.Cloud.addChatParticipants(chatId, selected);
+          }
+          if (global.UI && global.UI.toast) global.UI.toast(t('playersAdded', 'Jugadores añadidos al grupo'), 'success');
+          close();
+          if (onAdded) onAdded(selected);
+        };
+      }
+
+      document.body.appendChild(overlay);
+    },
+
     // Abre el modal de conversación en tiempo real
     openConversationModal: function (chatId, options) {
       if (!chatId) return;
@@ -488,13 +1011,20 @@
       const curName = options.currentUserName || (options.isCoach ? 'Entrenador' : 'Jugador');
       const isCoach = !!options.isCoach;
       const chatData = options.chatData || {};
+      const allPlayers = options.players || [];
+      const allTeams = options.teams || [];
+
+      // Cancelar notificaciones de Android del sistema al entrar
+      if (global.AndroidBridge && global.AndroidBridge.clearNotifications) {
+        try { global.AndroidBridge.clearNotifications(); } catch (e) {}
+      }
 
       let resolvedTitle = options.title || 'Chat';
       if (chatData.type === 'direct' || chatId.startsWith('direct_')) {
         const parts = chatData.participants || chatId.replace('direct_', '').split('_');
         const otherId = parts.find(p => p !== curId) || (parts[0] === curId ? parts[1] : parts[0]);
         if (!otherId || otherId === 'coach') {
-          resolvedTitle = `🛡️ ${t('coach', 'Entrenador (Coach)')}`;
+          resolvedTitle = `👨‍🏫 ${t('coach', 'Entrenador (Coach)')}`;
         }
       }
 
@@ -504,7 +1034,8 @@
       let messagesListenerUnsub = null;
       let presenceListenerUnsub = null;
       let messagesList = [];
-      let pendingAttachment = null; // { type: 'image'|'file', data: '...', name: '...' }
+      let pendingAttachment = null;
+      let currentReplyTo = null; // { id, text, senderName }
 
       // Si el chat es nuevo, registrar en Firestore
       if (global.Cloud && global.Cloud.createOrGetChat) {
@@ -530,8 +1061,11 @@
               <button type="button" class="icon-btn ghost" id="chat-back-btn" style="width: 36px; height: 36px; flex-shrink: 0;">
                 ◀
               </button>
+              <div id="chat-header-avatar" style="width: 36px; height: 36px; border-radius: 10px; background: rgba(34,211,238,0.15); display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; overflow: hidden; cursor: pointer;">
+                ${getChatAvatar(chatData, curId, allPlayers)}
+              </div>
               <div style="overflow: hidden; flex: 1;">
-                <h3 style="margin: 0; font-size: 15.5px; font-weight: 900; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; color: #fff;">
+                <h3 id="chat-header-title" style="margin: 0; font-size: 15.5px; font-weight: 900; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; color: #fff;">
                   ${escapeHtml(resolvedTitle)}
                 </h3>
                 <span id="chat-presence-indicator" style="font-size: 11px; color: #22d3ee; font-weight: 700;">🟢 ${t('live', 'En vivo')}</span>
@@ -550,10 +1084,18 @@
 
           <!-- Menú desplegable de opciones de chat -->
           <div id="chat-options-dropdown" style="display: none; background: var(--surface); border-bottom: 1.5px solid var(--border); padding: 8px 12px; flex-direction: column; gap: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+            ${(chatData.type === 'group' || chatId.startsWith('group_')) ? `
+              <button type="button" class="btn sm ghost" id="opt-edit-group" style="justify-content: flex-start; gap: 8px; width: 100%; height: 36px;">
+                ✏️ ${t('editGroup', 'Cambiar nombre e icono del grupo')}
+              </button>
+              <button type="button" class="btn sm ghost" id="opt-add-participants" style="justify-content: flex-start; gap: 8px; width: 100%; height: 36px;">
+                ➕ ${t('addParticipants', 'Añadir jugadores al grupo')}
+              </button>
+            ` : ''}
             <button type="button" class="btn sm ghost" id="opt-mute-chat" style="justify-content: flex-start; gap: 8px; width: 100%; height: 36px;">
               ${isMutedThis ? '🔔 ' + t('unmuteNotifications', 'Activar notificaciones') : '🔕 ' + t('muteNotifications', 'Silenciar notificaciones')}
             </button>
-            ${chatData.type === 'group' ? `
+            ${(chatData.type === 'group' || chatId.startsWith('group_')) ? `
               <button type="button" class="btn sm danger ghost" id="opt-leave-group" style="justify-content: flex-start; gap: 8px; width: 100%; height: 36px;">
                 🚪 ${t('leaveGroup', 'Abandonar grupo')}
               </button>
@@ -572,6 +1114,15 @@
 
           <!-- Barra de entrada inferior -->
           <div style="display: flex; flex-direction: column; background: var(--surface); border-top: 1px solid var(--border); flex-shrink: 0;">
+            <!-- Barra de respuesta / cita (reply) -->
+            <div id="chat-reply-preview" style="display: none; padding: 8px 14px; background: rgba(34, 211, 238, 0.12); border-bottom: 1px solid var(--border); align-items: center; justify-content: space-between; font-size: 12px; color: #38bdf8;">
+              <div style="display: flex; align-items: center; gap: 6px; overflow: hidden; flex: 1;">
+                <span>↩️</span>
+                <span id="chat-reply-text" style="white-space: nowrap; text-overflow: ellipsis; overflow: hidden; flex: 1;"></span>
+              </div>
+              <button type="button" class="icon-btn ghost" id="chat-clear-reply" style="width: 26px; height: 26px; font-size: 13px;">✕</button>
+            </div>
+
             <!-- Cajón de emojis futboleros y populares -->
             <div id="chat-emoji-drawer" style="display: none; padding: 8px 12px; gap: 6px; flex-wrap: wrap; background: var(--surface2); border-bottom: 1px solid var(--border); max-height: 110px; overflow-y: auto;">
               ${['⚽', '🥅', '🧤', '🏆', '🥇', '🥈', '🏃‍♂️', '🔥', '👏', '👍', '💪', '🤝', '💯', '😎', '😃', '😅', '😂', '❤️', '❌', '⏳', '📅', '📍', '💪'].map(em => `
@@ -634,9 +1185,27 @@
       const optMute = overlay.querySelector('#opt-mute-chat');
       const optLeave = overlay.querySelector('#opt-leave-group');
       const optDelete = overlay.querySelector('#opt-delete-chat');
+      const optEditGroup = overlay.querySelector('#opt-edit-group');
+      const optAddParticipants = overlay.querySelector('#opt-add-participants');
       const presenceIndicator = overlay.querySelector('#chat-presence-indicator');
+      const replyPreview = overlay.querySelector('#chat-reply-preview');
+      const replyText = overlay.querySelector('#chat-reply-text');
+      const clearReplyBtn = overlay.querySelector('#chat-clear-reply');
+      const headerAvatar = overlay.querySelector('#chat-header-avatar');
+      const headerTitle = overlay.querySelector('#chat-header-title');
 
-      // Escuchar presencia en directo si es chat 1 a 1
+      if (headerAvatar && chatData.photo) {
+        headerAvatar.onclick = () => openPhotoLightbox(chatData.photo);
+      }
+
+      if (clearReplyBtn) {
+        clearReplyBtn.onclick = () => {
+          currentReplyTo = null;
+          replyPreview.style.display = 'none';
+        };
+      }
+
+      // Presencia en directo si es chat 1 a 1
       if (chatData.participants && chatData.participants.length === 2 && global.Cloud && global.Cloud.listenToUserPresence) {
         const otherId = chatData.participants.find(p => p !== curId);
         if (otherId && otherId !== 'coach') {
@@ -655,6 +1224,27 @@
       if (menuBtn && menuDropdown) {
         menuBtn.onclick = () => {
           menuDropdown.style.display = menuDropdown.style.display === 'none' ? 'flex' : 'none';
+        };
+      }
+
+      if (optEditGroup) {
+        optEditGroup.onclick = () => {
+          menuDropdown.style.display = 'none';
+          ChatUI.openEditGroupModal(chatId, chatData, (updates) => {
+            if (updates.name && headerTitle) headerTitle.textContent = updates.name;
+            if (headerAvatar) {
+              headerAvatar.innerHTML = getChatAvatar(Object.assign(chatData, updates), curId, allPlayers);
+            }
+          });
+        };
+      }
+
+      if (optAddParticipants) {
+        optAddParticipants.onclick = () => {
+          menuDropdown.style.display = 'none';
+          ChatUI.openAddParticipantsModal(chatId, chatData, allPlayers, (added) => {
+            chatData.participants = (chatData.participants || []).concat(added);
+          });
         };
       }
 
@@ -693,7 +1283,7 @@
         };
       }
 
-      // Emojis
+      // Emojis en entrada
       if (emojiToggle && emojiDrawer) {
         emojiToggle.onclick = () => {
           emojiDrawer.style.display = emojiDrawer.style.display === 'none' ? 'flex' : 'none';
@@ -726,7 +1316,6 @@
               console.error('Error comprimiendo imagen:', err);
             }
           } else {
-            // Archivo genérico
             const reader = new FileReader();
             reader.onload = (e) => {
               pendingAttachment = {
@@ -761,6 +1350,19 @@
         }
       }
 
+      function onSenderProfileClick(senderId) {
+        haptic(25);
+        if (senderId === 'coach') {
+          if (typeof global.__showCoachProfile === 'function') {
+            global.__showCoachProfile();
+          }
+        } else {
+          if (typeof global.__showPlayerProfile === 'function') {
+            global.__showPlayerProfile(senderId);
+          }
+        }
+      }
+
       function renderMessages() {
         if (!msgsContainer) return;
         if (messagesList.length === 0) {
@@ -773,9 +1375,22 @@
           return;
         }
 
-        msgsContainer.innerHTML = messagesList.map(m => {
+        const AVAILABLE_REACTIONS = ['👍', '❤️', '😂', '🔥', '👏', '⚽'];
+
+        msgsContainer.innerHTML = messagesList.map((m, idx) => {
           const isMine = m.senderId === curId;
           const time = formatTime(m.timestamp);
+
+          // Avatar y nombre del emisor
+          let senderAvatarHtml = '👤';
+          if (m.senderId === 'coach') {
+            senderAvatarHtml = '👨‍🏫';
+          } else {
+            const p = (allPlayers || []).find(x => x.id === m.senderId);
+            if (p && p.photo) {
+              senderAvatarHtml = `<img src="${p.photo}" style="width: 100%; height: 100%; object-fit: cover;" />`;
+            }
+          }
 
           let mediaHtml = '';
           if (m.image) {
@@ -791,20 +1406,143 @@
             `;
           }
 
-          return `
-            <div style="display: flex; flex-direction: column; align-items: ${isMine ? 'flex-end' : 'flex-start'};">
-              ${!isMine ? `<small style="font-size: 11px; font-weight: 800; color: #38bdf8; margin-bottom: 3px; padding-left: 4px;">${escapeHtml(m.senderName || 'Usuario')}</small>` : ''}
-              <div style="max-width: 82%; padding: 10px 14px; border-radius: ${isMine ? '16px 16px 4px 16px' : '16px 16px 16px 4px'}; background: ${isMine ? 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)' : 'var(--surface2)'}; color: ${isMine ? '#031206' : '#fff'}; border: ${isMine ? 'none' : '1px solid var(--border)'}; font-size: 14px; line-height: 1.45; word-break: break-word; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
-                ${mediaHtml}
-                ${m.text ? `<div>${escapeHtml(m.text)}</div>` : ''}
+          // Cita / respuesta previa (replyTo)
+          let quoteHtml = '';
+          if (m.replyTo) {
+            quoteHtml = `
+              <div style="border-left: 3px solid ${isMine ? '#031206' : '#22d3ee'}; padding: 4px 8px; margin-bottom: 6px; background: rgba(0,0,0,0.15); border-radius: 4px; font-size: 11.5px; opacity: 0.9;">
+                <b style="color: ${isMine ? '#031206' : '#38bdf8'};">${escapeHtml(m.replyTo.senderName || 'Usuario')}</b>:
+                <span>${escapeHtml(m.replyTo.text || '')}</span>
               </div>
-              <small style="font-size: 10px; color: var(--muted); margin-top: 2px; padding: 0 4px;">${time}</small>
+            `;
+          }
+
+          // Reacciones
+          const reactionsMap = m.reactions || {};
+          const reactionsEntries = Object.entries(reactionsMap).filter(([em, users]) => Array.isArray(users) && users.length > 0);
+
+          return `
+            <div class="chat-msg-row" data-mid="${m.id}" data-idx="${idx}" style="display: flex; gap: 8px; align-items: flex-end; justify-content: ${isMine ? 'flex-end' : 'flex-start'}; margin-bottom: 4px;">
+              ${!isMine ? `
+                <div class="chat-sender-avatar" data-sender-id="${m.senderId}" style="width: 32px; height: 32px; border-radius: 50%; background: rgba(34, 211, 238, 0.2); border: 1.5px solid rgba(34, 211, 238, 0.4); display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; cursor: pointer; overflow: hidden; margin-bottom: 2px;" title="${t('viewProfile', 'Ver perfil')}">
+                  ${senderAvatarHtml}
+                </div>
+              ` : ''}
+
+              <div style="display: flex; flex-direction: column; align-items: ${isMine ? 'flex-end' : 'flex-start'}; max-width: 82%;">
+                ${!isMine ? `
+                  <span class="chat-sender-name" data-sender-id="${m.senderId}" style="font-size: 11.5px; font-weight: 800; color: #38bdf8; margin-bottom: 3px; padding-left: 4px; cursor: pointer;">
+                    ${escapeHtml(m.senderName || 'Usuario')}
+                  </span>
+                ` : ''}
+
+                <div style="padding: 10px 14px; border-radius: ${isMine ? '16px 16px 4px 16px' : '16px 16px 16px 4px'}; background: ${isMine ? 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)' : 'var(--surface2)'}; color: ${isMine ? '#031206' : '#fff'}; border: ${isMine ? 'none' : '1px solid var(--border)'}; font-size: 14px; line-height: 1.45; word-break: break-word; box-shadow: 0 2px 8px rgba(0,0,0,0.15); position: relative;">
+                  ${quoteHtml}
+                  ${mediaHtml}
+                  ${m.text ? `<div>${escapeHtml(m.text)}</div>` : ''}
+                </div>
+
+                <!-- Barra de acciones rápidas (Reaccionar y Citar) y fecha -->
+                <div style="display: flex; align-items: center; gap: 8px; margin-top: 3px; padding: 0 4px;">
+                  <small style="font-size: 10.5px; color: var(--muted);">${time}</small>
+
+                  <button type="button" class="icon-btn ghost btn-msg-react" data-mid="${m.id}" style="width: 22px; height: 22px; font-size: 13px; padding: 0; opacity: 0.75;" title="Reaccionar">
+                    😊
+                  </button>
+
+                  <button type="button" class="icon-btn ghost btn-msg-reply" data-mid="${m.id}" data-text="${escapeHtml(m.text || '')}" data-sname="${escapeHtml(m.senderName || '')}" style="width: 22px; height: 22px; font-size: 13px; padding: 0; opacity: 0.75;" title="Responder">
+                    ↩️
+                  </button>
+                </div>
+
+                <!-- Lista de Reacciones activas debajo del mensaje -->
+                ${reactionsEntries.length > 0 ? `
+                  <div style="display: flex; gap: 4px; flex-wrap: wrap; margin-top: 3px;">
+                    ${reactionsEntries.map(([em, users]) => {
+                      const hasMyReaction = users.some(u => (typeof u === 'string' ? u : u.id) === curId);
+                      return `
+                        <button type="button" class="btn sm badge-reaction" data-mid="${m.id}" data-emoji="${em}" style="height: 22px; padding: 1px 6px; font-size: 11.5px; font-weight: 800; border-radius: 12px; border: 1px solid ${hasMyReaction ? '#22c55e' : 'var(--border)'}; background: ${hasMyReaction ? 'rgba(34,197,94,0.2)' : 'var(--surface)'}; color: ${hasMyReaction ? '#86efac' : '#fff'}; cursor: pointer;">
+                          ${em} ${users.length}
+                        </button>
+                      `;
+                    }).join('')}
+                  </div>
+                ` : ''}
+
+                <!-- Popover de selector de emojis de reacción (oculto por defecto) -->
+                <div class="msg-reaction-popover" id="popover-${m.id}" style="display: none; gap: 4px; padding: 4px 8px; border-radius: 20px; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 4px 14px rgba(0,0,0,0.4); margin-top: 4px;">
+                  ${AVAILABLE_REACTIONS.map(em => `
+                    <button type="button" class="icon-btn ghost pick-popover-em" data-mid="${m.id}" data-emoji="${em}" style="width: 30px; height: 30px; font-size: 17px; padding: 0;">${em}</button>
+                  `).join('')}
+                </div>
+              </div>
             </div>
           `;
         }).join('');
 
+        // Clic en avatar o nombre para abrir ficha / perfil
+        msgsContainer.querySelectorAll('.chat-sender-avatar, .chat-sender-name').forEach(el => {
+          el.onclick = (e) => {
+            e.stopPropagation();
+            const sid = el.getAttribute('data-sender-id');
+            onSenderProfileClick(sid);
+          };
+        });
+
+        // Clic en foto para lightbox
         msgsContainer.querySelectorAll('.chat-photo-bubble').forEach(img => {
           img.onclick = () => openPhotoLightbox(img.src);
+        });
+
+        // Botón responder (quote)
+        msgsContainer.querySelectorAll('.btn-msg-reply').forEach(btn => {
+          btn.onclick = () => {
+            const mid = btn.getAttribute('data-mid');
+            const txt = btn.getAttribute('data-text');
+            const sname = btn.getAttribute('data-sname');
+            currentReplyTo = { id: mid, text: txt, senderName: sname };
+            replyText.textContent = `${sname}: "${txt ? txt.slice(0, 45) : '📷'}"`;
+            replyPreview.style.display = 'flex';
+            haptic(20);
+            inputEl.focus();
+          };
+        });
+
+        // Botón reaccionar (mostrar popover)
+        msgsContainer.querySelectorAll('.btn-msg-react').forEach(btn => {
+          btn.onclick = () => {
+            const mid = btn.getAttribute('data-mid');
+            const pop = msgsContainer.querySelector('#popover-' + mid);
+            if (pop) {
+              pop.style.display = pop.style.display === 'none' ? 'flex' : 'none';
+            }
+          };
+        });
+
+        // Selección de emoji en popover
+        msgsContainer.querySelectorAll('.pick-popover-em').forEach(b => {
+          b.onclick = async () => {
+            const mid = b.getAttribute('data-mid');
+            const emoji = b.getAttribute('data-emoji');
+            const pop = msgsContainer.querySelector('#popover-' + mid);
+            if (pop) pop.style.display = 'none';
+            haptic(25);
+            if (global.Cloud && global.Cloud.reactToChatMessage) {
+              await global.Cloud.reactToChatMessage(chatId, mid, curId, curName, emoji);
+            }
+          };
+        });
+
+        // Toggle reacción pulsando sobre la insignia existente
+        msgsContainer.querySelectorAll('.badge-reaction').forEach(b => {
+          b.onclick = async () => {
+            const mid = b.getAttribute('data-mid');
+            const emoji = b.getAttribute('data-emoji');
+            haptic(20);
+            if (global.Cloud && global.Cloud.reactToChatMessage) {
+              await global.Cloud.reactToChatMessage(chatId, mid, curId, curName, emoji);
+            }
+          };
         });
 
         scrollToBottom();
@@ -816,8 +1554,12 @@
         if (!text && !hasAttach) return;
 
         const attachToSend = pendingAttachment;
+        const replyToSend = currentReplyTo;
+
         inputEl.value = '';
         pendingAttachment = null;
+        currentReplyTo = null;
+        if (replyPreview) replyPreview.style.display = 'none';
         if (attachPreview) attachPreview.style.display = 'none';
         if (emojiDrawer) emojiDrawer.style.display = 'none';
         haptic(25);
@@ -833,11 +1575,12 @@
           } else if (attachToSend && attachToSend.type === 'file') {
             payload.file = attachToSend;
           }
+          if (replyToSend) {
+            payload.replyTo = replyToSend;
+          }
           await global.Cloud.sendChatMessage(chatId, payload);
-          // Actualizar hora de lectura propia
           ChatUI.markChatAsRead(curId, chatId);
         }
-        inputEl.focus();
       }
 
       sendBtn.onclick = handleSend;
@@ -854,7 +1597,6 @@
           messagesList = msgs || [];
           renderMessages();
 
-          // Actualizar marca de lectura
           const maxMsgTime = msgs.reduce((acc, m) => Math.max(acc, m.timestamp || 0), Date.now());
           ChatUI.markChatAsRead(curId, chatId, maxMsgTime);
 
@@ -869,113 +1611,7 @@
       }
 
       document.body.appendChild(overlay);
-      setTimeout(() => { if (inputEl) inputEl.focus(); }, 120);
-    },
-
-    // Modal para crear grupo de chat personalizado
-    openNewGroupModal: function (options) {
-      const curId = options.currentUserId || 'coach';
-      const curName = options.currentUserName || 'Usuario';
-      const allPlayers = options.players || [];
-      const allTeams = options.teams || [];
-
-      const overlay = document.createElement('div');
-      overlay.className = 'dialog-overlay';
-      overlay.innerHTML = `
-        <div class="dialog-box" style="max-height: 88vh; width: 92%; max-width: 440px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
-            <h3 style="margin: 0; font-size: 16px; font-weight: 900; color: #fff;">👥 ${t('newGroupChat', 'Nuevo Grupo de Chat')}</h3>
-            <button type="button" class="icon-btn ghost" id="dlg-group-x" style="width: 32px; height: 32px;">✕</button>
-          </div>
-
-          <label style="display: block; font-size: 12px; font-weight: 800; color: var(--cyan); margin-bottom: 4px;">
-            ${t('groupName', 'Nombre del Grupo *')}
-          </label>
-          <input type="text" id="inp-group-name" placeholder="Ej: Delanteros, Torneo Sábado..." style="width: 100%; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg2); color: #fff; font-size: 13.5px; margin-bottom: 12px;" />
-
-          <label style="display: block; font-size: 12px; font-weight: 800; color: var(--muted); margin-bottom: 6px;">
-            ${t('groupMembers', 'Seleccionar Participantes:')}
-          </label>
-          <div style="display: flex; flex-direction: column; gap: 6px; max-height: 40vh; overflow-y: auto; margin-bottom: 14px;" id="group-players-picker">
-            ${!options.isCoach ? `
-              <label style="display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; background: rgba(34,211,238,0.1); border: 1px solid rgba(34,211,238,0.3); cursor: pointer;">
-                <input type="checkbox" value="coach" class="group-p-chk" style="width: 18px; height: 18px; accent-color: var(--cyan);" />
-                <div style="flex: 1; overflow: hidden;">
-                  <b style="font-size: 13px; color: #fff; display: block;">👨‍🏫 ${t('coach', 'Entrenador')}</b>
-                  <small style="color: var(--cyan); font-size: 11px;">Staff Técnico</small>
-                </div>
-              </label>
-            ` : ''}
-            ${allPlayers.filter(p => p.id !== curId).map(p => {
-              const tm = allTeams.find(t => t.id === p.teamId);
-              return `
-                <label style="display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; background: var(--surface2); border: 1px solid var(--border); cursor: pointer;">
-                  <input type="checkbox" value="${p.id}" class="group-p-chk" style="width: 18px; height: 18px; accent-color: var(--cyan);" />
-                  <div style="flex: 1; overflow: hidden;">
-                    <b style="font-size: 13px; color: #fff; display: block; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">
-                      #${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(p.name || '')} ${escapeHtml(p.lastName || '')}
-                    </b>
-                    <small style="color: var(--muted); font-size: 11px;">${p.mainPosition || 'Jugador'} ${tm ? '• ' + escapeHtml(tm.name) : ''}</small>
-                  </div>
-                </label>
-              `;
-            }).join('')}
-          </div>
-
-          <button type="button" class="btn block primary" id="btn-submit-create-group" style="height: 44px; font-weight: 900; font-size: 13.5px;">
-            🚀 ${t('createGroupBtn', 'Crear y Abrir Grupo')}
-          </button>
-        </div>
-      `;
-
-      function close() { overlay.remove(); }
-      overlay.querySelector('#dlg-group-x').onclick = close;
-      overlay.onclick = (e) => { if (e.target === overlay) close(); };
-
-      const btnSubmit = overlay.querySelector('#btn-submit-create-group');
-      btnSubmit.onclick = async () => {
-        const name = overlay.querySelector('#inp-group-name').value.trim();
-        if (!name) {
-          if (global.UI && global.UI.toast) global.UI.toast('Por favor introduce un nombre para el grupo', 'error');
-          return;
-        }
-
-        const selectedIds = [];
-        overlay.querySelectorAll('.group-p-chk:checked').forEach(c => {
-          selectedIds.push(c.value);
-        });
-
-        if (selectedIds.length === 0) {
-          if (global.UI && global.UI.toast) global.UI.toast('Selecciona al menos un participante para el grupo', 'error');
-          return;
-        }
-
-        selectedIds.push(curId);
-
-        btnSubmit.disabled = true;
-        btnSubmit.textContent = t('creating', 'Creando...');
-
-        const groupId = 'group_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
-        const chatData = {
-          id: groupId,
-          name: name,
-          type: 'group',
-          createdBy: curId,
-          participants: selectedIds,
-          createdAt: Date.now()
-        };
-
-        if (global.Cloud && global.Cloud.createOrGetChat) {
-          await global.Cloud.createOrGetChat(chatData);
-        }
-
-        close();
-        if (typeof options.onCreated === 'function') {
-          options.onCreated(groupId);
-        }
-      };
-
-      document.body.appendChild(overlay);
+      // No forzamos auto-focus para no abrir el teclado automáticamente en móviles
     },
 
     // Iniciar chat directo con un jugador concreto
@@ -993,6 +1629,8 @@
         currentUserName: curName,
         isCoach: isCoach,
         title: otherUserName || 'Chat Directo',
+        players: options.players || [],
+        teams: options.teams || [],
         chatData: {
           id: chatId,
           type: 'direct',

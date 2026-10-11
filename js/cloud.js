@@ -22,6 +22,7 @@
   let isReady = false;
   let isSyncing = false;
   let lastPushTime = 0;
+  let pushPendingTimer = null;
   let statusListeners = [];
   let responseUnsubscribe = null;
   let stateUnsubscribe = null;
@@ -74,14 +75,19 @@
        1. FUNCIONES PARA EL ENTRENADOR (APP MAESTRA)
        ------------------------------------------------------------- */
 
-    // Sube el estado completo (jugadores, sesiones, convocatorias, equipos) a Firestore
-    pushCoachState: async function (stateData) {
-      if (!this.init()) return false;
-      if (isSyncing) return false;
+    // Sube el estado completo (jugadores, sesiones, convocatorias, equipos, entrenador, horarios) a Firestore
+    pushCoachState: async function (stateData, force = false) {
+      if (!this.init() || !stateData) return false;
 
-      // Anti-flood: no sincronizar más de una vez cada 2 segundos a menos que sea forzado
       const now = Date.now();
-      if (now - lastPushTime < 2000) return true;
+      if (!force && (isSyncing || now - lastPushTime < 1200)) {
+        clearTimeout(pushPendingTimer);
+        pushPendingTimer = setTimeout(() => {
+          this.pushCoachState(stateData, true);
+        }, Math.max(400, 1300 - (now - lastPushTime)));
+        return true;
+      }
+      clearTimeout(pushPendingTimer);
       lastPushTime = now;
 
       try {
@@ -93,6 +99,8 @@
           teams: stateData.teams || [],
           sessions: stateData.sessions || [],
           convocations: stateData.convocations || [],
+          recurringSchedules: stateData.recurringSchedules || [],
+          coachProfile: stateData.coachProfile || {},
           settings: {
             lang: (stateData.settings && stateData.settings.lang) || 'es',
             clubName: (stateData.settings && stateData.settings.clubName) || 'Jõhvi JK Noova',
@@ -442,6 +450,8 @@
           text: textVal,
           image: msg.image || null,
           file: msg.file || null,
+          replyTo: msg.replyTo || null,
+          reactions: {},
           timestamp: Date.now(),
           serverTime: global.firebase.firestore.FieldValue.serverTimestamp()
         };
@@ -551,6 +561,28 @@
       }
     },
 
+    listenToAllPresence: function (callback) {
+      if (!this.init()) return null;
+      try {
+        return db.collection('clubs')
+          .doc(CLUB_ID)
+          .collection('presence')
+          .onSnapshot((snapshot) => {
+            const presenceMap = {};
+            snapshot.forEach(doc => {
+              const data = doc.data();
+              if (data && data.userId) presenceMap[data.userId] = data;
+            });
+            if (typeof callback === 'function') callback(presenceMap);
+          }, (err) => {
+            console.warn('[Cloud] Error escuchando presencia global:', err);
+          });
+      } catch (err) {
+        console.error('[Cloud] Error listener all presence:', err);
+        return null;
+      }
+    },
+
     /* =========================================================
        SOLICITUDES DE ALTA DE JUGADOR NUEVO (NO EN LISTA)
        ========================================================= */
@@ -594,7 +626,24 @@
       }
     },
 
-    resolvePlayerCreationRequest: async function (reqId, status) {
+    listenToPlayerCreationRequest: function (reqId, callback) {
+      if (!this.init() || !reqId) return null;
+      try {
+        return db.collection('clubs')
+          .doc(CLUB_ID)
+          .collection('player_creation_requests')
+          .doc(reqId)
+          .onSnapshot((doc) => {
+            if (doc.exists && typeof callback === 'function') {
+              callback(doc.data());
+            }
+          });
+      } catch (err) {
+        return null;
+      }
+    },
+
+    resolvePlayerCreationRequest: async function (reqId, status, createdPlayerId) {
       if (!this.init() || !reqId) return false;
       try {
         await db.collection('clubs')
@@ -603,6 +652,7 @@
           .doc(reqId)
           .update({
             status: status,
+            createdPlayerId: createdPlayerId || null,
             resolvedAt: Date.now()
           });
         setTimeout(async () => {
@@ -613,10 +663,60 @@
               .doc(reqId)
               .delete();
           } catch (e) {}
-        }, 4000);
+        }, 5000);
         return true;
       } catch (err) {
         console.error('[Cloud] Error resolviendo solicitud de alta:', err);
+        return false;
+      }
+    },
+
+    /* =========================================================
+       EXTENSIÓN DE CHAT: PARTICIPANTES, DETALLES Y REACCIONES
+       ========================================================= */
+    addChatParticipants: async function (chatId, newParticipants) {
+      if (!this.init() || !chatId || !Array.isArray(newParticipants) || !newParticipants.length) return false;
+      try {
+        const ref = db.collection('clubs').doc(CLUB_ID).collection('chats').doc(chatId);
+        await ref.update({
+          participants: global.firebase.firestore.FieldValue.arrayUnion(...newParticipants)
+        });
+        return true;
+      } catch (err) {
+        console.error('[Cloud] Error añadiendo participantes:', err);
+        return false;
+      }
+    },
+
+    updateChatDetails: async function (chatId, updates) {
+      if (!this.init() || !chatId || !updates) return false;
+      try {
+        const ref = db.collection('clubs').doc(CLUB_ID).collection('chats').doc(chatId);
+        await ref.set(updates, { merge: true });
+        return true;
+      } catch (err) {
+        console.error('[Cloud] Error actualizando detalles de chat:', err);
+        return false;
+      }
+    },
+
+    reactToChatMessage: async function (chatId, msgId, userId, userName, emoji) {
+      if (!this.init() || !chatId || !msgId || !userId) return false;
+      try {
+        const msgRef = db.collection('clubs').doc(CLUB_ID).collection('chats').doc(chatId).collection('messages').doc(msgId);
+        const doc = await msgRef.get();
+        if (!doc.exists) return false;
+        const data = doc.data();
+        const reactions = Object.assign({}, data.reactions || {});
+        if (reactions[userId] && reactions[userId].emoji === emoji) {
+          delete reactions[userId];
+        } else {
+          reactions[userId] = { emoji: emoji, userName: userName || '', time: Date.now() };
+        }
+        await msgRef.update({ reactions: reactions });
+        return true;
+      } catch (err) {
+        console.error('[Cloud] Error reaccionando a mensaje:', err);
         return false;
       }
     }

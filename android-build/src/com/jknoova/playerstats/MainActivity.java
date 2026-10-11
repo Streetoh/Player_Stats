@@ -489,6 +489,23 @@ public class MainActivity extends Activity {
                 }
             });
         }
+
+        @JavascriptInterface
+        public void clearNotifications() {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        android.app.NotificationManager nm = (android.app.NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                        if (nm != null) {
+                            nm.cancelAll();
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error clearing notifications", e);
+                    }
+                }
+            });
+        }
     }
 
     @Override
