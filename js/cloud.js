@@ -505,7 +505,9 @@
           .onSnapshot((snapshot) => {
             const list = [];
             snapshot.forEach(d => {
-              list.push(d.data());
+              const data = d.data() || {};
+              if (!data.id) data.id = d.id;
+              list.push(data);
             });
             list.sort((a, b) => (b.lastMessageTime || b.createdAt || 0) - (a.lastMessageTime || a.createdAt || 0));
             if (typeof callback === 'function') callback(list);
@@ -577,6 +579,7 @@
 
         // 2. Actualizar último mensaje en la cabecera del chat (restaurando si estaba borrado)
         await chatRef.set({
+          id: chatId,
           deleted: false,
           isDeleted: false,
           lastMessage: preview,

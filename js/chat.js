@@ -436,6 +436,7 @@
 
       function renderRooms() {
         if (!listEl) return;
+        global._refreshChatList = renderRooms;
         const q = activeSearch.toLowerCase().trim();
         const isEn = (global.Store && global.Store.state && global.Store.state.lang === 'en') || (localStorage.getItem('preferred_lang') === 'en');
 
@@ -491,21 +492,23 @@
 
         // Combinar con chats de la nube
         rawChats.forEach(c => {
-          if (c && c.id) {
-            const wasPinned = mergedMap[c.id] ? mergedMap[c.id].isPinned : false;
-            mergedMap[c.id] = Object.assign({}, mergedMap[c.id] || {}, c);
-            if (wasPinned) mergedMap[c.id].isPinned = true;
+          if (c) {
+            const cid = c.id || c.chatId;
+            if (!cid) return;
+            c.id = cid;
+            const wasPinned = mergedMap[cid] ? mergedMap[cid].isPinned : false;
+            mergedMap[cid] = Object.assign({}, mergedMap[cid] || {}, c);
+            if (wasPinned) mergedMap[cid].isPinned = true;
           }
         });
 
         let displayChats = Object.values(mergedMap).filter(c => {
+          if (!c || !c.id) return false;
           // Filtrar chats borrados por el usuario (salvo que haya entrado un nuevo mensaje de otra persona)
           const delFlag = localStorage.getItem('chat_deleted_' + c.id);
           if (delFlag) {
             const delTime = parseInt(delFlag, 10) || 0;
             if (c.lastMessageTime && c.lastMessageTime > delTime && c.lastSenderId && c.lastSenderId !== curId) {
-              try { localStorage.removeItem('chat_deleted_' + c.id); } catch (e) {}
-            } else if (delFlag === 'true' && c.lastSenderId && c.lastSenderId !== curId && (c.lastMessageTime || 0) > 0) {
               try { localStorage.removeItem('chat_deleted_' + c.id); } catch (e) {}
             } else {
               return false;
@@ -607,9 +610,10 @@
           const lastRead = parseInt(localStorage.getItem(`chat_last_read_${curId}_${c.id}`) || '0', 10);
           const isUnread = (c.lastMessageTime || 0) > lastRead && c.lastSenderId && c.lastSenderId !== curId;
           const isMuted = isChatMuted(c.id);
+          const isTeamChat = c.type === 'team' || c.id.startsWith('team_');
 
           return `
-            <div class="card chat-room-card" data-chat-id="${c.id}" style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1.5px solid ${isUnread ? 'rgba(34, 211, 238, 0.6)' : (c.isPinned ? 'rgba(250, 204, 21, 0.35)' : 'var(--border)')}; cursor: pointer; transition: all 0.15s; background: ${isUnread ? 'rgba(34, 211, 238, 0.06)' : (c.isPinned ? 'rgba(250, 204, 21, 0.04)' : 'var(--surface2)')}; border-radius: 14px; position: relative;">
+            <div class="card chat-room-card" data-chat-id="${c.id}" style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1.5px solid ${isUnread ? 'rgba(34, 211, 238, 0.6)' : (c.isPinned ? 'rgba(250, 204, 21, 0.35)' : 'var(--border)')}; cursor: pointer; transition: all 0.15s; background: ${isUnread ? 'rgba(34, 211, 238, 0.06)' : (c.isPinned ? 'rgba(250, 204, 21, 0.04)' : 'var(--surface2)')}; border-radius: 14px; position: relative; -webkit-touch-callout: none; user-select: none;">
               <div style="width: 44px; height: 44px; border-radius: 13px; background: rgba(34, 211, 238, 0.12); border: 1.5px solid rgba(34, 211, 238, 0.3); display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; position: relative; overflow: hidden;">
                 ${avatarHtml}
                 ${isUnread ? `<span class="chat-card-unread-dot" style="position: absolute; top: -3px; right: -3px; width: 11px; height: 11px; border-radius: 50%; background: #ef4444; border: 2px solid var(--surface2);"></span>` : ''}
@@ -623,9 +627,14 @@
                       ${isMuted ? '<small style="font-size: 11px; opacity: 0.6;">🔕</small>' : ''}
                     </b>
                   </div>
-                  <div style="display: flex; align-items: center; gap: 4px; flex-shrink: 0;">
+                  <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
                     ${isUnread ? `<span class="badge chat-card-new-badge" style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.5); font-weight: 900; font-size: 9.5px; padding: 1px 5px; border-radius: 8px;">● ${t('newBadge', 'NUEVO')}</span>` : ''}
                     <small style="font-size: 11px; color: var(--muted);">${timeStr}</small>
+                    ${!isTeamChat ? `
+                      <button type="button" class="icon-btn ghost btn-delete-chat-card" data-chat-id="${c.id}" data-chat-name="${escapeHtml(displayName)}" style="width: 24px; height: 24px; font-size: 12px; color: #f87171; opacity: 0.7; padding: 0;" title="${t('deleteChat', isEn ? 'Delete conversation' : 'Eliminar conversación')}">
+                        🗑️
+                      </button>
+                    ` : ''}
                   </div>
                 </div>
                 <div style="font-size: 12.5px; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">
@@ -636,8 +645,84 @@
           `;
         }).join('');
 
+        async function handleDeleteChat(cid, cname, chatObj) {
+          haptic(25);
+          const isGroupChat = (chatObj && (chatObj.type === 'group' || cid.startsWith('group_')));
+          const isTeamChat = (chatObj && (chatObj.type === 'team' || cid.startsWith('team_')));
+          if (isTeamChat) return;
+
+          if (isGroupChat && isCoach) {
+            const confirmMsg = t('deleteGroupConfirm', isEn ? `Permanently delete group "${cname}" for everyone?` : `¿Eliminar el grupo "${cname}" de forma definitiva para todos?`);
+            if (!confirm(confirmMsg)) return;
+            const maxTime = Math.max(Date.now(), (chatObj && chatObj.lastMessageTime) || 0);
+            localStorage.setItem('chat_deleted_' + cid, String(maxTime));
+            if (global.Cloud && global.Cloud.deleteChat) {
+              await global.Cloud.deleteChat(cid);
+            }
+            renderRooms();
+            if (global.UI && global.UI.toast) global.UI.toast(t('groupDeleted', isEn ? 'Group deleted' : 'Grupo eliminado'), 'info');
+          } else {
+            const confirmMsg = t('deleteChatConfirm', isEn ? `Delete conversation with "${cname}" from your list?` : `¿Eliminar la conversación con "${cname}" de tu lista?`);
+            if (!confirm(confirmMsg)) return;
+            const maxTime = Math.max(Date.now(), (chatObj && chatObj.lastMessageTime) || 0);
+            localStorage.setItem('chat_deleted_' + cid, String(maxTime));
+            renderRooms();
+            if (global.UI && global.UI.toast) global.UI.toast(t('chatDeletedForYou', isEn ? 'Conversation removed from your list' : 'Conversación eliminada de tu lista'), 'info');
+          }
+        }
+
+        listEl.querySelectorAll('.btn-delete-chat-card').forEach(btn => {
+          btn.onclick = (e) => {
+            e.stopPropagation();
+            const cid = btn.getAttribute('data-chat-id');
+            const cname = btn.getAttribute('data-chat-name');
+            const chatObj = displayChats.find(x => x.id === cid);
+            handleDeleteChat(cid, cname, chatObj);
+          };
+        });
+
         listEl.querySelectorAll('.chat-room-card').forEach(item => {
+          let pressTimer = null;
+          let pressFired = false;
+          let touchX = 0;
+          let touchY = 0;
+
+          item.addEventListener('touchstart', (e) => {
+            if (e.touches && e.touches.length === 1) {
+              touchX = e.touches[0].clientX;
+              touchY = e.touches[0].clientY;
+              pressFired = false;
+              pressTimer = setTimeout(() => {
+                pressFired = true;
+                const cid = item.getAttribute('data-chat-id');
+                const chatObj = displayChats.find(x => x.id === cid);
+                const cname = chatObj ? (chatObj.name || '').replace(/^Chat:\s*/i, '') : 'Chat';
+                handleDeleteChat(cid, cname, chatObj);
+              }, 550);
+            }
+          }, { passive: true });
+
+          item.addEventListener('touchmove', (e) => {
+            if (!e.touches || e.touches.length !== 1) return;
+            if (Math.abs(e.touches[0].clientX - touchX) > 10 || Math.abs(e.touches[0].clientY - touchY) > 10) {
+              if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+            }
+          }, { passive: true });
+
+          item.addEventListener('touchend', (e) => {
+            if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+            if (pressFired && e.cancelable) e.preventDefault();
+          });
+
+          item.addEventListener('touchcancel', () => {
+            if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+          });
+
           item.onclick = () => {
+            if (pressFired) {
+              pressFired = false;
+              return;
+            }
             const cid = item.getAttribute('data-chat-id');
             const targetChat = displayChats.find(x => x.id === cid);
             haptic(20);
@@ -1389,7 +1474,12 @@
                     ${escapeHtml(resolvedTitle.replace(/^Chat:\s*/i, '').replace(/^🛡️\s*Chat:\s*/i, '🛡️ '))}
                   </h3>
                 </div>
-                <span id="chat-presence-indicator" style="font-size: 11px; color: #22d3ee; font-weight: 700;">🟢 ${t('live', 'En vivo')}</span>
+                <span id="chat-presence-indicator" style="font-size: 11px; font-weight: 600;">
+                  ${isDirectOrCoachChat
+                    ? `⚪ <span style="color: var(--muted);">${t('offline', isEn ? 'Offline' : 'Desconectado')}</span>`
+                    : `👥 <span style="color: #22d3ee;">${t('group', isEn ? 'Group' : 'Grupo')}</span>`
+                  }
+                </span>
               </div>
             </div>
 
@@ -1432,7 +1522,7 @@
               </button>
             ` : ''}
             <button type="button" class="btn sm danger ghost" id="opt-delete-chat" style="justify-content: flex-start; gap: 8px; width: 100%; height: 36px;">
-              🗑️ ${(isCoach || chatData.type === 'group' || chatId.startsWith('group_') || chatData.type === 'team') ? t('deleteGroup', 'Eliminar grupo') : t('deleteChat', 'Eliminar conversación')}
+              🗑️ ${(chatData.type === 'group' || chatId.startsWith('group_') || chatData.type === 'team') ? t('deleteGroup', isEn ? 'Delete group' : 'Eliminar grupo') : t('deleteChat', isEn ? 'Delete conversation' : 'Eliminar conversación')}
             </button>
           </div>
 
@@ -1575,17 +1665,25 @@
       }
 
       // Presencia en directo si es chat 1 a 1
-      if (chatData.participants && chatData.participants.length === 2 && global.Cloud && global.Cloud.listenToUserPresence) {
-        const otherId = chatData.participants.find(p => p !== curId);
-        if (otherId && otherId !== 'coach') {
-          presenceListenerUnsub = global.Cloud.listenToUserPresence(otherId, (pr) => {
+      if (isDirectOrCoachChat && global.Cloud && global.Cloud.listenToUserPresence) {
+        const targetPresenceId = isCoachUser ? otherPlayerId : (otherPlayerId || 'coach');
+        if (targetPresenceId) {
+          const updatePresenceUI = (pr) => {
             if (!presenceIndicator) return;
-            if (pr && pr.isOnline) {
-              presenceIndicator.innerHTML = `🟢 <span style="color: #4ade80;">${t('online', 'En línea')}</span>`;
+            const isFresh = !!(pr && pr.isOnline && (pr.lastSeen ? (Date.now() - pr.lastSeen < 150000) : false));
+            if (isFresh) {
+              presenceIndicator.innerHTML = `🟢 <span style="color: #4ade80; font-weight: 700;">${t('online', isEn ? 'Online' : 'En línea')}</span>`;
             } else if (pr && pr.lastSeen) {
-              presenceIndicator.innerHTML = `⚪ <span style="color: var(--muted);">${t('lastSeen', 'Última vez')}: ${formatTime(pr.lastSeen)}</span>`;
+              presenceIndicator.innerHTML = `⚪ <span style="color: var(--muted);">${t('lastSeen', isEn ? 'Last seen' : 'Última vez')}: ${formatTime(pr.lastSeen)}</span>`;
+            } else {
+              presenceIndicator.innerHTML = `⚪ <span style="color: var(--muted);">${t('offline', isEn ? 'Offline' : 'Desconectado')}</span>`;
             }
-          });
+          };
+
+          const cachedPr = (window._globalPresenceMap && window._globalPresenceMap[targetPresenceId]) || null;
+          updatePresenceUI(cachedPr);
+
+          presenceListenerUnsub = global.Cloud.listenToUserPresence(targetPresenceId, updatePresenceUI);
         }
       }
 
@@ -1663,7 +1761,8 @@
             const confirmMsg = t('deleteGroupConfirm', isEn ? 'Permanently delete this group for everyone?' : '¿Eliminar este grupo de forma definitiva para todos?');
             if (!confirm(confirmMsg)) return;
             try {
-              localStorage.setItem('chat_deleted_' + chatId, String(Date.now()));
+              const maxTime = Math.max(Date.now(), (chatData && chatData.lastMessageTime) || 0);
+              localStorage.setItem('chat_deleted_' + chatId, String(maxTime));
               if (global.Cloud && global.Cloud.deleteChat) {
                 await global.Cloud.deleteChat(chatId);
               }
@@ -1676,10 +1775,14 @@
             // NUNCA eliminar de la nube para el otro lado. Se elimina / oculta solo para el usuario actual.
             const confirmMsg = t('deleteChatConfirm', isEn ? 'Delete this conversation from your list?' : '¿Eliminar esta conversación de tu lista?');
             if (!confirm(confirmMsg)) return;
-            localStorage.setItem('chat_deleted_' + chatId, String(Date.now()));
+            const maxTime = Math.max(Date.now(), (chatData && chatData.lastMessageTime) || 0);
+            localStorage.setItem('chat_deleted_' + chatId, String(maxTime));
             if (global.UI && global.UI.toast) global.UI.toast(t('chatDeletedForYou', isEn ? 'Conversation removed from your list' : 'Conversación eliminada de tu lista'), 'info');
           }
           close();
+          if (typeof global._refreshChatList === 'function') {
+            global._refreshChatList();
+          }
         };
       }
 
@@ -1884,9 +1987,6 @@
 
                   <div style="display: flex; align-items: center; gap: 8px; margin-top: 3px; padding: 0 4px;">
                     <small style="font-size: 10.5px; color: var(--muted);">${time}</small>
-                    <button type="button" class="icon-btn ghost btn-msg-menu" data-mid="${m.id}" style="width: 22px; height: 22px; font-size: 13px; padding: 0; opacity: 0.75;" title="${t('moreOptions', 'Más opciones')}">
-                      ⋮
-                    </button>
                   </div>
                 </div>
               </div>
@@ -1953,10 +2053,6 @@
                   <button type="button" class="icon-btn ghost btn-msg-reply" data-mid="${m.id}" data-text="${escapeHtml(m.text || '')}" data-sname="${escapeHtml(m.senderName || '')}" style="width: 22px; height: 22px; font-size: 13px; padding: 0; opacity: 0.75;" title="${t('reply', 'Responder')}">
                     ↩️
                   </button>
-
-                  <button type="button" class="icon-btn ghost btn-msg-menu" data-mid="${m.id}" style="width: 22px; height: 22px; font-size: 13px; padding: 0; opacity: 0.75;" title="${t('moreOptions', 'Más opciones')}">
-                    ⋮
-                  </button>
                 </div>
 
                 <!-- Lista de Reacciones activas debajo del mensaje -->
@@ -2013,11 +2109,25 @@
         });
 
         // Deslizar mensaje hacia la izquierda para responder (swipe-to-reply)
+        // Y mantener pulsado (long-press) para desplegar menú contextual
         msgsContainer.querySelectorAll('.chat-msg-row').forEach(row => {
           let touchStartX = 0;
           let touchStartY = 0;
           let isSwiping = false;
           let diffX = 0;
+          let longPressTimer = null;
+          let longPressFired = false;
+
+          const mid = row.getAttribute('data-mid');
+          const idx = parseInt(row.getAttribute('data-idx'), 10);
+          const m = messagesList[idx] || messagesList.find(x => x.id === mid);
+
+          const triggerContextMenu = () => {
+            if (!m) return;
+            longPressFired = true;
+            haptic(35);
+            openMessageOptionsMenu(m);
+          };
 
           row.addEventListener('touchstart', (e) => {
             if (e.touches && e.touches.length === 1) {
@@ -2025,6 +2135,10 @@
               touchStartY = e.touches[0].clientY;
               isSwiping = false;
               diffX = 0;
+              longPressFired = false;
+              longPressTimer = setTimeout(() => {
+                triggerContextMenu();
+              }, 480);
             }
           }, { passive: true });
 
@@ -2035,7 +2149,14 @@
             diffX = currentX - touchStartX;
             const diffY = currentY - touchStartY;
 
-            if (diffX < -15 && Math.abs(diffX) > Math.abs(diffY)) {
+            if (Math.abs(diffX) > 8 || Math.abs(diffY) > 8) {
+              if (longPressTimer) {
+                clearTimeout(longPressTimer);
+                longPressTimer = null;
+              }
+            }
+
+            if (!longPressFired && diffX < -15 && Math.abs(diffX) > Math.abs(diffY)) {
               isSwiping = true;
               const translateX = Math.max(diffX, -65);
               row.style.transform = `translateX(${translateX}px)`;
@@ -2043,26 +2164,43 @@
             }
           }, { passive: true });
 
-          row.addEventListener('touchend', () => {
+          row.addEventListener('touchend', (e) => {
+            if (longPressTimer) {
+              clearTimeout(longPressTimer);
+              longPressTimer = null;
+            }
+            if (longPressFired) {
+              if (e.cancelable) e.preventDefault();
+              return;
+            }
+
             if (isSwiping) {
               row.style.transition = 'transform 0.25s cubic-bezier(0.2, 0.9, 0.3, 1)';
               row.style.transform = 'translateX(0px)';
 
-              if (diffX < -45) {
-                const mid = row.getAttribute('data-mid');
-                const idx = parseInt(row.getAttribute('data-idx'), 10);
-                const m = messagesList[idx] || messagesList.find(x => x.id === mid);
-                if (m) {
-                  currentReplyTo = { id: m.id, text: m.text, senderName: m.senderName };
-                  if (replyText) replyText.textContent = `${m.senderName}: "${m.text ? m.text.slice(0, 45) : '📷'}"`;
-                  if (replyPreview) replyPreview.style.display = 'flex';
-                  haptic(35);
-                  if (inputEl) inputEl.focus();
-                }
+              if (diffX < -45 && m) {
+                currentReplyTo = { id: m.id, text: m.text, senderName: m.senderName };
+                if (replyText) replyText.textContent = `${m.senderName}: "${m.text ? m.text.slice(0, 45) : '📷'}"`;
+                if (replyPreview) replyPreview.style.display = 'flex';
+                haptic(35);
+                if (inputEl) inputEl.focus();
               }
               isSwiping = false;
             }
-          }, { passive: true });
+          });
+
+          row.addEventListener('touchcancel', () => {
+            if (longPressTimer) {
+              clearTimeout(longPressTimer);
+              longPressTimer = null;
+            }
+          });
+
+          // Compatibilidad con PC / click derecho / ratón
+          row.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            triggerContextMenu();
+          });
         });
 
         // Función para aplicar o alternar reacción
@@ -2114,22 +2252,13 @@
           };
         });
 
-        // Menú de opciones de mensaje (Editar, Eliminar para todos, Eliminar para mí)
-        msgsContainer.querySelectorAll('.btn-msg-menu').forEach(btn => {
-          btn.onclick = (e) => {
-            e.stopPropagation();
-            const mid = btn.getAttribute('data-mid');
-            const m = messagesList.find(x => x.id === mid);
-            if (!m) return;
-            openMessageOptionsMenu(m);
-          };
-        });
-
         function openMessageOptionsMenu(m) {
-          haptic(20);
+          haptic(25);
           const isMine = m.senderId === curId;
-          const canDeleteForEveryone = (isMine || isCoachUser) && !m.isDeletedForEveryone;
-          const canEdit = isMine && !m.isDeletedForEveryone && !!(m.text && m.text.trim());
+          const isDeletedForEveryone = !!m.isDeletedForEveryone;
+          // Solo mensajes propios pueden editarse o borrarse para todos:
+          const canDeleteForEveryone = isMine && !isDeletedForEveryone;
+          const canEdit = isMine && !isDeletedForEveryone && !!(m.text && m.text.trim());
 
           const menuOverlay = document.createElement('div');
           menuOverlay.className = 'dialog-overlay';
@@ -2137,24 +2266,32 @@
           menuOverlay.innerHTML = `
             <div class="dialog-box" style="width: 100%; max-width: 360px; background: var(--surface); border: 1.5px solid var(--border); border-radius: 18px; padding: 14px; display: flex; flex-direction: column; gap: 6px; box-shadow: 0 10px 40px rgba(0,0,0,0.8); animation: sheetUp 0.18s ease;">
               <div style="font-size: 12px; font-weight: 800; color: var(--muted); padding: 0 4px 6px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
-                <span>${t('messageOptions', isEn ? 'Message Options' : 'Opciones del mensaje')}</span>
+                <span>💬 ${t('messageOptions', isEn ? 'Message Options' : 'Opciones del mensaje')}</span>
                 <button type="button" class="icon-btn ghost" id="msg-menu-x" style="width: 26px; height: 26px; font-size: 14px;">✕</button>
               </div>
 
+              <!-- Copiar: disponible para TODOS los mensajes -->
+              <button type="button" class="btn sm ghost" id="btn-msg-opt-copy" style="justify-content: flex-start; gap: 10px; width: 100%; height: 40px; font-size: 13.5px; font-weight: 700;">
+                📋 ${t('copyMessage', isEn ? 'Copy message' : 'Copiar mensaje')}
+              </button>
+
               ${canEdit ? `
+                <!-- Editar: solo para mensajes propios -->
                 <button type="button" class="btn sm ghost" id="btn-msg-opt-edit" style="justify-content: flex-start; gap: 10px; width: 100%; height: 40px; font-size: 13.5px; font-weight: 700;">
-                  ✏️ ${t('editMessage', isEn ? 'Edit Message' : 'Editar mensaje')}
+                  ✏️ ${t('editMessage', isEn ? 'Edit message' : 'Editar mensaje')}
                 </button>
               ` : ''}
 
               ${canDeleteForEveryone ? `
+                <!-- Borrar para todos: solo para mensajes propios -->
                 <button type="button" class="btn sm danger ghost" id="btn-msg-opt-del-everyone" style="justify-content: flex-start; gap: 10px; width: 100%; height: 40px; font-size: 13.5px; font-weight: 700; color: #f87171;">
-                  🗑️ ${t('deleteForEveryone', isEn ? 'Delete for Everyone' : 'Eliminar para todos')}
+                  🗑️ ${t('deleteForEveryone', isEn ? 'Delete for everyone' : 'Borrar para todos')}
                 </button>
               ` : ''}
 
+              <!-- Borrar para mí: disponible para TODOS los mensajes -->
               <button type="button" class="btn sm ghost" id="btn-msg-opt-del-me" style="justify-content: flex-start; gap: 10px; width: 100%; height: 40px; font-size: 13.5px; font-weight: 700; color: #fca5a5;">
-                🗑️ ${t('deleteForMe', isEn ? 'Delete for Me' : 'Eliminar para mí')}
+                👁️ ${t('deleteForMe', isEn ? 'Delete for me' : 'Borrar para mí')}
               </button>
             </div>
           `;
@@ -2162,6 +2299,33 @@
           function closeMenu() { menuOverlay.remove(); }
           menuOverlay.querySelector('#msg-menu-x').onclick = closeMenu;
           menuOverlay.onclick = (e) => { if (e.target === menuOverlay) closeMenu(); };
+
+          const btnCopy = menuOverlay.querySelector('#btn-msg-opt-copy');
+          if (btnCopy) {
+            btnCopy.onclick = () => {
+              closeMenu();
+              let textToCopy = m.text || '';
+              if (m.isDeletedForEveryone) textToCopy = isEn ? 'This message was deleted' : 'Este mensaje fue eliminado';
+              else if (!textToCopy && m.file) textToCopy = m.file.name || '';
+              else if (!textToCopy && m.image) textToCopy = m.image;
+
+              if (textToCopy) {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                  navigator.clipboard.writeText(textToCopy).catch(() => {});
+                } else {
+                  const ta = document.createElement('textarea');
+                  ta.value = textToCopy;
+                  ta.style.position = 'fixed';
+                  ta.style.opacity = '0';
+                  document.body.appendChild(ta);
+                  ta.select();
+                  document.execCommand('copy');
+                  ta.remove();
+                }
+                if (global.UI && global.UI.toast) global.UI.toast(t('copiedToClipboard', isEn ? 'Message copied to clipboard' : 'Mensaje copiado al portapapeles'), 'success');
+              }
+            };
+          }
 
           const btnEdit = menuOverlay.querySelector('#btn-msg-opt-edit');
           if (btnEdit) {
