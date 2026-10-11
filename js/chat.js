@@ -1272,7 +1272,8 @@
       if (!chatId) return;
       currentlyOpenChatId = chatId;
       const curId = options.currentUserId || 'coach';
-      const isCoachUser = isCoach || (curId === 'coach');
+      const isCoach = !!options.isCoach || (curId === 'coach');
+      const isCoachUser = isCoach;
       const curName = options.currentUserName || (isCoachUser ? t('coach', 'Entrenador') : t('player', 'Jugador'));
       const chatData = options.chatData || {};
       const allPlayers = options.players || [];

@@ -1305,18 +1305,30 @@
   });
 
   const _attendanceToastDedup = new Map();
+  const _coachAppBootTime = Date.now();
 
-  window.onPlayerAttendanceResponse = function (resp) {
+  window.onPlayerAttendanceResponse = function (resp, isInitialSync = false) {
     if (!resp) return;
+    if (isInitialSync) return; // NUNCA mostrar toasts durante la sincronización inicial
+    if (Date.now() - _coachAppBootTime < 4000) return; // Silencio de arranque de 4s para evitar toasts al entrar a la app
+
+    const isPending = (resp.status === 'pending' || !resp.status);
+    const p = Store.player(resp.playerId);
+    const pName = resp.playerName || (p ? Store.playerName(p) : 'Jugador');
+
+    if (isPending) {
+      if (currentTab === 'convocations') navigate('convocations');
+      if (typeof window.activeConvocationModalRefresh === 'function') window.activeConvocationModalRefresh();
+      return;
+    }
+
     const dedupKey = `${resp.convId || ''}_${resp.playerId || ''}_${resp.status || ''}`;
     const now = Date.now();
-    if (_attendanceToastDedup.has(dedupKey) && (now - _attendanceToastDedup.get(dedupKey) < 5000)) {
-      return; // Evitar toast duplicado recibido en los últimos 5 segundos
+    if (_attendanceToastDedup.has(dedupKey) && (now - _attendanceToastDedup.get(dedupKey) < 8000)) {
+      return; // Evitar toast duplicado
     }
     _attendanceToastDedup.set(dedupKey, now);
 
-    const p = Store.player(resp.playerId);
-    const pName = resp.playerName || (p ? Store.playerName(p) : 'Jugador');
     const isAttending = (resp.status === 'called' || resp.status === 'attending' || resp.status === 'yes');
 
     NotifManager.add({
@@ -1362,8 +1374,8 @@
     // Sincronización en la Nube Firebase (App Jugadores <-> App Entrenador)
     if (window.Cloud) {
       window.Cloud.init();
-      window.Cloud.startListeningToResponses((resp) => {
-        Store.handleIncomingPlayerResponse(resp);
+      window.Cloud.startListeningToResponses((resp, isInitialSync) => {
+        Store.handleIncomingPlayerResponse(resp, isInitialSync);
       });
       window.Cloud.listenToProfileRequests((requests) => {
         handleIncomingProfileRequests(requests);
@@ -8133,13 +8145,20 @@
     });
   }
 
+  let convCoachFilterType = 'all'; // 'all', 'match', 'training'
+
   /* =========================================================
      VISTA 5: CONVOCATORIAS Y ASISTENCIA (MENÚ INDEPENDIENTE)
      ========================================================= */
   function renderConvocationsView(view) {
     function build() {
       const rawList = Store.state.convocations || [];
-      const list = [...rawList].sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.time || '').localeCompare(b.time || ''));
+      const filteredList = rawList.filter(c => {
+        if (convCoachFilterType === 'match') return c.type === 'match';
+        if (convCoachFilterType === 'training') return c.type === 'training';
+        return true;
+      });
+      const list = [...filteredList].sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.time || '').localeCompare(b.time || ''));
 
       view.innerHTML = `
         <div class="topbar" style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center; max-width: 100%; box-sizing: border-box;">
@@ -8149,7 +8168,7 @@
           </div>
           <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0; flex-wrap: wrap;">
             ${renderLangButton()}
-            ${list.length > 0 ? `
+            ${rawList.length > 0 ? `
               <button class="btn sm danger ghost" id="btn-delete-all-convs" style="font-weight: 800; font-size: 11.5px; height: 36px; padding: 0 8px; border-color: rgba(239, 68, 68, 0.4);" title="${t('deleteAllPlans', 'Borrar todos los planes')}">
                 🗑️ ${t('deleteAllPlans', 'Borrar planes')}
               </button>
@@ -8161,6 +8180,19 @@
               ${icon('plus', 16)} ${t('newConvocation')}
             </button>
           </div>
+        </div>
+
+        <!-- Filtros de tipo de evento: Todos / Partidos / Entrenamientos -->
+        <div style="display: flex; gap: 8px; margin: 12px 0 14px; background: var(--surface2); padding: 4px; border-radius: 10px; border: 1px solid var(--border);">
+          <button type="button" class="btn sm ${convCoachFilterType === 'all' ? 'primary' : 'ghost'}" data-coach-conv-filter="all" style="flex: 1; height: 34px; font-size: 12px; font-weight: 800; border-radius: 8px;">
+            ${t('filterAll', 'Todos')}
+          </button>
+          <button type="button" class="btn sm ${convCoachFilterType === 'match' ? 'primary' : 'ghost'}" data-coach-conv-filter="match" style="flex: 1; height: 34px; font-size: 12px; font-weight: 800; border-radius: 8px;">
+            ${t('filterMatches', '🏟️ Partidos')}
+          </button>
+          <button type="button" class="btn sm ${convCoachFilterType === 'training' ? 'primary' : 'ghost'}" data-coach-conv-filter="training" style="flex: 1; height: 34px; font-size: 12px; font-weight: 800; border-radius: 8px;">
+            ${t('filterTrainings', '🏃 Entrenamientos')}
+          </button>
         </div>
 
         ${list.length === 0 ? `
@@ -8264,6 +8296,13 @@
           );
         };
       }
+
+      view.querySelectorAll('[data-coach-conv-filter]').forEach(b => {
+        b.onclick = () => {
+          convCoachFilterType = b.getAttribute('data-coach-conv-filter');
+          build();
+        };
+      });
 
       view.querySelectorAll('[data-quick-viber]').forEach(btn => {
         btn.onclick = (e) => {

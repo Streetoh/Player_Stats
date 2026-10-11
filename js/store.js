@@ -205,7 +205,7 @@
       this.listeners.forEach(fn => { try { fn(); } catch (e) { console.error(e); } });
     },
 
-    handleIncomingPlayerResponse(resp) {
+    handleIncomingPlayerResponse(resp, isInitialSync = false) {
       if (!resp || !resp.convId || !resp.playerId) return;
       const conv = this.convocation(resp.convId);
       if (!conv) return;
@@ -213,22 +213,23 @@
       conv.list = conv.list || {};
       conv.responses = conv.responses || {};
 
-      const isAttending = (resp.status === 'called' || resp.status === 'attending' || resp.status === 'yes');
-      const newSt = isAttending ? 'called' : 'absent';
-      const statusKey = isAttending ? 'attending' : 'absent';
-
-      conv.list[resp.playerId] = newSt;
-      conv.responses[resp.playerId] = {
-        status: statusKey,
-        playerName: resp.playerName || '',
-        notes: resp.notes || '',
-        time: resp.timestamp || Date.now()
-      };
+      if (resp.status === 'pending' || !resp.status) {
+        delete conv.responses[resp.playerId];
+      } else {
+        const isAttending = (resp.status === 'called' || resp.status === 'attending' || resp.status === 'yes');
+        const statusKey = isAttending ? 'attending' : 'absent';
+        conv.responses[resp.playerId] = {
+          status: statusKey,
+          playerName: resp.playerName || '',
+          notes: resp.notes || '',
+          time: resp.timestamp || Date.now()
+        };
+      }
 
       this.save();
 
-      if (typeof window.onPlayerAttendanceResponse === 'function') {
-        window.onPlayerAttendanceResponse(resp);
+      if (!isInitialSync && typeof window.onPlayerAttendanceResponse === 'function') {
+        window.onPlayerAttendanceResponse(resp, isInitialSync);
       }
     },
 

@@ -213,6 +213,8 @@
       deleteAllPlans: 'Borrar todos los planes',
       confirmDeleteAllPlans: '¿Estás seguro de que deseas eliminar todas las convocatorias y planes registrados? Esta acción no se puede deshacer.',
       allPlansDeleted: 'Todos los planes han sido eliminados',
+      matchesOnly: '🏟️ Partidos',
+      trainingsOnly: '🏃 Entrenamientos',
 
       // Radar y Rating
       skillRadar: 'Radar de Habilidades',
@@ -714,6 +716,8 @@
       deleteAllPlans: 'Delete All Plans',
       confirmDeleteAllPlans: 'Are you sure you want to delete all call-up plans and convocations? This action cannot be undone.',
       allPlansDeleted: 'All plans have been deleted',
+      matchesOnly: '🏟️ Matches only',
+      trainingsOnly: '🏃 Trainings only',
 
       // Radar & Rating
       skillRadar: 'Skill Radar',

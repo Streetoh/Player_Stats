@@ -229,7 +229,13 @@
       birthDate: 'Date of Birth',
       age: 'Age',
       secondaryPositions: 'Secondary Positions',
-      guardian: 'Parent / Guardian'
+      guardian: 'Parent / Guardian',
+      callCoach: 'Call Coach',
+      call: 'Call',
+      voteReset: 'Attendance vote cancelled (pending)',
+      viberCoachContactMsg: 'Hi Coach!',
+      messageViaViber: 'Message via Viber',
+      contact: 'Contact'
     },
     es: {
       appName: 'Player stats (Player)',
@@ -379,7 +385,13 @@
       birthDate: 'Fecha de Nacimiento',
       age: 'Edad',
       secondaryPositions: 'Posiciones Secundarias',
-      guardian: 'Padre / Tutor'
+      guardian: 'Padre / Tutor',
+      callCoach: 'Llamar al Entrenador',
+      call: 'Llamar',
+      voteReset: 'Respuesta cancelada (pendiente)',
+      viberCoachContactMsg: '¡Hola míster!',
+      messageViaViber: 'Mensaje por Viber',
+      contact: 'Contacto'
     }
   };
 
@@ -429,6 +441,97 @@
     if (dict[key] !== undefined) return dict[key];
     if (DICT.en[key] !== undefined) return DICT.en[key];
     return fallback || key;
+  }
+
+  const POSITION_MAP = {
+    // Standard tactical codes
+    'POR': { en: 'Goalkeeper (GK)', es: 'Portero (POR)' },
+    'GK': { en: 'Goalkeeper (GK)', es: 'Portero (POR)' },
+    'DFC': { en: 'Centre Back (CB)', es: 'Defensa Central (DFC)' },
+    'CB': { en: 'Centre Back (CB)', es: 'Defensa Central (DFC)' },
+    'LI': { en: 'Left Back (LB)', es: 'Lateral Izquierdo (LI)' },
+    'LB': { en: 'Left Back (LB)', es: 'Lateral Izquierdo (LI)' },
+    'LD': { en: 'Right Back (RB)', es: 'Lateral Derecho (LD)' },
+    'RB': { en: 'Right Back (RB)', es: 'Lateral Derecho (LD)' },
+    'MCD': { en: 'Defensive Midfield (CDM)', es: 'Mediocentro Defensivo (MCD)' },
+    'CDM': { en: 'Defensive Midfield (CDM)', es: 'Mediocentro Defensivo (MCD)' },
+    'MC': { en: 'Central Midfield (CM)', es: 'Mediocentro (MC)' },
+    'CM': { en: 'Central Midfield (CM)', es: 'Mediocentro (MC)' },
+    'MCO': { en: 'Attacking Midfield (CAM)', es: 'Mediapunta (MCO)' },
+    'CAM': { en: 'Attacking Midfield (CAM)', es: 'Mediapunta (MCO)' },
+    'EI': { en: 'Left Winger (LW)', es: 'Extremo Izquierdo (EI)' },
+    'LW': { en: 'Left Winger (LW)', es: 'Extremo Izquierdo (EI)' },
+    'ED': { en: 'Right Winger (RW)', es: 'Extremo Derecho (ED)' },
+    'RW': { en: 'Right Winger (RW)', es: 'Extremo Derecho (ED)' },
+    'DC': { en: 'Striker (ST)', es: 'Delantero Centro (DC)' },
+    'ST': { en: 'Striker (ST)', es: 'Delantero Centro (DC)' },
+    // Full names and keywords
+    'portero': { en: 'Goalkeeper', es: 'Portero' },
+    'goalkeeper': { en: 'Goalkeeper', es: 'Portero' },
+    'defensa central': { en: 'Centre Back', es: 'Defensa Central' },
+    'centre back': { en: 'Centre Back', es: 'Defensa Central' },
+    'defensa': { en: 'Defender', es: 'Defensa' },
+    'defender': { en: 'Defender', es: 'Defensa' },
+    'lateral izquierdo': { en: 'Left Back', es: 'Lateral Izquierdo' },
+    'left back': { en: 'Left Back', es: 'Lateral Izquierdo' },
+    'lateral derecho': { en: 'Right Back', es: 'Lateral Derecho' },
+    'right back': { en: 'Right Back', es: 'Lateral Derecho' },
+    'lateral': { en: 'Full Back', es: 'Lateral' },
+    'full back': { en: 'Full Back', es: 'Lateral' },
+    'carrilero': { en: 'Wing Back', es: 'Carrilero' },
+    'wing back': { en: 'Wing Back', es: 'Carrilero' },
+    'mediocentro defensivo': { en: 'Defensive Midfielder', es: 'Mediocentro Defensivo' },
+    'defensive midfielder': { en: 'Defensive Midfielder', es: 'Mediocentro Defensivo' },
+    'pivote': { en: 'Defensive Midfielder', es: 'Pivote' },
+    'mediocentro': { en: 'Central Midfielder', es: 'Mediocentro' },
+    'central midfielder': { en: 'Central Midfielder', es: 'Mediocentro' },
+    'centrocampista': { en: 'Midfielder', es: 'Centrocampista' },
+    'midfielder': { en: 'Midfielder', es: 'Centrocampista' },
+    'mediapunta': { en: 'Attacking Midfielder', es: 'Mediapunta' },
+    'attacking midfielder': { en: 'Attacking Midfielder', es: 'Mediapunta' },
+    'extremo izquierdo': { en: 'Left Winger', es: 'Extremo Izquierdo' },
+    'left winger': { en: 'Left Winger', es: 'Extremo Izquierdo' },
+    'extremo derecho': { en: 'Right Winger', es: 'Extremo Derecho' },
+    'right winger': { en: 'Right Winger', es: 'Extremo Derecho' },
+    'extremo': { en: 'Winger', es: 'Extremo' },
+    'winger': { en: 'Winger', es: 'Extremo' },
+    'delantero centro': { en: 'Striker', es: 'Delantero Centro' },
+    'delantero': { en: 'Forward / Striker', es: 'Delantero' },
+    'striker': { en: 'Striker', es: 'Delantero Centro' },
+    'forward': { en: 'Forward', es: 'Delantero' },
+    'jugador': { en: 'Player', es: 'Jugador' },
+    'player': { en: 'Player', es: 'Jugador' }
+  };
+
+  function formatPosition(pos) {
+    if (!pos) return currentLang === 'en' ? 'Player' : 'Jugador';
+    const clean = String(pos).trim();
+    const upper = clean.toUpperCase();
+    if (POSITION_MAP[upper]) {
+      return currentLang === 'en' ? POSITION_MAP[upper].en : POSITION_MAP[upper].es;
+    }
+    const lower = clean.toLowerCase();
+    if (POSITION_MAP[lower]) {
+      return currentLang === 'en' ? POSITION_MAP[lower].en : POSITION_MAP[lower].es;
+    }
+    if (clean.includes('/')) {
+      const parts = clean.split('/').map(s => s.trim());
+      if (currentLang === 'en' && parts[1]) {
+        return formatPosition(parts[1]);
+      }
+      if (currentLang === 'es' && parts[0]) {
+        return formatPosition(parts[0]);
+      }
+    }
+    return clean;
+  }
+
+  function formatPositionsList(list) {
+    if (!list) return '';
+    if (Array.isArray(list)) {
+      return list.map(p => formatPosition(p)).join(', ');
+    }
+    return formatPosition(list);
   }
 
   function toast(msg, type = 'info', onClick) {
@@ -1123,7 +1226,7 @@
                     #${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(p.name || '')} ${escapeHtml(p.lastName || '')}
                   </b>
                   <small style="color: var(--muted); font-size: 11.5px;">
-                    ${p.mainPosition || t('player', 'Player')} ${team ? '• ' + escapeHtml(team.name) : ''}
+                    ${formatPosition(p.mainPosition)} ${team ? '• ' + escapeHtml(team.name) : ''}
                   </small>
                 </div>
               </div>
@@ -1236,7 +1339,7 @@
               ${pDorsal} ${escapeHtml(pName)}
             </b>
             <small style="color: var(--muted); font-size: 12px;">
-              ${player.mainPosition || t('player', 'Player')} ${team ? '• ' + escapeHtml(team.name) : ''}
+              ${formatPosition(player.mainPosition)} ${team ? '• ' + escapeHtml(team.name) : ''}
             </small>
           </div>
         </div>
@@ -1419,7 +1522,7 @@
                     #${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(p.name || '')} ${escapeHtml(p.lastName || '')}
                   </b>
                   <small style="color: var(--muted); font-size: 11px;">
-                    ${p.mainPosition || 'Jugador'} ${team ? '• ' + escapeHtml(team.name) : ''}
+                    ${formatPosition(p.mainPosition)} ${team ? '• ' + escapeHtml(team.name) : ''}
                   </small>
                 </div>
                 <span class="req-check" style="display: none; font-size: 16px;">✅</span>
@@ -1558,7 +1661,7 @@
               ${pDorsal} ${escapeHtml(pName)}
             </b>
             <small style="color: var(--muted); font-size: 12px;">
-              ${player.mainPosition || t('player', 'Player')} ${team ? '• ' + escapeHtml(team.name) : ''}
+              ${formatPosition(player.mainPosition)} ${team ? '• ' + escapeHtml(team.name) : ''}
             </small>
           </div>
         </div>
@@ -1893,27 +1996,52 @@
 
         haptic(35);
 
+        const isCurrentlyActive = btn.classList.contains('active');
+        const nextVote = isCurrentlyActive ? 'pending' : vote;
+
         // Actualizar caché de votos local al instante
         liveVotes[cid] = liveVotes[cid] || {};
-        liveVotes[cid][myPlayerId] = { status: vote, playerName: pName, timestamp: Date.now() };
+        if (nextVote === 'pending') {
+          delete liveVotes[cid][myPlayerId];
+          const convObj = (clubData && clubData.convocations) ? clubData.convocations.find(x => x.id === cid) : null;
+          if (convObj && convObj.responses) delete convObj.responses[myPlayerId];
+        } else {
+          liveVotes[cid][myPlayerId] = { status: nextVote, playerName: pName, timestamp: Date.now() };
+        }
 
         // Feedback visual inmediato
         const box = btn.closest('.portal-vote-box');
         if (box) {
           box.querySelectorAll('.btn-vote').forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
+          if (nextVote !== 'pending') {
+            btn.classList.add('active');
+          }
           const badge = document.getElementById(`vote-badge-${cid}`);
           if (badge) {
-            badge.textContent = vote === 'called' ? t('attendanceConfirmed') : t('absenceReported');
-            badge.style.background = vote === 'called' ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)';
-            badge.style.color = vote === 'called' ? '#86efac' : '#fca5a5';
+            if (nextVote === 'called') {
+              badge.textContent = t('attendanceConfirmed');
+              badge.style.background = 'rgba(34,197,94,0.2)';
+              badge.style.color = '#86efac';
+            } else if (nextVote === 'absent') {
+              badge.textContent = t('absenceReported');
+              badge.style.background = 'rgba(239,68,68,0.2)';
+              badge.style.color = '#fca5a5';
+            } else {
+              badge.textContent = t('pendingResponse');
+              badge.style.background = 'var(--surface)';
+              badge.style.color = 'var(--muted)';
+            }
           }
         }
 
         try {
           if (window.Cloud && window.Cloud.voteAttendance) {
-            await window.Cloud.voteAttendance(cid, myPlayerId, vote, pName);
-            toast(vote === 'called' ? t('attendanceConfirmed') : t('absenceReported'), 'success');
+            await window.Cloud.voteAttendance(cid, myPlayerId, nextVote, pName);
+            if (nextVote === 'pending') {
+              toast(t('voteReset', 'Respuesta cancelada (pendiente)'), 'info');
+            } else {
+              toast(nextVote === 'called' ? t('attendanceConfirmed') : t('absenceReported'), 'success');
+            }
           } else {
             toast('Guardado localmente.', 'info');
           }
@@ -1921,6 +2049,7 @@
           console.error(err);
           toast('Error: ' + err.message, 'error');
         }
+        renderConvocationsView();
       };
     });
 
@@ -2179,7 +2308,7 @@
               ${t('creationPendingTitle', 'Solicitud enviada al Entrenador')}
             </h3>
             <p style="margin: 0 0 14px; font-size: 13px; color: #cbd5e1; line-height: 1.45;">
-              ${t('creationPendingDesc', 'Has solicitado crear el perfil para')} <b>${escapeHtml(myP.name || '')}</b> (${myP.mainDorsal ? '#' + myP.mainDorsal : myP.mainPosition || 'Jugador'}).
+              ${t('creationPendingDesc', 'Has solicitado crear el perfil para')} <b>${escapeHtml(myP.name || '')}</b> (${myP.mainDorsal ? '#' + myP.mainDorsal : formatPosition(myP.mainPosition)}).
               <br/>
               ${t('creationPendingNote', 'Tu perfil se vinculará y mostrará tus estadísticas automáticamente en cuanto el entrenador confirme tu alta.')}
             </p>
@@ -2208,8 +2337,8 @@
               ${escapeHtml(myP.name || '')} ${escapeHtml(myP.lastName || '')}
             </h2>
             <div class="meta" style="display: flex; gap: 6px; flex-wrap: wrap; font-size: 12px; color: var(--muted); align-items: center;">
-              <span class="pos-tag">${myP.mainPosition || 'Jugador'}</span>
-              ${secPositions.length ? `<span class="badge" style="background: rgba(34, 211, 238, 0.15); color: var(--cyan); border: 1px solid rgba(34, 211, 238, 0.4); font-size: 11px;">🔄 ${secPositions.join(', ')}</span>` : ''}
+              <span class="pos-tag">${formatPosition(myP.mainPosition)}</span>
+              ${secPositions.length ? `<span class="badge" style="background: rgba(34, 211, 238, 0.15); color: var(--cyan); border: 1px solid rgba(34, 211, 238, 0.4); font-size: 11px;">🔄 ${formatPositionsList(secPositions)}</span>` : ''}
               <span>•</span>
               <span>#${myP.mainDorsal != null ? myP.mainDorsal : '—'}</span>
               <span>•</span>
@@ -2473,7 +2602,7 @@
                     #${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(p.name || '')} ${escapeHtml(p.lastName || '')}
                   </h4>
                   <div style="font-size: 12px; color: var(--muted); display: flex; gap: 6px; flex-wrap: wrap;">
-                    <span class="pos-tag">${p.mainPosition || 'Jugador'}</span>
+                    <span class="pos-tag">${formatPosition(p.mainPosition)}</span>
                     <span>•</span>
                     <span>${getPlayerFootLabel(p.foot)}</span>
                     ${team ? `<span>• 🛡️ ${escapeHtml(team.name)}</span>` : ''}
@@ -2481,7 +2610,7 @@
                 </div>
                 <div style="text-align: right; flex-shrink: 0;">
                   <div style="font-size: 13px; font-weight: 900; color: #22d3ee;">⭐ ${pStats.aggregatedRating}</div>
-                  <small style="font-size: 10.5px; color: var(--muted);">⚽ ${pStats.goals} goles</small>
+                  <small style="font-size: 10.5px; color: var(--muted);">⚽ ${pStats.goals} ${currentLang === 'en' ? 'goals' : 'goles'}</small>
                 </div>
               </div>
             `;
@@ -2582,11 +2711,27 @@
         ` : ''}
 
         ${(cp.phone || cp.email) ? `
-          <div class="card" style="margin-bottom: 14px; padding: 12px; border: 1px solid var(--border); background: var(--bg2); display: flex; flex-direction: column; gap: 6px; font-size: 12.5px;">
-            ${cp.phone ? `<div>📞 <b>Contacto:</b> ${escapeHtml(cp.phone)}</div>` : ''}
+          <div class="card" style="margin-bottom: 12px; padding: 12px; border: 1px solid var(--border); background: var(--bg2); display: flex; flex-direction: column; gap: 6px; font-size: 12.5px;">
+            ${cp.phone ? `<div>📞 <b>${t('contact', 'Contacto')}:</b> ${escapeHtml(cp.phone)}</div>` : ''}
             ${cp.email ? `<div>✉️ <b>Email:</b> ${escapeHtml(cp.email)}</div>` : ''}
           </div>
         ` : ''}
+
+        <!-- BOTONES DE CONTACTO: LLAMADA Y VIBER -->
+        <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+          ${cp.phone ? `
+            <a href="tel:${encodeURIComponent(cp.phone.replace(/[^0-9+]/g, ''))}" class="btn ghost sm" style="flex: 1; text-decoration: none; font-size: 12.5px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 40px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface2); color: #fff;">
+              📞 ${t('callCoach', 'Llamar')}
+            </a>
+            <a href="viber://chat?number=${encodeURIComponent(cp.phone.replace(/[^0-9+]/g, ''))}" target="_blank" rel="noopener" class="btn sm" style="flex: 1; text-decoration: none; font-size: 12.5px; font-weight: 800; background: #7c3aed; color: #ffffff !important; border: 1.5px solid #a855f7; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 40px;">
+              🟣 Viber
+            </a>
+          ` : `
+            <a href="viber://forward?text=${encodeURIComponent(t('viberCoachContactMsg', '¡Hola míster!'))}" target="_blank" rel="noopener" class="btn sm" style="flex: 1; text-decoration: none; font-size: 12.5px; font-weight: 800; background: #7c3aed; color: #ffffff !important; border: 1.5px solid #a855f7; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 40px;">
+              🟣 ${t('messageViaViber', 'Mensaje por Viber')}
+            </a>
+          `}
+        </div>
 
         <button type="button" class="btn block primary" id="btn-coach-chat" style="height: 44px; font-weight: 800; font-size: 13.5px; display: flex; align-items: center; justify-content: center; gap: 8px;">
           ${t('chatWithCoach', '💬 Chatear con el Entrenador')}
@@ -2602,14 +2747,19 @@
     if (btnChat) {
       btnChat.onclick = () => {
         close();
+        if (!myPlayerId) {
+          showSelectIdentityModal();
+          return;
+        }
         if (window.ChatUI && ChatUI.startDirectChat) {
           const myP = getMyPlayer();
           ChatUI.startDirectChat('coach', cp.name || 'Entrenador', {
             currentUserId: myPlayerId,
-            currentUserName: myP ? `${myP.name || ''} ${myP.lastName || ''}`.trim() : 'Jugador'
+            currentUserName: myP ? `${myP.name || ''} ${myP.lastName || ''}`.trim() : 'Jugador',
+            isCoach: false,
+            players: clubData.players || [],
+            teams: clubData.teams || []
           });
-          const tabBtn = document.querySelector('#portal-tabbar [data-tab="chat"]');
-          if (tabBtn) tabBtn.click();
         }
       };
     }
@@ -2641,8 +2791,8 @@
               #${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(p.name || '')} ${escapeHtml(p.lastName || '')}
             </h2>
             <div style="font-size: 12px; color: var(--muted); display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
-              <span class="pos-tag">${p.mainPosition || 'Jugador'}</span>
-              ${(p.secondaryPositions && p.secondaryPositions.length) ? `<span class="badge" style="background: rgba(34, 211, 238, 0.15); color: var(--cyan); border: 1px solid rgba(34, 211, 238, 0.4); font-size: 11px;">🔄 ${p.secondaryPositions.join(', ')}</span>` : ''}
+              <span class="pos-tag">${formatPosition(p.mainPosition)}</span>
+              ${(p.secondaryPositions && p.secondaryPositions.length) ? `<span class="badge" style="background: rgba(34, 211, 238, 0.15); color: var(--cyan); border: 1px solid rgba(34, 211, 238, 0.4); font-size: 11px;">🔄 ${formatPositionsList(p.secondaryPositions)}</span>` : ''}
               <span>•</span>
               <span>${getPlayerFootLabel(p.foot)}</span>
               ${team ? `<span>• 🛡️ ${escapeHtml(team.name)}</span>` : ''}
@@ -2791,7 +2941,7 @@
             <h4 style="margin: 6px 0 2px; font-size: 13.5px; font-weight: 800; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">
               #${p1.mainDorsal != null ? p1.mainDorsal : '-'} ${escapeHtml(p1.name || '')}
             </h4>
-            <span class="pos-tag" style="font-size: 10.5px;">${p1.mainPosition || 'Jugador'}</span>
+            <span class="pos-tag" style="font-size: 10.5px;">${formatPosition(p1.mainPosition)}</span>
             <div style="font-size: 11px; color: #22d3ee; margin-top: 4px; font-weight: 800;">${t('changeProfile')}</div>
           </div>
 
@@ -2803,7 +2953,7 @@
             <h4 style="margin: 6px 0 2px; font-size: 13.5px; font-weight: 800; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">
               #${p2.mainDorsal != null ? p2.mainDorsal : '-'} ${escapeHtml(p2.name || '')}
             </h4>
-            <span class="pos-tag" style="font-size: 10.5px;">${p2.mainPosition || 'Jugador'}</span>
+            <span class="pos-tag" style="font-size: 10.5px;">${formatPosition(p2.mainPosition)}</span>
             <div style="font-size: 11px; color: #f472b6; margin-top: 4px; font-weight: 800;">${t('changeProfile')}</div>
           </div>
         </div>

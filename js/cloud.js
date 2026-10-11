@@ -226,7 +226,7 @@
                 const data = doc.data();
                 if (data && data.convId && data.playerId) {
                   if (typeof onResponseCallback === 'function') {
-                    onResponseCallback(data);
+                    onResponseCallback(data, true);
                   }
                 }
               });
@@ -236,13 +236,26 @@
 
             // Cambios en vivo recibidos tras el inicio
             snapshot.docChanges().forEach((change) => {
-              if (change.type === 'added' || change.type === 'modified') {
+              if (change.type === 'removed') {
+                const data = change.doc.data() || {};
+                const parts = change.doc.id.split('_');
+                const convId = data.convId || parts[0];
+                const playerId = data.playerId || parts[1];
+                if (convId && playerId) {
+                  const pendingData = Object.assign({}, data, { convId, playerId, status: 'pending' });
+                  if (typeof onResponseCallback === 'function') {
+                    onResponseCallback(pendingData, false);
+                  } else if (typeof window !== 'undefined' && typeof window.onPlayerAttendanceResponse === 'function') {
+                    window.onPlayerAttendanceResponse(pendingData, false);
+                  }
+                }
+              } else if (change.type === 'added' || change.type === 'modified') {
                 const data = change.doc.data();
                 if (data && data.convId && data.playerId) {
                   if (typeof onResponseCallback === 'function') {
-                    onResponseCallback(data);
+                    onResponseCallback(data, false);
                   } else if (typeof window !== 'undefined' && typeof window.onPlayerAttendanceResponse === 'function') {
-                    window.onPlayerAttendanceResponse(data);
+                    window.onPlayerAttendanceResponse(data, false);
                   }
                 }
               }
@@ -285,7 +298,7 @@
       }
     },
 
-    // Envía el voto de asistencia de un jugador (Asiste / Baja)
+    // Envía el voto de asistencia de un jugador (Asiste / Baja / Pendiente restablecido)
     voteAttendance: async function (convId, playerId, status, playerName, notes) {
       if (!this.init()) {
         throw new Error('No hay conexión con el servidor en la nube.');
@@ -296,6 +309,21 @@
       }
 
       const docId = `${convId}_${playerId}`;
+
+      // Si el usuario cancela su voto (vuelve a pulsar), eliminar el documento de respuesta
+      if (status === 'pending') {
+        try {
+          await db.collection('clubs')
+            .doc(CLUB_ID)
+            .collection('responses')
+            .doc(docId)
+            .delete();
+          return true;
+        } catch (e) {
+          console.error('Error eliminando voto:', e);
+        }
+      }
+
       const payload = {
         convId: convId,
         playerId: playerId,
