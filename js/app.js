@@ -5506,6 +5506,37 @@
     const isOnlineNow = !!(pres && pres.isOnline && (now - (pres.lastSeen || 0) < 75000));
     const hasAppLinked = !!(pres && (pres.hasApp || pres.lastSeen || pres.userId));
 
+    function handleUnlinkPlayerAction() {
+      confirmDialog(
+        t('unlinkProfile', 'Desvincular Perfil'),
+        `${t('unlinkProfileDesc', '¿Estás seguro de que deseas desvincular el perfil de este jugador? Perderá el acceso en su dispositivo y volverá a la pantalla de selección.')} (${Store.playerName(p)})`,
+        async () => {
+          try {
+            if (window.Cloud && window.Cloud.unlinkPlayerProfile) {
+              await window.Cloud.unlinkPlayerProfile(p.id);
+            }
+            p.unlinkedAt = Date.now();
+            Store.save();
+            if (window.Cloud && window.Cloud.pushCoachState) {
+              window.Cloud.pushCoachState(Store.state, true);
+            }
+            if (window._globalPresenceMap) {
+              delete window._globalPresenceMap[p.id];
+            }
+            if (typeof window._refreshPlayersPresenceList === 'function') {
+              window._refreshPlayersPresenceList();
+            }
+            toast(t('unlinkSuccessToast', '✅ Perfil de {name} desvinculado con éxito.').replace('{name}', Store.playerName(p)), 'success');
+            closeSheet();
+            showPlayerProfileModal(p.id);
+          } catch (e) {
+            console.error('Error desvinculando perfil:', e);
+            toast('Error: ' + e.message, 'error');
+          }
+        }
+      );
+    }
+
     openSheet(Store.playerName(p), (body) => {
       body.innerHTML = `
         <div class="p-hero">
@@ -5846,37 +5877,6 @@
           showSkillDetailModal(sk, val);
         };
       });
-
-      function handleUnlinkPlayerAction() {
-        confirmDialog(
-          t('unlinkProfile', 'Desvincular Perfil'),
-          `${t('unlinkProfileDesc', '¿Estás seguro de que deseas desvincular el perfil de este jugador? Perderá el acceso en su dispositivo y volverá a la pantalla de selección.')} (${Store.playerName(p)})`,
-          async () => {
-            try {
-              if (window.Cloud && window.Cloud.unlinkPlayerProfile) {
-                await window.Cloud.unlinkPlayerProfile(p.id);
-              }
-              p.unlinkedAt = Date.now();
-              Store.save();
-              if (window.Cloud && window.Cloud.pushCoachState) {
-                window.Cloud.pushCoachState(Store.state, true);
-              }
-              if (window._globalPresenceMap) {
-                delete window._globalPresenceMap[p.id];
-              }
-              if (typeof window._refreshPlayersPresenceList === 'function') {
-                window._refreshPlayersPresenceList();
-              }
-              toast(t('unlinkSuccessToast', '✅ Perfil de {name} desvinculado con éxito.').replace('{name}', Store.playerName(p)), 'success');
-              closeSheet();
-              showPlayerProfileModal(p.id);
-            } catch (e) {
-              console.error('Error desvinculando perfil:', e);
-              toast('Error: ' + e.message, 'error');
-            }
-          }
-        );
-      }
 
       const btnUnlinkCard = body.querySelector('#btn-unlink-player-profile');
       if (btnUnlinkCard) btnUnlinkCard.onclick = handleUnlinkPlayerAction;
