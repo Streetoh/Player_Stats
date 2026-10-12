@@ -963,6 +963,7 @@
     if (btnLang) btnLang.textContent = currentLang.toUpperCase();
     const badge = document.getElementById('portal-cloud-badge');
     if (badge) badge.textContent = `🟢 ${t('live')}`;
+    updateConvocationsBadge();
   }
 
   /* -------------------------------------------------------------
@@ -2001,6 +2002,18 @@
     }
     renderCurrentTab();
     setTimeout(() => {
+      const convs = (clubData && clubData.convocations) ? clubData.convocations : [];
+      const conv = convs.find(x => x.id === convId);
+      if (conv) {
+        markConvAsOpened(convId, myPlayerId);
+        const dotEl = document.getElementById(`conv-new-dot-${convId}`);
+        if (dotEl) dotEl.remove();
+        if (conv.type === 'match') {
+          showMatchDetailsModal(conv);
+        } else {
+          showTrainingDetailsModal(conv);
+        }
+      }
       const card = document.querySelector(`.card[data-cid="${convId}"]`);
       if (card) {
         card.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -2014,6 +2027,58 @@
       }
     }, 120);
   };
+
+  /* -------------------------------------------------------------
+     CONTROL DE CONVOCATORIAS NUEVAS / NO LEÍDAS Y NOTIFICACIÓN (DOT)
+     ------------------------------------------------------------- */
+  function isPlayerCalledUpInConv(c, pid) {
+    if (!c || !pid) return false;
+    const p = (clubData && clubData.players ? clubData.players.find(x => x.id === pid) : null) || getMyPlayer();
+    if (!p) return false;
+
+    // Pertenencia a equipo de la convocatoria
+    const convTeams = (Array.isArray(c.teamIds) && c.teamIds.length > 0)
+      ? c.teamIds
+      : (c.teamId ? [c.teamId] : []);
+    if (convTeams.length > 0) {
+      if (!p.teamId || !convTeams.includes(p.teamId)) return false;
+    }
+
+    // Explícitamente convocado en lista (ni 'uncalled' ni 'absent')
+    const list = c.list || {};
+    const st = list[pid];
+    return !!(st && st !== 'uncalled' && st !== 'absent');
+  }
+
+  function isConvUnopened(c, pid) {
+    if (!c || !pid) return false;
+    if (!isPlayerCalledUpInConv(c, pid)) return false;
+    try {
+      return localStorage.getItem(`portal_conv_opened_${pid}_${c.id}`) !== 'true';
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function markConvAsOpened(convId, pid) {
+    if (!convId || !pid) return;
+    try {
+      localStorage.setItem(`portal_conv_opened_${pid}_${convId}`, 'true');
+    } catch (e) {}
+    updateConvocationsBadge();
+  }
+
+  function updateConvocationsBadge() {
+    const dotEl = document.getElementById('convocations-tab-dot');
+    if (!dotEl) return;
+    if (!hasApprovedProfile() || !myPlayerId) {
+      dotEl.style.display = 'none';
+      return;
+    }
+    const convs = (clubData && clubData.convocations) ? clubData.convocations : [];
+    const hasUnopened = convs.some(c => isConvUnopened(c, myPlayerId));
+    dotEl.style.display = hasUnopened ? 'inline-block' : 'none';
+  }
 
   /* -------------------------------------------------------------
      PESTAÑA 1: CONVOCATORIAS (PUNTOS 2, 3, 4)
@@ -2126,28 +2191,41 @@
               const isAbsent = mySt && (mySt === 'absent' || mySt === 'no');
 
               const isMatch = c.type === 'match';
+              const isUnopened = isConvUnopened(c, myPlayerId);
 
               return `
-                <div class="card" style="border: 1px solid var(--border); padding: 16px;" data-cid="${c.id}">
-                  <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
-                    <div>
-                      <span class="badge ${c.type}" style="margin-bottom: 6px;">
-                        ${isMatch ? '🏆 ' + t('match') : '⚽ ' + t('training')}
-                      </span>
-                      <h3 style="margin: 0; font-size: 17px; font-weight: 900;">
-                        ${escapeHtml(c.title || (c.rival ? 'vs ' + c.rival : t('callUpOfficial')))}
-                      </h3>
-                      <div style="font-size: 12.5px; color: var(--muted); margin-top: 4px; line-height: 1.4;">
-                        📅 <b>${formatDisplayDate(c.date)}</b> • ⏰ ${c.time || '10:00'}<br />
-                        ${c.venue ? `📍 <b>${t('venue')}:</b> ${escapeHtml(c.venue)}<br />` : ''}
-                        ${c.address ? `
-                          🗺️ <b>${t('address')}:</b> ${escapeHtml(c.address)}
-                          <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(c.address)}" target="_blank" style="color: var(--cyan); font-weight: 800; text-decoration: underline; margin-left: 4px;">
-                            ${t('openInMaps')}
-                          </a><br />
-                        ` : ''}
-                        ${team ? `<span style="color: ${team.color || 'var(--cyan)'}; font-weight: 800;">🛡️ ${escapeHtml(team.name)}</span>` : ''}
+                <div class="card conv-card-clickable" style="border: 1px solid var(--border); padding: 16px; position: relative;" data-cid="${c.id}">
+                  <!-- Encabezado clickeable para abrir detalles -->
+                  <div class="conv-card-header-tap" data-open-conv-id="${c.id}" style="cursor: pointer;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+                      <div style="flex: 1;">
+                        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px; flex-wrap: wrap;">
+                          <span class="badge ${c.type}">
+                            ${isMatch ? '🏆 ' + t('match') : '⚽ ' + t('training')}
+                          </span>
+                          ${isUnopened ? `
+                            <span class="badge-conv-new" id="conv-new-dot-${c.id}" style="display: inline-flex; align-items: center; gap: 4px; background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.5); font-size: 10px; font-weight: 900; padding: 2px 7px; border-radius: 12px; letter-spacing: 0.3px;">
+                              <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 6px #ef4444;"></span>
+                              NEW
+                            </span>
+                          ` : ''}
+                        </div>
+                        <h3 style="margin: 0; font-size: 17px; font-weight: 900; color: #fff;">
+                          ${escapeHtml(c.title || (c.rival ? 'vs ' + c.rival : t('callUpOfficial')))}
+                        </h3>
+                        <div style="font-size: 12.5px; color: var(--muted); margin-top: 4px; line-height: 1.4;">
+                          📅 <b>${formatDisplayDate(c.date)}</b> • ⏰ ${c.time || '10:00'}<br />
+                          ${c.venue ? `📍 <b>${t('venue')}:</b> ${escapeHtml(c.venue)}<br />` : ''}
+                          ${c.address ? `
+                            🗺️ <b>${t('address')}:</b> ${escapeHtml(c.address)}
+                            <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(c.address)}" target="_blank" onclick="event.stopPropagation();" style="color: var(--cyan); font-weight: 800; text-decoration: underline; margin-left: 4px;">
+                              ${t('openInMaps')}
+                            </a><br />
+                          ` : ''}
+                          ${team ? `<span style="color: ${team.color || 'var(--cyan)'}; font-weight: 800;">🛡️ ${escapeHtml(team.name)}</span>` : ''}
+                        </div>
                       </div>
+                      <div style="font-size: 16px; color: var(--muted); padding-top: 4px; opacity: 0.7;">➔</div>
                     </div>
                   </div>
 
@@ -2157,8 +2235,19 @@
                     </div>
                   ` : ''}
 
+                  <!-- Botón interactivo para abrir los detalles completos -->
+                  <div style="margin-top: 10px;">
+                    <button type="button" class="btn block ghost btn-open-conv-details" data-open-conv-id="${c.id}" style="height: 38px; font-size: 12.5px; font-weight: 800; border-radius: 10px; border: 1px dashed ${isMatch ? 'rgba(56, 189, 248, 0.45)' : 'rgba(34, 197, 94, 0.45)'}; background: ${isMatch ? 'rgba(56, 189, 248, 0.08)' : 'rgba(34, 197, 94, 0.08)'}; color: ${isMatch ? '#38bdf8' : '#86efac'}; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; cursor: pointer; width: 100%;">
+                      <div style="display: flex; align-items: center; gap: 7px;">
+                        <span>${isMatch ? '🏆' : '⚽'}</span>
+                        <span>${isMatch ? 'Tap for Match Details & Squad' : 'Tap for Training Details & Squad'}</span>
+                      </div>
+                      <span style="font-size: 14px; font-weight: 900;">➔</span>
+                    </button>
+                  </div>
+
                   <!-- CAJA DE ASISTENCIA -->
-                  <div class="portal-vote-box">
+                  <div class="portal-vote-box" style="margin-top: 10px;">
                     ${isCalled ? `
                       <div style="display: flex; justify-content: space-between; align-items: center;">
                         <span style="font-size: 12px; font-weight: 800; color: #fff;">${t('willYouAttend')}</span>
@@ -2209,6 +2298,25 @@
       };
     });
 
+    // Abrir detalles completos de la convocatoria al pulsar en el encabezado o botón dedicado
+    view.querySelectorAll('[data-open-conv-id]').forEach(el => {
+      el.onclick = (e) => {
+        e.stopPropagation();
+        const cid = el.getAttribute('data-open-conv-id');
+        const conv = convs.find(x => x.id === cid);
+        if (!conv) return;
+        markConvAsOpened(cid, myPlayerId);
+        const dotEl = document.getElementById(`conv-new-dot-${cid}`);
+        if (dotEl) dotEl.remove();
+        haptic(25);
+        if (conv.type === 'match') {
+          showMatchDetailsModal(conv);
+        } else {
+          showTrainingDetailsModal(conv);
+        }
+      };
+    });
+
     // Conectar botones de voto
     view.querySelectorAll('.btn-vote').forEach(btn => {
       btn.onclick = async () => {
@@ -2221,6 +2329,10 @@
         const vote = btn.getAttribute('data-vote');
         const myP = getMyPlayer();
         const pName = myP ? `${myP.name || ''} ${myP.lastName || ''}`.trim() : 'Player';
+
+        markConvAsOpened(cid, myPlayerId);
+        const dotEl = document.getElementById(`conv-new-dot-${cid}`);
+        if (dotEl) dotEl.remove();
 
         haptic(35);
 
@@ -2289,6 +2401,514 @@
         if (conv) showAttendeesBreakdownModal(conv);
       };
     });
+  }
+
+  /* -------------------------------------------------------------
+     MODALES DETALLADOS DE CONVOCATORIA (PARTIDO Y ENTRENAMIENTO) EN INGLÉS
+     ------------------------------------------------------------- */
+  function showMatchDetailsModal(conv) {
+    if (!conv) return;
+    markConvAsOpened(conv.id, myPlayerId);
+    const dotEl = document.getElementById(`conv-new-dot-${conv.id}`);
+    if (dotEl) dotEl.remove();
+
+    const team = (clubData && clubData.teams) ? clubData.teams.find(t => t.id === conv.teamId) : null;
+    const list = conv.list || {};
+    const responses = liveVotes[conv.id] || (conv.responses || {});
+    const allPlayersMap = {};
+    (clubData.players || []).forEach(p => { allPlayersMap[p.id] = p; });
+
+    const calledPlayerIds = Object.keys(list).filter(pid => {
+      const st = list[pid];
+      return st && st !== 'uncalled' && st !== 'absent';
+    });
+
+    const attendingPlayers = [];
+    const absentPlayers = [];
+    const pendingPlayers = [];
+
+    calledPlayerIds.forEach(pid => {
+      const p = allPlayersMap[pid] || { id: pid, name: pid.replace(/^manual_/, ''), mainPosition: 'Player' };
+      const r = responses[pid];
+      const st = r ? r.status : null;
+      if (st === 'called' || st === 'attending' || st === 'yes') attendingPlayers.push(p);
+      else if (st === 'absent' || st === 'no') absentPlayers.push(p);
+      else pendingPlayers.push(p);
+    });
+
+    const myVoteObj = myPlayerId ? (responses[myPlayerId] || (conv.responses && conv.responses[myPlayerId])) : null;
+    let currentVoteStatus = myVoteObj ? myVoteObj.status : null;
+    let isAttending = currentVoteStatus && (currentVoteStatus === 'called' || currentVoteStatus === 'attending' || currentVoteStatus === 'yes');
+    let isAbsent = currentVoteStatus && (currentVoteStatus === 'absent' || currentVoteStatus === 'no');
+
+    // Calculate meeting time
+    let meetingTimeStr = conv.meetingTime || conv.callTime || '';
+    if (!meetingTimeStr && conv.time) {
+      const parts = conv.time.split(':');
+      if (parts.length === 2) {
+        let m = parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10) - 45;
+        if (m < 0) m += 1440;
+        const hh = String(Math.floor(m / 60)).padStart(2, '0');
+        const mm = String(m % 60).padStart(2, '0');
+        meetingTimeStr = `${hh}:${mm} (45 min before kick-off)`;
+      }
+    }
+
+    const overlay = document.createElement('div');
+    overlay.className = 'dialog-overlay';
+    overlay.innerHTML = `
+      <div class="dialog-box" style="max-height: 90vh; width: 95%; max-width: 520px; display: flex; flex-direction: column; padding: 18px; border-radius: 20px;">
+        <!-- Header -->
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 12px; flex-shrink: 0;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 22px;">🏆</span>
+            <div>
+              <h3 style="margin: 0; font-size: 16px; font-weight: 900; color: #fff;">Match Details</h3>
+              <small style="font-size: 11px; color: var(--muted);">${team ? escapeHtml(team.name) : 'Official Match Call-up'}</small>
+            </div>
+          </div>
+          <button type="button" class="icon-btn ghost" id="dlg-match-det-x" style="width: 32px; height: 32px; font-size: 16px;">✕</button>
+        </div>
+
+        <div style="flex: 1; overflow-y: auto; padding-right: 4px; display: flex; flex-direction: column; gap: 12px;">
+          <!-- Banner -->
+          <div style="background: linear-gradient(135deg, rgba(56, 189, 248, 0.16) 0%, rgba(3, 105, 161, 0.2) 100%); border: 1.5px solid rgba(56, 189, 248, 0.35); border-radius: 14px; padding: 14px; text-align: center;">
+            <div style="font-size: 11px; font-weight: 800; color: #38bdf8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">
+              ${team ? `🛡️ ${escapeHtml(team.name)}` : 'OFFICIAL FIXTURE'}
+            </div>
+            <div style="font-size: 20px; font-weight: 900; color: #fff; margin-bottom: 4px;">
+              ${escapeHtml(conv.title || (conv.rival ? 'vs ' + conv.rival : 'Match Call-up'))}
+            </div>
+            ${conv.rival ? `
+              <div style="font-size: 13px; font-weight: 800; color: #7dd3fc;">
+                ⚔️ Opponent: <b>${escapeHtml(conv.rival)}</b>
+              </div>
+            ` : ''}
+          </div>
+
+          <!-- Schedule Grid -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px;">
+              <div style="font-size: 11px; color: var(--muted); font-weight: 700; margin-bottom: 2px;">📅 MATCH DATE</div>
+              <div style="font-size: 13px; font-weight: 800; color: #fff;">${formatDisplayDate(conv.date)}</div>
+            </div>
+            <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px;">
+              <div style="font-size: 11px; color: var(--muted); font-weight: 700; margin-bottom: 2px;">⏰ KICK-OFF TIME</div>
+              <div style="font-size: 13px; font-weight: 800; color: #38bdf8;">${conv.time || '10:00'}</div>
+            </div>
+            ${meetingTimeStr ? `
+              <div style="grid-column: span 2; background: rgba(234, 179, 8, 0.1); border: 1px solid rgba(234, 179, 8, 0.3); border-radius: 12px; padding: 10px 12px;">
+                <div style="font-size: 11px; color: #fde047; font-weight: 800; margin-bottom: 2px;">⏱️ MEETING / ARRIVAL TIME</div>
+                <div style="font-size: 13px; font-weight: 900; color: #fff;">${escapeHtml(meetingTimeStr)}</div>
+              </div>
+            ` : ''}
+          </div>
+
+          <!-- Venue & Address -->
+          <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 12px;">
+            <div style="font-size: 11px; color: var(--muted); font-weight: 700; margin-bottom: 4px;">📍 PITCH & VENUE</div>
+            ${conv.venue ? `
+              <div style="font-size: 13.5px; font-weight: 800; color: #fff; margin-bottom: 4px;">
+                ${escapeHtml(conv.venue)}
+              </div>
+            ` : ''}
+            ${conv.address ? `
+              <div style="font-size: 12px; color: var(--muted); margin-bottom: 8px;">
+                🗺️ ${escapeHtml(conv.address)}
+              </div>
+              <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(conv.address)}" target="_blank" class="btn sm primary" style="display: inline-flex; align-items: center; gap: 6px; height: 32px; font-size: 12px; font-weight: 800; text-decoration: none;">
+                🗺️ Open in Google Maps ↗
+              </a>
+            ` : (conv.venue ? `
+              <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(conv.venue)}" target="_blank" class="btn sm primary" style="display: inline-flex; align-items: center; gap: 6px; height: 32px; font-size: 12px; font-weight: 800; text-decoration: none;">
+                🗺️ Open in Google Maps ↗
+              </a>
+            ` : '<div style="font-size: 12px; color: var(--muted);">Venue location not specified</div>')}
+          </div>
+
+          <!-- Coach Instructions & Tactical Notes -->
+          ${conv.notes ? `
+            <div style="background: rgba(34, 211, 238, 0.08); border-left: 3px solid var(--cyan); border-radius: 8px; padding: 10px 12px;">
+              <div style="font-size: 11px; font-weight: 800; color: var(--cyan); margin-bottom: 4px;">📝 COACH'S INSTRUCTIONS & NOTES</div>
+              <div style="font-size: 12.5px; color: #bae6fd; line-height: 1.45; white-space: pre-line;">${escapeHtml(conv.notes)}</div>
+            </div>
+          ` : ''}
+
+          <!-- Kit & Uniform -->
+          <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 22px;">👕</span>
+            <div>
+              <div style="font-size: 11px; color: var(--muted); font-weight: 700;">KIT & GEAR</div>
+              <div style="font-size: 12.5px; font-weight: 800; color: #fff;">
+                ${conv.kit ? escapeHtml(conv.kit) : 'Official match kit, shin guards and water bottle'}
+              </div>
+            </div>
+          </div>
+
+          <!-- Match Squad Attendance Breakdown -->
+          <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 14px; padding: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+              <div style="font-size: 12px; font-weight: 800; color: #fff;">👥 MATCH SQUAD (${calledPlayerIds.length})</div>
+              <div style="display: flex; gap: 6px; font-size: 11.5px; font-weight: 800;">
+                <span style="color: #86efac;">🟢 ${attendingPlayers.length}</span>
+                <span style="color: #fca5a5;">❌ ${absentPlayers.length}</span>
+                <span style="color: #fde047;">⏳ ${pendingPlayers.length}</span>
+              </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; max-height: 170px; overflow-y: auto;">
+              ${calledPlayerIds.map(pid => {
+                const p = allPlayersMap[pid] || { id: pid, name: pid.replace(/^manual_/, '') };
+                const r = responses[pid];
+                const st = r ? r.status : null;
+                const isAtt = (st === 'called' || st === 'attending' || st === 'yes');
+                const isAbs = (st === 'absent' || st === 'no');
+                const statusIcon = isAtt ? '🟢' : (isAbs ? '❌' : '⏳');
+                return `
+                  <div style="display: flex; align-items: center; gap: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; font-size: 11.5px; overflow: hidden;">
+                    <span>${statusIcon}</span>
+                    <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;">
+                      <b style="color: #fff;">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(p.name || '')}</b>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+
+          <!-- Attendance Response Box -->
+          <div style="background: rgba(34, 197, 94, 0.08); border: 1.5px solid rgba(34, 197, 94, 0.3); border-radius: 14px; padding: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span style="font-size: 12px; font-weight: 800; color: #fff;">Your Attendance Response:</span>
+              <span id="match-modal-vote-badge" class="badge" style="${isAttending ? 'background: rgba(34,197,94,0.2); color: #86efac;' : (isAbsent ? 'background: rgba(239,68,68,0.2); color: #fca5a5;' : 'background: var(--surface); color: var(--muted);')}">
+                ${isAttending ? 'Confirmed' : (isAbsent ? 'Unavailable' : 'Pending Response')}
+              </span>
+            </div>
+
+            <div style="display: flex; gap: 8px;">
+              <button type="button" class="btn sm match-modal-vote-btn ${isAttending ? 'primary' : 'ghost'}" data-vote="called" style="flex: 1; height: 38px; font-weight: 800; border-radius: 10px;">
+                👍 I will attend
+              </button>
+              <button type="button" class="btn sm match-modal-vote-btn ${isAbsent ? 'danger' : 'ghost'}" data-vote="absent" style="flex: 1; height: 38px; font-weight: 800; border-radius: 10px;">
+                ❌ Cannot attend
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border); flex-shrink: 0;">
+          <button type="button" class="btn block ghost" id="dlg-match-det-close" style="height: 40px; font-weight: 800; border-radius: 10px;">
+            Close
+          </button>
+        </div>
+      </div>
+    `;
+
+    function close() { overlay.remove(); }
+    overlay.querySelector('#dlg-match-det-x').onclick = close;
+    overlay.querySelector('#dlg-match-det-close').onclick = close;
+    overlay.onclick = (e) => { if (e.target === overlay) close(); };
+
+    // Manejar voto interactivo dentro del modal
+    overlay.querySelectorAll('.match-modal-vote-btn').forEach(btn => {
+      btn.onclick = async () => {
+        if (!myPlayerId) {
+          showSelectIdentityModal();
+          return;
+        }
+        const vote = btn.getAttribute('data-vote');
+        const isCurrent = btn.classList.contains('primary') || btn.classList.contains('danger');
+        const nextVote = isCurrent ? 'pending' : vote;
+        const myP = getMyPlayer();
+        const pName = myP ? `${myP.name || ''} ${myP.lastName || ''}`.trim() : 'Player';
+
+        haptic(35);
+
+        liveVotes[conv.id] = liveVotes[conv.id] || {};
+        if (nextVote === 'pending') {
+          delete liveVotes[conv.id][myPlayerId];
+          if (conv.responses) delete conv.responses[myPlayerId];
+        } else {
+          liveVotes[conv.id][myPlayerId] = { status: nextVote, playerName: pName, timestamp: Date.now() };
+          conv.responses = conv.responses || {};
+          conv.responses[myPlayerId] = liveVotes[conv.id][myPlayerId];
+        }
+
+        // Actualizar badges en modal
+        const badgeEl = overlay.querySelector('#match-modal-vote-badge');
+        if (badgeEl) {
+          if (nextVote === 'called') {
+            badgeEl.textContent = 'Confirmed';
+            badgeEl.style.background = 'rgba(34,197,94,0.2)';
+            badgeEl.style.color = '#86efac';
+          } else if (nextVote === 'absent') {
+            badgeEl.textContent = 'Unavailable';
+            badgeEl.style.background = 'rgba(239,68,68,0.2)';
+            badgeEl.style.color = '#fca5a5';
+          } else {
+            badgeEl.textContent = 'Pending Response';
+            badgeEl.style.background = 'var(--surface)';
+            badgeEl.style.color = 'var(--muted)';
+          }
+        }
+        overlay.querySelectorAll('.match-modal-vote-btn').forEach(b => {
+          b.className = 'btn sm match-modal-vote-btn ghost';
+        });
+        if (nextVote === 'called') {
+          btn.className = 'btn sm match-modal-vote-btn primary';
+        } else if (nextVote === 'absent') {
+          btn.className = 'btn sm match-modal-vote-btn danger';
+        }
+
+        renderConvocationsView();
+
+        try {
+          if (window.Cloud && window.Cloud.voteAttendance) {
+            await window.Cloud.voteAttendance(conv.id, myPlayerId, nextVote, pName);
+            toast(nextVote === 'called' ? 'Attendance confirmed!' : (nextVote === 'absent' ? 'Absence reported' : 'Response reset to pending'), 'success');
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      };
+    });
+
+    document.body.appendChild(overlay);
+  }
+
+  function showTrainingDetailsModal(conv) {
+    if (!conv) return;
+    markConvAsOpened(conv.id, myPlayerId);
+    const dotEl = document.getElementById(`conv-new-dot-${conv.id}`);
+    if (dotEl) dotEl.remove();
+
+    const team = (clubData && clubData.teams) ? clubData.teams.find(t => t.id === conv.teamId) : null;
+    const list = conv.list || {};
+    const responses = liveVotes[conv.id] || (conv.responses || {});
+    const allPlayersMap = {};
+    (clubData.players || []).forEach(p => { allPlayersMap[p.id] = p; });
+
+    const calledPlayerIds = Object.keys(list).filter(pid => {
+      const st = list[pid];
+      return st && st !== 'uncalled' && st !== 'absent';
+    });
+
+    const attendingPlayers = [];
+    const absentPlayers = [];
+    const pendingPlayers = [];
+
+    calledPlayerIds.forEach(pid => {
+      const p = allPlayersMap[pid] || { id: pid, name: pid.replace(/^manual_/, ''), mainPosition: 'Player' };
+      const r = responses[pid];
+      const st = r ? r.status : null;
+      if (st === 'called' || st === 'attending' || st === 'yes') attendingPlayers.push(p);
+      else if (st === 'absent' || st === 'no') absentPlayers.push(p);
+      else pendingPlayers.push(p);
+    });
+
+    const myVoteObj = myPlayerId ? (responses[myPlayerId] || (conv.responses && conv.responses[myPlayerId])) : null;
+    let currentVoteStatus = myVoteObj ? myVoteObj.status : null;
+    let isAttending = currentVoteStatus && (currentVoteStatus === 'called' || currentVoteStatus === 'attending' || currentVoteStatus === 'yes');
+    let isAbsent = currentVoteStatus && (currentVoteStatus === 'absent' || currentVoteStatus === 'no');
+
+    const overlay = document.createElement('div');
+    overlay.className = 'dialog-overlay';
+    overlay.innerHTML = `
+      <div class="dialog-box" style="max-height: 90vh; width: 95%; max-width: 520px; display: flex; flex-direction: column; padding: 18px; border-radius: 20px;">
+        <!-- Header -->
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 12px; flex-shrink: 0;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 22px;">⚽</span>
+            <div>
+              <h3 style="margin: 0; font-size: 16px; font-weight: 900; color: #fff;">Training Details</h3>
+              <small style="font-size: 11px; color: var(--muted);">${team ? escapeHtml(team.name) : 'Team Training Session'}</small>
+            </div>
+          </div>
+          <button type="button" class="icon-btn ghost" id="dlg-tr-det-x" style="width: 32px; height: 32px; font-size: 16px;">✕</button>
+        </div>
+
+        <div style="flex: 1; overflow-y: auto; padding-right: 4px; display: flex; flex-direction: column; gap: 12px;">
+          <!-- Banner -->
+          <div style="background: linear-gradient(135deg, rgba(34, 197, 94, 0.16) 0%, rgba(21, 128, 61, 0.2) 100%); border: 1.5px solid rgba(34, 197, 94, 0.35); border-radius: 14px; padding: 14px; text-align: center;">
+            <div style="font-size: 11px; font-weight: 800; color: #86efac; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">
+              ${team ? `🛡️ ${escapeHtml(team.name)}` : 'TRAINING SESSION'}
+            </div>
+            <div style="font-size: 20px; font-weight: 900; color: #fff; margin-bottom: 4px;">
+              ${escapeHtml(conv.title || 'Team Training')}
+            </div>
+          </div>
+
+          <!-- Schedule Grid -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px;">
+              <div style="font-size: 11px; color: var(--muted); font-weight: 700; margin-bottom: 2px;">📅 DATE</div>
+              <div style="font-size: 13px; font-weight: 800; color: #fff;">${formatDisplayDate(conv.date)}</div>
+            </div>
+            <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px;">
+              <div style="font-size: 11px; color: var(--muted); font-weight: 700; margin-bottom: 2px;">⏰ START TIME</div>
+              <div style="font-size: 13px; font-weight: 800; color: #86efac;">${conv.time || '10:00'}</div>
+            </div>
+          </div>
+
+          <!-- Venue & Address -->
+          <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 12px;">
+            <div style="font-size: 11px; color: var(--muted); font-weight: 700; margin-bottom: 4px;">📍 PITCH & VENUE</div>
+            ${conv.venue ? `
+              <div style="font-size: 13.5px; font-weight: 800; color: #fff; margin-bottom: 4px;">
+                ${escapeHtml(conv.venue)}
+              </div>
+            ` : ''}
+            ${conv.address ? `
+              <div style="font-size: 12px; color: var(--muted); margin-bottom: 8px;">
+                🗺️ ${escapeHtml(conv.address)}
+              </div>
+              <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(conv.address)}" target="_blank" class="btn sm primary" style="display: inline-flex; align-items: center; gap: 6px; height: 32px; font-size: 12px; font-weight: 800; text-decoration: none;">
+                🗺️ Open in Google Maps ↗
+              </a>
+            ` : (conv.venue ? `
+              <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(conv.venue)}" target="_blank" class="btn sm primary" style="display: inline-flex; align-items: center; gap: 6px; height: 32px; font-size: 12px; font-weight: 800; text-decoration: none;">
+                🗺️ Open in Google Maps ↗
+              </a>
+            ` : '<div style="font-size: 12px; color: var(--muted);">Venue location not specified</div>')}
+          </div>
+
+          <!-- Coach Instructions & Notes -->
+          ${conv.notes ? `
+            <div style="background: rgba(34, 197, 94, 0.08); border-left: 3px solid #22c55e; border-radius: 8px; padding: 10px 12px;">
+              <div style="font-size: 11px; font-weight: 800; color: #86efac; margin-bottom: 4px;">📝 COACH'S TRAINING FOCUS & NOTES</div>
+              <div style="font-size: 12.5px; color: #bbf7d0; line-height: 1.45; white-space: pre-line;">${escapeHtml(conv.notes)}</div>
+            </div>
+          ` : ''}
+
+          <!-- Training Squad Attendance Breakdown -->
+          <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 14px; padding: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+              <div style="font-size: 12px; font-weight: 800; color: #fff;">👥 CALLED PLAYERS (${calledPlayerIds.length})</div>
+              <div style="display: flex; gap: 6px; font-size: 11.5px; font-weight: 800;">
+                <span style="color: #86efac;">🟢 ${attendingPlayers.length}</span>
+                <span style="color: #fca5a5;">❌ ${absentPlayers.length}</span>
+                <span style="color: #fde047;">⏳ ${pendingPlayers.length}</span>
+              </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; max-height: 170px; overflow-y: auto;">
+              ${calledPlayerIds.map(pid => {
+                const p = allPlayersMap[pid] || { id: pid, name: pid.replace(/^manual_/, '') };
+                const r = responses[pid];
+                const st = r ? r.status : null;
+                const isAtt = (st === 'called' || st === 'attending' || st === 'yes');
+                const isAbs = (st === 'absent' || st === 'no');
+                const statusIcon = isAtt ? '🟢' : (isAbs ? '❌' : '⏳');
+                return `
+                  <div style="display: flex; align-items: center; gap: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; font-size: 11.5px; overflow: hidden;">
+                    <span>${statusIcon}</span>
+                    <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;">
+                      <b style="color: #fff;">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(p.name || '')}</b>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+
+          <!-- Attendance Response Box -->
+          <div style="background: rgba(34, 197, 94, 0.08); border: 1.5px solid rgba(34, 197, 94, 0.3); border-radius: 14px; padding: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span style="font-size: 12px; font-weight: 800; color: #fff;">Your Attendance Response:</span>
+              <span id="tr-modal-vote-badge" class="badge" style="${isAttending ? 'background: rgba(34,197,94,0.2); color: #86efac;' : (isAbsent ? 'background: rgba(239,68,68,0.2); color: #fca5a5;' : 'background: var(--surface); color: var(--muted);')}">
+                ${isAttending ? 'Confirmed' : (isAbsent ? 'Unavailable' : 'Pending Response')}
+              </span>
+            </div>
+
+            <div style="display: flex; gap: 8px;">
+              <button type="button" class="btn sm tr-modal-vote-btn ${isAttending ? 'primary' : 'ghost'}" data-vote="called" style="flex: 1; height: 38px; font-weight: 800; border-radius: 10px;">
+                👍 I will attend
+              </button>
+              <button type="button" class="btn sm tr-modal-vote-btn ${isAbsent ? 'danger' : 'ghost'}" data-vote="absent" style="flex: 1; height: 38px; font-weight: 800; border-radius: 10px;">
+                ❌ Cannot attend
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border); flex-shrink: 0;">
+          <button type="button" class="btn block ghost" id="dlg-tr-det-close" style="height: 40px; font-weight: 800; border-radius: 10px;">
+            Close
+          </button>
+        </div>
+      </div>
+    `;
+
+    function close() { overlay.remove(); }
+    overlay.querySelector('#dlg-tr-det-x').onclick = close;
+    overlay.querySelector('#dlg-tr-det-close').onclick = close;
+    overlay.onclick = (e) => { if (e.target === overlay) close(); };
+
+    // Manejar voto interactivo dentro del modal
+    overlay.querySelectorAll('.tr-modal-vote-btn').forEach(btn => {
+      btn.onclick = async () => {
+        if (!myPlayerId) {
+          showSelectIdentityModal();
+          return;
+        }
+        const vote = btn.getAttribute('data-vote');
+        const isCurrent = btn.classList.contains('primary') || btn.classList.contains('danger');
+        const nextVote = isCurrent ? 'pending' : vote;
+        const myP = getMyPlayer();
+        const pName = myP ? `${myP.name || ''} ${myP.lastName || ''}`.trim() : 'Player';
+
+        haptic(35);
+
+        liveVotes[conv.id] = liveVotes[conv.id] || {};
+        if (nextVote === 'pending') {
+          delete liveVotes[conv.id][myPlayerId];
+          if (conv.responses) delete conv.responses[myPlayerId];
+        } else {
+          liveVotes[conv.id][myPlayerId] = { status: nextVote, playerName: pName, timestamp: Date.now() };
+          conv.responses = conv.responses || {};
+          conv.responses[myPlayerId] = liveVotes[conv.id][myPlayerId];
+        }
+
+        // Actualizar badges en modal
+        const badgeEl = overlay.querySelector('#tr-modal-vote-badge');
+        if (badgeEl) {
+          if (nextVote === 'called') {
+            badgeEl.textContent = 'Confirmed';
+            badgeEl.style.background = 'rgba(34,197,94,0.2)';
+            badgeEl.style.color = '#86efac';
+          } else if (nextVote === 'absent') {
+            badgeEl.textContent = 'Unavailable';
+            badgeEl.style.background = 'rgba(239,68,68,0.2)';
+            badgeEl.style.color = '#fca5a5';
+          } else {
+            badgeEl.textContent = 'Pending Response';
+            badgeEl.style.background = 'var(--surface)';
+            badgeEl.style.color = 'var(--muted)';
+          }
+        }
+        overlay.querySelectorAll('.tr-modal-vote-btn').forEach(b => {
+          b.className = 'btn sm tr-modal-vote-btn ghost';
+        });
+        if (nextVote === 'called') {
+          btn.className = 'btn sm tr-modal-vote-btn primary';
+        } else if (nextVote === 'absent') {
+          btn.className = 'btn sm tr-modal-vote-btn danger';
+        }
+
+        renderConvocationsView();
+
+        try {
+          if (window.Cloud && window.Cloud.voteAttendance) {
+            await window.Cloud.voteAttendance(conv.id, myPlayerId, nextVote, pName);
+            toast(nextVote === 'called' ? 'Attendance confirmed!' : (nextVote === 'absent' ? 'Absence reported' : 'Response reset to pending'), 'success');
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      };
+    });
+
+    document.body.appendChild(overlay);
   }
 
   function showAttendeesBreakdownModal(conv) {
@@ -3395,6 +4015,7 @@
 
   function renderCurrentTab() {
     updateTabbarLabels();
+    updateConvocationsBadge();
     if (currentTab === 'convocations') renderConvocationsView();
     else if (currentTab === 'stats') renderMyStatsView();
     else if (currentTab === 'squad') renderSquadView();
@@ -3626,6 +4247,7 @@
           clubData.convocations = remoteState.convocations;
         }
         window.clubData = clubData;
+        updateConvocationsBadge();
         try { localStorage.setItem('cached_club_state', JSON.stringify(clubData)); } catch (e) {}
 
         if (remoteState.settings && remoteState.settings.clubName) {
