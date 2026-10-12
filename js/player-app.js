@@ -18,6 +18,7 @@
   let myPlayerId = localStorage.getItem('portal_player_id') || null;
   let liveVotes = {}; // { [convId]: { [pid]: response } }
   let currentLang = localStorage.getItem('lang') || 'en';
+  window.currentLang = currentLang;
   let activeTeamFilter = 'all';
   let myPendingReqUnsub = null;
   let convFilterType = 'all'; // 'all' | 'match' | 'training'
@@ -68,10 +69,14 @@
   function setLanguage(lang, onChangedCallback) {
     const valid = (lang === 'ee' || lang === 'es') ? lang : 'en';
     currentLang = valid;
+    window.currentLang = currentLang;
     try { localStorage.setItem('lang', currentLang); } catch (e) {}
     updateHeaderIdentity();
     updateTabbarLabels();
     renderCurrentTab();
+    if (typeof window._refreshChatList === 'function') {
+      try { window._refreshChatList(); } catch (e) {}
+    }
     if (typeof onChangedCallback === 'function') {
       try { onChangedCallback(currentLang); } catch (e) {}
     }
@@ -262,6 +267,8 @@
       reqChange: 'Request Change',
       allTeams: 'All Teams',
       searchTeammate: 'Search teammate by name or number...',
+      searchChatOrTeammate: 'Search chat or teammate...',
+      todayBadge: 'TODAY',
       callUpOfficial: 'Official Call-up',
       match: 'Match',
       training: 'Training',
@@ -494,6 +501,8 @@
       reqChange: 'Taotle Muutmist',
       allTeams: 'Kõik meeskonnad',
       searchTeammate: 'Otsi meeskonnakaaslast nime või numbri järgi...',
+      searchChatOrTeammate: 'Otsi vestlust või meeskonnakaaslast...',
+      todayBadge: 'TÄNA',
       callUpOfficial: 'Ametlik Kutse',
       match: 'Mäng',
       training: 'Treening',
@@ -502,7 +511,7 @@
       openInMaps: 'Ava Google Mapsis ↗',
       coachNote: 'Treeneri märkus',
       willYouAttend: 'Kas osaled sellel üritusel?',
-      iWillAttend: '🟢 Osaled',
+      iWillAttend: '🟢 Osalen',
       iCannotAttend: '❌ Ei saa osaleda',
       attendanceConfirmed: '🟢 Osalemine kinnitatud',
       absenceReported: '❌ Puudumine teatatud',
@@ -726,6 +735,8 @@
       reqChange: 'Solicitar Cambio',
       allTeams: 'Todos los equipos',
       searchTeammate: 'Buscar compañero por nombre o dorsal...',
+      searchChatOrTeammate: 'Buscar chat o compañero...',
+      todayBadge: 'HOY',
       callUpOfficial: 'Convocatoria Oficial',
       match: 'Partido',
       training: 'Entrenamiento',
@@ -1069,6 +1080,7 @@
     if (DICT.en[key] !== undefined) return DICT.en[key];
     return fallback || key;
   }
+  window.t = t;
 
   const POSITION_MAP = {
     // Standard tactical codes
@@ -3069,9 +3081,12 @@
 
               const isMatch = c.type === 'match';
               const isUnopened = isConvUnopened(c, myPlayerId);
+              const nowD = new Date();
+              const todayIso = `${nowD.getFullYear()}-${String(nowD.getMonth() + 1).padStart(2, '0')}-${String(nowD.getDate()).padStart(2, '0')}`;
+              const isToday = (c.date === todayIso);
 
               return `
-                <div class="card conv-card-clickable" style="border: 1px solid var(--border); padding: 16px; position: relative;" data-cid="${c.id}">
+                <div class="card conv-card-clickable ${isToday ? 'conv-card-today' : ''}" style="${isToday ? 'border: 2px solid rgba(34, 211, 238, 0.95); box-shadow: 0 0 22px rgba(34, 211, 238, 0.55), 0 0 45px rgba(34, 211, 238, 0.25);' : 'border: 1px solid var(--border);'} padding: 16px; position: relative;" data-cid="${c.id}">
                   <!-- Encabezado clickeable para abrir detalles -->
                   <div class="conv-card-header-tap" data-open-conv-id="${c.id}" style="cursor: pointer;">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
@@ -3080,6 +3095,11 @@
                           <span class="badge ${c.type}">
                             ${isMatch ? '🏆 ' + t('match') : '⚽ ' + t('training')}
                           </span>
+                          ${isToday ? `
+                            <span class="badge-today-glow" style="display: inline-flex; align-items: center; gap: 4px; background: linear-gradient(135deg, #06b6d4, #3b82f6); color: #fff; border: 1px solid rgba(255,255,255,0.4); font-size: 11px; font-weight: 900; padding: 2px 9px; border-radius: 8px; box-shadow: 0 0 14px rgba(6, 182, 212, 0.8); letter-spacing: 0.3px;">
+                              ✨ ${currentLang === 'ee' ? 'TÄNA' : (currentLang === 'es' ? 'HOY' : 'TODAY')}
+                            </span>
+                          ` : ''}
                           ${isUnopened ? `
                             <span class="badge-conv-new" id="conv-new-dot-${c.id}" style="display: inline-flex; align-items: center; gap: 4px; background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.5); font-size: 10px; font-weight: 900; padding: 2px 7px; border-radius: 12px; letter-spacing: 0.3px;">
                               <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 6px #ef4444;"></span>
@@ -3331,6 +3351,10 @@
       }
     }
 
+    const nowD = new Date();
+    const todayIso = `${nowD.getFullYear()}-${String(nowD.getMonth() + 1).padStart(2, '0')}-${String(nowD.getDate()).padStart(2, '0')}`;
+    const isToday = (conv.date === todayIso);
+
     const overlay = document.createElement('div');
     overlay.className = 'dialog-overlay';
     overlay.innerHTML = `
@@ -3340,7 +3364,10 @@
           <div style="display: flex; align-items: center; gap: 8px;">
             <span style="font-size: 22px;">🏆</span>
             <div>
-              <h3 style="margin: 0; font-size: 16px; font-weight: 900; color: #fff;">${t('matchDetails')}</h3>
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <h3 style="margin: 0; font-size: 16px; font-weight: 900; color: #fff;">${t('matchDetails')}</h3>
+                ${isToday ? `<span class="badge-today-glow" style="display: inline-flex; align-items: center; gap: 3px; background: linear-gradient(135deg, #06b6d4, #3b82f6); color: #fff; border: 1px solid rgba(255,255,255,0.4); font-size: 10px; font-weight: 900; padding: 1px 7px; border-radius: 6px; box-shadow: 0 0 10px rgba(6, 182, 212, 0.7);">✨ ${currentLang === 'ee' ? 'TÄNA' : (currentLang === 'es' ? 'HOY' : 'TODAY')}</span>` : ''}
+              </div>
               <small style="font-size: 11px; color: var(--muted);">${team ? escapeHtml(team.name) : t('callUpOfficial')}</small>
             </div>
           </div>
@@ -3588,6 +3615,10 @@
     let isAttending = currentVoteStatus && (currentVoteStatus === 'called' || currentVoteStatus === 'attending' || currentVoteStatus === 'yes');
     let isAbsent = currentVoteStatus && (currentVoteStatus === 'absent' || currentVoteStatus === 'no');
 
+    const nowD = new Date();
+    const todayIso = `${nowD.getFullYear()}-${String(nowD.getMonth() + 1).padStart(2, '0')}-${String(nowD.getDate()).padStart(2, '0')}`;
+    const isToday = (conv.date === todayIso);
+
     const overlay = document.createElement('div');
     overlay.className = 'dialog-overlay';
     overlay.innerHTML = `
@@ -3597,7 +3628,10 @@
           <div style="display: flex; align-items: center; gap: 8px;">
             <span style="font-size: 22px;">⚽</span>
             <div>
-              <h3 style="margin: 0; font-size: 16px; font-weight: 900; color: #fff;">${t('trainingDetails')}</h3>
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <h3 style="margin: 0; font-size: 16px; font-weight: 900; color: #fff;">${t('trainingDetails')}</h3>
+                ${isToday ? `<span class="badge-today-glow" style="display: inline-flex; align-items: center; gap: 3px; background: linear-gradient(135deg, #06b6d4, #3b82f6); color: #fff; border: 1px solid rgba(255,255,255,0.4); font-size: 10px; font-weight: 900; padding: 1px 7px; border-radius: 6px; box-shadow: 0 0 10px rgba(6, 182, 212, 0.7);">✨ ${currentLang === 'ee' ? 'TÄNA' : (currentLang === 'es' ? 'HOY' : 'TODAY')}</span>` : ''}
+              </div>
               <small style="font-size: 11px; color: var(--muted);">${team ? escapeHtml(team.name) : t('officialTraining')}</small>
             </div>
           </div>

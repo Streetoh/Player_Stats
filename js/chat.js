@@ -18,21 +18,274 @@
 (function (global) {
   'use strict';
 
+  const CHAT_I18N = {
+    es: {
+      searchChatOrTeammate: 'Buscar chat o compañero...',
+      searchTeammate: 'Buscar chat o compañero...',
+      newChat: 'Nuevo Chat',
+      newChatOrGroup: 'Nuevo chat o grupo',
+      createGroupChat: 'Crear un grupo',
+      createGroupSub: 'Seleccionar varios compañeros y entrenador',
+      sendPrivateMsg: 'Mandar mensaje privado',
+      sendPrivateMsgSub: 'Iniciar chat directo 1 a 1',
+      searchUser: 'Buscar jugador o entrenador...',
+      coach: 'Entrenador',
+      technicalStaff: 'Cuerpo Técnico Principal',
+      player: 'Jugador',
+      newGroupChat: 'Nuevo Grupo de Chat',
+      groupName: 'Nombre del Grupo *',
+      groupNamePlaceholder: 'Ej: Delanteros, Torneo Sábado...',
+      groupIconAndPhoto: 'Icono o Foto del Grupo',
+      uploadGroupPhoto: 'Subir foto de grupo',
+      groupPhotoSub: 'Se podrá pulsar para ampliarla',
+      pickGroupEmoji: 'O elige un emoji para el grupo:',
+      groupMembers: 'Seleccionar Participantes:',
+      createGroupBtn: 'Crear y Abrir Grupo',
+      loading: 'Cargando chats en vivo...',
+      loadingChats: 'Cargando chats en vivo...',
+      loadingMessages: 'Cargando mensajes en vivo...',
+      chatCoachRole: 'Canal oficial del Entrenador',
+      typeMessage: 'Escribe un mensaje...',
+      unmuteNotifications: 'Activar notificaciones',
+      muteNotifications: 'Silenciar notificaciones',
+      deleteChat: 'Eliminar conversación',
+      deleteGroup: 'Eliminar grupo',
+      deleteGroupConfirm: '¿Eliminar este grupo de forma definitiva para todos?',
+      deleteChatConfirm: '¿Eliminar esta conversación de tu lista?',
+      deleteForEveryoneConfirm: '¿Eliminar este mensaje para todos?',
+      chatDeletedForYou: 'Conversación eliminada de tu lista',
+      groupDeleted: 'Grupo eliminado',
+      messageDeletedForMe: 'Mensaje eliminado para ti',
+      removeMember: 'Eliminar participante',
+      removeMemberConfirm: '¿Eliminar a este participante del grupo?',
+      squadGeneral: 'General del Equipo',
+      coachAndTeammates: 'con Entrenador y compañeros',
+      pinnedPermanently: 'Fijado de forma permanente',
+      unpin: 'Desanclar conversación',
+      pin: 'Anclar al principio',
+      chatPinned: '📌 Chat anclado',
+      chatUnpinned: '📍 Chat desanclado',
+      notifsMuted: '🔕 Chat silenciado',
+      notifsEnabled: '🔔 Notificaciones activadas',
+      offline: 'Desconectado',
+      group: 'Grupo',
+      online: 'En línea',
+      lastSeen: 'Última vez',
+      noMessagesYet: 'Aún no hay mensajes en este chat. ¡Envía el primero!',
+      today: 'Hoy',
+      yesterday: 'Ayer',
+      msgDeletedForEveryone: 'Este mensaje fue eliminado',
+      edited: 'editado',
+      messageOptions: 'Opciones del mensaje',
+      copyMessage: 'Copiar mensaje',
+      editMessage: 'Editar mensaje',
+      deleteForEveryone: 'Borrar para todos',
+      deleteForMe: 'Borrar para mí',
+      copiedToClipboard: 'Mensaje copiado al portapapeles',
+      messageDeleted: 'Mensaje eliminado para todos',
+      cancel: 'Cancelar',
+      save: 'Guardar',
+      messageEdited: 'Mensaje actualizado',
+      profileInactiveMsg: 'Tu perfil de jugador ya no está activo. No puedes enviar mensajes.',
+      editGroup: 'Cambiar nombre e icono del grupo',
+      leaveGroup: 'Abandonar grupo',
+      addParticipants: 'Añadir jugadores al grupo',
+      viewGroupMembers: 'Ver miembros del grupo',
+      changePhoto: 'Cambiar foto',
+      allPlayersAlreadyInGroup: 'Todos los jugadores ya forman parte del grupo.',
+      addSelected: 'Añadir Seleccionados',
+      you: 'Tú'
+    },
+    en: {
+      searchChatOrTeammate: 'Search chat or teammate...',
+      searchTeammate: 'Search chat or teammate...',
+      newChat: 'New Chat',
+      newChatOrGroup: 'New chat or group',
+      createGroupChat: 'Create a group',
+      createGroupSub: 'Select multiple teammates and coach',
+      sendPrivateMsg: 'Send private message',
+      sendPrivateMsgSub: 'Start direct 1-on-1 chat',
+      searchUser: 'Search player or coach...',
+      coach: 'Coach',
+      technicalStaff: 'Head Coaching Staff',
+      player: 'Player',
+      newGroupChat: 'New Group Chat',
+      groupName: 'Group Name *',
+      groupNamePlaceholder: 'Ex: Strikers, Saturday Tournament...',
+      groupIconAndPhoto: 'Group Icon or Photo',
+      uploadGroupPhoto: 'Upload group photo',
+      groupPhotoSub: 'Can be tapped to enlarge',
+      pickGroupEmoji: 'Or choose an emoji for the group:',
+      groupMembers: 'Select Participants:',
+      createGroupBtn: 'Create & Open Group',
+      loading: 'Loading live chats...',
+      loadingChats: 'Loading live chats...',
+      loadingMessages: 'Loading live messages...',
+      chatCoachRole: 'Official Coach Channel',
+      typeMessage: 'Type a message...',
+      unmuteNotifications: 'Unmute notifications',
+      muteNotifications: 'Mute notifications',
+      deleteChat: 'Delete conversation',
+      deleteGroup: 'Delete group',
+      deleteGroupConfirm: 'Permanently delete this group for everyone?',
+      deleteChatConfirm: 'Delete this conversation from your list?',
+      deleteForEveryoneConfirm: 'Are you sure you want to delete this message for everyone?',
+      chatDeletedForYou: 'Conversation removed from your list',
+      groupDeleted: 'Group deleted',
+      messageDeletedForMe: 'Message removed for you',
+      removeMember: 'Remove participant',
+      removeMemberConfirm: 'Remove this participant from the group?',
+      squadGeneral: 'Team General',
+      coachAndTeammates: 'with Coach & teammates',
+      pinnedPermanently: 'Permanently pinned by club',
+      unpin: 'Unpin conversation',
+      pin: 'Pin conversation to top',
+      chatPinned: '📌 Chat pinned to top',
+      chatUnpinned: '📍 Chat unpinned',
+      notifsMuted: '🔕 Notifications muted',
+      notifsEnabled: '🔔 Notifications enabled',
+      offline: 'Offline',
+      group: 'Group',
+      online: 'Online',
+      lastSeen: 'Last seen',
+      noMessagesYet: 'No messages in this chat yet. Send the first one!',
+      today: 'Today',
+      yesterday: 'Yesterday',
+      msgDeletedForEveryone: 'This message was deleted',
+      edited: 'edited',
+      messageOptions: 'Message Options',
+      copyMessage: 'Copy message',
+      editMessage: 'Edit message',
+      deleteForEveryone: 'Delete for everyone',
+      deleteForMe: 'Delete for me',
+      copiedToClipboard: 'Message copied to clipboard',
+      messageDeleted: 'Message deleted for everyone',
+      cancel: 'Cancel',
+      save: 'Save',
+      messageEdited: 'Message updated',
+      profileInactiveMsg: 'Your player profile is no longer active. You cannot send messages.',
+      editGroup: 'Change group name & icon',
+      leaveGroup: 'Leave group',
+      addParticipants: 'Add players to group',
+      viewGroupMembers: 'View group members',
+      changePhoto: 'Change photo',
+      allPlayersAlreadyInGroup: 'All players are already in this group.',
+      addSelected: 'Add Selected',
+      you: 'You'
+    },
+    ee: {
+      searchChatOrTeammate: 'Otsi vestlust või meeskonnakaaslast...',
+      searchTeammate: 'Otsi vestlust või meeskonnakaaslast...',
+      newChat: 'Uus Vestlus',
+      newChatOrGroup: 'Uus vestlus või grupp',
+      createGroupChat: 'Loo grupp',
+      createGroupSub: 'Vali mitu meeskonnakaaslast ja treener',
+      sendPrivateMsg: 'Saada privaatsõnum',
+      sendPrivateMsgSub: 'Alusta 1-ühele vestlust',
+      searchUser: 'Otsi mängijat või treenerit...',
+      coach: 'Treener',
+      technicalStaff: 'Peatreenerite tiim',
+      player: 'Mängija',
+      newGroupChat: 'Uus Grupivestlus',
+      groupName: 'Grupi nimi *',
+      groupNamePlaceholder: 'nt Ründajad, Laupäevane Turniir...',
+      groupIconAndPhoto: 'Grupi ikoon või foto',
+      uploadGroupPhoto: 'Laadi üles grupi foto',
+      groupPhotoSub: 'Võimalik suurendamiseks vajutada',
+      pickGroupEmoji: 'Või vali grupile emoji:',
+      groupMembers: 'Vali osalejad:',
+      createGroupBtn: 'Loo ja ava grupp',
+      loading: 'Vestluste laadimine...',
+      loadingChats: 'Vestluste laadimine...',
+      loadingMessages: 'Sõnumite laadimine...',
+      chatCoachRole: 'Treeneri ametlik kanal',
+      typeMessage: 'Kirjuta sõnum...',
+      unmuteNotifications: 'Lülita teated sisse',
+      muteNotifications: 'Vaigista teated',
+      deleteChat: 'Kustuta vestlus',
+      deleteGroup: 'Kustuta grupp',
+      deleteGroupConfirm: 'Kas kustutada see grupp jäädavalt kõigi jaoks?',
+      deleteChatConfirm: 'Kas eemaldada see vestlus oma nimekirjast?',
+      deleteForEveryoneConfirm: 'Kas soovid kindlasti selle sõnumi kõigilt kustutada?',
+      chatDeletedForYou: 'Vestlus eemaldatud sinu nimekirjast',
+      groupDeleted: 'Grupp kustutatud',
+      messageDeletedForMe: 'Sõnum eemaldatud sinu jaoks',
+      removeMember: 'Eemalda osaleja',
+      removeMemberConfirm: 'Kas eemaldada see osaleja grupist?',
+      squadGeneral: 'Meeskonna Üldine',
+      coachAndTeammates: 'Treeneri ja tiimikaaslastega',
+      pinnedPermanently: 'Klubi poolt püsivalt kinnitatud',
+      unpin: 'Eemalda vestluse kinnitus',
+      pin: 'Kinnita vestlus üles',
+      chatPinned: '📌 Vestlus kinnitatud',
+      chatUnpinned: '📍 Vestluse kinnitus eemaldatud',
+      notifsMuted: '🔕 Teated vaigistatud',
+      notifsEnabled: '🔔 Teated lubatud',
+      offline: 'Võrguühenduseta',
+      group: 'Grupp',
+      online: 'Võrgus',
+      lastSeen: 'Viimati nähtud',
+      noMessagesYet: 'Selles vestluses pole veel sõnumeid. Saada esimene!',
+      today: 'Täna',
+      yesterday: 'Eile',
+      msgDeletedForEveryone: 'See sõnum kustutati',
+      edited: 'muudetud',
+      messageOptions: 'Sõnumi valikud',
+      copyMessage: 'Kopeeri sõnum',
+      editMessage: 'Muuda sõnumit',
+      deleteForEveryone: 'Kustuta kõigilt',
+      deleteForMe: 'Kustuta minu jaoks',
+      copiedToClipboard: 'Sõnum kopeeritud lõikelauale',
+      messageDeleted: 'Sõnum kustutatud kõigilt',
+      cancel: 'Tühista',
+      save: 'Salvesta',
+      messageEdited: 'Sõnum uuendatud',
+      profileInactiveMsg: 'Sinu mängijaprofiil pole enam aktiivne. Sa ei saa sõnumeid saata.',
+      editGroup: 'Muuda grupi nime ja ikooni',
+      leaveGroup: 'Lahku grupist',
+      addParticipants: 'Lisa mängijaid gruppi',
+      viewGroupMembers: 'Vaata grupi liikmeid',
+      changePhoto: 'Muuda fotot',
+      allPlayersAlreadyInGroup: 'Kõik mängijad on juba sellesse gruppi lisatud.',
+      addSelected: 'Lisa valitud',
+      you: 'Sina'
+    }
+  };
+
+  function getChatLang() {
+    try {
+      if (global.currentLang === 'ee' || global.currentLang === 'es' || global.currentLang === 'en') {
+        return global.currentLang;
+      }
+      const stored = localStorage.getItem('lang') || localStorage.getItem('preferred_lang');
+      if (stored === 'ee' || stored === 'es' || stored === 'en') return stored;
+      if (global.Store && global.Store.state && global.Store.state.lang) {
+        const sl = global.Store.state.lang;
+        if (sl === 'ee' || sl === 'es' || sl === 'en') return sl;
+      }
+    } catch (e) {}
+    return 'en';
+  }
+
   function t(key, fallback) {
-    return global.t ? global.t(key, fallback) : (fallback || key);
+    const lang = getChatLang();
+    if (CHAT_I18N[lang] && CHAT_I18N[lang][key] !== undefined) {
+      return CHAT_I18N[lang][key];
+    }
+    if (global.t) {
+      try {
+        const res = global.t(key, null);
+        if (res && res !== key) return res;
+      } catch (e) {}
+    }
+    if (CHAT_I18N.en && CHAT_I18N.en[key] !== undefined) {
+      return CHAT_I18N.en[key];
+    }
+    return fallback !== undefined ? fallback : key;
   }
 
   function checkIsEn() {
-    try {
-      const stored = localStorage.getItem('lang') || localStorage.getItem('preferred_lang');
-      if (stored) return stored === 'en';
-      if (global.currentLang) return global.currentLang === 'en';
-      if (global.Store && global.Store.state) return global.Store.state.lang === 'en';
-      // Por defecto en la app de jugador (sin Store) es inglés:
-      return true;
-    } catch (e) {
-      return true;
-    }
+    return getChatLang() === 'en';
   }
 
   function haptic(ms = 25) {
@@ -471,7 +724,7 @@
 
           <!-- Barra de búsqueda rápida de chats y compañeros -->
           <div style="margin-bottom: 12px;">
-            <input type="text" id="chat-search-input" placeholder="${t('searchTeammate', 'Buscar chat o compañero...')}" style="width: 100%; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg2); color: #fff; font-size: 13.5px;" />
+            <input type="text" id="chat-search-input" placeholder="${t('searchChatOrTeammate', 'Buscar chat o compañero...')}" style="width: 100%; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg2); color: #fff; font-size: 13.5px;" />
           </div>
 
           <!-- Lista de Chats -->
@@ -545,7 +798,7 @@
 
         if (!isCoach) {
           pinnedTeamId = myTeamId ? `team_${myTeamId}` : 'team_general';
-          const teamDisplayName = myTeam ? myTeam.name : t('squadGeneral', isEn ? 'Team General' : 'General del Equipo');
+          const teamDisplayName = myTeam ? myTeam.name : t('squadGeneral', 'General del Equipo');
           mergedMap[pinnedTeamId] = Object.assign({
             id: pinnedTeamId,
             type: 'team',
@@ -553,7 +806,7 @@
             participants: myTeamId ? allPlayers.filter(p => p.teamId === myTeamId).map(p => p.id).concat(['coach']) : allPlayers.map(p => p.id).concat(['coach'])
           }, mergedMap[pinnedTeamId] || {}, {
             isPinned: true,
-            name: `🛡️ ${teamDisplayName} (${t('coachAndTeammates', isEn ? 'with Coach & teammates' : 'con Entrenador y compañeros')})`
+            name: `🛡️ ${teamDisplayName} (${t('coachAndTeammates', 'con Entrenador y compañeros')})`
           });
 
           pinnedCoachChatId = `coach_${curId}`;
@@ -773,7 +1026,7 @@
                     ${isUnread ? `<span class="badge chat-card-new-badge" style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.5); font-weight: 900; font-size: 9.5px; padding: 1px 5px; border-radius: 8px;">● ${t('newBadge', 'NUEVO')}</span>` : ''}
                     <small style="font-size: 11px; color: var(--muted);">${timeStr}</small>
                     ${canDeleteChat(c) ? `
-                      <button type="button" class="icon-btn ghost btn-delete-chat-card" data-chat-id="${c.id}" data-chat-name="${escapeHtml(displayName)}" style="width: 24px; height: 24px; font-size: 12px; color: #f87171; opacity: 0.7; padding: 0;" title="${t('deleteChat', isEn ? 'Delete conversation' : 'Eliminar conversación')}">
+                      <button type="button" class="icon-btn ghost btn-delete-chat-card" data-chat-id="${c.id}" data-chat-name="${escapeHtml(displayName)}" style="width: 24px; height: 24px; font-size: 12px; color: #f87171; opacity: 0.7; padding: 0;" title="${t('deleteChat', 'Eliminar conversación')}">
                         🗑️
                       </button>
                     ` : ''}
@@ -813,24 +1066,24 @@
                 ${isPermPinned ? `
                   <div style="padding: 10px 12px; border-radius: 10px; background: rgba(250, 204, 21, 0.1); border: 1px solid rgba(250, 204, 21, 0.3); font-size: 12px; color: #fde047; font-weight: 700; display: flex; align-items: center; gap: 8px;">
                     <span>📌</span>
-                    <span>${isEn ? 'Permanently pinned by club' : 'Fijado de forma permanente'}</span>
+                    <span>${t('pinnedPermanently', 'Fijado de forma permanente')}</span>
                   </div>
                 ` : `
                   <button type="button" class="btn block ghost" id="btn-ctx-pin" style="height: 42px; justify-content: flex-start; padding: 0 12px; gap: 10px; font-weight: 700; font-size: 13px; border: 1px solid var(--border); background: var(--surface2);">
                     <span style="font-size: 16px;">${isPinned ? '📍' : '📌'}</span>
-                    <span>${isPinned ? (isEn ? 'Unpin conversation' : 'Desanclar conversación') : (isEn ? 'Pin conversation to top' : 'Anclar al principio')}</span>
+                    <span>${isPinned ? t('unpin', 'Desanclar conversación') : t('pin', 'Anclar al principio')}</span>
                   </button>
                 `}
 
                 <button type="button" class="btn block ghost" id="btn-ctx-mute" style="height: 42px; justify-content: flex-start; padding: 0 12px; gap: 10px; font-weight: 700; font-size: 13px; border: 1px solid var(--border); background: var(--surface2);">
                   <span style="font-size: 16px;">${isMuted ? '🔔' : '🔕'}</span>
-                  <span>${isMuted ? (isEn ? 'Unmute notifications' : 'Activar notificaciones') : (isEn ? 'Mute notifications' : 'Silenciar notificaciones')}</span>
+                  <span>${isMuted ? t('unmuteNotifications', 'Activar notificaciones') : t('muteNotifications', 'Silenciar notificaciones')}</span>
                 </button>
 
                 ${deletable ? `
                   <button type="button" class="btn block danger ghost" id="btn-ctx-delete" style="height: 42px; justify-content: flex-start; padding: 0 12px; gap: 10px; font-weight: 700; font-size: 13px; border: 1.5px solid rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.1); color: #fca5a5;">
                     <span style="font-size: 16px;">🗑️</span>
-                    <span>${isEn ? 'Delete conversation' : 'Eliminar conversación'}</span>
+                    <span>${t('deleteChat', 'Eliminar conversación')}</span>
                   </button>
                 ` : ''}
               </div>
@@ -848,7 +1101,7 @@
               toggleChatCustomPin(cid);
               const nowPinned = isChatCustomPinned(cid);
               if (global.UI && global.UI.toast) {
-                global.UI.toast(nowPinned ? (isEn ? '📌 Chat pinned to top' : '📌 Chat anclado') : (isEn ? '📍 Chat unpinned' : '📍 Chat desanclado'), 'info');
+                global.UI.toast(nowPinned ? t('chatPinned', '📌 Chat anclado') : t('chatUnpinned', '📍 Chat desanclado'), 'info');
               }
               renderRooms();
             };
@@ -861,7 +1114,7 @@
               toggleChatMute(cid);
               const nowMuted = isChatMuted(cid);
               if (global.UI && global.UI.toast) {
-                global.UI.toast(nowMuted ? (isEn ? '🔕 Notifications muted' : '🔕 Chat silenciado') : (isEn ? '🔔 Notifications enabled' : '🔔 Notificaciones activadas'), 'info');
+                global.UI.toast(nowMuted ? t('notifsMuted', '🔕 Chat silenciado') : t('notifsEnabled', '🔔 Notificaciones activadas'), 'info');
               }
               renderRooms();
             };
@@ -884,7 +1137,7 @@
           const isGroupChat = (chatObj && (chatObj.type === 'group' || cid.startsWith('group_')));
 
           if (isGroupChat && isCoach) {
-            const confirmMsg = t('deleteGroupConfirm', isEn ? `Permanently delete group "${cname}" for everyone?` : `¿Eliminar el grupo "${cname}" de forma definitiva para todos?`);
+            const confirmMsg = t('deleteGroupConfirm', '¿Eliminar este grupo de forma definitiva para todos?');
             if (!confirm(confirmMsg)) return;
             const maxTime = Math.max(Date.now(), (chatObj && chatObj.lastMessageTime) || 0);
             localStorage.setItem('chat_deleted_' + cid, String(maxTime));
@@ -892,14 +1145,14 @@
               await global.Cloud.deleteChat(cid);
             }
             renderRooms();
-            if (global.UI && global.UI.toast) global.UI.toast(t('groupDeleted', isEn ? 'Group deleted' : 'Grupo eliminado'), 'info');
+            if (global.UI && global.UI.toast) global.UI.toast(t('groupDeleted', 'Grupo eliminado'), 'info');
           } else {
-            const confirmMsg = t('deleteChatConfirm', isEn ? `Delete conversation with "${cname}" from your list?` : `¿Eliminar la conversación con "${cname}" de tu lista?`);
+            const confirmMsg = t('deleteChatConfirm', '¿Eliminar esta conversación de tu lista?');
             if (!confirm(confirmMsg)) return;
             const maxTime = Math.max(Date.now(), (chatObj && chatObj.lastMessageTime) || 0);
             localStorage.setItem('chat_deleted_' + cid, String(maxTime));
             renderRooms();
-            if (global.UI && global.UI.toast) global.UI.toast(t('chatDeletedForYou', isEn ? 'Conversation removed from your list' : 'Conversación eliminada de tu lista'), 'info');
+            if (global.UI && global.UI.toast) global.UI.toast(t('chatDeletedForYou', 'Conversación eliminada de tu lista'), 'info');
           }
         }
 
@@ -1716,8 +1969,8 @@
                 </div>
                 <span id="chat-presence-indicator" style="font-size: 11px; font-weight: 600;">
                   ${isDirectOrCoachChat
-                    ? `⚪ <span style="color: var(--muted);">${t('offline', isEn ? 'Offline' : 'Desconectado')}</span>`
-                    : `👥 <span style="color: #22d3ee;">${t('group', isEn ? 'Group' : 'Grupo')}</span>`
+                    ? `⚪ <span style="color: var(--muted);">${t('offline', 'Desconectado')}</span>`
+                    : `👥 <span style="color: #22d3ee;">${t('group', 'Grupo')}</span>`
                   }
                 </span>
               </div>
@@ -1762,7 +2015,7 @@
               </button>
             ` : ''}
             <button type="button" class="btn sm danger ghost" id="opt-delete-chat" style="justify-content: flex-start; gap: 8px; width: 100%; height: 36px;">
-              🗑️ ${(chatData.type === 'group' || chatId.startsWith('group_') || chatData.type === 'team') ? t('deleteGroup', isEn ? 'Delete group' : 'Eliminar grupo') : t('deleteChat', isEn ? 'Delete conversation' : 'Eliminar conversación')}
+              🗑️ ${(chatData.type === 'group' || chatId.startsWith('group_') || chatData.type === 'team') ? t('deleteGroup', 'Eliminar grupo') : t('deleteChat', 'Eliminar conversación')}
             </button>
           </div>
 
@@ -1912,11 +2165,11 @@
             if (!presenceIndicator) return;
             const isFresh = !!(pr && pr.isOnline && (pr.lastSeen ? (Date.now() - pr.lastSeen < 150000) : false));
             if (isFresh) {
-              presenceIndicator.innerHTML = `🟢 <span style="color: #4ade80; font-weight: 700;">${t('online', isEn ? 'Online' : 'En línea')}</span>`;
+              presenceIndicator.innerHTML = `🟢 <span style="color: #4ade80; font-weight: 700;">${t('online', 'En línea')}</span>`;
             } else if (pr && pr.lastSeen) {
-              presenceIndicator.innerHTML = `⚪ <span style="color: var(--muted);">${t('lastSeen', isEn ? 'Last seen' : 'Última vez')}: ${formatTime(pr.lastSeen)}</span>`;
+              presenceIndicator.innerHTML = `⚪ <span style="color: var(--muted);">${t('lastSeen', 'Última vez')}: ${formatTime(pr.lastSeen)}</span>`;
             } else {
-              presenceIndicator.innerHTML = `⚪ <span style="color: var(--muted);">${t('offline', isEn ? 'Offline' : 'Desconectado')}</span>`;
+              presenceIndicator.innerHTML = `⚪ <span style="color: var(--muted);">${t('offline', 'Desconectado')}</span>`;
             }
           };
 
@@ -1998,7 +2251,7 @@
         optDelete.onclick = async () => {
           const isGroupChat = (chatData.type === 'group' || chatId.startsWith('group_'));
           if (isGroupChat && isCoachUser) {
-            const confirmMsg = t('deleteGroupConfirm', isEn ? 'Permanently delete this group for everyone?' : '¿Eliminar este grupo de forma definitiva para todos?');
+            const confirmMsg = t('deleteGroupConfirm', '¿Eliminar este grupo de forma definitiva para todos?');
             if (!confirm(confirmMsg)) return;
             try {
               const maxTime = Math.max(Date.now(), (chatData && chatData.lastMessageTime) || 0);
@@ -2009,15 +2262,15 @@
             } catch (e) {
               console.error('Error deleting chat:', e);
             }
-            if (global.UI && global.UI.toast) global.UI.toast(t('groupDeleted', isEn ? 'Group deleted' : 'Grupo eliminado'), 'info');
+            if (global.UI && global.UI.toast) global.UI.toast(t('groupDeleted', 'Grupo eliminado'), 'info');
           } else {
             // Conversaciones directas / 1 a 1 / con jugador:
             // NUNCA eliminar de la nube para el otro lado. Se elimina / oculta solo para el usuario actual.
-            const confirmMsg = t('deleteChatConfirm', isEn ? 'Delete this conversation from your list?' : '¿Eliminar esta conversación de tu lista?');
+            const confirmMsg = t('deleteChatConfirm', '¿Eliminar esta conversación de tu lista?');
             if (!confirm(confirmMsg)) return;
             const maxTime = Math.max(Date.now(), (chatData && chatData.lastMessageTime) || 0);
             localStorage.setItem('chat_deleted_' + chatId, String(maxTime));
-            if (global.UI && global.UI.toast) global.UI.toast(t('chatDeletedForYou', isEn ? 'Conversation removed from your list' : 'Conversación eliminada de tu lista'), 'info');
+            if (global.UI && global.UI.toast) global.UI.toast(t('chatDeletedForYou', 'Conversación eliminada de tu lista'), 'info');
           }
           close();
           if (typeof global._refreshChatList === 'function') {
@@ -2175,7 +2428,7 @@
           msgsContainer.innerHTML = `
             <div style="text-align: center; padding: 40px 16px; color: var(--muted);">
               <div style="font-size: 32px; margin-bottom: 8px;">👋</div>
-              <p style="margin: 0; font-size: 13px;">${t('noMessagesYet', isEn ? 'No messages in this chat yet. Send the first one!' : 'Aún no hay mensajes en este chat. ¡Envía el primero!')}</p>
+              <p style="margin: 0; font-size: 13px;">${t('noMessagesYet', 'Aún no hay mensajes en este chat. ¡Envía el primero!')}</p>
             </div>
           `;
           return;
@@ -2189,7 +2442,7 @@
           return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
         }
 
-        function formatDateDivider(ts, isEn) {
+        function formatDateDivider(ts) {
           if (!ts) return '';
           const d = new Date(ts);
           const now = new Date();
@@ -2198,14 +2451,16 @@
           yesterday.setDate(yesterday.getDate() - 1);
           const yesterdayKey = getDateKey(yesterday.getTime());
           const msgKey = getDateKey(ts);
+          const lang = getChatLang();
 
           if (msgKey === todayKey) {
-            return isEn ? 'Today' : 'Hoy';
+            return t('today', lang === 'ee' ? 'Täna' : (lang === 'es' ? 'Hoy' : 'Today'));
           } else if (msgKey === yesterdayKey) {
-            return isEn ? 'Yesterday' : 'Ayer';
+            return t('yesterday', lang === 'ee' ? 'Eile' : (lang === 'es' ? 'Ayer' : 'Yesterday'));
           } else {
             try {
-              return d.toLocaleDateString(isEn ? 'en-US' : 'es-ES', {
+              const locale = lang === 'ee' ? 'et-EE' : (lang === 'es' ? 'es-ES' : 'en-US');
+              return d.toLocaleDateString(locale, {
                 weekday: 'short',
                 day: 'numeric',
                 month: 'short',
@@ -2255,7 +2510,7 @@
           const curDateKey = getDateKey(m.timestamp);
 
           if (curDateKey && curDateKey !== prevDateKey) {
-            const label = formatDateDivider(m.timestamp, isEn);
+            const label = formatDateDivider(m.timestamp);
             dateDividerHtml = `
               <div class="chat-day-divider" style="display: flex; align-items: center; justify-content: center; margin: 18px 0 12px; gap: 12px; width: 100%;">
                 <div style="flex: 1; height: 1px; background: var(--border); opacity: 0.6;"></div>
@@ -2300,7 +2555,7 @@
 
                   <div style="padding: 8px 12px; border-radius: 12px; background: rgba(255,255,255,0.06); border: 1px dashed var(--border); color: var(--muted); font-size: 13px; font-style: italic; display: flex; align-items: center; gap: 6px;">
                     <span>🚫</span>
-                    <span>${t('msgDeletedForEveryone', isEn ? 'This message was deleted' : 'Este mensaje fue eliminado')}</span>
+                    <span>${t('msgDeletedForEveryone', 'Este mensaje fue eliminado')}</span>
                   </div>
 
                   <div style="display: flex; align-items: center; gap: 8px; margin-top: 3px; padding: 0 4px;">
@@ -2400,7 +2655,7 @@
 
                 <!-- Barra de acciones rápidas (Reaccionar, Citar, Opciones) y fecha -->
                 <div style="display: flex; align-items: center; gap: 8px; margin-top: 3px; padding: 0 4px;">
-                  <small style="font-size: 10.5px; color: var(--muted);">${time}${m.isEdited ? ` • ${t('edited', isEn ? 'edited' : 'editado')}` : ''}</small>
+                  <small style="font-size: 10.5px; color: var(--muted);">${time}${m.isEdited ? ` • ${t('edited', 'editado')}` : ''}</small>
 
                   <button type="button" class="icon-btn ghost btn-msg-react" data-mid="${m.id}" style="width: 22px; height: 22px; font-size: 13px; padding: 0; opacity: 0.75;" title="${t('react', 'Reaccionar')}">
                     😊
@@ -2661,32 +2916,32 @@
           menuOverlay.innerHTML = `
             <div class="dialog-box" style="width: 100%; max-width: 360px; background: var(--surface); border: 1.5px solid var(--border); border-radius: 18px; padding: 14px; display: flex; flex-direction: column; gap: 6px; box-shadow: 0 10px 40px rgba(0,0,0,0.8); animation: sheetUp 0.18s ease;">
               <div style="font-size: 12px; font-weight: 800; color: var(--muted); padding: 0 4px 6px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
-                <span>💬 ${t('messageOptions', isEn ? 'Message Options' : 'Opciones del mensaje')}</span>
+                <span>💬 ${t('messageOptions', 'Opciones del mensaje')}</span>
                 <button type="button" class="icon-btn ghost" id="msg-menu-x" style="width: 26px; height: 26px; font-size: 14px;">✕</button>
               </div>
 
               <!-- Copiar: disponible para TODOS los mensajes -->
               <button type="button" class="btn sm ghost" id="btn-msg-opt-copy" style="justify-content: flex-start; gap: 10px; width: 100%; height: 40px; font-size: 13.5px; font-weight: 700;">
-                📋 ${t('copyMessage', isEn ? 'Copy message' : 'Copiar mensaje')}
+                📋 ${t('copyMessage', 'Copiar mensaje')}
               </button>
 
               ${canEdit ? `
                 <!-- Editar: solo para mensajes propios -->
                 <button type="button" class="btn sm ghost" id="btn-msg-opt-edit" style="justify-content: flex-start; gap: 10px; width: 100%; height: 40px; font-size: 13.5px; font-weight: 700;">
-                  ✏️ ${t('editMessage', isEn ? 'Edit message' : 'Editar mensaje')}
+                  ✏️ ${t('editMessage', 'Editar mensaje')}
                 </button>
               ` : ''}
 
               ${canDeleteForEveryone ? `
                 <!-- Borrar para todos: solo para mensajes propios -->
                 <button type="button" class="btn sm danger ghost" id="btn-msg-opt-del-everyone" style="justify-content: flex-start; gap: 10px; width: 100%; height: 40px; font-size: 13.5px; font-weight: 700; color: #f87171;">
-                  🗑️ ${t('deleteForEveryone', isEn ? 'Delete for everyone' : 'Borrar para todos')}
+                  🗑️ ${t('deleteForEveryone', 'Borrar para todos')}
                 </button>
               ` : ''}
 
               <!-- Borrar para mí: disponible para TODOS los mensajes -->
               <button type="button" class="btn sm ghost" id="btn-msg-opt-del-me" style="justify-content: flex-start; gap: 10px; width: 100%; height: 40px; font-size: 13.5px; font-weight: 700; color: #fca5a5;">
-                👁️ ${t('deleteForMe', isEn ? 'Delete for me' : 'Borrar para mí')}
+                👁️ ${t('deleteForMe', 'Borrar para mí')}
               </button>
             </div>
           `;
@@ -2700,7 +2955,7 @@
             btnCopy.onclick = () => {
               closeMenu();
               let textToCopy = m.text || '';
-              if (m.isDeletedForEveryone) textToCopy = isEn ? 'This message was deleted' : 'Este mensaje fue eliminado';
+              if (m.isDeletedForEveryone) textToCopy = t('msgDeletedForEveryone', 'Este mensaje fue eliminado');
               else if (!textToCopy && m.file) textToCopy = m.file.name || '';
               else if (!textToCopy && m.image) textToCopy = m.image;
 
@@ -2717,7 +2972,7 @@
                   document.execCommand('copy');
                   ta.remove();
                 }
-                if (global.UI && global.UI.toast) global.UI.toast(t('copiedToClipboard', isEn ? 'Message copied to clipboard' : 'Mensaje copiado al portapapeles'), 'success');
+                if (global.UI && global.UI.toast) global.UI.toast(t('copiedToClipboard', 'Mensaje copiado al portapapeles'), 'success');
               }
             };
           }
@@ -2734,7 +2989,7 @@
           if (btnDelEveryone) {
             btnDelEveryone.onclick = async () => {
               closeMenu();
-              if (!confirm(t('deleteForEveryoneConfirm', isEn ? 'Are you sure you want to delete this message for everyone?' : '¿Eliminar este mensaje para todos?'))) return;
+              if (!confirm(t('deleteForEveryoneConfirm', '¿Eliminar este mensaje para todos?'))) return;
               try {
                 if (global.Cloud && global.Cloud.deleteChatMessageForEveryone) {
                   await global.Cloud.deleteChatMessageForEveryone(chatId, m.id);
@@ -2744,7 +2999,7 @@
                 m.image = null;
                 m.file = null;
                 renderMessages();
-                if (global.UI && global.UI.toast) global.UI.toast(t('messageDeleted', isEn ? 'Message deleted for everyone' : 'Mensaje eliminado para todos'), 'info');
+                if (global.UI && global.UI.toast) global.UI.toast(t('messageDeleted', 'Mensaje eliminado para todos'), 'info');
               } catch (err) {
                 console.error(err);
               }
@@ -2757,7 +3012,7 @@
               closeMenu();
               localStorage.setItem('msg_deleted_' + m.id, 'true');
               renderMessages();
-              if (global.UI && global.UI.toast) global.UI.toast(t('messageDeletedForMe', isEn ? 'Message removed for you' : 'Mensaje eliminado para ti'), 'info');
+              if (global.UI && global.UI.toast) global.UI.toast(t('messageDeletedForMe', 'Mensaje eliminado para ti'), 'info');
             };
           }
 
@@ -2771,13 +3026,13 @@
           editOverlay.innerHTML = `
             <div class="dialog-box" style="width: 100%; max-width: 400px; background: var(--surface); border: 1.5px solid var(--border); border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.8);">
               <div style="display: flex; justify-content: space-between; align-items: center;">
-                <h3 style="margin: 0; font-size: 15px; font-weight: 800; color: #fff;">✏️ ${t('editMessage', isEn ? 'Edit Message' : 'Editar mensaje')}</h3>
+                <h3 style="margin: 0; font-size: 15px; font-weight: 800; color: #fff;">✏️ ${t('editMessage', 'Editar mensaje')}</h3>
                 <button type="button" class="icon-btn ghost" id="dlg-edit-x" style="width: 30px; height: 30px;">✕</button>
               </div>
               <textarea id="edit-msg-inp" rows="3" style="width: 100%; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg2); color: #fff; font-size: 14px; resize: none; font-family: inherit;">${escapeHtml(m.text || '')}</textarea>
               <div style="display: flex; gap: 8px;">
-                <button type="button" class="btn ghost block" id="btn-cancel-edit-msg" style="flex: 1; height: 38px;">${t('cancel', isEn ? 'Cancel' : 'Cancelar')}</button>
-                <button type="button" class="btn primary block" id="btn-save-edit-msg" style="flex: 1; height: 38px; font-weight: 800;">${t('save', isEn ? 'Save' : 'Guardar')}</button>
+                <button type="button" class="btn ghost block" id="btn-cancel-edit-msg" style="flex: 1; height: 38px;">${t('cancel', 'Cancelar')}</button>
+                <button type="button" class="btn primary block" id="btn-save-edit-msg" style="flex: 1; height: 38px; font-weight: 800;">${t('save', 'Guardar')}</button>
               </div>
             </div>
           `;
@@ -2800,7 +3055,7 @@
               m.text = newTxt;
               m.isEdited = true;
               renderMessages();
-              if (global.UI && global.UI.toast) global.UI.toast(t('messageEdited', isEn ? 'Message updated' : 'Mensaje actualizado'), 'success');
+              if (global.UI && global.UI.toast) global.UI.toast(t('messageEdited', 'Mensaje actualizado'), 'success');
             } catch (err) {
               console.error(err);
             }
@@ -2819,7 +3074,7 @@
           const allPlayers = (global.clubData && global.clubData.players) || (global.Store && global.Store.state && global.Store.state.players) || [];
           const playerExists = validPlayerId && allPlayers.some(p => p.id === validPlayerId);
           if (!validPlayerId || (allPlayers.length > 0 && !playerExists)) {
-            alert(checkIsEn() ? 'Your player profile is no longer active. You cannot send messages.' : 'Tu perfil de jugador ya no está activo. No puedes enviar mensajes.');
+            alert(t('profileInactiveMsg', 'Tu perfil de jugador ya no está activo. No puedes enviar mensajes.'));
             const overlay = document.querySelector('.chat-dialog-overlay');
             if (overlay) overlay.remove();
             return;

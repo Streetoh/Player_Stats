@@ -1,5 +1,5 @@
 {
-  "version": "2026.10.13.1",
-  "buildTime": 1791823300000,
-  "description": "Fix date inputs layout, player short names in training squad, auto-create today scheduled sessions, and native Google Maps opening"
+  "version": "2026.10.13.2",
+  "buildTime": 1791825600000,
+  "description": "Fix Estonian attendance translation (Osalen), localize chat search and action sheet modals into ee/en/es, and add luminous glow effect to today's convocations"
 }

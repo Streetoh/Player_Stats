@@ -1313,3 +1313,37 @@ button { font-family: inherit; color: inherit; border: 0; background: none; curs
 .chat-conv-link:active {
   opacity: 0.7;
 }
+
+/* =========================================================
+   Brillo LUMINOSO para la Convocatoria de HOY (Player App)
+   ========================================================= */
+@keyframes todayCardGlow {
+  0% {
+    box-shadow: 0 0 16px rgba(34, 211, 238, 0.45), 0 0 32px rgba(34, 211, 238, 0.2);
+    border-color: rgba(34, 211, 238, 0.8);
+  }
+  50% {
+    box-shadow: 0 0 28px rgba(34, 211, 238, 0.85), 0 0 55px rgba(34, 211, 238, 0.4);
+    border-color: #38bdf8;
+  }
+  100% {
+    box-shadow: 0 0 16px rgba(34, 211, 238, 0.45), 0 0 32px rgba(34, 211, 238, 0.2);
+    border-color: rgba(34, 211, 238, 0.8);
+  }
+}
+
+.conv-card-today {
+  animation: todayCardGlow 2.5s infinite ease-in-out !important;
+  background: linear-gradient(180deg, rgba(34, 211, 238, 0.08) 0%, rgba(15, 23, 42, 0.7) 100%), var(--surface) !important;
+}
+
+@keyframes todayBadgePulse {
+  0% { transform: scale(1); filter: brightness(1); }
+  50% { transform: scale(1.05); filter: brightness(1.2); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
+
+.badge-today-glow {
+  animation: todayBadgePulse 2s infinite ease-in-out;
+}
+
