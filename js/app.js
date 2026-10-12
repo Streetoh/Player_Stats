@@ -787,7 +787,7 @@
     removeByTarget(targetId) {
       if (!targetId) return;
       let list = this.getAll();
-      list = list.filter(n => n.targetId !== targetId && n.id !== targetId && n.id !== ('create_' + targetId) && n.id !== ('req_' + targetId));
+      list = list.filter(n => n.targetId !== targetId && n.id !== targetId && n.id !== ('create_' + targetId) && n.id !== ('req_' + targetId) && n.id !== ('chat_' + targetId));
       this.save(list);
     },
     markAsRead(id) {
@@ -808,6 +808,8 @@
       return this.getAll().filter(n => !n.read).length;
     }
   };
+
+  window.NotifManager = NotifManager;
 
   // Compatibilidad universal e inmediata para llamadas Sync.push()
   window.Sync = {
@@ -859,6 +861,11 @@
         if (dot) dot.remove();
       }
     });
+
+    // Actualizar en tiempo real el Centro de Notificaciones en Inicio si la pantalla actual es Home
+    if (typeof refreshHomeNotifications === 'function') {
+      refreshHomeNotifications();
+    }
   }
 
   function handleIncomingProfileRequests(requests) {
@@ -1536,6 +1543,7 @@
     if (isPending) {
       if (currentTab === 'convocations') navigate('convocations');
       if (typeof window.activeConvocationModalRefresh === 'function') window.activeConvocationModalRefresh();
+      updateRequestsBadge();
       return;
     }
 
@@ -1820,6 +1828,90 @@
     `;
   }
 
+  function bindHomeNotificationsEvents(container) {
+    if (!container) return;
+
+    const btnHomeReqs = container.querySelector('#btn-home-open-requests');
+    if (btnHomeReqs) btnHomeReqs.onclick = () => showProfileRequestsModal();
+
+    const btnHomeMarkAll = container.querySelector('#btn-home-notif-mark-all');
+    if (btnHomeMarkAll) {
+      btnHomeMarkAll.onclick = () => {
+        NotifManager.markAllAsRead();
+        refreshHomeNotifications();
+      };
+    }
+
+    const btnHomeClearAll = container.querySelector('#btn-home-notif-clear-all');
+    if (btnHomeClearAll) {
+      btnHomeClearAll.onclick = () => {
+        NotifManager.clearAll();
+        refreshHomeNotifications();
+      };
+    }
+
+    container.querySelectorAll('[data-home-delete-nid]').forEach(b => {
+      b.onclick = (e) => {
+        e.stopPropagation();
+        const nid = b.getAttribute('data-home-delete-nid');
+        NotifManager.remove(nid);
+        refreshHomeNotifications();
+      };
+    });
+
+    container.querySelectorAll('.home-notif-item').forEach(card => {
+      card.onclick = () => {
+        const nid = card.getAttribute('data-nid');
+        const type = card.getAttribute('data-type');
+        const targetId = card.getAttribute('data-target');
+        NotifManager.markAsRead(nid);
+
+        if (type === 'profile_req' || type === 'creation_req' || type === 'claim_req') {
+          showProfileRequestsModal();
+        } else if (type === 'attendance' && targetId) {
+          const conv = Store.convocation(targetId);
+          if (conv) showConvocationDetailsModal(conv);
+          else refreshHomeNotifications();
+        } else if (type === 'chat' && targetId) {
+          if (typeof window.openChatModal === 'function') {
+            window.openChatModal(targetId);
+          } else {
+            navigate('chat');
+          }
+        } else {
+          refreshHomeNotifications();
+        }
+      };
+    });
+  }
+
+  let _refreshHomeNotifTimer = null;
+  function refreshHomeNotifications() {
+    if (currentTab !== 'home') return;
+    if (_refreshHomeNotifTimer) cancelAnimationFrame(_refreshHomeNotifTimer);
+    _refreshHomeNotifTimer = requestAnimationFrame(() => {
+      const container = document.getElementById('home-notifications-container');
+      if (!container) return;
+      container.innerHTML = renderHomeNotificationsHtml();
+      bindHomeNotificationsEvents(container);
+    });
+  }
+  window.refreshHomeNotifications = refreshHomeNotifications;
+
+  window.openChatModal = function (chatId) {
+    if (window.ChatUI && window.ChatUI.openConversationModal) {
+      window.ChatUI.openConversationModal(chatId, {
+        currentUserId: 'coach',
+        currentUserName: (Store.state.settings && Store.state.settings.coachName) || 'Entrenador',
+        isCoach: true,
+        players: Store.state.players || [],
+        teams: Store.state.teams || []
+      });
+    } else {
+      navigate('chat');
+    }
+  };
+
   function renderHomeView(view) {
     const totalPlayers = Store.state.players.length;
     const totalTrainings = Store.state.sessions.filter(s => s.type === 'training').length;
@@ -1839,7 +1931,9 @@
       </div>
 
       <!-- Notificaciones y Solicitudes en Inicio -->
-      ${renderHomeNotificationsHtml()}
+      <div id="home-notifications-container">
+        ${renderHomeNotificationsHtml()}
+      </div>
 
       <div class="quick-stats">
         <div class="qs">
@@ -1890,52 +1984,7 @@
 
     view.querySelector('#btn-see-all-sessions').onclick = () => navigate('history');
 
-    const btnHomeReqs = view.querySelector('#btn-home-open-requests');
-    if (btnHomeReqs) btnHomeReqs.onclick = () => showProfileRequestsModal();
-
-    const btnHomeMarkAll = view.querySelector('#btn-home-notif-mark-all');
-    if (btnHomeMarkAll) {
-      btnHomeMarkAll.onclick = () => {
-        NotifManager.markAllAsRead();
-        renderHomeView(view);
-      };
-    }
-
-    const btnHomeClearAll = view.querySelector('#btn-home-notif-clear-all');
-    if (btnHomeClearAll) {
-      btnHomeClearAll.onclick = () => {
-        NotifManager.clearAll();
-        renderHomeView(view);
-      };
-    }
-
-    view.querySelectorAll('[data-home-delete-nid]').forEach(b => {
-      b.onclick = (e) => {
-        e.stopPropagation();
-        const nid = b.getAttribute('data-home-delete-nid');
-        NotifManager.remove(nid);
-        renderHomeView(view);
-      };
-    });
-
-    view.querySelectorAll('.home-notif-item').forEach(card => {
-      card.onclick = () => {
-        const nid = card.getAttribute('data-nid');
-        const type = card.getAttribute('data-type');
-        const targetId = card.getAttribute('data-target');
-        NotifManager.markAsRead(nid);
-
-        if (type === 'profile_req' || type === 'creation_req' || type === 'claim_req') {
-          showProfileRequestsModal();
-        } else if (type === 'attendance' && targetId) {
-          const conv = Store.convocation(targetId);
-          if (conv) showConvocationDetailsModal(conv);
-          else renderHomeView(view);
-        } else {
-          renderHomeView(view);
-        }
-      };
-    });
+    bindHomeNotificationsEvents(view.querySelector('#home-notifications-container'));
 
     const btnImp = view.querySelector('#btn-home-import');
     if (btnImp) btnImp.onclick = () => showImportModal();

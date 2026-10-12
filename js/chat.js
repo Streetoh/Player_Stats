@@ -336,6 +336,11 @@
         } catch (e) {}
       }
 
+      // Limpiar notificación del Centro de Notificaciones en Inicio
+      if (global.NotifManager && global.NotifManager.removeByTarget) {
+        global.NotifManager.removeByTarget(chatId);
+      }
+
       // Recalcular el indicador de mensajes no leídos en la pestaña
       ChatUI.recalculateUnreadBadge(curId);
     },
@@ -388,6 +393,17 @@
               if (!isFirstSnapshot && !localStorage.getItem(knownKey)) {
                 try { localStorage.setItem(knownKey, '1'); } catch (e) {}
                 sendNotification(c.lastSenderName || 'Chat', c.lastMessage || 'Nuevo mensaje', c.id);
+                if (global.NotifManager && global.NotifManager.add) {
+                  const chatName = c.name || (c.type === 'direct' ? (c.lastSenderName || 'Chat') : (c.title || 'Chat'));
+                  global.NotifManager.add({
+                    id: 'chat_' + c.id,
+                    type: 'chat',
+                    title: `💬 ${chatName}`,
+                    body: `${c.lastSenderName ? c.lastSenderName + ': ' : ''}${c.lastMessage || 'Nuevo mensaje'}`,
+                    targetId: c.id,
+                    time: c.lastMessageTime || Date.now()
+                  });
+                }
               }
             }
           }
