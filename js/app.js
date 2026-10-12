@@ -5696,6 +5696,9 @@
       foot.querySelector('#btn-del-p-profile').onclick = () => {
         confirmDialog(t('deletePlayer'), `${t('confirmDeletePlayer')} (${Store.playerName(p)})`, () => {
           Store.deletePlayer(p.id);
+          if (window.Cloud && window.Cloud.pushCoachState) {
+            window.Cloud.pushCoachState(Store.state, true);
+          }
           closeSheet();
           navigate('players');
         });
@@ -6782,19 +6785,64 @@
       await window.Cloud.sendConvocationReminder(reminderData);
     }
 
-    // Broadcast también al chat del equipo
-    if (conv.teamId && window.Cloud && window.Cloud.sendChatMessage) {
-      try {
-        await window.Cloud.sendChatMessage(`team_${conv.teamId}`, {
-          senderId: 'coach',
-          senderName: `(Coach) ${coachName}`,
-          text: `🔔 [Attendance Reminder] Coach ${coachName} is waiting for your attendance response for "${eventTitle}" on ${eventDate}. Please open the app and confirm!`
-        });
-      } catch (e) {}
+    // Broadcast al chat de los equipos convocados con menciones @ de todos los pendientes
+    const mentionsText = pendingPlayers.map(p => {
+      const pName = Store.playerName ? Store.playerName(p) : (p.name || 'Player');
+      const dorsal = p.mainDorsal != null ? ` #${p.mainDorsal}` : '';
+      return `@${pName}${dorsal}`;
+    }).join('\n');
+
+    const chatMessageText = `🔔 [Attendance reminder] Coach ${coachName} is waiting for your attendance response for "${eventTitle}" (${eventDate}):\n${mentionsText}`;
+
+    const targetTeamIds = (conv.teamIds && conv.teamIds.length)
+      ? conv.teamIds
+      : (conv.teamId ? [conv.teamId] : []);
+
+    if (window.Cloud && window.Cloud.sendChatMessage) {
+      const chatPayload = {
+        senderId: 'coach',
+        senderName: `(Coach) ${coachName}`,
+        text: chatMessageText,
+        convId: conv.id,
+        eventTitle: eventTitle,
+        type: 'attendance_reminder'
+      };
+
+      if (targetTeamIds.length > 0) {
+        for (const tid of targetTeamIds) {
+          try {
+            await window.Cloud.sendChatMessage(`team_${tid}`, chatPayload);
+          } catch (e) {
+            console.error('Error sending attendance reminder to team chat:', e);
+          }
+        }
+      } else {
+        const allTeams = Store.state.teams || [];
+        for (const tm of allTeams) {
+          try {
+            await window.Cloud.sendChatMessage(`team_${tm.id}`, chatPayload);
+          } catch (e) {}
+        }
+      }
     }
 
     toast(`🔔 Recordatorio enviado a ${pendingPids.length} jugador(es) pendiente(s)`, 'success');
   }
+
+  // Navegar y abrir convocatoria directamente en el Coach App
+  window.__openConvocationInCoach = function(convId) {
+    if (!convId) return;
+    document.querySelectorAll('.chat-dialog-overlay, .dialog-overlay, .sheet-backdrop').forEach(el => el.remove());
+    if (typeof navigate === 'function') navigate('convocations');
+    if (window.Store && Store.convocation) {
+      const conv = Store.convocation(convId);
+      if (conv) {
+        setTimeout(() => {
+          showConvocationDetailsModal(conv);
+        }, 120);
+      }
+    }
+  };
 
   function showConvocationDetailsModal(conv, onDone) {
     if (!conv) return;
@@ -7610,11 +7658,6 @@
           currentType = 'match';
           typeMatchBtn.className = 'active';
           typeTrainBtn.className = '';
-          // En partido sólo un equipo: si había más de uno seleccionado, dejar únicamente el primero
-          if (selectedTeamIds.length > 1) {
-            selectedTeamIds = [selectedTeamIds[0]];
-            updateTeamBubblesUI();
-          }
         };
         typeTrainBtn.onclick = () => {
           currentType = 'training';
@@ -7630,16 +7673,11 @@
             // "Todos los equipos" pulsado
             selectedTeamIds = [];
           } else {
-            if (currentType === 'training') {
-              // En entrenamiento se permite más de un equipo
-              if (selectedTeamIds.includes(tid)) {
-                selectedTeamIds = selectedTeamIds.filter(x => x !== tid);
-              } else {
-                selectedTeamIds.push(tid);
-              }
+            // Se permite más de un equipo tanto en partidos como en entrenamientos
+            if (selectedTeamIds.includes(tid)) {
+              selectedTeamIds = selectedTeamIds.filter(x => x !== tid);
             } else {
-              // En partido sólo un equipo
-              selectedTeamIds = [tid];
+              selectedTeamIds.push(tid);
             }
           }
           updateTeamBubblesUI();

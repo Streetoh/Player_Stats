@@ -1040,6 +1040,54 @@
     });
   }
 
+  /* -------------------------------------------------------------
+     REVOCACIÓN INMEDIATA DE ACCESO SI EL ENTRENADOR BORRA EL PERFIL
+     ------------------------------------------------------------- */
+  function handlePlayerProfileRemoved() {
+    console.warn('[Portal] Active player profile was deleted by coach.');
+    try {
+      localStorage.removeItem('portal_player_id');
+      localStorage.removeItem('portal_player_locked');
+      localStorage.removeItem('portal_pending_creation_id');
+      localStorage.removeItem('portal_pending_creation_name');
+      localStorage.removeItem('portal_pending_creation_dorsal');
+      localStorage.removeItem('portal_pending_creation_pos');
+      localStorage.removeItem('portal_pending_req_id');
+      localStorage.removeItem('cached_club_state');
+    } catch (e) {}
+    myPlayerId = null;
+
+    // Cerrar cualquier diálogo, chat o modal abierto
+    document.querySelectorAll('.chat-dialog-overlay, .dialog-overlay, .sheet-backdrop').forEach(el => el.remove());
+
+    updateHeaderIdentity();
+    renderCurrentTab();
+
+    // Mostrar ventana emergente en inglés
+    const alertBox = document.createElement('div');
+    alertBox.className = 'dialog-overlay';
+    alertBox.style.cssText = 'position: fixed; inset: 0; z-index: 999999; background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center; padding: 16px;';
+    alertBox.innerHTML = `
+      <div class="dialog-box" style="max-width: 380px; text-align: center; background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 24px 20px;">
+        <div style="font-size: 42px; margin-bottom: 10px;">⚠️</div>
+        <h3 style="margin: 0 0 10px; font-size: 18px; font-weight: 900; color: #ef4444;">Profile Removed</h3>
+        <p style="font-size: 13.5px; color: var(--muted); margin: 0 0 20px; line-height: 1.45;">
+          Your player profile has been removed by the coach. Access has been revoked. Please select an available profile or request access.
+        </p>
+        <button type="button" class="btn primary block" id="btn-profile-removed-ok" style="height: 44px; font-size: 14px; font-weight: 800; border-radius: 12px; background: #ef4444; border-color: #ef4444;">
+          Select Profile
+        </button>
+      </div>
+    `;
+    alertBox.querySelector('#btn-profile-removed-ok').onclick = () => {
+      alertBox.remove();
+      updateHeaderIdentity();
+      renderCurrentTab();
+      showSelectIdentityModal();
+    };
+    document.body.appendChild(alertBox);
+  }
+
   function showPlayerCreationRequestModal() {
     const overlay = document.createElement('div');
     overlay.className = 'dialog-overlay';
@@ -1854,6 +1902,35 @@
       }
     });
   }
+
+  /* -------------------------------------------------------------
+     NAVEGACIÓN DIRECTA A UNA CONVOCATORIA DESDE EL CHAT O NOTIFICACIÓN
+     ------------------------------------------------------------- */
+  window.__openConvocationInPortal = function (convId) {
+    if (!convId) return;
+    document.querySelectorAll('.chat-dialog-overlay, .dialog-overlay, .sheet-backdrop').forEach(el => el.remove());
+    convFilterType = 'all';
+    currentTab = 'convocations';
+    const convTabBtn = document.querySelector('#tab-convocations, button[data-tab="convocations"]');
+    if (convTabBtn) {
+      document.querySelectorAll('.tabbar button, .tab-bar button, #portal-tabbar .tab-btn').forEach(b => b.classList.remove('active'));
+      convTabBtn.classList.add('active');
+    }
+    renderCurrentTab();
+    setTimeout(() => {
+      const card = document.querySelector(`.card[data-cid="${convId}"]`);
+      if (card) {
+        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        card.style.transition = 'box-shadow 0.3s, border-color 0.3s';
+        card.style.boxShadow = '0 0 0 3px #38bdf8';
+        card.style.borderColor = '#38bdf8';
+        setTimeout(() => {
+          card.style.boxShadow = '';
+          card.style.borderColor = '';
+        }, 2500);
+      }
+    }, 120);
+  };
 
   /* -------------------------------------------------------------
      PESTAÑA 1: CONVOCATORIAS (PUNTOS 2, 3, 4)
@@ -3144,9 +3221,26 @@
       return;
     }
     const myP = getMyPlayer();
+    if (!myPlayerId || !myP) {
+      view.innerHTML = `
+        <div style="padding: 40px 16px; text-align: center;">
+          <div style="font-size: 46px; margin-bottom: 12px;">🔒</div>
+          <h3 style="margin: 0 0 8px; font-size: 18px; font-weight: 900;">${t('selectIdentity', 'Select your profile')}</h3>
+          <p style="font-size: 13.5px; color: var(--muted); margin: 0 0 20px; line-height: 1.45;">
+            ${currentLang === 'en' ? 'You must select or activate an active player profile to use team chat.' : 'Debes seleccionar o activar un perfil de jugador para usar el chat del equipo.'}
+          </p>
+          <button type="button" class="btn primary" id="btn-chat-need-profile" style="font-weight: 800; border-radius: 12px; padding: 10px 24px;">
+            ${t('selectIdentity', 'Select Profile')}
+          </button>
+        </div>
+      `;
+      const btn = view.querySelector('#btn-chat-need-profile');
+      if (btn) btn.onclick = showSelectIdentityModal;
+      return;
+    }
     window.ChatUI.renderChatList(view, {
-      currentUserId: myPlayerId || 'player_guest',
-      currentUserName: myP ? `${myP.name || ''} ${myP.lastName || ''}`.trim() : 'Player',
+      currentUserId: myPlayerId,
+      currentUserName: `${myP.name || ''} ${myP.lastName || ''}`.trim() || 'Player',
       isCoach: false,
       players: (clubData && clubData.players) ? clubData.players : [],
       teams: (clubData && clubData.teams) ? clubData.teams : []
@@ -3312,6 +3406,14 @@
       if (cached) {
         clubData = JSON.parse(cached);
         window.clubData = clubData;
+        if (myPlayerId && Array.isArray(clubData.players) && clubData.players.length > 0) {
+          const isPending = (myPlayerId === localStorage.getItem('portal_pending_creation_id'));
+          const stillExists = clubData.players.some(p => p.id === myPlayerId);
+          if (!stillExists && !isPending) {
+            handlePlayerProfileRemoved();
+            return;
+          }
+        }
         updateHeaderIdentity();
       }
     } catch (e) {}
@@ -3347,11 +3449,22 @@
       // Escuchar estado completo del club
       window.Cloud.listenToClubState((remoteState) => {
         if (!remoteState) return;
-        if (remoteState.players && remoteState.players.length > 0) {
+
+        // Comprobar si el perfil del jugador ha sido eliminado por el entrenador
+        if (myPlayerId && Array.isArray(remoteState.players)) {
+          const isPending = (myPlayerId === localStorage.getItem('portal_pending_creation_id'));
+          const stillExists = remoteState.players.some(p => p.id === myPlayerId);
+          if (!stillExists && !isPending) {
+            handlePlayerProfileRemoved();
+            return;
+          }
+        }
+
+        if (Array.isArray(remoteState.players) && remoteState.players.length > 0) {
           clubData = remoteState;
         } else if (clubData && clubData.players && clubData.players.length > 0) {
           clubData = Object.assign({}, clubData, remoteState, {
-            players: clubData.players,
+            players: (remoteState.players && Array.isArray(remoteState.players)) ? remoteState.players : clubData.players,
             teams: (remoteState.teams && remoteState.teams.length > 0) ? remoteState.teams : clubData.teams
           });
         } else {

@@ -1227,3 +1227,11 @@ button { font-family: inherit; color: inherit; border: 0; background: none; curs
   transform: scale(0.95);
   background: var(--surface3);
 }
+
+.chat-conv-link-card:active {
+  transform: scale(0.98);
+  opacity: 0.9;
+}
+.chat-conv-link:active {
+  opacity: 0.7;
+}

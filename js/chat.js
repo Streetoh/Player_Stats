@@ -2157,10 +2157,23 @@
 
         const AVAILABLE_REACTIONS = ['👍', '❤️', '😂', '🔥', '👏', '⚽'];
 
-        function formatMessageText(txt) {
+        function formatMessageText(txt, convId, eventTitle) {
           if (!txt) return '';
-          const escaped = escapeHtml(txt);
-          return escaped.replace(/@([a-zA-Z0-9áéíóúÁÉÍÓÚñÑ_]+)/g, '<span style="background: rgba(34, 211, 238, 0.2); color: #38bdf8; font-weight: 800; padding: 1px 6px; border-radius: 6px;">@$1</span>');
+          let escaped = escapeHtml(txt);
+
+          // Hacer clicable el nombre del evento si el mensaje contiene el título del evento
+          if (convId && eventTitle) {
+            const escapedTitle = escapeHtml(eventTitle);
+            const regexTitle = new RegExp(`&quot;${escapedTitle}&quot;|"${escapedTitle}"`, 'g');
+            escaped = escaped.replace(regexTitle, `<span class="chat-conv-link" data-conv-id="${convId}" style="text-decoration: underline; color: #38bdf8; font-weight: 800; cursor: pointer;">"${escapedTitle}"</span>`);
+          }
+
+          // Resaltar menciones con @ (permite nombres completos y dorsales en líneas separadas o juntos)
+          escaped = escaped.replace(/@([^\n\r@<]+)/g, '<span style="background: rgba(34, 211, 238, 0.22); color: #38bdf8; font-weight: 800; padding: 1px 6px; border-radius: 6px;">@$1</span>');
+
+          // Conservar saltos de línea
+          escaped = escaped.replace(/\n/g, '<br/>');
+          return escaped;
         }
 
         msgsContainer.innerHTML = visibleMessages.map((m, idx) => {
@@ -2239,6 +2252,26 @@
           // Reacciones
           const reactionsEntries = getReactionsSummary(m.reactions || {});
 
+          // Tarjeta interactiva de convocatoria / evento si el mensaje incluye convId
+          let convLinkHtml = '';
+          if (m.convId) {
+            convLinkHtml = `
+              <div class="chat-conv-link-card" data-conv-id="${m.convId}" style="margin-top: 8px; padding: 8px 12px; background: rgba(34, 211, 238, 0.16); border: 1.5px solid rgba(34, 211, 238, 0.45); border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 8px; user-select: none;">
+                <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+                  <span style="font-size: 18px;">📅</span>
+                  <div style="min-width: 0;">
+                    <div style="font-weight: 800; font-size: 13px; color: #38bdf8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                      ${escapeHtml(m.eventTitle || (isEn ? 'View Call-up' : 'Ver Convocatoria'))}
+                    </div>
+                    <small style="font-size: 11px; color: ${isMine ? '#031206' : 'var(--muted)'}; opacity: 0.9;">
+                      ${isEn ? 'Tap to view event & confirm ➔' : 'Pulsa para ir al evento y confirmar ➔'}
+                    </small>
+                  </div>
+                </div>
+              </div>
+            `;
+          }
+
           return `
             <div class="chat-msg-row" data-mid="${m.id}" style="display: flex; gap: 8px; align-items: flex-end; justify-content: ${isMine ? 'flex-end' : 'flex-start'}; margin-bottom: 4px; touch-action: pan-y;">
               ${!isMine ? `
@@ -2257,7 +2290,8 @@
                 <div style="padding: 10px 14px; border-radius: ${isMine ? '16px 16px 4px 16px' : '16px 16px 16px 4px'}; background: ${isMine ? 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)' : 'var(--surface2)'}; color: ${isMine ? '#031206' : '#fff'}; border: ${isMine ? 'none' : '1px solid var(--border)'}; font-size: 14px; line-height: 1.45; word-break: break-word; box-shadow: 0 2px 8px rgba(0,0,0,0.15); position: relative;">
                   ${quoteHtml}
                   ${mediaHtml}
-                  ${m.text ? `<div>${formatMessageText(m.text)}</div>` : ''}
+                  ${m.text ? `<div>${formatMessageText(m.text, m.convId, m.eventTitle)}</div>` : ''}
+                  ${convLinkHtml}
                 </div>
 
                 <!-- Barra de acciones rápidas (Reaccionar, Citar, Opciones) y fecha -->
@@ -2297,6 +2331,22 @@
             </div>
           `;
         }).join('');
+
+        // Clic en enlace o tarjeta de convocatoria / evento
+        msgsContainer.querySelectorAll('[data-conv-id]').forEach(el => {
+          el.onclick = (e) => {
+            e.stopPropagation();
+            const cid = el.getAttribute('data-conv-id');
+            if (cid) {
+              haptic(30);
+              if (typeof window.__openConvocationInPortal === 'function') {
+                window.__openConvocationInPortal(cid);
+              } else if (typeof window.__openConvocationInCoach === 'function') {
+                window.__openConvocationInCoach(cid);
+              }
+            }
+          };
+        });
 
         // Clic en avatar o nombre para abrir ficha / perfil
         msgsContainer.querySelectorAll('.chat-sender-avatar, .chat-sender-name').forEach(el => {
@@ -2636,6 +2686,18 @@
       }
 
       async function handleSend() {
+        if (!isCoach) {
+          const validPlayerId = localStorage.getItem('portal_player_id');
+          const allPlayers = (global.clubData && global.clubData.players) || (global.Store && global.Store.state && global.Store.state.players) || [];
+          const playerExists = validPlayerId && allPlayers.some(p => p.id === validPlayerId);
+          if (!validPlayerId || (allPlayers.length > 0 && !playerExists)) {
+            alert(checkIsEn() ? 'Your player profile is no longer active. You cannot send messages.' : 'Tu perfil de jugador ya no está activo. No puedes enviar mensajes.');
+            const overlay = document.querySelector('.chat-dialog-overlay');
+            if (overlay) overlay.remove();
+            return;
+          }
+        }
+
         const text = inputEl.value.trim();
         const hasAttach = !!pendingAttachment;
         if (!text && !hasAttach) return;
