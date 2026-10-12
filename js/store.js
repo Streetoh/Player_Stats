@@ -919,6 +919,20 @@
 
     deleteRecurringSchedule(id) {
       this.state.recurringSchedules = (this.state.recurringSchedules || []).filter(r => r.id !== id);
+
+      const now = new Date();
+      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      const curTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+      // Eliminar entrenamientos futuros generados por este plan recurrente
+      // Los entrenamientos pasados se conservan en el historial
+      this.state.convocations = (this.state.convocations || []).filter(c => {
+        const isFromSchedule = (c.scheduleId === id || (c.id && c.id.startsWith(`rec_${id}_`)));
+        if (!isFromSchedule) return true;
+        const isFuture = (c.date > todayStr) || (c.date === todayStr && (c.time || '23:59') >= curTime);
+        return !isFuture;
+      });
+
       this.save();
     },
 
@@ -928,8 +942,26 @@
       if (!activeSchedules.length) return 0;
 
       let generatedCount = 0;
-      let startD = startDateStr ? new Date(startDateStr + 'T00:00:00') : new Date();
-      if (isNaN(startD.getTime())) startD = new Date();
+
+      function formatLocalDate(dt) {
+        const y = dt.getFullYear();
+        const m = String(dt.getMonth() + 1).padStart(2, '0');
+        const d = String(dt.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+      }
+
+      const now = new Date();
+      let startD = new Date();
+      if (startDateStr) {
+        const parts = startDateStr.split('-').map(x => parseInt(x, 10));
+        if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
+          startD = new Date(parts[0], parts[1] - 1, parts[2], 12, 0, 0);
+        } else {
+          startD.setHours(12, 0, 0, 0);
+        }
+      } else {
+        startD.setHours(12, 0, 0, 0);
+      }
 
       activeSchedules.forEach(sched => {
         const targetDays = Array.isArray(sched.daysOfWeek) ? sched.daysOfWeek : [2, 4];
@@ -942,22 +974,26 @@
           return targetTeamIds.includes(p.teamId);
         });
 
-        let curEndD = sched.endDate ? new Date(sched.endDate + 'T23:59:59') : null;
-        if (endDateStr) {
-          const customEnd = new Date(endDateStr + 'T23:59:59');
-          if (!isNaN(customEnd.getTime())) curEndD = customEnd;
+        let curEndD = null;
+        const targetEndStr = endDateStr || sched.endDate || '';
+        if (targetEndStr) {
+          const parts = targetEndStr.split('-').map(x => parseInt(x, 10));
+          if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
+            curEndD = new Date(parts[0], parts[1] - 1, parts[2], 23, 59, 59);
+          }
         }
         if (!curEndD || isNaN(curEndD.getTime())) {
           curEndD = new Date(startD);
           curEndD.setDate(startD.getDate() + (daysAhead || 30));
+          curEndD.setHours(23, 59, 59, 999);
         }
 
         let curD = new Date(startD);
         while (curD <= curEndD) {
-          const dayOfWeek = curD.getDay(); // 0=Dom, 1=Lun, 2=Mar, etc.
+          const dayOfWeek = curD.getDay(); // 0=Dom, 1=Lun, 2=Mar, 3=Mié, 4=Jue, 5=Vie, 6=Sáb
 
           if (targetDays.includes(dayOfWeek)) {
-            const dateStr = curD.toISOString().slice(0, 10);
+            const dateStr = formatLocalDate(curD);
             const targetId = `rec_${sched.id}_${dateStr.replace(/-/g, '')}`;
             const targetTime = (sched.dayTimes && sched.dayTimes[dayOfWeek]) ? sched.dayTimes[dayOfWeek] : (sched.time || '18:00');
             const targetEndTime = (sched.dayEndTimes && sched.dayEndTimes[dayOfWeek]) ? sched.dayEndTimes[dayOfWeek] : (sched.endTime || '');
@@ -969,8 +1005,8 @@
             );
 
             if (existingConv) {
-              // Si la convocatoria ya existe pero el entrenador modificó la hora o datos para este día, actualizar convocatorias futuras
-              const isFuture = (new Date(dateStr + 'T23:59:59') >= new Date());
+              const todayStr = formatLocalDate(new Date());
+              const isFuture = (dateStr >= todayStr);
               if (isFuture) {
                 if (existingConv.time !== targetTime) existingConv.time = targetTime;
                 existingConv.endTime = targetEndTime;

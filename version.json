@@ -1,5 +1,5 @@
 {
-  "version": "2026.10.12.8",
-  "buildTime": 1791811000000,
-  "description": "Coach app: Training duration and flexible start/end time configuration for recurring sessions"
+  "version": "2026.10.12.10",
+  "buildTime": 1791817000000,
+  "description": "Coach app: Fixed recurring days mapping, auto-delete future trainings on schedule removal, and collapsible past trainings section"
 }

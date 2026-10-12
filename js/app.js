@@ -367,8 +367,8 @@
         if (isSelected) cls += ' selected';
         if (isToday) cls += ' today';
         const inlineStyle = isSelected
-          ? 'style="background: #22d3ee !important; color: #020617 !important; font-weight: 900 !important; border: 2px solid #ffffff !important; box-shadow: 0 0 16px rgba(34, 211, 238, 0.9) !important;"'
-          : (isToday ? 'style="border-color: rgba(34, 211, 238, 0.6); color: var(--cyan);"' : '');
+          ? 'style="background: linear-gradient(135deg, #06b6d4, #2563eb) !important; color: #ffffff !important; font-weight: 900 !important; border: 2px solid #ffffff !important; box-shadow: 0 0 16px rgba(6, 182, 212, 0.75), 0 3px 8px rgba(0, 0, 0, 0.5) !important; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6) !important; transform: scale(1.06) !important;"'
+          : (isToday ? 'style="border: 1.5px solid rgba(34, 211, 238, 0.7) !important; color: #38bdf8 !important; background: rgba(34, 211, 238, 0.12) !important; font-weight: 800 !important;"' : '');
         daysHtml += `<div class="${cls}" data-action="select" data-d="${d}" ${inlineStyle}>${d}</div>`;
       }
 
@@ -8860,14 +8860,8 @@
           </div>
 
           <div class="field-row">
-            <div class="field">
-              <label>🗓️ ${t('startDate', 'Fecha Desde')}</label>
-              <input type="date" id="sched-start-date" value="${existing && existing.startDate ? existing.startDate : new Date().toISOString().slice(0, 10)}" />
-            </div>
-            <div class="field">
-              <label>🗓️ ${t('endDate', 'Fecha Hasta')}</label>
-              <input type="date" id="sched-end-date" value="${existing && existing.endDate ? existing.endDate : new Date(Date.now() + 30*86400000).toISOString().slice(0, 10)}" />
-            </div>
+            ${renderDatePickerFieldHtml('sched-start-date', existing && existing.startDate ? existing.startDate : new Date().toISOString().slice(0, 10), '🗓️ ' + t('startDate', 'Fecha Desde'))}
+            ${renderDatePickerFieldHtml('sched-end-date', existing && existing.endDate ? existing.endDate : new Date(Date.now() + 30*86400000).toISOString().slice(0, 10), '🗓️ ' + t('endDate', 'Fecha Hasta'))}
           </div>
 
           <div class="field">
@@ -9002,6 +8996,8 @@
           });
         }
 
+        bindDatePickerField('sched-start-date', body);
+        bindDatePickerField('sched-end-date', body);
         renderDayTimesInputs();
 
         // Enlazar botones de duración rápida global
@@ -9209,6 +9205,7 @@
   }
 
   let convCoachFilterType = 'all'; // 'all', 'match', 'training'
+  let showPastConvs = false; // Estado del desplegable de entrenamientos pasados
 
   /* =========================================================
      VISTA 5: CONVOCATORIAS Y ASISTENCIA (MENÚ INDEPENDIENTE)
@@ -9221,14 +9218,108 @@
         if (convCoachFilterType === 'training') return c.type === 'training';
         return true;
       });
-      const list = [...filteredList].sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.time || '').localeCompare(b.time || ''));
+
+      const now = new Date();
+      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      const curTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+      // Separar entre próximos (hoy o futuros) y pasados
+      const upcomingList = [];
+      const pastList = [];
+
+      filteredList.forEach(c => {
+        const isPast = (c.date < todayStr) || (c.date === todayStr && (c.time || '23:59') < curTime);
+        if (isPast) {
+          pastList.push(c);
+        } else {
+          upcomingList.push(c);
+        }
+      });
+
+      // Ordenar próximos: el más cercano primero
+      upcomingList.sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.time || '').localeCompare(b.time || ''));
+
+      // Ordenar pasados: el más reciente primero
+      pastList.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.time || '').localeCompare(a.time || ''));
+
+      function renderCard(c, isPast = false) {
+        const cList = c.list || {};
+        const responses = c.responses || {};
+        const calledPids = Object.keys(cList).filter(pid => cList[pid] && cList[pid] !== 'uncalled');
+        const totalCalled = calledPids.length;
+
+        let nAccepted = 0;
+        let nRejected = 0;
+        let nPending = 0;
+
+        calledPids.forEach(pid => {
+          const r = responses[pid];
+          if (r && (r.status === 'called' || r.status === 'attending' || r.status === 'yes')) {
+            nAccepted++;
+          } else if (r && (r.status === 'absent' || r.status === 'no')) {
+            nRejected++;
+          } else {
+            nPending++;
+          }
+        });
+
+        return `
+          <div class="conv-card" data-cid="${c.id}" style="cursor: pointer; ${isPast ? 'opacity: 0.92; border-color: rgba(255,255,255,0.08); background: rgba(15, 23, 42, 0.7);' : ''}">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+              <div>
+                <div style="display: flex; gap: 6px; align-items: center; margin-bottom: 4px;">
+                  <span class="badge ${c.type}">
+                    ${c.type === 'match' ? '🏆 ' + t('match') : '⚽ ' + t('training')}
+                  </span>
+                  ${isPast ? `
+                    <span class="badge" style="background: rgba(148, 163, 184, 0.15); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.3); font-size: 10px; font-weight: 800; padding: 2px 6px;">
+                      ⏳ ${t('completed', 'Finalizado')}
+                    </span>
+                  ` : ''}
+                </div>
+                <h3 style="margin: 0; font-size: 16px; font-weight: 800;">
+                  ${escapeHtml(c.title || (c.rival ? 'vs ' + c.rival : 'Convocatoria'))}
+                </h3>
+                <div class="muted" style="font-size: 12px; margin-top: 3px;">
+                  📅 <b>${formatConvocationDateWithDay(c.date)}</b> ${c.time ? '• ⏰ ' + c.time + (c.endTime ? ' - ' + c.endTime : '') + (c.duration ? ' (' + c.duration + ' min)' : '') : ''} ${c.venue ? '• 📍 ' + escapeHtml(c.venue) : ''}
+                </div>
+              </div>
+              <div style="display: flex; gap: 6px; align-items: center; flex-shrink: 0;">
+                ${(!isPast && nPending > 0) ? `
+                  <button class="btn sm" data-quick-remind="${c.id}" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: #fff; border: none; font-size: 11.5px; font-weight: 800; padding: 4px 8px; border-radius: 8px; box-shadow: 0 2px 6px rgba(245, 158, 11, 0.3);" title="${t('sendAttendanceReminder', 'Enviar Recordatorio')}">
+                    🔔 ${nPending}
+                  </button>
+                ` : ''}
+                <button class="btn sm" data-quick-viber="${c.id}" style="background: #7c3aed; color: #fff; border-color: #a855f7; font-size: 11.5px; font-weight: 800; padding: 4px 8px;" title="Viber">
+                  💜 Viber
+                </button>
+              </div>
+            </div>
+
+            <div class="conv-badge-row" style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px;">
+              <span class="badge" style="background: var(--surface2); color: #cbd5e1; border: 1px solid var(--border); font-weight: 800; font-size: 11px; padding: 3px 8px;">
+                👤 ${totalCalled} ${t('calledPlayers', 'Convocados')}
+              </span>
+              <span class="badge" style="background: rgba(34, 197, 94, 0.16); color: #86efac; border: 1px solid rgba(34, 197, 94, 0.4); font-weight: 800; font-size: 11px; padding: 3px 8px;">
+                🟢 ${nAccepted}
+              </span>
+              <span class="badge" style="background: rgba(239, 68, 68, 0.16); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.4); font-weight: 800; font-size: 11px; padding: 3px 8px;">
+                ❌ ${nRejected}
+              </span>
+              <span class="badge" style="background: rgba(250, 204, 21, 0.16); color: #fde047; border: 1px solid rgba(250, 204, 21, 0.4); font-weight: 800; font-size: 11px; padding: 3px 8px;">
+                ⏳ ${nPending}
+              </span>
+            </div>
+          </div>
+        `;
+      }
 
       view.innerHTML = `
         <div class="topbar" style="display: flex; flex-direction: column; gap: 10px; width: 100%; box-sizing: border-box; margin-bottom: 6px;">
           <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; gap: 8px;">
             <div style="min-width: 0; flex: 1;">
               <h1 style="font-size: 19px; margin: 0; font-weight: 900; letter-spacing: -0.3px;">${t('convocations')}</h1>
-              <span class="sub" style="font-size: 11px;">${list.length} convocatorias registradas</span>
+              <span class="sub" style="font-size: 11px;">${upcomingList.length} próximas${pastList.length > 0 ? ` (${pastList.length} pasadas)` : ''}</span>
             </div>
             <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
               ${renderLangButton()}
@@ -9262,7 +9353,7 @@
           </button>
         </div>
 
-        ${list.length === 0 ? `
+        ${(upcomingList.length === 0 && pastList.length === 0) ? `
           <div class="empty-state card">
             <div class="e-ic">📋</div>
             <h3>${t('convocations')}</h3>
@@ -9272,72 +9363,46 @@
             </button>
           </div>
         ` : `
-          <div class="conv-list">
-            ${list.map(c => {
-              const cList = c.list || {};
-              const responses = c.responses || {};
-              const calledPids = Object.keys(cList).filter(pid => cList[pid] && cList[pid] !== 'uncalled');
-              const totalCalled = calledPids.length;
+          <!-- Lista de eventos próximos / activos -->
+          ${upcomingList.length === 0 ? `
+            <div style="text-align: center; padding: 22px 14px; background: var(--surface2); border: 1.5px dashed var(--border); border-radius: 14px; color: var(--muted); font-size: 12px; margin-bottom: 12px;">
+              ℹ️ ${t('noUpcomingConvs', 'No hay convocatorias ni entrenamientos próximos activos.')}
+            </div>
+          ` : `
+            <div class="conv-list">
+              ${upcomingList.map(c => renderCard(c, false)).join('')}
+            </div>
+          `}
 
-              let nAccepted = 0;
-              let nRejected = 0;
-              let nPending = 0;
+          <!-- DESPLEGABLE DE ENTRENAMIENTOS / CONVOCATORIAS PASADAS -->
+          ${pastList.length > 0 ? `
+            <div style="margin-top: 18px; border: 1.5px solid var(--border); border-radius: 14px; background: var(--surface2); overflow: hidden;">
+              <div id="btn-toggle-past-convs" style="display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; cursor: pointer; user-select: none; background: rgba(15, 23, 42, 0.4);">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="font-size: 16px;">📁</span>
+                  <b style="font-size: 13.5px; color: #fff;">${t('pastTrainings', 'Entrenamientos Pasados')}</b>
+                  <span class="badge" style="background: rgba(148, 163, 184, 0.18); color: #cbd5e1; font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 6px;">
+                    ${pastList.length}
+                  </span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <span style="font-size: 11.5px; color: var(--cyan); font-weight: 700;">${showPastConvs ? t('hide', 'Ocultar') : t('show', 'Mostrar')}</span>
+                  <span style="font-size: 13px; color: var(--cyan); font-weight: 900;">${showPastConvs ? '▲' : '▼'}</span>
+                </div>
+              </div>
 
-              calledPids.forEach(pid => {
-                const r = responses[pid];
-                if (r && (r.status === 'called' || r.status === 'attending' || r.status === 'yes')) {
-                  nAccepted++;
-                } else if (r && (r.status === 'absent' || r.status === 'no')) {
-                  nRejected++;
-                } else {
-                  nPending++;
-                }
-              });
-
-              return `
-                <div class="conv-card" data-cid="${c.id}" style="cursor: pointer;">
-                  <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
-                    <div>
-                      <span class="badge ${c.type}" style="margin-bottom: 4px; display: inline-block;">
-                        ${c.type === 'match' ? '🏆 ' + t('match') : '⚽ ' + t('training')}
-                      </span>
-                      <h3 style="margin: 0; font-size: 16px; font-weight: 800;">
-                        ${escapeHtml(c.title || (c.rival ? 'vs ' + c.rival : 'Convocatoria'))}
-                      </h3>
-                      <div class="muted" style="font-size: 12px; margin-top: 3px;">
-                        📅 <b>${formatConvocationDateWithDay(c.date)}</b> ${c.time ? '• ⏰ ' + c.time + (c.endTime ? ' - ' + c.endTime : '') + (c.duration ? ' (' + c.duration + ' min)' : '') : ''} ${c.venue ? '• 📍 ' + escapeHtml(c.venue) : ''}
-                      </div>
-                    </div>
-                    <div style="display: flex; gap: 6px; align-items: center; flex-shrink: 0;">
-                      ${nPending > 0 ? `
-                        <button class="btn sm" data-quick-remind="${c.id}" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: #fff; border: none; font-size: 11.5px; font-weight: 800; padding: 4px 8px; border-radius: 8px; box-shadow: 0 2px 6px rgba(245, 158, 11, 0.3);" title="${t('sendAttendanceReminder', 'Enviar Recordatorio')}">
-                          🔔 ${nPending}
-                        </button>
-                      ` : ''}
-                      <button class="btn sm" data-quick-viber="${c.id}" style="background: #7c3aed; color: #fff; border-color: #a855f7; font-size: 11.5px; font-weight: 800; padding: 4px 8px;" title="Viber">
-                        💜 Viber
-                      </button>
-                    </div>
-                  </div>
-
-                  <div class="conv-badge-row" style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px;">
-                    <span class="badge" style="background: var(--surface2); color: #cbd5e1; border: 1px solid var(--border); font-weight: 800; font-size: 11px; padding: 3px 8px;">
-                      👤 ${totalCalled} ${t('calledPlayers', 'Convocados')}
-                    </span>
-                    <span class="badge" style="background: rgba(34, 197, 94, 0.16); color: #86efac; border: 1px solid rgba(34, 197, 94, 0.4); font-weight: 800; font-size: 11px; padding: 3px 8px;">
-                      🟢 ${nAccepted}
-                    </span>
-                    <span class="badge" style="background: rgba(239, 68, 68, 0.16); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.4); font-weight: 800; font-size: 11px; padding: 3px 8px;">
-                      ❌ ${nRejected}
-                    </span>
-                    <span class="badge" style="background: rgba(250, 204, 21, 0.16); color: #fde047; border: 1px solid rgba(250, 204, 21, 0.4); font-weight: 800; font-size: 11px; padding: 3px 8px;">
-                      ⏳ ${nPending}
-                    </span>
+              ${showPastConvs ? `
+                <div style="padding: 10px 12px 12px; border-top: 1px solid var(--border); background: var(--bg);">
+                  <p style="font-size: 11px; color: var(--muted); margin: 0 0 10px; line-height: 1.4;">
+                    ${t('pastTrainingsDesc', 'Historial de sesiones y convocatorias finalizadas con asistencia registrada.')}
+                  </p>
+                  <div class="conv-list" style="display: flex; flex-direction: column; gap: 8px;">
+                    ${pastList.map(c => renderCard(c, true)).join('')}
                   </div>
                 </div>
-              `;
-            }).join('')}
-          </div>
+              ` : ''}
+            </div>
+          ` : ''}
         `}
       `;
 
@@ -9377,6 +9442,15 @@
           build();
         };
       });
+
+      const btnTogglePast = view.querySelector('#btn-toggle-past-convs');
+      if (btnTogglePast) {
+        btnTogglePast.onclick = () => {
+          haptic(20);
+          showPastConvs = !showPastConvs;
+          build();
+        };
+      }
 
       view.querySelectorAll('[data-quick-remind]').forEach(btn => {
         btn.onclick = async (e) => {
