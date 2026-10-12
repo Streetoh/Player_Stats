@@ -891,9 +891,14 @@
           id: uid('rec'),
           title: '',
           teamId: '',
+          teamIds: [],
           daysOfWeek: [2, 4], // 1=Lun, 2=Mar, 3=Mie, 4=Jue, 5=Vie, 6=Sab, 0=Dom
           time: '18:00',
+          endTime: '19:30',
+          duration: 90,
           dayTimes: {},
+          dayEndTimes: {},
+          dayDurations: {},
           venue: '',
           address: '',
           notes: '',
@@ -928,7 +933,14 @@
 
       activeSchedules.forEach(sched => {
         const targetDays = Array.isArray(sched.daysOfWeek) ? sched.daysOfWeek : [2, 4];
-        const teamPlayers = this.state.players.filter(p => !sched.teamId || p.teamId === sched.teamId);
+        const targetTeamIds = Array.isArray(sched.teamIds) && sched.teamIds.length > 0
+          ? sched.teamIds
+          : (sched.teamId ? [sched.teamId] : []);
+
+        const teamPlayers = this.state.players.filter(p => {
+          if (!targetTeamIds.length) return true;
+          return targetTeamIds.includes(p.teamId);
+        });
 
         let curEndD = sched.endDate ? new Date(sched.endDate + 'T23:59:59') : null;
         if (endDateStr) {
@@ -948,6 +960,8 @@
             const dateStr = curD.toISOString().slice(0, 10);
             const targetId = `rec_${sched.id}_${dateStr.replace(/-/g, '')}`;
             const targetTime = (sched.dayTimes && sched.dayTimes[dayOfWeek]) ? sched.dayTimes[dayOfWeek] : (sched.time || '18:00');
+            const targetEndTime = (sched.dayEndTimes && sched.dayEndTimes[dayOfWeek]) ? sched.dayEndTimes[dayOfWeek] : (sched.endTime || '');
+            const targetDuration = (sched.dayDurations && sched.dayDurations[dayOfWeek]) ? sched.dayDurations[dayOfWeek] : (sched.duration || 90);
 
             const existingConv = (this.state.convocations || []).find(c => 
               c.id === targetId ||
@@ -957,18 +971,41 @@
             if (existingConv) {
               // Si la convocatoria ya existe pero el entrenador modificó la hora o datos para este día, actualizar convocatorias futuras
               const isFuture = (new Date(dateStr + 'T23:59:59') >= new Date());
-              if (isFuture && existingConv.time !== targetTime) {
-                existingConv.time = targetTime;
+              if (isFuture) {
+                if (existingConv.time !== targetTime) existingConv.time = targetTime;
+                existingConv.endTime = targetEndTime;
+                existingConv.duration = targetDuration;
                 if (sched.venue) existingConv.venue = sched.venue;
                 if (sched.address) existingConv.address = sched.address;
                 if (sched.notes) existingConv.notes = sched.notes;
+                existingConv.teamIds = targetTeamIds;
+                existingConv.teamId = targetTeamIds[0] || '';
+                if (!existingConv.list) existingConv.list = {};
+                teamPlayers.forEach(p => {
+                  if (!existingConv.list[p.id]) {
+                    existingConv.list[p.id] = 'called';
+                  }
+                });
               }
             } else {
               const defaultList = {};
               teamPlayers.forEach(p => { defaultList[p.id] = 'called'; });
 
-              const teamObj = this.team(sched.teamId);
-              const autoTitle = sched.title || (teamObj ? 'Entrenamiento ' + teamObj.name : 'Entrenamiento');
+              let autoTitle = sched.title;
+              if (!autoTitle) {
+                if (targetTeamIds.length === 1) {
+                  const teamObj = this.team(targetTeamIds[0]);
+                  autoTitle = teamObj ? 'Entrenamiento ' + teamObj.name : 'Entrenamiento';
+                } else if (targetTeamIds.length > 1) {
+                  const teamNames = targetTeamIds.map(tid => {
+                    const tm = this.team(tid);
+                    return tm ? tm.name : '';
+                  }).filter(Boolean);
+                  autoTitle = teamNames.length > 0 ? 'Entrenamiento (' + teamNames.join(' / ') + ')' : 'Entrenamiento';
+                } else {
+                  autoTitle = 'Entrenamiento';
+                }
+              }
 
               this.upsertConvocation({
                 id: targetId,
@@ -978,9 +1015,12 @@
                 type: 'training',
                 date: dateStr,
                 time: targetTime,
+                endTime: targetEndTime,
+                duration: targetDuration,
                 venue: sched.venue || '',
                 address: sched.address || '',
-                teamId: sched.teamId || '',
+                teamId: targetTeamIds[0] || '',
+                teamIds: targetTeamIds,
                 notes: sched.notes || '',
                 list: defaultList,
                 responses: {}

@@ -561,6 +561,28 @@
     }
   };
 
+  function addMinutesToTime(timeStr, minutes) {
+    if (!timeStr) return '';
+    const parts = String(timeStr).split(':');
+    const h = parseInt(parts[0], 10) || 0;
+    const m = parseInt(parts[1], 10) || 0;
+    let totalMins = h * 60 + m + (parseInt(minutes, 10) || 0);
+    while (totalMins < 0) totalMins += 24 * 60;
+    totalMins = totalMins % (24 * 60);
+    const newH = Math.floor(totalMins / 60);
+    const newM = totalMins % 60;
+    return `${String(newH).padStart(2, '0')}:${String(newM).padStart(2, '0')}`;
+  }
+
+  function diffMinutesBetweenTimes(startStr, endStr, fallbackDur = 90) {
+    if (!startStr || !endStr) return fallbackDur;
+    const [h1, m1] = startStr.split(':').map(x => parseInt(x, 10) || 0);
+    const [h2, m2] = endStr.split(':').map(x => parseInt(x, 10) || 0);
+    let diff = (h2 * 60 + m2) - (h1 * 60 + m1);
+    if (diff <= 0) diff += 24 * 60;
+    return diff;
+  }
+
   function openTimePicker(initialTime, onSelect) {
     let curTime = (initialTime && /^\d{1,2}:\d{2}$/.test(String(initialTime).trim()))
       ? String(initialTime).trim()
@@ -7151,6 +7173,9 @@
     const team = Store.team(conv.teamId);
     const teamName = team ? team.name : '';
     const dateStr = conv.date || '';
+    const timeFormatted = conv.time 
+      ? (conv.time + (conv.endTime ? ' - ' + conv.endTime : '') + (conv.duration ? ` (${conv.duration} min)` : '')) 
+      : '';
     const timeStr = conv.time || '';
     const venueStr = conv.venue ? (isEn ? `📍 *Venue:* ${conv.venue}\n` : `📍 *Lugar:* ${conv.venue}\n`) : '';
     const addressStr = conv.address ? (isEn ? `🗺️ *Address:* ${conv.address}\n` : `🗺️ *Dirección:* ${conv.address}\n`) : '';
@@ -7162,7 +7187,7 @@
       ? `📋 *OFFICIAL CALL-UP: ${conv.title || defTitle}*\n`
       : `📋 *CONVOCATORIA: ${conv.title || defTitle}*\n`;
     if (teamName) text += isEn ? `🛡️ *Team:* ${teamName}\n` : `🛡️ *Equipo:* ${teamName}\n`;
-    text += isEn ? `📅 *Date:* ${dateStr} • ⏰ *Time:* ${timeStr}\n` : `📅 *Fecha:* ${dateStr} • ⏰ *Hora:* ${timeStr}\n`;
+    text += isEn ? `📅 *Date:* ${dateStr} • ⏰ *Time:* ${timeFormatted}\n` : `📅 *Fecha:* ${dateStr} • ⏰ *Hora:* ${timeFormatted}\n`;
     if (rivalStr) text += rivalStr;
     if (venueStr) text += venueStr;
     if (addressStr) text += addressStr;
@@ -7206,7 +7231,7 @@
       qParams.set('t', titleVal);
       if (teamName) qParams.set('tm', teamName);
       if (dateStr) qParams.set('d', dateStr);
-      if (timeStr) qParams.set('h', timeStr);
+      if (timeStr) qParams.set('h', timeFormatted || timeStr);
       if (conv.venue) qParams.set('v', conv.venue);
       if (conv.address) qParams.set('a', conv.address);
       if (conv.rival) qParams.set('r', conv.rival);
@@ -7417,7 +7442,7 @@
                 <button type="button" class="btn sm ghost" id="btn-quick-change-date" style="padding: 2px 6px; font-size: 11px; border: 1px dashed var(--border);" title="Cambiar fecha">✏️</button>
               </div>
               <button type="button" class="btn sm" id="btn-quick-change-time" style="background: rgba(34, 211, 238, 0.15); color: var(--cyan); border: 1.5px solid rgba(34, 211, 238, 0.4); font-size: 13px; font-weight: 800; padding: 4px 12px; border-radius: 9px; display: inline-flex; align-items: center; gap: 5px; cursor: pointer;">
-                ⏰ ${conv.time || '10:00'} <span style="font-size: 11px; opacity: 0.85; font-weight: 600;">(Cambiar hora ✏️)</span>
+                ⏰ ${conv.time || '10:00'}${conv.endTime ? ' - ' + conv.endTime : ''}${conv.duration ? ' (' + conv.duration + ' min)' : ''} <span style="font-size: 11px; opacity: 0.85; font-weight: 600;">(✏️)</span>
               </button>
             </div>
             ${conv.venue ? `<div>📍 <b>Lugar / Campo:</b> ${escapeHtml(conv.venue)}</div>` : ''}
@@ -7568,6 +7593,9 @@
             openTimePicker(conv.time || '10:00', (newTime) => {
               if (!newTime || newTime === conv.time) return;
               conv.time = newTime;
+              if (conv.duration) {
+                conv.endTime = addMinutesToTime(newTime, conv.duration);
+              }
               Store.upsertConvocation(conv);
               if (window.Cloud && window.Cloud.pushCoachState) {
                 window.Cloud.pushCoachState(Store.state, true);
@@ -8566,24 +8594,44 @@
           ` : `
             <div style="display: flex; flex-direction: column; gap: 10px;" id="recurring-list">
               ${schedules.map(sc => {
-                const team = sc.teamId ? Store.team(sc.teamId) : null;
+                const targetTeamIds = (Array.isArray(sc.teamIds) && sc.teamIds.length > 0)
+                  ? sc.teamIds
+                  : (sc.teamId ? [sc.teamId] : []);
+                const teamObjs = targetTeamIds.map(tid => Store.team(tid)).filter(Boolean);
+                let defaultTitle = 'Entrenamiento';
+                if (teamObjs.length === 1) defaultTitle = 'Entrenamiento ' + teamObjs[0].name;
+                else if (teamObjs.length > 1) defaultTitle = 'Entrenamiento (' + teamObjs.map(tm => tm.name).join(' / ') + ')';
+
                 const daysLabels = (sc.daysOfWeek || []).map(d => {
                   const dName = dayNames[d] || d;
                   const dTime = (sc.dayTimes && sc.dayTimes[d]) ? sc.dayTimes[d] : (sc.time || '18:00');
-                  return `${dName} (${dTime})`;
+                  const dEndTime = (sc.dayEndTimes && sc.dayEndTimes[d]) ? sc.dayEndTimes[d] : (sc.endTime || '');
+                  const dDur = (sc.dayDurations && sc.dayDurations[d]) ? sc.dayDurations[d] : (sc.duration || 90);
+                  if (dEndTime) {
+                    return `${dName} (${dTime} - ${dEndTime} • ${dDur}m)`;
+                  }
+                  return `${dName} (${dTime} • ${dDur}m)`;
                 }).join(', ');
                 return `
                   <div class="card" style="padding: 12px; border: 1.5px solid var(--border); border-radius: 14px; background: var(--surface2);">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">
                       <div>
                         <h4 style="margin: 0; font-size: 15px; font-weight: 900; color: #fff;">
-                          ${escapeHtml(sc.title || (team ? 'Entrenamiento ' + team.name : 'Entrenamiento'))}
+                          ${escapeHtml(sc.title || defaultTitle)}
                         </h4>
                         <div style="font-size: 12px; color: var(--muted); margin-top: 3px;">
                           🗓️ <span style="color: var(--cyan); font-weight: 800;">${daysLabels}</span>
                         </div>
                         ${sc.venue ? `<div style="font-size: 11.5px; color: var(--dim);">📍 ${escapeHtml(sc.venue)}</div>` : ''}
-                        ${team ? `<span class="badge" style="background: ${team.color || 'var(--cyan)'}22; color: ${team.color || 'var(--cyan)'}; margin-top: 4px;">🛡️ ${escapeHtml(team.name)}</span>` : ''}
+                        ${teamObjs.length > 0 ? `
+                          <div style="display: flex; gap: 4px; flex-wrap: wrap; margin-top: 5px;">
+                            ${teamObjs.map(tm => `
+                              <span class="badge" style="background: ${tm.color || 'var(--cyan)'}22; color: ${tm.color || 'var(--cyan)'}; font-weight: 800; font-size: 11px;">🛡️ ${escapeHtml(tm.name)}</span>
+                            `).join('')}
+                          </div>
+                        ` : `
+                          <span class="badge" style="background: rgba(148,163,184,0.15); color: var(--muted); font-size: 11px; margin-top: 5px;">👥 ${t('allTeamsOption', 'Todos los equipos (General)')}</span>
+                        `}
                       </div>
                       <span class="badge" style="background: ${sc.active !== false ? 'rgba(34,197,94,0.18)' : 'rgba(148,163,184,0.18)'}; color: ${sc.active !== false ? '#86efac' : '#94a3b8'};">
                         ${sc.active !== false ? '🟢 ' + t('active', 'Activo') : '⏸️ ' + t('paused', 'Pausado')}
@@ -8657,12 +8705,51 @@
           { val: 0, label: t('daySun', 'Dom'), full: 'Domingo' }
         ];
 
+        let selectedTeamIds = existing 
+          ? (Array.isArray(existing.teamIds) && existing.teamIds.length > 0 
+              ? [...existing.teamIds] 
+              : (existing.teamId ? [existing.teamId] : [])) 
+          : [];
         let selectedDays = existing ? (existing.daysOfWeek || [2, 4]) : [2, 4];
+        let defaultDuration = existing ? (existing.duration || 90) : 90;
         let dayTimes = Object.assign({}, (existing && existing.dayTimes) ? existing.dayTimes : {});
-        // Inicializar hora para cada día seleccionado si no existe
+        let dayEndTimes = Object.assign({}, (existing && existing.dayEndTimes) ? existing.dayEndTimes : {});
+        let dayDurations = Object.assign({}, (existing && existing.dayDurations) ? existing.dayDurations : {});
+
+        function addMinutesToTime(timeStr, minutes) {
+          if (!timeStr) return '';
+          const parts = timeStr.split(':');
+          const h = parseInt(parts[0], 10) || 0;
+          const m = parseInt(parts[1], 10) || 0;
+          let totalMins = h * 60 + m + (parseInt(minutes, 10) || 0);
+          while (totalMins < 0) totalMins += 24 * 60;
+          totalMins = totalMins % (24 * 60);
+          const newH = Math.floor(totalMins / 60);
+          const newM = totalMins % 60;
+          return `${String(newH).padStart(2, '0')}:${String(newM).padStart(2, '0')}`;
+        }
+
+        function diffMinutesBetweenTimes(startStr, endStr) {
+          if (!startStr || !endStr) return defaultDuration || 90;
+          const [h1, m1] = startStr.split(':').map(x => parseInt(x, 10) || 0);
+          const [h2, m2] = endStr.split(':').map(x => parseInt(x, 10) || 0);
+          let diff = (h2 * 60 + m2) - (h1 * 60 + m1);
+          if (diff <= 0) diff += 24 * 60;
+          return diff;
+        }
+
+        // Inicializar inicio, duración y fin para cada día seleccionado si no existe
         selectedDays.forEach(d => {
           if (!dayTimes[d]) {
             dayTimes[d] = existing ? (existing.time || '18:00') : '18:00';
+          }
+          if (!dayDurations[d]) {
+            dayDurations[d] = defaultDuration;
+          }
+          if (!dayEndTimes[d]) {
+            dayEndTimes[d] = (existing && existing.dayEndTimes && existing.dayEndTimes[d])
+              ? existing.dayEndTimes[d]
+              : ((existing && existing.endTime) ? existing.endTime : addMinutesToTime(dayTimes[d], dayDurations[d]));
           }
         });
 
@@ -8679,14 +8766,56 @@
             <input type="text" id="sched-title" placeholder="Ej: Entrenamiento Semanal" value="${escapeHtml(existing ? existing.title : '')}" />
           </div>
 
-          <div class="field">
-            <label>${t('team', 'Equipo')}</label>
-            <select id="sched-team">
-              <option value="">${t('allTeams', 'Todos los equipos')}</option>
-              ${teams.map(tm => `
-                <option value="${tm.id}" ${existing && existing.teamId === tm.id ? 'selected' : ''}>${escapeHtml(tm.name)}</option>
-              `).join('')}
-            </select>
+          <!-- Selección moderna y visual de equipos (soporta selección múltiple) -->
+          <div class="field" style="margin-bottom: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px;">
+              <label style="margin: 0; font-size: 13px; font-weight: 900; color: #fff;">
+                👥 ${t('assignedTeams', 'Equipos Asignados')}
+              </label>
+              <span style="font-size: 11.5px; font-weight: 800; color: var(--cyan);" id="sched-teams-count-lbl"></span>
+            </div>
+            <p style="font-size: 11px; color: var(--muted); margin: 0 0 10px; line-height: 1.4;">
+              ${t('assignedTeamsDesc', 'Selecciona uno o más equipos para asignarles el mismo horario de entrenamiento.')}
+            </p>
+
+            <!-- Tarjeta especial: Todos los equipos -->
+            <div id="btn-sched-team-all" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-radius: 12px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s ease; border: 1.5px solid var(--border); background: var(--surface2);">
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 20px;">🌐</span>
+                <div>
+                  <b style="font-size: 13px; color: #fff; display: block;">${t('allTeamsOption', 'Todos los equipos (General)')}</b>
+                  <small style="font-size: 10.5px; color: var(--muted);">${Store.state.players.length} ${t('playersInTeam', 'jugadores')} en el club</small>
+                </div>
+              </div>
+              <div id="sched-team-all-check" style="width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 900;"></div>
+            </div>
+
+            <!-- Rejilla de equipos individuales -->
+            ${teams.length === 0 ? `
+              <div style="font-size: 11.5px; color: var(--muted); padding: 8px; text-align: center;">No hay equipos creados todavía</div>
+            ` : `
+              <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(135px, 1fr)); gap: 8px;" id="sched-teams-container">
+                ${teams.map(tm => {
+                  const pCount = Store.state.players.filter(p => p.teamId === tm.id).length;
+                  return `
+                    <div class="sched-team-card" data-team-id="${tm.id}" style="display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 10px 12px; border-radius: 12px; cursor: pointer; transition: all 0.2s ease; border: 1.5px solid var(--border); background: var(--surface2);">
+                      <div style="min-width: 0; flex: 1;">
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                          <span style="width: 9px; height: 9px; border-radius: 50%; background: ${tm.color || 'var(--cyan)'}; flex-shrink: 0;"></span>
+                          <b style="font-size: 12px; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;">
+                            ${escapeHtml(tm.name)}
+                          </b>
+                        </div>
+                        <small style="font-size: 10px; color: var(--muted); margin-left: 15px; display: block;">
+                          ${pCount} ${t('playersInTeam', 'jugadores')}
+                        </small>
+                      </div>
+                      <div class="sched-team-check" style="width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 900; flex-shrink: 0;"></div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            `}
           </div>
 
           <div class="field">
@@ -8703,15 +8832,31 @@
             </div>
           </div>
 
-          <!-- Selección de hora individual por cada día -->
-          <div class="field" style="background: rgba(34, 211, 238, 0.05); border: 1.5px solid rgba(34, 211, 238, 0.3); border-radius: 12px; padding: 12px; margin-bottom: 14px;">
+          <!-- Selección de inicio, fin y duración por cada día -->
+          <div class="field" style="background: rgba(34, 211, 238, 0.05); border: 1.5px solid rgba(34, 211, 238, 0.3); border-radius: 14px; padding: 14px; margin-bottom: 14px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-              <label style="margin: 0; font-size: 12.5px; font-weight: 900; color: #fff;">
-                ⏰ ${t('timePerDay', 'Hora de entrenamiento por cada día')}
+              <label style="margin: 0; font-size: 13px; font-weight: 900; color: #fff;">
+                ⏰ ${t('timePerDay', 'Horario y Duración por cada día')}
               </label>
-              <span style="font-size: 11px; color: var(--muted);">${t('customTimePerDay', 'Personaliza cada día')}</span>
+              <span style="font-size: 11px; color: var(--muted);">${t('customTimePerDay', 'Personaliza inicio, fin o duración')}</span>
             </div>
-            <div id="sched-day-times-container" style="display: flex; flex-direction: column; gap: 8px;"></div>
+
+            <!-- Selector rápido de duración habitual para todos los días -->
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; background: var(--surface2); padding: 8px 12px; border-radius: 10px; margin-bottom: 10px; border: 1px solid var(--border); flex-wrap: wrap;">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="font-size: 14px;">⏱️</span>
+                <span style="font-size: 11.5px; font-weight: 800; color: #fff;">${t('defaultDuration', 'Duración habitual')}:</span>
+              </div>
+              <div style="display: flex; gap: 4px; overflow-x: auto;" id="sched-global-durations">
+                ${[45, 60, 75, 90, 105, 120].map(mins => `
+                  <button type="button" class="btn sm ${defaultDuration === mins ? 'primary' : 'ghost'}" data-global-dur="${mins}" style="height: 26px; padding: 0 8px; font-size: 11px; font-weight: 800; border-radius: 6px;">
+                    ${mins}m
+                  </button>
+                `).join('')}
+              </div>
+            </div>
+
+            <div id="sched-day-times-container" style="display: flex; flex-direction: column; gap: 10px;"></div>
           </div>
 
           <div class="field-row">
@@ -8756,44 +8901,219 @@
           }
 
           container.innerHTML = sortedSelected.map(d => {
-            const curTime = dayTimes[d.val] || '18:00';
+            const curStart = dayTimes[d.val] || '18:00';
+            const curDur = dayDurations[d.val] || defaultDuration || 90;
+            const curEnd = dayEndTimes[d.val] || addMinutesToTime(curStart, curDur) || '19:30';
             return `
-              <div class="day-time-row" data-day="${d.val}" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; background: var(--surface2); padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border);">
-                <div style="display: flex; align-items: center; gap: 8px;">
-                  <span style="font-size: 15px;">📅</span>
-                  <b style="font-size: 13.5px; color: #fff;">${d.full || d.label}</b>
+              <div class="day-time-row" data-day="${d.val}" style="background: var(--surface2); padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px;">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 15px;">📅</span>
+                    <b style="font-size: 13.5px; color: #fff;">${d.full || d.label}</b>
+                  </div>
+                  <span class="day-dur-badge" style="background: rgba(34, 211, 238, 0.15); color: var(--cyan); border: 1px solid rgba(34, 211, 238, 0.3); font-size: 11.5px; font-weight: 800; padding: 2px 8px; border-radius: 6px;">
+                    ⏱️ ${curDur} min
+                  </span>
                 </div>
-                <div style="display: flex; align-items: center; gap: 6px;">
-                  <input type="text" class="day-time-input" data-day-time="${d.val}" value="${curTime}" placeholder="HH:MM" style="width: 72px; text-align: center; font-weight: 800; font-size: 13.5px; height: 34px; padding: 2px 4px; border-radius: 8px;" readonly />
-                  <button type="button" class="btn sm btn-pick-day-time" data-pick-day="${d.val}" style="background: var(--surface); color: var(--cyan); border: 1px solid var(--border); font-size: 12px; font-weight: 800; height: 34px; padding: 0 10px; border-radius: 8px;">
-                    ⏰ ${t('pickTime', 'Elegir')}
-                  </button>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                  <div style="display: flex; flex-direction: column; gap: 3px;">
+                    <span style="font-size: 10.5px; color: var(--muted); font-weight: 700;">${t('startTime', 'Inicio')}</span>
+                    <div style="display: flex; align-items: center; gap: 4px;">
+                      <input type="text" class="day-start-input" data-day="${d.val}" value="${curStart}" placeholder="HH:MM" style="width: 100%; min-width: 0; text-align: center; font-weight: 800; font-size: 13px; height: 34px; padding: 2px 4px; border-radius: 8px; cursor: pointer;" readonly />
+                      <button type="button" class="btn sm btn-pick-start" data-day="${d.val}" style="background: var(--surface); color: var(--cyan); border: 1px solid var(--border); height: 34px; padding: 0 8px; border-radius: 8px; flex-shrink: 0;" title="${t('pickTime', 'Elegir')}">
+                        ⏰
+                      </button>
+                    </div>
+                  </div>
+
+                  <div style="display: flex; flex-direction: column; gap: 3px;">
+                    <span style="font-size: 10.5px; color: var(--muted); font-weight: 700;">${t('endTime', 'Fin')}</span>
+                    <div style="display: flex; align-items: center; gap: 4px;">
+                      <input type="text" class="day-end-input" data-day="${d.val}" value="${curEnd}" placeholder="HH:MM" style="width: 100%; min-width: 0; text-align: center; font-weight: 800; font-size: 13px; height: 34px; padding: 2px 4px; border-radius: 8px; cursor: pointer;" readonly />
+                      <button type="button" class="btn sm btn-pick-end" data-day="${d.val}" style="background: var(--surface); color: var(--cyan); border: 1px solid var(--border); height: 34px; padding: 0 8px; border-radius: 8px; flex-shrink: 0;" title="${t('pickTime', 'Elegir')}">
+                        ⏰
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div style="display: flex; align-items: center; gap: 4px; overflow-x: auto; padding-top: 2px;">
+                  <span style="font-size: 10px; color: var(--muted); margin-right: 2px; white-space: nowrap;">${t('duration', 'Duración')}:</span>
+                  ${[45, 60, 75, 90, 105, 120].map(mins => `
+                    <button type="button" class="btn sm ${curDur === mins ? 'primary' : 'ghost'} btn-day-dur-chip" data-day="${d.val}" data-dur="${mins}" style="height: 24px; padding: 0 7px; font-size: 10.5px; font-weight: 700; border-radius: 5px; flex-shrink: 0;">
+                      ${mins}m
+                    </button>
+                  `).join('')}
                 </div>
               </div>
             `;
           }).join('');
 
           container.querySelectorAll('.day-time-row').forEach(row => {
-            const dayVal = row.getAttribute('data-day');
-            const inp = row.querySelector('.day-time-input');
-            const btn = row.querySelector('.btn-pick-day-time');
+            const dayVal = parseInt(row.getAttribute('data-day'), 10);
+            const startInp = row.querySelector('.day-start-input');
+            const startBtn = row.querySelector('.btn-pick-start');
+            const endInp = row.querySelector('.day-end-input');
+            const endBtn = row.querySelector('.btn-pick-end');
 
-            const handlePick = () => {
-              const curVal = (dayTimes[dayVal] || inp.value || '18:00').trim();
+            const handlePickStart = () => {
+              const curVal = (dayTimes[dayVal] || startInp.value || '18:00').trim();
               openTimePicker(curVal, (newTime) => {
                 if (newTime) {
-                  inp.value = newTime;
                   dayTimes[dayVal] = newTime;
+                  const curDur = dayDurations[dayVal] || defaultDuration || 90;
+                  dayEndTimes[dayVal] = addMinutesToTime(newTime, curDur);
+                  renderDayTimesInputs();
                 }
               });
             };
 
-            if (inp) inp.onclick = handlePick;
-            if (btn) btn.onclick = handlePick;
+            const handlePickEnd = () => {
+              const curVal = (dayEndTimes[dayVal] || endInp.value || '19:30').trim();
+              openTimePicker(curVal, (newTime) => {
+                if (newTime) {
+                  dayEndTimes[dayVal] = newTime;
+                  const curStart = dayTimes[dayVal] || '18:00';
+                  const newDur = diffMinutesBetweenTimes(curStart, newTime);
+                  dayDurations[dayVal] = newDur;
+                  renderDayTimesInputs();
+                }
+              });
+            };
+
+            if (startInp) startInp.onclick = handlePickStart;
+            if (startBtn) startBtn.onclick = handlePickStart;
+            if (endInp) endInp.onclick = handlePickEnd;
+            if (endBtn) endBtn.onclick = handlePickEnd;
+
+            row.querySelectorAll('.btn-day-dur-chip').forEach(chip => {
+              chip.onclick = () => {
+                const durVal = parseInt(chip.getAttribute('data-dur'), 10);
+                if (durVal) {
+                  haptic(20);
+                  dayDurations[dayVal] = durVal;
+                  const curStart = dayTimes[dayVal] || '18:00';
+                  dayEndTimes[dayVal] = addMinutesToTime(curStart, durVal);
+                  renderDayTimesInputs();
+                }
+              };
+            });
           });
         }
 
         renderDayTimesInputs();
+
+        // Enlazar botones de duración rápida global
+        body.querySelectorAll('[data-global-dur]').forEach(btn => {
+          btn.onclick = () => {
+            const mins = parseInt(btn.getAttribute('data-global-dur'), 10);
+            if (!mins) return;
+            haptic(25);
+            defaultDuration = mins;
+            body.querySelectorAll('[data-global-dur]').forEach(b => {
+              const bMins = parseInt(b.getAttribute('data-global-dur'), 10);
+              b.className = `btn sm ${bMins === mins ? 'primary' : 'ghost'}`;
+            });
+            selectedDays.forEach(d => {
+              dayDurations[d] = mins;
+              const start = dayTimes[d] || '18:00';
+              dayEndTimes[d] = addMinutesToTime(start, mins);
+            });
+            renderDayTimesInputs();
+          };
+        });
+
+        function updateTeamsSelectionUI() {
+          const isAll = selectedTeamIds.length === 0;
+          const countLbl = body.querySelector('#sched-teams-count-lbl');
+          if (countLbl) {
+            if (isAll) {
+              countLbl.textContent = t('allTeamsOption', 'Todos los equipos');
+              countLbl.style.color = 'var(--cyan)';
+            } else {
+              countLbl.textContent = `${selectedTeamIds.length} ${selectedTeamIds.length === 1 ? 'equipo' : 'equipos'}`;
+              countLbl.style.color = '#fff';
+            }
+          }
+
+          const allCard = body.querySelector('#btn-sched-team-all');
+          const allCheck = body.querySelector('#sched-team-all-check');
+          if (allCard && allCheck) {
+            if (isAll) {
+              allCard.style.border = '1.5px solid var(--cyan)';
+              allCard.style.background = 'rgba(6, 182, 212, 0.14)';
+              allCard.style.boxShadow = '0 0 12px rgba(6, 182, 212, 0.2)';
+              allCheck.style.background = 'var(--cyan)';
+              allCheck.style.borderColor = 'var(--cyan)';
+              allCheck.style.color = '#000';
+              allCheck.textContent = '✓';
+            } else {
+              allCard.style.border = '1.5px solid var(--border)';
+              allCard.style.background = 'var(--surface2)';
+              allCard.style.boxShadow = 'none';
+              allCheck.style.background = 'transparent';
+              allCheck.style.borderColor = 'var(--border)';
+              allCheck.style.color = 'transparent';
+              allCheck.textContent = '';
+            }
+          }
+
+          body.querySelectorAll('.sched-team-card').forEach(card => {
+            const tid = card.getAttribute('data-team-id');
+            const isSelected = selectedTeamIds.includes(tid);
+            const checkEl = card.querySelector('.sched-team-check');
+            const tm = teams.find(t => t.id === tid);
+            const tmColor = (tm && tm.color) ? tm.color : 'var(--cyan)';
+
+            if (isSelected) {
+              card.style.border = `1.5px solid ${tmColor}`;
+              card.style.background = `${tmColor}18`;
+              card.style.boxShadow = `0 0 10px ${tmColor}25`;
+              if (checkEl) {
+                checkEl.style.background = tmColor;
+                checkEl.style.borderColor = tmColor;
+                checkEl.style.color = '#000';
+                checkEl.textContent = '✓';
+              }
+            } else {
+              card.style.border = '1.5px solid var(--border)';
+              card.style.background = 'var(--surface2)';
+              card.style.boxShadow = 'none';
+              if (checkEl) {
+                checkEl.style.background = 'transparent';
+                checkEl.style.borderColor = 'var(--border)';
+                checkEl.style.color = 'transparent';
+                checkEl.textContent = '';
+              }
+            }
+          });
+        }
+
+        updateTeamsSelectionUI();
+
+        const btnAllTeams = body.querySelector('#btn-sched-team-all');
+        if (btnAllTeams) {
+          btnAllTeams.onclick = () => {
+            haptic(25);
+            selectedTeamIds = [];
+            updateTeamsSelectionUI();
+          };
+        }
+
+        body.querySelectorAll('.sched-team-card').forEach(card => {
+          card.onclick = () => {
+            const tid = card.getAttribute('data-team-id');
+            if (!tid) return;
+            haptic(25);
+            if (selectedTeamIds.includes(tid)) {
+              selectedTeamIds = selectedTeamIds.filter(id => id !== tid);
+            } else {
+              selectedTeamIds.push(tid);
+            }
+            updateTeamsSelectionUI();
+          };
+        });
 
         body.querySelector('#btn-sched-back').onclick = renderSchedulesList;
 
@@ -8805,6 +9125,8 @@
                 selectedDays = selectedDays.filter(x => x !== dayVal);
                 btn.className = 'btn sm ghost';
                 delete dayTimes[dayVal];
+                delete dayEndTimes[dayVal];
+                delete dayDurations[dayVal];
                 renderDayTimesInputs();
               } else {
                 toast(t('mustSelectAtLeastOneDay', 'Debes seleccionar al menos un día'), 'warning');
@@ -8816,6 +9138,12 @@
                 const anyExistingTime = Object.values(dayTimes)[0] || '18:00';
                 dayTimes[dayVal] = anyExistingTime;
               }
+              if (!dayDurations[dayVal]) {
+                dayDurations[dayVal] = defaultDuration;
+              }
+              if (!dayEndTimes[dayVal]) {
+                dayEndTimes[dayVal] = addMinutesToTime(dayTimes[dayVal], dayDurations[dayVal]);
+              }
               renderDayTimesInputs();
             }
           };
@@ -8823,7 +9151,6 @@
 
         body.querySelector('#btn-save-sched').onclick = () => {
           const title = body.querySelector('#sched-title').value.trim();
-          const teamId = body.querySelector('#sched-team').value;
           const venue = body.querySelector('#sched-venue').value.trim();
           const address = body.querySelector('#sched-address').value.trim();
           const notes = body.querySelector('#sched-notes').value.trim();
@@ -8831,24 +9158,40 @@
           const endDate = body.querySelector('#sched-end-date').value;
 
           const finalDayTimes = {};
+          const finalDayEndTimes = {};
+          const finalDayDurations = {};
+
           selectedDays.forEach(d => {
             finalDayTimes[d] = dayTimes[d] || '18:00';
+            finalDayDurations[d] = dayDurations[d] || defaultDuration || 90;
+            finalDayEndTimes[d] = dayEndTimes[d] || addMinutesToTime(finalDayTimes[d], finalDayDurations[d]);
           });
+
           const defaultTime = finalDayTimes[selectedDays[0]] || '18:00';
+          const defaultEndTime = finalDayEndTimes[selectedDays[0]] || addMinutesToTime(defaultTime, defaultDuration);
+          const defaultDur = finalDayDurations[selectedDays[0]] || defaultDuration || 90;
+
+          const finalTeamIds = [...selectedTeamIds];
+          const finalTeamId = finalTeamIds[0] || '';
 
           Store.upsertRecurringSchedule({
             id: existing ? existing.id : null,
             title: title,
-            teamId: teamId,
+            teamId: finalTeamId,
+            teamIds: finalTeamIds,
             daysOfWeek: selectedDays,
             time: defaultTime,
+            endTime: defaultEndTime,
+            duration: defaultDur,
             dayTimes: finalDayTimes,
+            dayEndTimes: finalDayEndTimes,
+            dayDurations: finalDayDurations,
             venue: venue,
             address: address,
             notes: notes,
             startDate: startDate,
             endDate: endDate,
-            active: true
+            active: existing ? existing.active : true
           });
 
           if (window.Cloud && window.Cloud.pushCoachState) {
@@ -8881,23 +9224,27 @@
       const list = [...filteredList].sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.time || '').localeCompare(b.time || ''));
 
       view.innerHTML = `
-        <div class="topbar" style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center; max-width: 100%; box-sizing: border-box;">
-          <div style="min-width: 120px; flex: 1;">
-            <h1 style="font-size: 19px; margin: 0;">${t('convocations')}</h1>
-            <span class="sub" style="font-size: 11px;">${list.length} convocatorias registradas</span>
+        <div class="topbar" style="display: flex; flex-direction: column; gap: 10px; width: 100%; box-sizing: border-box; margin-bottom: 6px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; gap: 8px;">
+            <div style="min-width: 0; flex: 1;">
+              <h1 style="font-size: 19px; margin: 0; font-weight: 900; letter-spacing: -0.3px;">${t('convocations')}</h1>
+              <span class="sub" style="font-size: 11px;">${list.length} convocatorias registradas</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+              ${renderLangButton()}
+              ${rawList.length > 0 ? `
+                <button class="btn sm danger ghost" id="btn-delete-all-convs" style="font-weight: 800; font-size: 11.5px; height: 34px; padding: 0 8px; border-color: rgba(239, 68, 68, 0.4);" title="${t('deleteAllPlans', 'Borrar todos los planes')}">
+                  🗑️
+                </button>
+              ` : ''}
+            </div>
           </div>
-          <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0; flex-wrap: wrap;">
-            ${renderLangButton()}
-            ${rawList.length > 0 ? `
-              <button class="btn sm danger ghost" id="btn-delete-all-convs" style="font-weight: 800; font-size: 11.5px; height: 36px; padding: 0 8px; border-color: rgba(239, 68, 68, 0.4);" title="${t('deleteAllPlans', 'Borrar todos los planes')}">
-                🗑️ ${t('deleteAllPlans', 'Borrar planes')}
-              </button>
-            ` : ''}
-            <button class="btn sm" id="btn-recurring-trainings" style="background: var(--surface2); color: var(--cyan); border-color: rgba(34,211,238,0.3); font-weight: 800; font-size: 11.5px; height: 36px; padding: 0 10px;" title="${t('recurringTrainings', 'Entrenamientos Recurrentes')}">
-              🔄 ${t('recurringBtn', 'Recurrentes')}
+          <div style="display: flex; gap: 8px; width: 100%; box-sizing: border-box;">
+            <button class="btn sm" id="btn-recurring-trainings" style="flex: 1; min-width: 0; background: var(--surface2); color: var(--cyan); border-color: rgba(34,211,238,0.3); font-weight: 800; font-size: 12px; height: 38px; padding: 0 8px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; border-radius: 10px;" title="${t('recurringTrainings', 'Entrenamientos Recurrentes')}">
+              🔄 <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${t('recurringBtn', 'Recurrentes')}</span>
             </button>
-            <button class="btn sm primary" id="btn-create-conv" style="font-weight: 800; font-size: 12px; height: 36px; padding: 0 10px; white-space: nowrap;">
-              ${icon('plus', 16)} ${t('newConvocation')}
+            <button class="btn sm primary" id="btn-create-conv" style="flex: 1.35; min-width: 0; font-weight: 900; font-size: 12px; height: 38px; padding: 0 8px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; border-radius: 10px; white-space: nowrap;">
+              ${icon('plus', 16)} <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${t('newConvocation')}</span>
             </button>
           </div>
         </div>
@@ -8958,7 +9305,7 @@
                         ${escapeHtml(c.title || (c.rival ? 'vs ' + c.rival : 'Convocatoria'))}
                       </h3>
                       <div class="muted" style="font-size: 12px; margin-top: 3px;">
-                        📅 <b>${formatConvocationDateWithDay(c.date)}</b> ${c.time ? '• ⏰ ' + c.time : ''} ${c.venue ? '• 📍 ' + escapeHtml(c.venue) : ''}
+                        📅 <b>${formatConvocationDateWithDay(c.date)}</b> ${c.time ? '• ⏰ ' + c.time + (c.endTime ? ' - ' + c.endTime : '') + (c.duration ? ' (' + c.duration + ' min)' : '') : ''} ${c.venue ? '• 📍 ' + escapeHtml(c.venue) : ''}
                       </div>
                     </div>
                     <div style="display: flex; gap: 6px; align-items: center; flex-shrink: 0;">

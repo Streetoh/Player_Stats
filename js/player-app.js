@@ -65,12 +65,148 @@
     return '🇬🇧 EN';
   }
 
-  function cycleLang() {
-    currentLang = currentLang === 'en' ? 'ee' : (currentLang === 'ee' ? 'es' : 'en');
+  function setLanguage(lang, onChangedCallback) {
+    const valid = (lang === 'ee' || lang === 'es') ? lang : 'en';
+    currentLang = valid;
     try { localStorage.setItem('lang', currentLang); } catch (e) {}
     updateHeaderIdentity();
     updateTabbarLabels();
     renderCurrentTab();
+    if (typeof onChangedCallback === 'function') {
+      try { onChangedCallback(currentLang); } catch (e) {}
+    }
+  }
+
+  function openLanguageModal(onChangedCallback) {
+    haptic(40);
+    const existing = document.getElementById('dialog-language-modal');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'dialog-language-modal';
+    overlay.className = 'dialog-overlay';
+    overlay.style.zIndex = '999999';
+
+    function renderModalContent() {
+      const languages = [
+        {
+          code: 'es',
+          flag: '🇪🇸',
+          name: 'Español',
+          sub: currentLang === 'es' ? 'Español (España)' : (currentLang === 'ee' ? 'Hispaania keel' : 'Spanish'),
+          tag: 'ES'
+        },
+        {
+          code: 'en',
+          flag: '🇬🇧',
+          name: 'English',
+          sub: currentLang === 'es' ? 'Inglés (UK / US)' : (currentLang === 'ee' ? 'Inglise keel' : 'English (UK / US)'),
+          tag: 'EN'
+        },
+        {
+          code: 'ee',
+          flag: '🇪🇪',
+          name: 'Eesti',
+          sub: currentLang === 'es' ? 'Estonio (Eesti)' : (currentLang === 'ee' ? 'Eesti keel (EE)' : 'Estonian (Eesti)'),
+          tag: 'EE'
+        }
+      ];
+
+      overlay.innerHTML = `
+        <div class="dialog-box" style="width: 92%; max-width: 390px; padding: 22px 18px; border-radius: 20px; box-shadow: 0 16px 48px rgba(0,0,0,0.7); animation: popIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <div style="width: 38px; height: 38px; border-radius: 12px; background: rgba(6, 182, 212, 0.15); border: 1px solid rgba(6, 182, 212, 0.3); display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0;">
+                🌐
+              </div>
+              <div>
+                <h3 style="margin: 0; font-size: 16.5px; font-weight: 900; color: #fff; letter-spacing: -0.2px;">${t('selectLanguage', 'Select Language')}</h3>
+                <span style="font-size: 11.5px; color: var(--muted);">${t('selectLanguageDesc', 'Choose your preferred language')}</span>
+              </div>
+            </div>
+            <button type="button" class="icon-btn ghost" id="btn-close-lang-modal-x" style="width: 32px; height: 32px; border-radius: 8px; font-size: 15px; color: var(--muted);" title="${t('close', 'Close')}">✕</button>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 9px; margin-bottom: 18px;">
+            ${languages.map(item => {
+              const isActive = currentLang === item.code;
+              return `
+                <div class="lang-option-card" data-lang="${item.code}" style="display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-radius: 14px; cursor: pointer; transition: all 0.18s ease; ${
+                  isActive
+                    ? 'border: 2px solid var(--cyan); background: rgba(6, 182, 212, 0.14); box-shadow: 0 0 16px rgba(6, 182, 212, 0.22);'
+                    : 'border: 1px solid var(--border); background: var(--surface2);'
+                }">
+                  <div style="display: flex; align-items: center; gap: 12px; min-width: 0;">
+                    <div style="font-size: 28px; line-height: 1; flex-shrink: 0; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.35));">
+                      ${item.flag}
+                    </div>
+                    <div style="min-width: 0;">
+                      <div style="font-size: 14.5px; font-weight: 900; color: ${isActive ? 'var(--cyan)' : '#fff'}; display: flex; align-items: center; gap: 6px;">
+                        ${item.name}
+                        <span style="font-size: 10px; padding: 2px 6px; border-radius: 6px; font-weight: 800; background: ${isActive ? 'rgba(6, 182, 212, 0.25)' : 'var(--bg2)'}; color: ${isActive ? 'var(--cyan)' : 'var(--muted)'};">
+                          ${item.tag}
+                        </span>
+                      </div>
+                      <small style="display: block; font-size: 11px; color: ${isActive ? 'rgba(255,255,255,0.8)' : 'var(--muted)'}; margin-top: 1px;">
+                        ${item.sub}
+                      </small>
+                    </div>
+                  </div>
+                  <div style="flex-shrink: 0; margin-left: 8px;">
+                    ${
+                      isActive
+                        ? `<div style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 20px; background: var(--cyan); color: #000; font-size: 11px; font-weight: 900; box-shadow: 0 2px 10px rgba(6, 182, 212, 0.45);">
+                            ✓ ${t('activeBadge', 'Active')}
+                          </div>`
+                        : `<div style="width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--border); background: rgba(255,255,255,0.03);"></div>`
+                    }
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+
+          <button type="button" class="btn primary block" id="btn-close-lang-modal-done" style="height: 44px; font-weight: 900; font-size: 14px; border-radius: 12px; background: linear-gradient(135deg, #06b6d4, #3b82f6); border: none; box-shadow: 0 4px 14px rgba(6, 182, 212, 0.35);">
+            ✓ ${t('doneBtn', 'Done')}
+          </button>
+        </div>
+      `;
+
+      const closeBtnX = overlay.querySelector('#btn-close-lang-modal-x');
+      const closeBtnDone = overlay.querySelector('#btn-close-lang-modal-done');
+      const close = () => {
+        haptic(30);
+        overlay.remove();
+      };
+      if (closeBtnX) closeBtnX.onclick = close;
+      if (closeBtnDone) closeBtnDone.onclick = close;
+
+      overlay.querySelectorAll('.lang-option-card').forEach(card => {
+        card.onclick = () => {
+          const selected = card.getAttribute('data-lang');
+          if (!selected) return;
+          haptic(50);
+          setLanguage(selected, onChangedCallback);
+          toast(t('langChangedToast', 'Language updated'), 'info');
+          renderModalContent();
+        };
+      });
+    }
+
+    renderModalContent();
+
+    overlay.onclick = (e) => {
+      if (e.target === overlay) {
+        haptic(30);
+        overlay.remove();
+      }
+    };
+
+    document.body.appendChild(overlay);
+  }
+
+  function cycleLang() {
+    openLanguageModal();
   }
 
   window.__handleAppBack = function () {
@@ -331,7 +467,18 @@
       noActionsInZone: 'No actions recorded in this sector',
       zoneDetailsTitle: 'Pitch Zone Breakdown',
       matchDetails: 'Match Details',
-      trainingDetails: 'Training Details'
+      trainingDetails: 'Training Details',
+      selectLanguage: 'Select Language',
+      selectLanguageDesc: 'Choose your preferred language for the application',
+      activeBadge: 'Active',
+      doneBtn: 'Done',
+      langSpanish: 'Spanish',
+      langEnglish: 'English',
+      langEstonian: 'Estonian',
+      langChangedToast: 'Language changed to English',
+      startTime: 'Start',
+      endTime: 'End',
+      duration: 'Duration'
     },
     ee: {
       appName: 'Player stats (Mängija)',
@@ -552,7 +699,18 @@
       noActionsInZone: 'Selles tsoonis pole tegevusi salvestatud',
       zoneDetailsTitle: 'Väljakutsooni Ülevaade',
       matchDetails: 'Mängu Üksikasjad',
-      trainingDetails: 'Treeningu Üksikasjad'
+      trainingDetails: 'Treeningu Üksikasjad',
+      selectLanguage: 'Vali Keel',
+      selectLanguageDesc: 'Vali rakenduse eelistatud keel',
+      activeBadge: 'Aktiivne',
+      doneBtn: 'Valmis',
+      langSpanish: 'Hispaania keel',
+      langEnglish: 'Inglise keel',
+      langEstonian: 'Eesti keel',
+      langChangedToast: 'Keel muudetud: Eesti keel',
+      startTime: 'Algus',
+      endTime: 'Lõpp',
+      duration: 'Kestus'
     },
     es: {
       appName: 'Player stats (Player)',
@@ -773,7 +931,18 @@
       noActionsInZone: 'Sin acciones registradas en este sector',
       zoneDetailsTitle: 'Detalle de la Zona del Campo',
       matchDetails: 'Detalles del Partido',
-      trainingDetails: 'Detalles del Entrenamiento'
+      trainingDetails: 'Detalles del Entrenamiento',
+      selectLanguage: 'Seleccionar Idioma',
+      selectLanguageDesc: 'Elige el idioma preferido para la aplicación',
+      activeBadge: 'Activo',
+      doneBtn: 'Listo',
+      langSpanish: 'Español',
+      langEnglish: 'Inglés',
+      langEstonian: 'Estonio',
+      langChangedToast: 'Idioma cambiado a Español',
+      startTime: 'Inicio',
+      endTime: 'Fin',
+      duration: 'Duración'
     }
   };
 
@@ -1524,7 +1693,10 @@
     }
 
     const btnLang = document.getElementById('btn-portal-lang');
-    if (btnLang) btnLang.innerHTML = getLangDisplay(currentLang);
+    if (btnLang) {
+      btnLang.innerHTML = getLangDisplay(currentLang);
+      btnLang.onclick = () => openLanguageModal();
+    }
     const badge = document.getElementById('portal-cloud-badge');
     if (badge) badge.textContent = `🟢 ${t('live')}`;
     updateConvocationsBadge();
@@ -2113,9 +2285,10 @@
     const langBtn = overlay.querySelector('#dialog-id-lang');
     if (langBtn) {
       langBtn.onclick = () => {
-        cycleLang();
-        overlay.remove();
-        showSelectIdentityModal();
+        openLanguageModal(() => {
+          overlay.remove();
+          showSelectIdentityModal();
+        });
       };
     }
 
@@ -2886,7 +3059,7 @@
                           ${escapeHtml(c.title || (c.rival ? 'vs ' + c.rival : t('callUpOfficial')))}
                         </h3>
                         <div style="font-size: 12.5px; color: var(--muted); margin-top: 4px; line-height: 1.4;">
-                          📅 <b>${formatDisplayDate(c.date)}</b> • ⏰ ${c.time || '10:00'}<br />
+                          📅 <b>${formatDisplayDate(c.date)}</b> • ⏰ ${c.time || '10:00'}${c.endTime ? ' - ' + c.endTime : ''}${c.duration ? ' (' + c.duration + ' min)' : ''}<br />
                           ${c.venue ? `📍 <b>${t('venue')}:</b> ${escapeHtml(c.venue)}<br />` : ''}
                           ${c.address ? `
                             🗺️ <b>${t('address')}:</b> ${escapeHtml(c.address)}
@@ -3418,7 +3591,7 @@
             </div>
             <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px;">
               <div style="font-size: 11px; color: var(--muted); font-weight: 700; margin-bottom: 2px;">⏰ ${t('trainingTime').toUpperCase()}</div>
-              <div style="font-size: 13px; font-weight: 800; color: #86efac;">${conv.time || '10:00'}</div>
+              <div style="font-size: 13px; font-weight: 800; color: #86efac;">${conv.time || '10:00'}${conv.endTime ? ' - ' + conv.endTime : ''} ${conv.duration ? `(${conv.duration} min)` : ''}</div>
             </div>
           </div>
 
@@ -4974,7 +5147,7 @@
     const btnLang = document.getElementById('btn-portal-lang');
     if (btnLang) {
       btnLang.innerHTML = getLangDisplay(currentLang);
-      btnLang.onclick = cycleLang;
+      btnLang.onclick = () => openLanguageModal();
     }
   }
 
