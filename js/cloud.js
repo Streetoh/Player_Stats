@@ -640,14 +640,18 @@
     /* =========================================================
        PRESENCIA EN LÍNEA (ONLINE / ÚLTIMA CONEXIÓN)
        ========================================================= */
-    updatePresence: async function (userId, userName, isOnline) {
+    updatePresence: async function (userId, userName, isOnline, metadata = {}) {
       if (!this.init() || !userId) return;
       try {
+        const isApk = !!(global.AndroidBridge || (typeof window !== 'undefined' && window.AndroidBridge));
+        const platformVal = (metadata && metadata.platform) || (isApk ? 'apk' : 'pwa');
         const ref = db.collection('clubs').doc(CLUB_ID).collection('presence').doc(userId);
         await ref.set({
           userId: userId,
           userName: userName || '',
           isOnline: isOnline !== false,
+          hasApp: true,
+          platform: platformVal,
           lastSeen: Date.now(),
           serverTime: global.firebase.firestore.FieldValue.serverTimestamp()
         }, { merge: true });

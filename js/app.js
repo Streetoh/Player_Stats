@@ -1451,6 +1451,15 @@
       if (window.ChatUI && window.ChatUI.initGlobalUnreadListener) {
         window.ChatUI.initGlobalUnreadListener('coach');
       }
+      if (window.Cloud.listenToAllPresence) {
+        window._presenceListenerRegistered = true;
+        window.Cloud.listenToAllPresence((map) => {
+          window._globalPresenceMap = map;
+          if (typeof window._refreshPlayersPresenceList === 'function') {
+            window._refreshPlayersPresenceList();
+          }
+        });
+      }
       setTimeout(() => {
         if (Store.state.players.length > 0 || Store.state.convocations.length > 0) {
           window.Cloud.pushCoachState(Store.state);
@@ -5257,12 +5266,60 @@
      VISTA 3: JUGADORES & EQUIPOS
      ========================================================= */
   function renderPlayersView(view) {
+    function getPlayerBadgeHtml(pid) {
+      const pres = (window._globalPresenceMap && window._globalPresenceMap[pid]);
+      const now = Date.now();
+      // En línea SÓLO si pres.isOnline es true Y el último latido fue hace menos de 75 segundos
+      const isOnlineNow = !!(pres && pres.isOnline && (now - (pres.lastSeen || 0) < 75000));
+      // Tiene la app vinculada (sea APK o PWA) si existe documento de presencia
+      const hasAppLinked = !!(pres && (pres.hasApp || pres.lastSeen || pres.userId));
+
+      if (isOnlineNow) {
+        return `<span title="${t('onlineInApp', 'En línea en la App/PWA de Jugadores')}" style="font-size: 13px; margin-left: 6px; display: inline-flex; align-items: center; gap: 2px; color: #4ade80;">📱🟢</span>`;
+      } else if (hasAppLinked) {
+        return `<span title="${t('syncedApp', 'App/PWA vinculada y sincronizada')}" style="font-size: 13px; margin-left: 6px; display: inline-flex; align-items: center; gap: 2px; color: #38bdf8;">📱</span>`;
+      } else {
+        return `<span title="${t('notSyncedApp', 'Sin app instalada / no vinculado')}" style="font-size: 13px; margin-left: 6px; display: inline-flex; align-items: center; gap: 2px; opacity: 0.35;">⚪</span>`;
+      }
+    }
+
+    function refreshPresenceBadges() {
+      if (currentTab !== 'players') return;
+      const listCont = view.querySelector('#players-list-container');
+      if (!listCont) {
+        build();
+        return;
+      }
+      const items = listCont.querySelectorAll('.player-item');
+      if (!items || items.length === 0) {
+        build();
+        return;
+      }
+      items.forEach(el => {
+        const pid = el.getAttribute('data-id');
+        const badgeSlot = el.querySelector('.pres-badge-slot');
+        if (badgeSlot && pid) {
+          badgeSlot.innerHTML = getPlayerBadgeHtml(pid);
+        }
+      });
+    }
+
+    window._refreshPlayersPresenceList = refreshPresenceBadges;
+
     if (!window._presenceListenerRegistered && window.Cloud && window.Cloud.listenToAllPresence) {
       window._presenceListenerRegistered = true;
       window.Cloud.listenToAllPresence((map) => {
         window._globalPresenceMap = map;
-        if (currentTab === 'players') build();
+        refreshPresenceBadges();
       });
+    }
+
+    if (!window._presenceTickTimer) {
+      window._presenceTickTimer = setInterval(() => {
+        if (typeof window._refreshPlayersPresenceList === 'function') {
+          window._refreshPlayersPresenceList();
+        }
+      }, 15000);
     }
 
     function build() {
@@ -5315,15 +5372,7 @@
             </div>
           ` : players.map(p => {
             const team = Store.team(p.teamId);
-            const pres = (window._globalPresenceMap && window._globalPresenceMap[p.id]);
-            let presBadge = '';
-            if (pres && pres.isOnline) {
-              presBadge = `<span title="${t('onlineInApp', 'En línea en la App de Jugadores')}" style="font-size: 13px; margin-left: 6px; display: inline-flex; align-items: center; gap: 2px; color: #4ade80;">📱🟢</span>`;
-            } else if (pres) {
-              presBadge = `<span title="${t('syncedApp', 'App vinculada y sincronizada')}" style="font-size: 13px; margin-left: 6px; display: inline-flex; align-items: center; gap: 2px; color: #38bdf8;">📱</span>`;
-            } else {
-              presBadge = `<span title="${t('notSyncedApp', 'Sin app instalada / no vinculado')}" style="font-size: 13px; margin-left: 6px; display: inline-flex; align-items: center; gap: 2px; opacity: 0.4;">⚪</span>`;
-            }
+            const presBadge = getPlayerBadgeHtml(p.id);
 
             return `
               <div class="player-item" data-id="${p.id}">
@@ -5331,7 +5380,7 @@
                 <div class="grow ellipsis">
                   <h4 style="display: flex; align-items: center; justify-content: space-between;">
                     <span class="ellipsis">${escapeHtml(Store.playerName(p))}</span>
-                    ${presBadge}
+                    <span class="pres-badge-slot">${presBadge}</span>
                   </h4>
                   <div class="meta">
                     <span class="pos-tag">${p.mainPosition || 'Jugador'}</span>

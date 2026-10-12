@@ -917,21 +917,60 @@
   /* -------------------------------------------------------------
      ACTUALIZAR CABECERA E IDENTIDAD (BLOQUEO DE PERFIL)
      ------------------------------------------------------------- */
+  /* -------------------------------------------------------------
+     REGISTRO Y LATIDO DE PRESENCIA EN VIVO (APK Y PWA)
+     ------------------------------------------------------------- */
+  function startPresenceHeartbeat() {
+    if (!myPlayerId || !hasApprovedProfile()) return;
+    const myP = getMyPlayer();
+    const pName = myP ? `${myP.name || ''} ${myP.lastName || ''}`.trim() : 'Player';
+    const isApk = !!(window.AndroidBridge);
+    const platformType = isApk ? 'apk' : 'pwa';
+
+    function sendBeat(online) {
+      if (window.Cloud && window.Cloud.updatePresence && myPlayerId && hasApprovedProfile()) {
+        window.Cloud.updatePresence(myPlayerId, pName, online !== false, {
+          platform: platformType,
+          hasApp: true
+        });
+      }
+    }
+
+    sendBeat(true);
+
+    if (!window._portalPresenceInterval) {
+      window._portalPresenceInterval = setInterval(() => {
+        sendBeat(!document.hidden);
+      }, 30000);
+
+      document.addEventListener('visibilitychange', () => {
+        sendBeat(!document.hidden);
+      });
+
+      window.addEventListener('pagehide', () => {
+        sendBeat(false);
+      });
+
+      window.addEventListener('beforeunload', () => {
+        sendBeat(false);
+      });
+    }
+  }
+
   function updateHeaderIdentity() {
     const nameEl = document.getElementById('portal-my-name');
     const avatarEl = document.getElementById('portal-my-avatar');
     const lockIndicatorEl = document.getElementById('portal-lbl-change');
     const lblProfile = document.getElementById('portal-lbl-profile');
+    const idContainer = document.getElementById('portal-identity-container');
     if (lblProfile) lblProfile.textContent = t('myProfile') + ':';
 
     const myP = getMyPlayer();
+    const isApproved = hasApprovedProfile();
 
-    if (myP) {
-      if (myP.isPendingApproval) {
-        if (nameEl) nameEl.textContent = `⏳ #${myP.mainDorsal != null ? myP.mainDorsal : '-'} ${myP.name || ''} (${t('pendingApproval', 'Pendiente')})`;
-      } else {
-        if (nameEl) nameEl.textContent = `#${myP.mainDorsal != null ? myP.mainDorsal : '-'} ${myP.name || ''} ${myP.lastName || ''}`.trim();
-      }
+    if (myP && isApproved) {
+      if (idContainer) idContainer.classList.remove('attention-glow');
+      if (nameEl) nameEl.textContent = `#${myP.mainDorsal != null ? myP.mainDorsal : '-'} ${myP.name || ''} ${myP.lastName || ''}`.trim();
       if (avatarEl) {
         avatarEl.innerHTML = myP.photo ? `<img src="${myP.photo}" alt="" />` : `<span>${(myP.name ? myP.name[0] : 'P').toUpperCase()}</span>`;
       }
@@ -942,20 +981,26 @@
         lockIndicatorEl.style.background = locked ? 'rgba(250, 204, 21, 0.15)' : 'rgba(6, 182, 212, 0.15)';
         lockIndicatorEl.style.border = locked ? '1px solid rgba(250, 204, 21, 0.35)' : '1px solid rgba(6, 182, 212, 0.3)';
       }
-      if (window.ChatUI && ChatUI.initPresenceHeartbeat) {
-        ChatUI.initPresenceHeartbeat(myPlayerId, `${myP.name || ''} ${myP.lastName || ''}`.trim());
-      }
+      startPresenceHeartbeat();
       if (window.ChatUI && ChatUI.initGlobalUnreadListener) {
         ChatUI.initGlobalUnreadListener(myPlayerId, myP.teamId || null);
       }
     } else {
-      if (nameEl) nameEl.textContent = t('selectIdentity');
+      // Sin perfil seleccionado o aprobado: aplicar brillo llamativo y reborde en movimiento para guiar al usuario
+      if (idContainer) idContainer.classList.add('attention-glow');
+      if (nameEl) {
+        if (myP && myP.isPendingApproval) {
+          nameEl.textContent = `⏳ ${myP.name || ''} (${t('pendingApproval', 'Pending Approval')})`;
+        } else {
+          nameEl.textContent = t('selectIdentity', 'Select who you are...');
+        }
+      }
       if (avatarEl) avatarEl.innerHTML = '<span>?</span>';
       if (lockIndicatorEl) {
         lockIndicatorEl.textContent = `${t('changeProfile', 'Change ▾')}`;
-        lockIndicatorEl.style.color = 'var(--cyan)';
-        lockIndicatorEl.style.background = 'rgba(6, 182, 212, 0.15)';
-        lockIndicatorEl.style.border = '1px solid rgba(6, 182, 212, 0.3)';
+        lockIndicatorEl.style.color = '';
+        lockIndicatorEl.style.background = '';
+        lockIndicatorEl.style.border = '';
       }
     }
 
@@ -4056,6 +4101,15 @@
         if (isProfileLocked()) {
           showRequestProfileChangeModal();
         } else {
+          showSelectIdentityModal();
+        }
+      };
+    }
+
+    const idContainer = document.getElementById('portal-identity-container');
+    if (idContainer) {
+      idContainer.onclick = () => {
+        if (!isProfileLocked()) {
           showSelectIdentityModal();
         }
       };
