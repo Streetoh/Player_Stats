@@ -1046,8 +1046,22 @@
             btn.disabled = true;
             btn.textContent = '...';
             try {
+              const reqObj = (pendingProfileClaimRequests || []).find(x => x.id === claimId);
               if (window.Cloud && window.Cloud.resolveProfileClaimRequest) {
                 await window.Cloud.resolveProfileClaimRequest(claimId, 'approved');
+              }
+              if (reqObj && reqObj.targetPlayerId) {
+                const targetP = Store.player(reqObj.targetPlayerId);
+                if (targetP && targetP.unlinkedAt) {
+                  delete targetP.unlinkedAt;
+                  Store.save();
+                  if (window.Cloud && window.Cloud.pushCoachState) {
+                    window.Cloud.pushCoachState(Store.state, true);
+                  }
+                }
+                if (window.Cloud && window.Cloud.clearPlayerUnlink) {
+                  await window.Cloud.clearPlayerUnlink(reqObj.targetPlayerId);
+                }
               }
               pendingProfileClaimRequests = pendingProfileClaimRequests.filter(x => x.id !== claimId);
               NotifManager.removeByTarget(claimId);
@@ -5487,6 +5501,11 @@
     const hasParentContact = p.parentContact && (p.parentContact.name || p.parentContact.phone || p.parentContact.email);
     const secPositions = p.secondaryPositions && p.secondaryPositions.length ? p.secondaryPositions : (p.secondaryPosition ? [p.secondaryPosition] : []);
 
+    const pres = (window._globalPresenceMap && window._globalPresenceMap[p.id]);
+    const now = Date.now();
+    const isOnlineNow = !!(pres && pres.isOnline && (now - (pres.lastSeen || 0) < 75000));
+    const hasAppLinked = !!(pres && (pres.hasApp || pres.lastSeen || pres.userId));
+
     openSheet(Store.playerName(p), (body) => {
       body.innerHTML = `
         <div class="p-hero">
@@ -5516,6 +5535,24 @@
               <span class="rating-pill">⭐ ${matchRating.toFixed(1)} ${t('matchRating')}</span>
             </div>
           </div>
+        </div>
+
+        <!-- Tarjeta de Estado de Vinculación de la App y botón de Desvincular -->
+        <div class="card" id="card-player-app-link" style="padding: 12px 14px; margin-bottom: 10px; border-radius: 14px; background: var(--surface2); border: 1.5px solid ${hasAppLinked ? 'rgba(56, 189, 248, 0.35)' : 'var(--border)'}; display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+          <div style="display: flex; align-items: center; gap: 10px; overflow: hidden;">
+            <span style="font-size: 22px; flex-shrink: 0;">${isOnlineNow ? '📱🟢' : (hasAppLinked ? '📱' : '⚪')}</span>
+            <div style="overflow: hidden;">
+              <b style="font-size: 13px; color: ${isOnlineNow ? '#4ade80' : (hasAppLinked ? '#38bdf8' : '#94a3b8')}; display: block; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">
+                ${isOnlineNow ? t('appOnlineNow', 'En línea en la App') : (hasAppLinked ? t('appLinked', 'App Vinculada') : t('appNotLinked', 'Sin vincular'))}
+              </b>
+              <span style="font-size: 11px; color: var(--muted); display: block; line-height: 1.3;">
+                ${hasAppLinked ? t('appLinkedDesc', 'Perfil activo en el dispositivo del jugador') : t('appNotLinkedDesc', 'El jugador no tiene este perfil en su dispositivo')}
+              </span>
+            </div>
+          </div>
+          <button type="button" class="btn sm" id="btn-unlink-player-profile" style="flex-shrink: 0; font-size: 11.5px; font-weight: 800; padding: 6px 12px; border-radius: 8px; background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); cursor: pointer;" title="${t('unlinkProfile', 'Desvincular Perfil')}">
+            🔗 ${t('unlink', 'Desvincular')}
+          </button>
         </div>
 
         ${hasParentContact ? `
@@ -5809,13 +5846,51 @@
           showSkillDetailModal(sk, val);
         };
       });
+
+      function handleUnlinkPlayerAction() {
+        confirmDialog(
+          t('unlinkProfile', 'Desvincular Perfil'),
+          `${t('unlinkProfileDesc', '¿Estás seguro de que deseas desvincular el perfil de este jugador? Perderá el acceso en su dispositivo y volverá a la pantalla de selección.')} (${Store.playerName(p)})`,
+          async () => {
+            try {
+              if (window.Cloud && window.Cloud.unlinkPlayerProfile) {
+                await window.Cloud.unlinkPlayerProfile(p.id);
+              }
+              p.unlinkedAt = Date.now();
+              Store.save();
+              if (window.Cloud && window.Cloud.pushCoachState) {
+                window.Cloud.pushCoachState(Store.state, true);
+              }
+              if (window._globalPresenceMap) {
+                delete window._globalPresenceMap[p.id];
+              }
+              if (typeof window._refreshPlayersPresenceList === 'function') {
+                window._refreshPlayersPresenceList();
+              }
+              toast(t('unlinkSuccessToast', '✅ Perfil de {name} desvinculado con éxito.').replace('{name}', Store.playerName(p)), 'success');
+              closeSheet();
+              showPlayerProfileModal(p.id);
+            } catch (e) {
+              console.error('Error desvinculando perfil:', e);
+              toast('Error: ' + e.message, 'error');
+            }
+          }
+        );
+      }
+
+      const btnUnlinkCard = body.querySelector('#btn-unlink-player-profile');
+      if (btnUnlinkCard) btnUnlinkCard.onclick = handleUnlinkPlayerAction;
     }, (foot) => {
       foot.innerHTML = `
         <div class="btn-row">
           <button class="btn" id="btn-edit-p-profile">${icon('edit', 16)} ${t('editPlayer')}</button>
-          <button class="btn danger" id="btn-del-p-profile">${icon('trash', 16)}</button>
+          <button class="btn warning" id="btn-foot-unlink-p-profile" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);" title="${t('unlinkProfile', 'Desvincular perfil')}">🔗 ${t('unlink', 'Desvincular')}</button>
+          <button class="btn danger" id="btn-del-p-profile" title="${t('deletePlayer')}">${icon('trash', 16)}</button>
         </div>
       `;
+
+      const btnUnlinkFoot = foot.querySelector('#btn-foot-unlink-p-profile');
+      if (btnUnlinkFoot) btnUnlinkFoot.onclick = handleUnlinkPlayerAction;
 
       foot.querySelector('#btn-edit-p-profile').onclick = () => {
         closeSheet();

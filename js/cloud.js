@@ -1064,6 +1064,84 @@
         console.error('[Cloud] Error configurando listener de recordatorios:', err);
         return null;
       }
+    },
+
+    /* =========================================================
+       DESVINCULACIÓN DE PERFIL DE JUGADOR POR EL ENTRENADOR
+       ========================================================= */
+    unlinkPlayerProfile: async function (playerId) {
+      if (!this.init() || !playerId) return false;
+      try {
+        const now = Date.now();
+        // 1. Guardar documento de desvinculación en Firestore
+        await db.collection('clubs')
+          .doc(CLUB_ID)
+          .collection('unlinks')
+          .doc(playerId)
+          .set({
+            playerId: playerId,
+            unlinkedAt: now,
+            serverTime: global.firebase.firestore.FieldValue.serverTimestamp()
+          });
+
+        // 2. Eliminar documento de presencia del jugador para apagar icono inmediatamente
+        try {
+          await db.collection('clubs')
+            .doc(CLUB_ID)
+            .collection('presence')
+            .doc(playerId)
+            .delete();
+        } catch (e) {
+          console.warn('[Cloud] Error borrando presencia al desvincular:', e);
+        }
+
+        // 3. Eliminar solicitudes de reclamo pendientes de este jugador
+        try {
+          const reqsSnap = await db.collection('clubs')
+            .doc(CLUB_ID)
+            .collection('profile_claim_requests')
+            .where('targetPlayerId', '==', playerId)
+            .get();
+          const batch = db.batch();
+          reqsSnap.forEach(d => batch.delete(d.ref));
+          await batch.commit();
+        } catch (e) {}
+
+        return true;
+      } catch (err) {
+        console.error('[Cloud] Error desvinculando perfil de jugador:', err);
+        return false;
+      }
+    },
+
+    listenToPlayerUnlink: function (playerId, callback) {
+      if (!this.init() || !playerId) return null;
+      try {
+        return db.collection('clubs')
+          .doc(CLUB_ID)
+          .collection('unlinks')
+          .doc(playerId)
+          .onSnapshot((doc) => {
+            if (doc.exists && typeof callback === 'function') {
+              callback(doc.data());
+            }
+          }, (err) => {
+            console.warn('[Cloud] Error escuchando desvinculación:', err);
+          });
+      } catch (err) {
+        return null;
+      }
+    },
+
+    clearPlayerUnlink: async function (playerId) {
+      if (!this.init() || !playerId) return;
+      try {
+        await db.collection('clubs')
+          .doc(CLUB_ID)
+          .collection('unlinks')
+          .doc(playerId)
+          .delete();
+      } catch (e) {}
     }
   };
 

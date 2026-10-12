@@ -1018,6 +1018,7 @@
     try {
       localStorage.setItem('portal_player_id', newPlayerId);
       localStorage.setItem('portal_player_locked', 'true');
+      localStorage.setItem('portal_player_linked_at', String(Date.now()));
       localStorage.removeItem('portal_pending_creation_id');
       localStorage.removeItem('portal_pending_creation_name');
       localStorage.removeItem('portal_pending_creation_dorsal');
@@ -1132,6 +1133,83 @@
       showSelectIdentityModal();
     };
     document.body.appendChild(alertBox);
+  }
+
+  /* -------------------------------------------------------------
+     REVOCACIÓN INMEDIATA DE ACCESO SI EL ENTRENADOR DESVINCULA EL PERFIL
+     ------------------------------------------------------------- */
+  function handlePlayerProfileUnlinked() {
+    console.warn('[Portal] Active player profile was unlinked by coach.');
+    const oldPid = myPlayerId;
+    try {
+      localStorage.removeItem('portal_player_id');
+      localStorage.removeItem('portal_player_locked');
+      localStorage.removeItem('portal_player_linked_at');
+      localStorage.removeItem('portal_pending_creation_id');
+      localStorage.removeItem('portal_pending_creation_name');
+      localStorage.removeItem('portal_pending_creation_dorsal');
+      localStorage.removeItem('portal_pending_creation_pos');
+      localStorage.removeItem('portal_pending_req_id');
+      localStorage.removeItem('cached_club_state');
+    } catch (e) {}
+    myPlayerId = null;
+
+    if (window._portalPresenceInterval) {
+      clearInterval(window._portalPresenceInterval);
+      window._portalPresenceInterval = null;
+    }
+    if (window._unlinkListenerUnsub) {
+      try { window._unlinkListenerUnsub(); } catch (e) {}
+      window._unlinkListenerUnsub = null;
+    }
+    if (oldPid && window.Cloud && window.Cloud.updatePresence) {
+      window.Cloud.updatePresence(oldPid, '', false, { hasApp: false });
+    }
+
+    // Cerrar cualquier diálogo, chat o modal abierto
+    document.querySelectorAll('.chat-dialog-overlay, .dialog-overlay, .sheet-backdrop').forEach(el => el.remove());
+
+    updateHeaderIdentity();
+    renderCurrentTab();
+
+    // Mostrar ventana emergente en inglés
+    const alertBox = document.createElement('div');
+    alertBox.className = 'dialog-overlay';
+    alertBox.style.cssText = 'position: fixed; inset: 0; z-index: 999999; background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center; padding: 16px;';
+    alertBox.innerHTML = `
+      <div class="dialog-box" style="max-width: 380px; text-align: center; background: var(--surface); border: 1.5px solid rgba(245, 158, 11, 0.5); border-radius: 18px; padding: 24px 20px;">
+        <div style="font-size: 42px; margin-bottom: 10px;">🔗</div>
+        <h3 style="margin: 0 0 10px; font-size: 18px; font-weight: 900; color: #fbbf24;">Profile Unlinked</h3>
+        <p style="font-size: 13.5px; color: var(--muted); margin: 0 0 20px; line-height: 1.45;">
+          Your coach has unlinked this player profile from your device. Please select who you are to link a profile again.
+        </p>
+        <button type="button" class="btn primary block" id="btn-profile-unlinked-ok" style="height: 44px; font-size: 14px; font-weight: 800; border-radius: 12px; background: linear-gradient(135deg, #f59e0b, #d97706); border: none; box-shadow: 0 4px 18px rgba(245, 158, 11, 0.4);">
+          Choose Profile
+        </button>
+      </div>
+    `;
+    alertBox.querySelector('#btn-profile-unlinked-ok').onclick = () => {
+      alertBox.remove();
+      updateHeaderIdentity();
+      renderCurrentTab();
+      showSelectIdentityModal();
+    };
+    document.body.appendChild(alertBox);
+  }
+
+  function listenToMyUnlink(playerId) {
+    if (!playerId || !window.Cloud || !window.Cloud.listenToPlayerUnlink) return;
+    if (window._unlinkListenerUnsub) {
+      try { window._unlinkListenerUnsub(); } catch (e) {}
+      window._unlinkListenerUnsub = null;
+    }
+    window._unlinkListenerUnsub = window.Cloud.listenToPlayerUnlink(playerId, (data) => {
+      const linkedAt = parseInt(localStorage.getItem('portal_player_linked_at') || '0', 10);
+      const unlinkedAt = data ? (data.unlinkedAt || 0) : 0;
+      if (unlinkedAt && unlinkedAt >= linkedAt) {
+        handlePlayerProfileUnlinked();
+      }
+    });
   }
 
   function matchTeamByText(text, teams) {
@@ -1480,6 +1558,11 @@
           <button type="button" class="btn sm ghost" id="btn-dialog-id-req-creation" style="width: 100%; border: 1.5px dashed var(--cyan); color: var(--cyan); font-weight: 800; font-size: 12px; height: 38px; border-radius: 10px;">
             ${t('requestCoachProfile', '➕ Not on the list? Request registration from coach')}
           </button>
+          <div style="text-align: center; margin-top: 10px;">
+            <button type="button" class="btn sm ghost" id="btn-dialog-id-clear-cache" style="font-size: 11px; opacity: 0.75; color: var(--muted); border: 1px dashed var(--border); padding: 4px 12px; border-radius: 8px;" title="Clear cache and reload latest version">
+              🔄 Clear App Cache & Refresh
+            </button>
+          </div>
         </div>
       </div>
     `;
@@ -1493,6 +1576,18 @@
       btnReqCreation.onclick = () => {
         close();
         showPlayerCreationRequestModal();
+      };
+    }
+
+    const btnClearCache = overlay.querySelector('#btn-dialog-id-clear-cache');
+    if (btnClearCache) {
+      btnClearCache.onclick = () => {
+        close();
+        if (typeof window.clearAppCacheAndReload === 'function') {
+          window.clearAppCacheAndReload();
+        } else {
+          window.location.reload(true);
+        }
       };
     }
 
@@ -1709,7 +1804,12 @@
           try {
             localStorage.setItem('portal_player_id', player.id);
             localStorage.setItem('portal_player_locked', 'true');
+            localStorage.setItem('portal_player_linked_at', String(Date.now()));
           } catch (e) {}
+          if (window.Cloud && window.Cloud.clearPlayerUnlink) {
+            window.Cloud.clearPlayerUnlink(player.id);
+          }
+          listenToMyUnlink(player.id);
           haptic(50);
           if (window.ChatUI && window.ChatUI.initGlobalUnreadListener) {
             window.ChatUI.initGlobalUnreadListener(myPlayerId);
@@ -2018,8 +2118,13 @@
         try {
           localStorage.setItem('portal_player_id', reqData.toPlayerId);
           localStorage.setItem('portal_player_locked', 'true');
+          localStorage.setItem('portal_player_linked_at', String(Date.now()));
           localStorage.removeItem('portal_pending_req_id');
         } catch (e) {}
+        if (window.Cloud && window.Cloud.clearPlayerUnlink) {
+          window.Cloud.clearPlayerUnlink(reqData.toPlayerId);
+        }
+        listenToMyUnlink(reqData.toPlayerId);
         toast(t('reqApprovedToast'), 'success');
         haptic(50);
         updateHeaderIdentity();
@@ -4229,9 +4334,14 @@
         window.clubData = clubData;
         if (myPlayerId && Array.isArray(clubData.players) && clubData.players.length > 0) {
           const isPending = (myPlayerId === localStorage.getItem('portal_pending_creation_id'));
-          const stillExists = clubData.players.some(p => p.id === myPlayerId);
-          if (!stillExists && !isPending) {
+          const myCachedP = clubData.players.find(p => p.id === myPlayerId);
+          if (!myCachedP && !isPending) {
             handlePlayerProfileRemoved();
+            return;
+          }
+          const linkedAt = parseInt(localStorage.getItem('portal_player_linked_at') || '0', 10);
+          if (myCachedP && myCachedP.unlinkedAt && myCachedP.unlinkedAt >= linkedAt) {
+            handlePlayerProfileUnlinked();
             return;
           }
         }
@@ -4260,6 +4370,10 @@
     if (window.Cloud) {
       window.Cloud.init();
 
+      if (myPlayerId) {
+        listenToMyUnlink(myPlayerId);
+      }
+
       if (myPlayerId && window.ChatUI && window.ChatUI.initGlobalUnreadListener) {
         const curP = getMyPlayer();
         window.ChatUI.initGlobalUnreadListener(myPlayerId, curP ? curP.teamId : null);
@@ -4271,12 +4385,17 @@
       window.Cloud.listenToClubState((remoteState) => {
         if (!remoteState) return;
 
-        // Comprobar si el perfil del jugador ha sido eliminado por el entrenador
+        // Comprobar si el perfil del jugador ha sido eliminado o desvinculado por el entrenador
         if (myPlayerId && Array.isArray(remoteState.players)) {
           const isPending = (myPlayerId === localStorage.getItem('portal_pending_creation_id'));
-          const stillExists = remoteState.players.some(p => p.id === myPlayerId);
-          if (!stillExists && !isPending) {
+          const myRemoteP = remoteState.players.find(p => p.id === myPlayerId);
+          if (!myRemoteP && !isPending) {
             handlePlayerProfileRemoved();
+            return;
+          }
+          const linkedAt = parseInt(localStorage.getItem('portal_player_linked_at') || '0', 10);
+          if (myRemoteP && myRemoteP.unlinkedAt && myRemoteP.unlinkedAt >= linkedAt) {
+            handlePlayerProfileUnlinked();
             return;
           }
         }
