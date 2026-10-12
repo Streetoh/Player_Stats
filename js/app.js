@@ -200,6 +200,45 @@
     return overlay;
   }
 
+  function matchTeamByText(text, teams) {
+    if (!text || !Array.isArray(teams) || teams.length === 0) return null;
+    const clean = String(text).trim().toLowerCase();
+    if (!clean) return null;
+
+    // 1. Coincidencia por año de 4 dígitos (ej: 2015, 2019, 2017, 2016)
+    const yearMatch = clean.match(/\b(19\d\d|20\d\d)\b/);
+    if (yearMatch) {
+      const yr = yearMatch[1];
+      const found = teams.find(t => {
+        const name = (t.name || '').toLowerCase();
+        return name.includes(yr);
+      });
+      if (found) return found;
+    }
+
+    // 2. Coincidencia por categoría U (ej: u9, u-9, u12, u 14)
+    const uMatch = clean.match(/\bu[-\s]?(\d{1,2})\b/);
+    if (uMatch) {
+      const uNum = uMatch[1];
+      const found = teams.find(t => {
+        const name = (t.name || '').toLowerCase();
+        const tMatch = name.match(/\bu[-\s]?(\d{1,2})\b/);
+        return tMatch && tMatch[1] === uNum;
+      });
+      if (found) return found;
+    }
+
+    // 3. Coincidencia por texto contenido en el nombre del equipo
+    const foundDirect = teams.find(t => {
+      const name = (t.name || '').toLowerCase();
+      return name.includes(clean) || clean.includes(name);
+    });
+    if (foundDirect) return foundDirect;
+
+    return null;
+  }
+  window.matchTeamByText = matchTeamByText;
+
   /* =========================================================
      DATE PICKER Y CALENDARIO INTERACTIVO
      ========================================================= */
@@ -901,15 +940,23 @@
               ➕ ${t('requestCoachProfileTitle', 'Solicitudes de Alta de Nuevo Jugador')} (${curCreations.length})
             </div>
             <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px;">
-              ${curCreations.map(cr => `
+              ${curCreations.map(cr => {
+                const displayName = cr.fullName || [cr.name, cr.lastName].filter(Boolean).join(' ') || cr.name || 'Nuevo Jugador';
+                const matchedTeam = (cr.suggestedTeamId && Store.team(cr.suggestedTeamId)) || matchTeamByText(cr.teamText || cr.notes || '', Store.state.teams);
+                const teamBadge = matchedTeam ? `<span class="badge" style="background: rgba(34, 197, 94, 0.2); color: #86efac; font-size: 11px; font-weight: 800;">🏷️ ${escapeHtml(matchedTeam.name)}</span>` : '';
+                return `
                 <div class="card" style="padding: 12px; border: 1.5px solid rgba(34, 211, 238, 0.4); border-radius: 14px; background: rgba(34, 211, 238, 0.06);">
                   <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">
-                    <b style="font-size: 14px; color: #fff;">👤 ${escapeHtml(cr.name || 'Nuevo Jugador')}</b>
+                    <div>
+                      <b style="font-size: 14px; color: #fff;">👤 ${escapeHtml(displayName)}</b>
+                      ${cr.name && cr.lastName ? `<div style="font-size: 11px; color: var(--muted);">${escapeHtml(cr.name)} / ${escapeHtml(cr.lastName)}</div>` : ''}
+                    </div>
                     <span class="badge" style="background: rgba(34, 211, 238, 0.2); color: #38bdf8; font-size: 10px; font-weight: 800;">ALTA</span>
                   </div>
                   <div style="font-size: 12px; color: var(--muted); margin-bottom: 8px;">
                     ${cr.dorsal ? `<span>#${escapeHtml(cr.dorsal)}</span> • ` : ''}
                     <span>${escapeHtml(cr.position || 'Jugador')}</span>
+                    ${teamBadge ? `<div style="margin-top: 4px;">${teamBadge}</div>` : ''}
                     ${cr.notes ? `<div style="margin-top: 4px; color: #cbd5e1; font-style: italic;">"${escapeHtml(cr.notes)}"</div>` : ''}
                   </div>
                   <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
@@ -921,7 +968,8 @@
                     </button>
                   </div>
                 </div>
-              `).join('')}
+              `;
+              }).join('')}
             </div>
           `;
         }
@@ -1052,9 +1100,15 @@
             btn.textContent = '...';
 
             try {
-              // Crear jugador en Store
+              // Determinar equipo asignado automáticamente por año o categoría
+              const matchedTeam = (item.suggestedTeamId && Store.team(item.suggestedTeamId)) || matchTeamByText(item.teamText || item.notes || '', Store.state.teams);
+              const teamId = matchedTeam ? matchedTeam.id : (Store.state.teams[0] ? Store.state.teams[0].id : null);
+
+              // Crear jugador en Store con nombre, apellidos y equipo auto-asignado
               const newPlayer = Store.upsertPlayer({
-                name: item.name,
+                name: item.name || '',
+                lastName: item.lastName || '',
+                teamId: teamId,
                 mainDorsal: item.dorsal ? parseInt(item.dorsal, 10) : null,
                 mainPosition: item.position || 'Delantero',
                 notes: item.notes || ''
@@ -1868,12 +1922,15 @@
 
       selectedTeamIds = [];
 
-      // Selección de burbujas de equipo (permite seleccionar múltiples equipos a la vez)
+      // Selección de burbujas de equipo:
+      // - PARTIDO: Sólo se permite elegir UN ÚNICO EQUIPO
+      // - ENTRENAMIENTO: Se permite seleccionar más de un equipo
       const allTeamsBubble = body.querySelector('#sess-team-bubbles .team-bubble[data-tid=""]');
       const specificTeamBubbles = body.querySelectorAll('#sess-team-bubbles .team-bubble:not([data-tid=""])');
 
       if (allTeamsBubble) {
         allTeamsBubble.onclick = () => {
+          if (selectedType === 'match') return; // En partido no se puede seleccionar "todos los equipos"
           selectedTeamIds = [];
           allTeamsBubble.classList.add('active');
           specificTeamBubbles.forEach(x => x.classList.remove('active'));
@@ -1886,18 +1943,27 @@
       specificTeamBubbles.forEach(tb => {
         tb.onclick = () => {
           const tid = tb.getAttribute('data-tid');
-          if (selectedTeamIds.includes(tid)) {
-            selectedTeamIds = selectedTeamIds.filter(x => x !== tid);
-            tb.classList.remove('active');
-          } else {
-            selectedTeamIds.push(tid);
+          if (selectedType === 'match') {
+            // Estrictamente UN SOLO EQUIPO en partidos
+            selectedTeamIds = [tid];
+            specificTeamBubbles.forEach(x => x.classList.remove('active'));
             tb.classList.add('active');
-          }
-
-          if (selectedTeamIds.length === 0) {
-            if (allTeamsBubble) allTeamsBubble.classList.add('active');
-          } else {
             if (allTeamsBubble) allTeamsBubble.classList.remove('active');
+          } else {
+            // En entrenamientos se permiten múltiples equipos
+            if (selectedTeamIds.includes(tid)) {
+              selectedTeamIds = selectedTeamIds.filter(x => x !== tid);
+              tb.classList.remove('active');
+            } else {
+              selectedTeamIds.push(tid);
+              tb.classList.add('active');
+            }
+
+            if (selectedTeamIds.length === 0) {
+              if (allTeamsBubble) allTeamsBubble.classList.add('active');
+            } else {
+              if (allTeamsBubble) allTeamsBubble.classList.remove('active');
+            }
           }
 
           const inp = document.getElementById('sess-team');
@@ -1912,6 +1978,7 @@
         btnMt.className = '';
         fRival.style.display = 'none';
         fTitle.style.display = '';
+        if (allTeamsBubble) allTeamsBubble.style.display = '';
       };
 
       btnMt.onclick = () => {
@@ -1920,6 +1987,19 @@
         btnTr.className = '';
         fRival.style.display = '';
         fTitle.style.display = 'none';
+        if (allTeamsBubble) allTeamsBubble.style.display = 'none';
+        // En partidos solo puede haber 1 equipo seleccionado
+        if (selectedTeamIds.length > 1) {
+          selectedTeamIds = [selectedTeamIds[0]];
+        } else if (selectedTeamIds.length === 0 && Store.state.teams.length > 0) {
+          selectedTeamIds = [Store.state.teams[0].id];
+        }
+        specificTeamBubbles.forEach(tb => {
+          tb.classList.toggle('active', selectedTeamIds.includes(tb.getAttribute('data-tid')));
+        });
+        if (allTeamsBubble) allTeamsBubble.classList.remove('active');
+        const inp = document.getElementById('sess-team');
+        if (inp) inp.value = selectedTeamIds.join(',');
       };
 
       body.querySelectorAll('#preset-buttons-selector button').forEach(pb => {
@@ -7580,13 +7660,13 @@
           <span class="conv-status-chip called" id="chip-called">🟢 ${countCalled} ${t('calledStatus')}</span>
         </div>
 
-        <!-- Lista de jugadores con botón de convocado (scroll mantenido sin saltos) -->
+        <!-- Lista de jugadores con checkbox de convocado (scroll mantenido sin saltos) -->
         <div class="card" id="conv-players-container" style="max-height: 38vh; overflow-y: auto; padding: 6px 12px;">
           ${allPlayers.map(p => {
             const isCalled = (list[p.id] === 'called');
             const pTeam = Store.team(p.teamId);
             return `
-              <div class="conv-player-row" data-pid="${p.id}" data-team="${p.teamId || ''}">
+              <div class="conv-player-row ${isCalled ? 'selected' : ''}" data-pid="${p.id}" data-team="${p.teamId || ''}">
                 ${renderAvatar(p, 'sm')}
                 <div class="conv-player-name ellipsis">
                   <b>#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(Store.playerName(p))}</b>
@@ -7595,8 +7675,8 @@
                   </small>
                 </div>
                 <div class="conv-btn-group">
-                  <button type="button" class="conv-pick-btn ${isCalled ? 'active called' : ''}" data-p="${p.id}" data-st="called" title="${t('calledStatus')}" style="padding: 5px 12px; font-size: 12.5px; font-weight: 800; border-radius: 10px; display: inline-flex; align-items: center; gap: 4px;">
-                    🟢 <span>${t('calledStatus')}</span>
+                  <button type="button" class="conv-checkbox-btn ${isCalled ? 'checked' : ''}" data-p="${p.id}" title="${t('calledStatus')}">
+                    <span class="conv-check-icon">✓</span>
                   </button>
                 </div>
               </div>
@@ -7658,26 +7738,39 @@
           currentType = 'match';
           typeMatchBtn.className = 'active';
           typeTrainBtn.className = '';
+          // En partido solo se permite UN ÚNICO EQUIPO
+          if (selectedTeamIds.length > 1) {
+            selectedTeamIds = [selectedTeamIds[0]];
+          } else if (selectedTeamIds.length === 0 && Store.state.teams.length > 0) {
+            selectedTeamIds = [Store.state.teams[0].id];
+          }
+          updateTeamBubblesUI();
         };
         typeTrainBtn.onclick = () => {
           currentType = 'training';
           typeTrainBtn.className = 'active';
           typeMatchBtn.className = '';
+          updateTeamBubblesUI();
         };
       }
 
       convTeamBubbles.forEach(tb => {
         tb.onclick = () => {
           const tid = tb.getAttribute('data-tid') || '';
-          if (!tid) {
-            // "Todos los equipos" pulsado
-            selectedTeamIds = [];
+          if (currentType === 'match') {
+            // En partidos, estrictamente UN SOLO EQUIPO (no se puede elegir "todos")
+            if (!tid) return;
+            selectedTeamIds = [tid];
           } else {
-            // Se permite más de un equipo tanto en partidos como en entrenamientos
-            if (selectedTeamIds.includes(tid)) {
-              selectedTeamIds = selectedTeamIds.filter(x => x !== tid);
+            // En entrenamientos, se permite elegir múltiples equipos o todos
+            if (!tid) {
+              selectedTeamIds = [];
             } else {
-              selectedTeamIds.push(tid);
+              if (selectedTeamIds.includes(tid)) {
+                selectedTeamIds = selectedTeamIds.filter(x => x !== tid);
+              } else {
+                selectedTeamIds.push(tid);
+              }
             }
           }
           updateTeamBubblesUI();
@@ -7699,26 +7792,22 @@
         }
       }
 
-      // Conexión por delegación de eventos: ¡Evita redibujar el contenedor y previene el salto de scroll!
+      // Conexión por delegación de eventos con checkbox y marcado visual de toda la tarjeta
       if (container) {
         container.addEventListener('click', (e) => {
-          const btn = e.target.closest('.conv-pick-btn');
-          if (!btn) return;
-          const pid = btn.getAttribute('data-p');
-          const st = btn.getAttribute('data-st');
-          const group = btn.closest('.conv-btn-group');
+          const row = e.target.closest('.conv-player-row');
+          if (!row) return;
+          const pid = row.getAttribute('data-pid');
+          const chk = row.querySelector('.conv-checkbox-btn');
 
-          if (list[pid] === st) {
+          if (list[pid] === 'called') {
             delete list[pid];
-            group.querySelectorAll('.conv-pick-btn').forEach(b => {
-              b.className = 'conv-pick-btn';
-            });
+            row.classList.remove('selected');
+            if (chk) chk.classList.remove('checked');
           } else {
-            list[pid] = st;
-            group.querySelectorAll('.conv-pick-btn').forEach(b => {
-              b.className = 'conv-pick-btn';
-            });
-            btn.className = `conv-pick-btn active ${st}`;
+            list[pid] = 'called';
+            row.classList.add('selected');
+            if (chk) chk.classList.add('checked');
           }
           haptic(20);
           updateCounterChips();
@@ -7735,12 +7824,9 @@
             if (r.style.display !== 'none') {
               const pid = r.getAttribute('data-pid');
               list[pid] = 'called';
-              const group = r.querySelector('.conv-btn-group');
-              if (group) {
-                group.querySelectorAll('.conv-pick-btn').forEach(b => {
-                  b.className = b.getAttribute('data-st') === 'called' ? 'conv-pick-btn active called' : 'conv-pick-btn';
-                });
-              }
+              r.classList.add('selected');
+              const chk = r.querySelector('.conv-checkbox-btn');
+              if (chk) chk.classList.add('checked');
               count++;
             }
           });
@@ -7759,12 +7845,9 @@
             if (r.style.display !== 'none') {
               const pid = r.getAttribute('data-pid');
               delete list[pid];
-              const group = r.querySelector('.conv-btn-group');
-              if (group) {
-                group.querySelectorAll('.conv-pick-btn').forEach(b => {
-                  b.className = 'conv-pick-btn';
-                });
-              }
+              r.classList.remove('selected');
+              const chk = r.querySelector('.conv-checkbox-btn');
+              if (chk) chk.classList.remove('checked');
             }
           });
           haptic(20);
@@ -7782,16 +7865,13 @@
             const existingRow = container.querySelector(`.conv-player-row[data-pid="${player.id}"]`);
             if (existingRow) {
               existingRow.style.display = 'flex';
-              const group = existingRow.querySelector('.conv-btn-group');
-              if (group) {
-                group.querySelectorAll('.conv-pick-btn').forEach(b => {
-                  b.className = b.getAttribute('data-st') === 'called' ? 'conv-pick-btn active called' : 'conv-pick-btn';
-                });
-              }
+              existingRow.classList.add('selected');
+              const chk = existingRow.querySelector('.conv-checkbox-btn');
+              if (chk) chk.classList.add('checked');
             } else {
               const pTeam = Store.team(player.teamId);
               const rowHtml = `
-                <div class="conv-player-row" data-pid="${player.id}" data-team="${player.teamId || ''}">
+                <div class="conv-player-row selected" data-pid="${player.id}" data-team="${player.teamId || ''}">
                   ${renderAvatar(player, 'sm')}
                   <div class="conv-player-name ellipsis">
                     <b>#${player.mainDorsal != null ? player.mainDorsal : '-'} ${escapeHtml(Store.playerName(player))}</b>
@@ -7800,30 +7880,13 @@
                     </small>
                   </div>
                   <div class="conv-btn-group">
-                    <button type="button" class="conv-pick-btn active called" data-p="${player.id}" data-st="called" title="${t('calledStatus')}">🟢</button>
-                    <button type="button" class="conv-pick-btn" data-p="${player.id}" data-st="bench" title="${t('benchStatus')}">🟡</button>
-                    <button type="button" class="conv-pick-btn" data-p="${player.id}" data-st="injured" title="${t('injuredStatus')}">🏥</button>
-                    <button type="button" class="conv-pick-btn" data-p="${player.id}" data-st="absent" title="${t('absentStatus')}">❌</button>
+                    <button type="button" class="conv-checkbox-btn checked" data-p="${player.id}" title="${t('calledStatus')}">
+                      <span class="conv-check-icon">✓</span>
+                    </button>
                   </div>
                 </div>
               `;
               container.insertAdjacentHTML('afterbegin', rowHtml);
-              const newRow = container.querySelector(`.conv-player-row[data-pid="${player.id}"]`);
-              if (newRow) {
-                newRow.querySelectorAll('.conv-pick-btn').forEach(btn => {
-                  btn.onclick = (e) => {
-                    e.stopPropagation();
-                    const p = btn.getAttribute('data-p');
-                    const st = btn.getAttribute('data-st');
-                    list[p] = st;
-                    newRow.querySelectorAll('.conv-pick-btn').forEach(b => {
-                      b.className = b.getAttribute('data-st') === st ? `conv-pick-btn active ${st}` : 'conv-pick-btn';
-                    });
-                    haptic(20);
-                    updateCounterChips();
-                  };
-                });
-              }
             }
             haptic(30);
             updateCounterChips();

@@ -79,6 +79,11 @@ def main():
         code = code.replace('defaultStartPage = "index.html";', 'defaultStartPage = "jugadores.html";')
         code = code.replace('TAG = "PlayerStats";', 'TAG = "PlayerPortal";')
         code = code.replace('BACKUP_FILE = "stats_internal_state.json";', 'BACKUP_FILE = "players_internal_state.json";')
+        code = code.replace("Intent bgIntent = new Intent(this, BackgroundNotificationService.class);", "//")
+        code = code.replace("startForegroundService(bgIntent);", "//")
+        code = code.replace("startService(bgIntent);", "//")
+        code = code.replace("BackgroundNotificationService.setAppInForeground(true);", "//")
+        code = code.replace("BackgroundNotificationService.setAppInForeground(false);", "//")
 
         with open(pkg_dir / "MainActivity.java", "w", encoding="utf-8") as f:
             f.write(code)

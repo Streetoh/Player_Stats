@@ -918,9 +918,60 @@ button { font-family: inherit; color: inherit; border: 0; background: none; curs
 .conv-status-chip.called { background: rgba(34, 197, 94, .15); color: #86efac; }
 .conv-status-chip.bench { background: rgba(245, 158, 11, .15); color: #fde68a; }
 .conv-status-chip.injured { background: rgba(239, 68, 68, .15); color: #fca5a5; }
-.conv-player-row { display: flex; align-items: center; gap: 8px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+.conv-player-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1.5px solid transparent;
+  margin-bottom: 4px;
+  cursor: pointer;
+  background: var(--surface2);
+  transition: all .16s ease;
+}
+.conv-player-row:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+.conv-player-row.selected {
+  background: rgba(34, 197, 94, 0.12);
+  border-color: rgba(34, 197, 94, 0.5);
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.15);
+}
 .conv-player-name { flex: 1; font-size: 13.5px; font-weight: 700; }
-.conv-btn-group { display: flex; gap: 4px; }
+.conv-btn-group { display: flex; align-items: center; }
+.conv-checkbox-btn {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  border-radius: 9px;
+  border: 2px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.06);
+  color: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all .16s cubic-bezier(0.4, 0, 0.2, 1);
+  font-size: 16px;
+  font-weight: 900;
+  user-select: none;
+}
+.conv-checkbox-btn .conv-check-icon {
+  opacity: 0;
+  transform: scale(0.6);
+  transition: all .16s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.conv-checkbox-btn.checked {
+  background: #22c55e;
+  border-color: #22c55e;
+  color: #04140a;
+  box-shadow: 0 0 12px rgba(34, 197, 94, 0.55);
+}
+.conv-checkbox-btn.checked .conv-check-icon {
+  opacity: 1;
+  transform: scale(1);
+}
 .conv-pick-btn { width: 34px; height: 34px; border-radius: 9px; border: 1.5px solid var(--border); background: var(--bg2); font-size: 13px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all .15s; }
 .conv-pick-btn.active { border-color: #fff; box-shadow: 0 0 8px rgba(255, 255, 255, .3); }
 .conv-pick-btn.active.called { background: rgba(34, 197, 94, .25); border-color: #22c55e; }

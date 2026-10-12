@@ -2157,7 +2157,41 @@
 
         const AVAILABLE_REACTIONS = ['👍', '❤️', '😂', '🔥', '👏', '⚽'];
 
-        function formatMessageText(txt, convId, eventTitle) {
+        function getDateKey(ts) {
+          if (!ts) return '';
+          const d = new Date(ts);
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        }
+
+        function formatDateDivider(ts, isEn) {
+          if (!ts) return '';
+          const d = new Date(ts);
+          const now = new Date();
+          const todayKey = getDateKey(now.getTime());
+          const yesterday = new Date(now);
+          yesterday.setDate(yesterday.getDate() - 1);
+          const yesterdayKey = getDateKey(yesterday.getTime());
+          const msgKey = getDateKey(ts);
+
+          if (msgKey === todayKey) {
+            return isEn ? 'Today' : 'Hoy';
+          } else if (msgKey === yesterdayKey) {
+            return isEn ? 'Yesterday' : 'Ayer';
+          } else {
+            try {
+              return d.toLocaleDateString(isEn ? 'en-US' : 'es-ES', {
+                weekday: 'short',
+                day: 'numeric',
+                month: 'short',
+                year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+              });
+            } catch (e) {
+              return msgKey;
+            }
+          }
+        }
+
+        function formatMessageText(txt, convId, eventTitle, isMine) {
           if (!txt) return '';
           let escaped = escapeHtml(txt);
 
@@ -2165,11 +2199,16 @@
           if (convId && eventTitle) {
             const escapedTitle = escapeHtml(eventTitle);
             const regexTitle = new RegExp(`&quot;${escapedTitle}&quot;|"${escapedTitle}"`, 'g');
-            escaped = escaped.replace(regexTitle, `<span class="chat-conv-link" data-conv-id="${convId}" style="text-decoration: underline; color: #38bdf8; font-weight: 800; cursor: pointer;">"${escapedTitle}"</span>`);
+            const linkColor = isMine ? '#ffffff' : '#38bdf8';
+            escaped = escaped.replace(regexTitle, `<span class="chat-conv-link" data-conv-id="${convId}" style="text-decoration: underline; color: ${linkColor}; font-weight: 900; cursor: pointer;">"${escapedTitle}"</span>`);
           }
 
-          // Resaltar menciones con @ (permite nombres completos y dorsales en líneas separadas o juntos)
-          escaped = escaped.replace(/@([^\n\r@<]+)/g, '<span style="background: rgba(34, 211, 238, 0.22); color: #38bdf8; font-weight: 800; padding: 1px 6px; border-radius: 6px;">@$1</span>');
+          // Resaltar menciones con @ con contraste óptimo (blanco nítido sobre fondo verde para mensajes propios)
+          const mentionStyle = isMine
+            ? 'background: rgba(0, 0, 0, 0.35); color: #ffffff; text-shadow: 0 1px 2px rgba(0,0,0,0.5); font-weight: 900; padding: 2px 7px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.25);'
+            : 'background: rgba(34, 211, 238, 0.2); color: #38bdf8; font-weight: 900; padding: 2px 7px; border-radius: 6px; border: 1px solid rgba(34, 211, 238, 0.35);';
+
+          escaped = escaped.replace(/@([^\n\r@<]+)/g, `<span style="${mentionStyle}">@$1</span>`);
 
           // Conservar saltos de línea
           escaped = escaped.replace(/\n/g, '<br/>');
@@ -2179,6 +2218,25 @@
         msgsContainer.innerHTML = visibleMessages.map((m, idx) => {
           const isMine = m.senderId === curId;
           const time = formatTime(m.timestamp);
+
+          // Divisor de días si la fecha cambia respecto al mensaje anterior
+          let dateDividerHtml = '';
+          const prevMsg = idx > 0 ? visibleMessages[idx - 1] : null;
+          const prevDateKey = prevMsg ? getDateKey(prevMsg.timestamp) : '';
+          const curDateKey = getDateKey(m.timestamp);
+
+          if (curDateKey && curDateKey !== prevDateKey) {
+            const label = formatDateDivider(m.timestamp, isEn);
+            dateDividerHtml = `
+              <div class="chat-day-divider" style="display: flex; align-items: center; justify-content: center; margin: 18px 0 12px; gap: 12px; width: 100%;">
+                <div style="flex: 1; height: 1px; background: var(--border); opacity: 0.6;"></div>
+                <span style="font-size: 11px; font-weight: 800; color: var(--muted); background: var(--surface2); padding: 3px 12px; border-radius: 12px; border: 1px solid var(--border); text-transform: capitalize; letter-spacing: 0.3px;">
+                  ${label}
+                </span>
+                <div style="flex: 1; height: 1px; background: var(--border); opacity: 0.6;"></div>
+              </div>
+            `;
+          }
 
           // Avatar y nombre del emisor
           let senderAvatarHtml = '👤';
@@ -2196,7 +2254,7 @@
           }
 
           if (m.isDeletedForEveryone) {
-            return `
+            return dateDividerHtml + `
               <div class="chat-msg-row" data-mid="${m.id}" style="display: flex; gap: 8px; align-items: flex-end; justify-content: ${isMine ? 'flex-end' : 'flex-start'}; margin-bottom: 4px; touch-action: pan-y;">
                 ${!isMine ? `
                   <div class="chat-sender-avatar" data-sender-id="${m.senderId}" style="width: 32px; height: 32px; border-radius: 50%; background: rgba(34, 211, 238, 0.2); border: 1.5px solid rgba(34, 211, 238, 0.4); display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; cursor: pointer; overflow: hidden; margin-bottom: 2px;" title="${t('viewProfile', 'Ver perfil')}">
@@ -2252,27 +2310,24 @@
           // Reacciones
           const reactionsEntries = getReactionsSummary(m.reactions || {});
 
-          // Tarjeta interactiva de convocatoria / evento si el mensaje incluye convId
+          // Botón directo para ir al evento si el mensaje incluye convId
           let convLinkHtml = '';
           if (m.convId) {
+            const btnBg = isMine ? '#031206' : 'linear-gradient(135deg, #0284c7, #0369a1)';
+            const btnColor = isMine ? '#86efac' : '#ffffff';
+            const btnBorder = isMine ? '1px solid rgba(0,0,0,0.4)' : '1px solid #38bdf8';
             convLinkHtml = `
-              <div class="chat-conv-link-card" data-conv-id="${m.convId}" style="margin-top: 8px; padding: 8px 12px; background: rgba(34, 211, 238, 0.16); border: 1.5px solid rgba(34, 211, 238, 0.45); border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 8px; user-select: none;">
-                <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
-                  <span style="font-size: 18px;">📅</span>
-                  <div style="min-width: 0;">
-                    <div style="font-weight: 800; font-size: 13px; color: #38bdf8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                      ${escapeHtml(m.eventTitle || (isEn ? 'View Call-up' : 'Ver Convocatoria'))}
-                    </div>
-                    <small style="font-size: 11px; color: ${isMine ? '#031206' : 'var(--muted)'}; opacity: 0.9;">
-                      ${isEn ? 'Tap to view event & confirm ➔' : 'Pulsa para ir al evento y confirmar ➔'}
-                    </small>
-                  </div>
-                </div>
+              <div style="margin-top: 10px;">
+                <button type="button" class="btn block chat-btn-go-event" data-conv-id="${m.convId}" style="height: 38px; font-size: 13px; font-weight: 900; border-radius: 10px; background: ${btnBg}; color: ${btnColor}; border: ${btnBorder}; box-shadow: 0 2px 8px rgba(0,0,0,0.25); display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; width: 100%;">
+                  <span>📅</span>
+                  <span>${isEn ? 'Go to Event' : 'Ir al Evento'} (${escapeHtml(m.eventTitle || (isEn ? 'Call-up' : 'Convocatoria'))})</span>
+                  <span style="font-size: 15px;">➔</span>
+                </button>
               </div>
             `;
           }
 
-          return `
+          return dateDividerHtml + `
             <div class="chat-msg-row" data-mid="${m.id}" style="display: flex; gap: 8px; align-items: flex-end; justify-content: ${isMine ? 'flex-end' : 'flex-start'}; margin-bottom: 4px; touch-action: pan-y;">
               ${!isMine ? `
                 <div class="chat-sender-avatar" data-sender-id="${m.senderId}" style="width: 32px; height: 32px; border-radius: 50%; background: rgba(34, 211, 238, 0.2); border: 1.5px solid rgba(34, 211, 238, 0.4); display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; cursor: pointer; overflow: hidden; margin-bottom: 2px;" title="${t('viewProfile', 'Ver perfil')}">
@@ -2290,7 +2345,7 @@
                 <div style="padding: 10px 14px; border-radius: ${isMine ? '16px 16px 4px 16px' : '16px 16px 16px 4px'}; background: ${isMine ? 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)' : 'var(--surface2)'}; color: ${isMine ? '#031206' : '#fff'}; border: ${isMine ? 'none' : '1px solid var(--border)'}; font-size: 14px; line-height: 1.45; word-break: break-word; box-shadow: 0 2px 8px rgba(0,0,0,0.15); position: relative;">
                   ${quoteHtml}
                   ${mediaHtml}
-                  ${m.text ? `<div>${formatMessageText(m.text, m.convId, m.eventTitle)}</div>` : ''}
+                  ${m.text ? `<div>${formatMessageText(m.text, m.convId, m.eventTitle, isMine)}</div>` : ''}
                   ${convLinkHtml}
                 </div>
 
@@ -2516,6 +2571,29 @@
             const mid = b.getAttribute('data-mid');
             const emoji = b.getAttribute('data-emoji');
             await applyReaction(mid, emoji);
+          };
+        });
+
+        // Botón directo para ir al evento de la convocatoria
+        msgsContainer.querySelectorAll('.chat-btn-go-event').forEach(btn => {
+          btn.onclick = (e) => {
+            e.stopPropagation();
+            const convId = btn.getAttribute('data-conv-id');
+            if (!convId) return;
+            if (typeof window.__openConvocationInPortal === 'function') {
+              window.__openConvocationInPortal(convId);
+            } else {
+              const dlg = document.querySelector('.chat-dialog-overlay');
+              if (dlg) dlg.remove();
+              if (window.Store && window.Store.convocation) {
+                const conv = window.Store.convocation(convId);
+                if (conv && typeof showConvocationDetailsModal === 'function') {
+                  showConvocationDetailsModal(conv);
+                } else if (typeof navigate === 'function') {
+                  navigate('convocations');
+                }
+              }
+            }
           };
         });
 

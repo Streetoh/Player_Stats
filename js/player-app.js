@@ -1088,6 +1088,48 @@
     document.body.appendChild(alertBox);
   }
 
+  function matchTeamByText(text, teams) {
+    if (!text || !Array.isArray(teams) || teams.length === 0) return null;
+    const clean = String(text).trim().toLowerCase();
+    if (!clean) return null;
+
+    // 1. Coincidencia por año de 4 dígitos (ej: 2015, 2019, 2017, 2016)
+    const yearMatch = clean.match(/\b(19\d\d|20\d\d)\b/);
+    if (yearMatch) {
+      const yr = yearMatch[1];
+      const found = teams.find(t => {
+        const name = (t.name || '').toLowerCase();
+        const desc = (t.description || '').toLowerCase();
+        return name.includes(yr) || desc.includes(yr);
+      });
+      if (found) return found;
+    }
+
+    // 2. Coincidencia por categoría "U" (ej: U9, U10, U11, U12, U-9, etc.)
+    const uMatch = clean.match(/\bu-?(\d{1,2})\b/i);
+    if (uMatch) {
+      const uNum = uMatch[1];
+      const found = teams.find(t => {
+        const name = (t.name || '').toLowerCase();
+        const id = (t.id || '').toLowerCase();
+        return new RegExp(`\\bu-?${uNum}\\b`, 'i').test(name) || id.includes(`u${uNum}`);
+      });
+      if (found) return found;
+    }
+
+    // 3. Coincidencia por nombre o nombre corto del equipo
+    for (const t of teams) {
+      const tName = (t.name || '').toLowerCase();
+      const tShort = (t.shortName || '').toLowerCase().trim();
+      if (tName && clean.includes(tName)) return t;
+      if (tShort && clean.includes(tShort)) return t;
+      if (tName && tName.includes(clean)) return t;
+    }
+
+    return null;
+  }
+  window.matchTeamByText = matchTeamByText;
+
   function showPlayerCreationRequestModal() {
     const overlay = document.createElement('div');
     overlay.className = 'dialog-overlay';
@@ -1102,29 +1144,41 @@
           ${t('requestCoachProfileDesc', 'Send your details to the coach so they can create your profile in the team database.')}
         </p>
 
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px;">
+          <div>
+            <label style="display: block; font-size: 11.5px; font-weight: 800; color: var(--cyan); margin-bottom: 4px;">Name *</label>
+            <input type="text" id="pcr-name" placeholder="First name" style="width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg2); color: #fff; font-size: 13.5px;" />
+          </div>
+          <div>
+            <label style="display: block; font-size: 11.5px; font-weight: 800; color: var(--cyan); margin-bottom: 4px;">Surname *</label>
+            <input type="text" id="pcr-surname" placeholder="Last name" style="width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg2); color: #fff; font-size: 13.5px;" />
+          </div>
+        </div>
+
         <div style="margin-bottom: 10px;">
-          <label style="display: block; font-size: 11.5px; font-weight: 800; color: var(--cyan); margin-bottom: 4px;">${t('fullNameLabel')}</label>
-          <input type="text" id="pcr-name" placeholder="${t('fullNamePlaceholder')}" style="width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg2); color: #fff; font-size: 13.5px;" />
+          <label style="display: block; font-size: 11.5px; font-weight: 800; color: #86efac; margin-bottom: 4px;">Team, Category or Birth Year</label>
+          <input type="text" id="pcr-team-text" placeholder="e.g. U9 or 2015 or U12" style="width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(34, 197, 94, 0.4); background: var(--bg2); color: #fff; font-size: 13.5px;" />
+          <small id="pcr-team-preview" style="display: block; margin-top: 4px; font-size: 11px; color: #86efac; font-weight: 700;"></small>
         </div>
 
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px;">
           <div>
-            <label style="display: block; font-size: 11.5px; font-weight: 800; color: var(--muted); margin-bottom: 4px;">${t('dorsalLabel')}</label>
-            <input type="number" id="pcr-dorsal" placeholder="${t('dorsalPlaceholder')}" style="width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg2); color: #fff; font-size: 13.5px;" />
+            <label style="display: block; font-size: 11.5px; font-weight: 800; color: var(--muted); margin-bottom: 4px;">${t('dorsalLabel', 'Dorsal')}</label>
+            <input type="number" id="pcr-dorsal" placeholder="e.g. 10" style="width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg2); color: #fff; font-size: 13.5px;" />
           </div>
           <div>
-            <label style="display: block; font-size: 11.5px; font-weight: 800; color: var(--muted); margin-bottom: 4px;">${t('positionLabel')}</label>
-            <input type="text" id="pcr-pos" placeholder="${t('positionPlaceholder')}" style="width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg2); color: #fff; font-size: 13.5px;" />
+            <label style="display: block; font-size: 11.5px; font-weight: 800; color: var(--muted); margin-bottom: 4px;">${t('positionLabel', 'Position')}</label>
+            <input type="text" id="pcr-pos" placeholder="e.g. DEL" style="width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg2); color: #fff; font-size: 13.5px;" />
           </div>
         </div>
 
         <div style="margin-bottom: 14px;">
-          <label style="display: block; font-size: 11.5px; font-weight: 800; color: var(--muted); margin-bottom: 4px;">${t('notesLabel')}</label>
-          <input type="text" id="pcr-notes" placeholder="${t('notesPlaceholder')}" style="width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg2); color: #fff; font-size: 13.5px;" />
+          <label style="display: block; font-size: 11.5px; font-weight: 800; color: var(--muted); margin-bottom: 4px;">${t('notesLabel', 'Notes')}</label>
+          <input type="text" id="pcr-notes" placeholder="${t('notesPlaceholder', 'Optional notes...')}" style="width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg2); color: #fff; font-size: 13.5px;" />
         </div>
 
         <button type="button" class="btn block primary" id="btn-submit-pcr" style="height: 44px; font-weight: 900; font-size: 13.5px;">
-          🚀 ${t('sendRequest')}
+          🚀 ${t('sendRequest', 'Send Request to Coach')}
         </button>
       </div>
     `;
@@ -1133,29 +1187,58 @@
     overlay.querySelector('#dlg-pcr-x').onclick = close;
     overlay.onclick = (e) => { if (e.target === overlay) close(); };
 
+    const inpTeam = overlay.querySelector('#pcr-team-text');
+    const previewTeam = overlay.querySelector('#pcr-team-preview');
+    if (inpTeam && previewTeam) {
+      const updateTeamPreview = () => {
+        const txt = inpTeam.value.trim();
+        const matched = matchTeamByText(txt, (clubData && clubData.teams) ? clubData.teams : []);
+        if (matched) {
+          previewTeam.textContent = `✓ Auto-detected team: ${matched.name}`;
+        } else {
+          previewTeam.textContent = '';
+        }
+      };
+      inpTeam.addEventListener('input', updateTeamPreview);
+    }
+
     const btnSubmit = overlay.querySelector('#btn-submit-pcr');
     btnSubmit.onclick = async () => {
       const name = overlay.querySelector('#pcr-name').value.trim();
+      const surname = overlay.querySelector('#pcr-surname').value.trim();
+      const teamText = overlay.querySelector('#pcr-team-text').value.trim();
       const dorsal = overlay.querySelector('#pcr-dorsal').value.trim();
       const pos = overlay.querySelector('#pcr-pos').value.trim();
       const notes = overlay.querySelector('#pcr-notes').value.trim();
 
       if (!name) {
-        toast(t('nameRequired'), 'error');
+        toast('Please enter first name', 'error');
+        return;
+      }
+      if (!surname) {
+        toast('Please enter surname', 'error');
         return;
       }
 
+      const matchedTeam = matchTeamByText(teamText || notes, (clubData && clubData.teams) ? clubData.teams : []);
+
       btnSubmit.disabled = true;
-      btnSubmit.textContent = t('sending');
+      btnSubmit.textContent = t('sending', 'Sending...');
 
       try {
         const reqId = 'pcr_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
+        const fullName = `${name} ${surname}`.trim();
+
         if (window.Cloud && window.Cloud.submitPlayerCreationRequest) {
           await window.Cloud.submitPlayerCreationRequest({
             id: reqId,
             name: name,
+            lastName: surname,
+            fullName: fullName,
+            teamText: teamText,
+            suggestedTeamId: matchedTeam ? matchedTeam.id : null,
             dorsal: dorsal ? parseInt(dorsal, 10) : null,
-            position: pos || 'Delantero',
+            position: pos || 'DEL',
             notes: notes || '',
             createdAt: Date.now()
           });
@@ -1167,9 +1250,9 @@
           localStorage.setItem('portal_player_id', reqId);
           localStorage.setItem('portal_player_locked', 'true');
           localStorage.setItem('portal_pending_creation_id', reqId);
-          localStorage.setItem('portal_pending_creation_name', name);
+          localStorage.setItem('portal_pending_creation_name', fullName);
           localStorage.setItem('portal_pending_creation_dorsal', dorsal || '');
-          localStorage.setItem('portal_pending_creation_pos', pos || 'Delantero');
+          localStorage.setItem('portal_pending_creation_pos', pos || 'DEL');
         } catch (e) {}
 
         listenToMyCreationRequest(reqId);
@@ -2680,9 +2763,35 @@
   }
 
   /* -------------------------------------------------------------
+     VISTA DE BLOQUEO PARA SECCIONES QUE REQUIEREN PERFIL ACTIVO
+     ------------------------------------------------------------- */
+  function renderNoProfileAccessView(featureName) {
+    view.innerHTML = `
+      <div style="padding: 44px 16px; text-align: center;">
+        <div style="font-size: 48px; margin-bottom: 12px;">🔒</div>
+        <h3 style="margin: 0 0 8px; font-size: 18px; font-weight: 900;">${t('selectIdentity', 'Select your profile')}</h3>
+        <p style="font-size: 13.5px; color: var(--muted); margin: 0 0 20px; line-height: 1.45;">
+          ${currentLang === 'en' 
+            ? `You must select or activate an active player profile to view ${featureName}.` 
+            : `Debes seleccionar o activar un perfil de jugador para ver ${featureName}.`}
+        </p>
+        <button type="button" class="btn primary" id="btn-no-profile-select-act" style="font-weight: 800; border-radius: 12px; padding: 10px 24px;">
+          ${t('selectIdentity', 'Select Profile')}
+        </button>
+      </div>
+    `;
+    const btn = view.querySelector('#btn-no-profile-select-act');
+    if (btn) btn.onclick = showSelectIdentityModal;
+  }
+
+  /* -------------------------------------------------------------
      PESTAÑA 3: PLANTILLA Y DEMÁS EQUIPOS (PUNTO 9)
      ------------------------------------------------------------- */
   function renderSquadView() {
+    if (!myPlayerId || !getMyPlayer()) {
+      renderNoProfileAccessView(t('squad', 'Squad'));
+      return;
+    }
     const teams = clubData && clubData.teams ? clubData.teams : [];
     let players = (clubData && clubData.players) ? clubData.players.slice().sort((a,b) => (a.name||'').localeCompare(b.name||'')) : [];
 
@@ -3044,6 +3153,10 @@
   let h2hPlayer2Id = null;
 
   function renderH2HView() {
+    if (!myPlayerId || !getMyPlayer()) {
+      renderNoProfileAccessView(t('h2h', 'Face to Face'));
+      return;
+    }
     const players = clubData && clubData.players ? clubData.players : [];
 
     if (players.length < 2) {

@@ -550,7 +550,30 @@ public class MainActivity extends Activity {
             }
         } catch (Exception ignored) {}
 
+        try {
+            Intent bgIntent = new Intent(this, BackgroundNotificationService.class);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(bgIntent);
+            } else {
+                startService(bgIntent);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error iniciando BackgroundNotificationService", e);
+        }
+
         webView.loadUrl("https://localhost/" + defaultStartPage);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        BackgroundNotificationService.setAppInForeground(true);
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        BackgroundNotificationService.setAppInForeground(false);
     }
 
     private void setupWebView() {
