@@ -6872,7 +6872,7 @@
       return `@${pName}${dorsal}`;
     }).join('\n');
 
-    const chatMessageText = `🔔 [Attendance reminder] Coach ${coachName} is waiting for your attendance response for "${eventTitle}" (${eventDate}):\n${mentionsText}`;
+    const chatMessageText = `🔔 [Attendance reminder] Coach ${coachName} is waiting for your attendance response for "${eventTitle}" (${eventDate}):\n${mentionsText}\n[event:${conv.id}]`;
 
     const targetTeamIds = (conv.teamIds && conv.teamIds.length)
       ? conv.teamIds

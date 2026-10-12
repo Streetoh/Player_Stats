@@ -2195,6 +2195,9 @@
           if (!txt) return '';
           let escaped = escapeHtml(txt);
 
+          // Ocultar etiquetas técnicas de evento en el texto visible
+          escaped = escaped.replace(/\n?\[(?:event|conv|conv_ref):[a-zA-Z0-9_\-]+\]/g, '');
+
           // Hacer clicable el nombre del evento si el mensaje contiene el título del evento
           if (convId && eventTitle) {
             const escapedTitle = escapeHtml(eventTitle);
@@ -2310,17 +2313,37 @@
           // Reacciones
           const reactionsEntries = getReactionsSummary(m.reactions || {});
 
-          // Botón directo para ir al evento si el mensaje incluye convId
+          // Botón directo para ir al evento si el mensaje incluye convId o es recordatorio de asistencia
           let convLinkHtml = '';
-          if (m.convId) {
+          let targetConvId = m.convId;
+          if (!targetConvId && m.text) {
+            const evMatch = m.text.match(/\[(?:event|conv|conv_ref):([a-zA-Z0-9_\-]+)\]/);
+            if (evMatch) {
+              targetConvId = evMatch[1];
+            } else if (m.text.includes('[Attendance reminder]')) {
+              const titleMatch = m.text.match(/for "([^"]+)"/);
+              const evTitleMatch = titleMatch ? titleMatch[1] : '';
+              const convs = (window.clubData && window.clubData.convocations) || (window.Store && window.Store.state && window.Store.state.convocations) || [];
+              const found = convs.find(c => (c.title === evTitleMatch) || (c.rival && evTitleMatch.includes(c.rival)));
+              if (found) targetConvId = found.id;
+              else if (convs.length > 0) targetConvId = convs[convs.length - 1].id;
+              else targetConvId = '';
+            }
+          }
+
+          const isAttendanceReminder = (m.type === 'attendance_reminder') || (m.text && m.text.includes('[Attendance reminder]')) || !!targetConvId;
+
+          if (isAttendanceReminder) {
+            const evTitle = m.eventTitle || (m.text && m.text.match(/for "([^"]+)"/) ? m.text.match(/for "([^"]+)"/)[1] : '');
             const btnBg = isMine ? '#031206' : 'linear-gradient(135deg, #0284c7, #0369a1)';
             const btnColor = isMine ? '#86efac' : '#ffffff';
-            const btnBorder = isMine ? '1px solid rgba(0,0,0,0.4)' : '1px solid #38bdf8';
+            const btnBorder = isMine ? '1.5px solid rgba(0,0,0,0.5)' : '1px solid #38bdf8';
+            const buttonLabel = evTitle ? `Go to Event (${escapeHtml(evTitle)})` : 'Go to Event';
             convLinkHtml = `
               <div style="margin-top: 10px;">
-                <button type="button" class="btn block chat-btn-go-event" data-conv-id="${m.convId}" style="height: 38px; font-size: 13px; font-weight: 900; border-radius: 10px; background: ${btnBg}; color: ${btnColor}; border: ${btnBorder}; box-shadow: 0 2px 8px rgba(0,0,0,0.25); display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; width: 100%;">
+                <button type="button" class="btn block chat-btn-go-event" data-conv-id="${targetConvId || ''}" style="height: 40px; font-size: 13px; font-weight: 900; border-radius: 10px; background: ${btnBg}; color: ${btnColor}; border: ${btnBorder}; box-shadow: 0 3px 10px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; width: 100%;">
                   <span>📅</span>
-                  <span>${isEn ? 'Go to Event' : 'Ir al Evento'} (${escapeHtml(m.eventTitle || (isEn ? 'Call-up' : 'Convocatoria'))})</span>
+                  <span>${buttonLabel}</span>
                   <span style="font-size: 15px;">➔</span>
                 </button>
               </div>
@@ -2345,7 +2368,7 @@
                 <div style="padding: 10px 14px; border-radius: ${isMine ? '16px 16px 4px 16px' : '16px 16px 16px 4px'}; background: ${isMine ? 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)' : 'var(--surface2)'}; color: ${isMine ? '#031206' : '#fff'}; border: ${isMine ? 'none' : '1px solid var(--border)'}; font-size: 14px; line-height: 1.45; word-break: break-word; box-shadow: 0 2px 8px rgba(0,0,0,0.15); position: relative;">
                   ${quoteHtml}
                   ${mediaHtml}
-                  ${m.text ? `<div>${formatMessageText(m.text, m.convId, m.eventTitle, isMine)}</div>` : ''}
+                  ${m.text ? `<div>${formatMessageText(m.text, targetConvId || m.convId, m.eventTitle, isMine)}</div>` : ''}
                   ${convLinkHtml}
                 </div>
 
@@ -2575,23 +2598,24 @@
         });
 
         // Botón directo para ir al evento de la convocatoria
-        msgsContainer.querySelectorAll('.chat-btn-go-event').forEach(btn => {
+        msgsContainer.querySelectorAll('.chat-btn-go-event, .chat-conv-link').forEach(btn => {
           btn.onclick = (e) => {
             e.stopPropagation();
             const convId = btn.getAttribute('data-conv-id');
-            if (!convId) return;
             if (typeof window.__openConvocationInPortal === 'function') {
               window.__openConvocationInPortal(convId);
             } else {
               const dlg = document.querySelector('.chat-dialog-overlay');
               if (dlg) dlg.remove();
-              if (window.Store && window.Store.convocation) {
+              if (window.Store && window.Store.convocation && convId) {
                 const conv = window.Store.convocation(convId);
                 if (conv && typeof showConvocationDetailsModal === 'function') {
                   showConvocationDetailsModal(conv);
                 } else if (typeof navigate === 'function') {
                   navigate('convocations');
                 }
+              } else if (typeof navigate === 'function') {
+                navigate('convocations');
               }
             }
           };

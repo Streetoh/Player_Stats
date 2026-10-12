@@ -562,6 +562,9 @@
           image: msg.image || null,
           file: msg.file || null,
           replyTo: msg.replyTo || null,
+          convId: msg.convId || null,
+          eventTitle: msg.eventTitle || null,
+          type: msg.type || 'text',
           reactions: {},
           timestamp: Date.now(),
           serverTime: global.firebase.firestore.FieldValue.serverTimestamp()

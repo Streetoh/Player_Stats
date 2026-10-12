@@ -2762,10 +2762,56 @@
     }).join('');
   }
 
+  function hasApprovedProfile() {
+    if (!myPlayerId) return false;
+    const pendingCreationId = localStorage.getItem('portal_pending_creation_id');
+    if (myPlayerId === pendingCreationId || String(myPlayerId).startsWith('pcr_')) return false;
+    const p = (clubData && clubData.players) ? clubData.players.find(x => x.id === myPlayerId) : null;
+    return !!p && !p.isPendingApproval;
+  }
+
   /* -------------------------------------------------------------
      VISTA DE BLOQUEO PARA SECCIONES QUE REQUIEREN PERFIL ACTIVO
      ------------------------------------------------------------- */
   function renderNoProfileAccessView(featureName) {
+    const isPendingCreation = !!(localStorage.getItem('portal_pending_creation_id') || (myPlayerId && String(myPlayerId).startsWith('pcr_')));
+    const pendingName = localStorage.getItem('portal_pending_creation_name') || 'Player';
+
+    if (isPendingCreation) {
+      view.innerHTML = `
+        <div style="padding: 44px 16px; text-align: center;">
+          <div style="font-size: 48px; margin-bottom: 12px;">⏳</div>
+          <h3 style="margin: 0 0 8px; font-size: 18px; font-weight: 900; color: #fde047;">${currentLang === 'en' ? 'Registration Pending' : 'Registro Pendiente'}</h3>
+          <p style="font-size: 13.5px; color: var(--muted); margin: 0 0 20px; line-height: 1.45;">
+            ${currentLang === 'en'
+              ? `Your registration request for <b>${escapeHtml(pendingName)}</b> is currently pending approval by your coach. You will be able to access ${featureName} once approved.`
+              : `Tu solicitud de alta para <b>${escapeHtml(pendingName)}</b> está pendiente de aprobación por el entrenador. Tendrás acceso a ${featureName} una vez aprobada.`}
+          </p>
+          <button type="button" class="btn ghost sm" id="btn-cancel-pending-creation" style="font-weight: 800; border-radius: 12px; padding: 8px 18px;">
+            ${currentLang === 'en' ? 'Cancel Request / Choose Another' : 'Cancelar solicitud / Elegir otro'}
+          </button>
+        </div>
+      `;
+      const btnCancel = view.querySelector('#btn-cancel-pending-creation');
+      if (btnCancel) {
+        btnCancel.onclick = () => {
+          try {
+            localStorage.removeItem('portal_pending_creation_id');
+            localStorage.removeItem('portal_player_id');
+            localStorage.removeItem('portal_player_locked');
+            localStorage.removeItem('portal_pending_creation_name');
+            localStorage.removeItem('portal_pending_creation_dorsal');
+            localStorage.removeItem('portal_pending_creation_pos');
+          } catch (e) {}
+          myPlayerId = null;
+          updateHeaderIdentity();
+          renderCurrentTab();
+          showSelectIdentityModal();
+        };
+      }
+      return;
+    }
+
     view.innerHTML = `
       <div style="padding: 44px 16px; text-align: center;">
         <div style="font-size: 48px; margin-bottom: 12px;">🔒</div>
@@ -2788,7 +2834,7 @@
      PESTAÑA 3: PLANTILLA Y DEMÁS EQUIPOS (PUNTO 9)
      ------------------------------------------------------------- */
   function renderSquadView() {
-    if (!myPlayerId || !getMyPlayer()) {
+    if (!hasApprovedProfile()) {
       renderNoProfileAccessView(t('squad', 'Squad'));
       return;
     }
@@ -3153,7 +3199,7 @@
   let h2hPlayer2Id = null;
 
   function renderH2HView() {
-    if (!myPlayerId || !getMyPlayer()) {
+    if (!hasApprovedProfile()) {
       renderNoProfileAccessView(t('h2h', 'Face to Face'));
       return;
     }
@@ -3329,31 +3375,18 @@
   }
 
   function renderChatTab() {
+    if (!hasApprovedProfile()) {
+      renderNoProfileAccessView(t('chat', 'Chat'));
+      return;
+    }
     if (!window.ChatUI) {
       view.innerHTML = '<div style="padding: 24px; text-align: center; color: var(--muted);">Chat no disponible</div>';
       return;
     }
     const myP = getMyPlayer();
-    if (!myPlayerId || !myP) {
-      view.innerHTML = `
-        <div style="padding: 40px 16px; text-align: center;">
-          <div style="font-size: 46px; margin-bottom: 12px;">🔒</div>
-          <h3 style="margin: 0 0 8px; font-size: 18px; font-weight: 900;">${t('selectIdentity', 'Select your profile')}</h3>
-          <p style="font-size: 13.5px; color: var(--muted); margin: 0 0 20px; line-height: 1.45;">
-            ${currentLang === 'en' ? 'You must select or activate an active player profile to use team chat.' : 'Debes seleccionar o activar un perfil de jugador para usar el chat del equipo.'}
-          </p>
-          <button type="button" class="btn primary" id="btn-chat-need-profile" style="font-weight: 800; border-radius: 12px; padding: 10px 24px;">
-            ${t('selectIdentity', 'Select Profile')}
-          </button>
-        </div>
-      `;
-      const btn = view.querySelector('#btn-chat-need-profile');
-      if (btn) btn.onclick = showSelectIdentityModal;
-      return;
-    }
     window.ChatUI.renderChatList(view, {
       currentUserId: myPlayerId,
-      currentUserName: `${myP.name || ''} ${myP.lastName || ''}`.trim() || 'Player',
+      currentUserName: myP ? `${myP.name || ''} ${myP.lastName || ''}`.trim() : 'Player',
       isCoach: false,
       players: (clubData && clubData.players) ? clubData.players : [],
       teams: (clubData && clubData.teams) ? clubData.teams : []
