@@ -182,7 +182,8 @@
           settings: {
             lang: (stateData.settings && stateData.settings.lang) || 'es',
             clubName: (stateData.settings && stateData.settings.clubName) || 'Jõhvi JK Noova',
-            convocatoriaWebUrl: (stateData.settings && stateData.settings.convocatoriaWebUrl) || ''
+            convocatoriaWebUrl: (stateData.settings && stateData.settings.convocatoriaWebUrl) || '',
+            forceCachePurgeTimestamp: (stateData.settings && stateData.settings.forceCachePurgeTimestamp) || 0
           },
           updatedAt: global.firebase.firestore.FieldValue.serverTimestamp(),
           clientTime: now

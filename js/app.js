@@ -550,6 +550,157 @@
     if (iconSpan) iconSpan.onclick = handleOpenCal;
   }
 
+  /* =========================================================
+     TIME PICKER INTERACTIVO Y NATIVO (ANDROID & WEB/PWA)
+     ========================================================= */
+  const _timePickerCallbacks = {};
+  window.__onNativeTimePicked = function(cbId, selectedTime) {
+    if (_timePickerCallbacks[cbId]) {
+      _timePickerCallbacks[cbId](selectedTime);
+      delete _timePickerCallbacks[cbId];
+    }
+  };
+
+  function openTimePicker(initialTime, onSelect) {
+    let curTime = (initialTime && /^\d{1,2}:\d{2}$/.test(String(initialTime).trim()))
+      ? String(initialTime).trim()
+      : '10:00';
+    if (curTime.length === 4 && curTime.indexOf(':') === 1) {
+      curTime = '0' + curTime;
+    }
+
+    // 1. Si estamos en Android nativo (Coach APK), usar el TimePickerDialog nativo de Android
+    if (window.AndroidBridge && typeof window.AndroidBridge.pickTime === 'function') {
+      const cbId = 'tp_' + Math.random().toString(36).slice(2, 9);
+      _timePickerCallbacks[cbId] = onSelect;
+      window.AndroidBridge.pickTime(curTime, cbId);
+      return;
+    }
+
+    // 2. Fallback Web / PWA: selector interactivo de horas y minutos
+    openWebTimePickerModal(curTime, onSelect);
+  }
+
+  function openWebTimePickerModal(initialTime, onSelect) {
+    const parts = (initialTime || '10:00').split(':');
+    let selH = parseInt(parts[0], 10);
+    if (isNaN(selH) || selH < 0 || selH > 23) selH = 10;
+    let selM = parseInt(parts[1], 10);
+    if (isNaN(selM) || selM < 0 || selM > 59) selM = 0;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'dialog-overlay';
+
+    function pad(n) { return String(n).padStart(2, '0'); }
+
+    function renderContent() {
+      const formatted = `${pad(selH)}:${pad(selM)}`;
+      overlay.innerHTML = `
+        <div class="dialog-box" style="max-width: 360px; width: 92%; padding: 20px; text-align: center;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+            <h3 style="margin: 0; font-size: 16px; font-weight: 800; color: #fff;">⏰ ${t('pickTime', 'Seleccionar Hora')}</h3>
+            <button type="button" class="icon-btn ghost" id="time-dlg-close" style="width: 30px; height: 30px;">✕</button>
+          </div>
+
+          <div style="font-size: 38px; font-weight: 900; color: var(--cyan); letter-spacing: 2px; margin: 10px 0 16px; background: var(--bg2); padding: 12px; border-radius: 14px; border: 1.5px solid var(--border);">
+            ${formatted}
+          </div>
+
+          <div style="margin-bottom: 14px;">
+            <div style="font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-bottom: 6px; text-align: left;">
+              ${t('hours', 'Hora')}:
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; max-height: 120px; overflow-y: auto; padding: 2px;">
+              ${Array.from({ length: 24 }, (_, i) => i).map(h => `
+                <button type="button" class="btn sm ${h === selH ? 'primary' : 'ghost'}" data-h="${h}" style="padding: 6px 0; font-weight: 800; font-size: 12px; border-radius: 8px;">
+                  ${pad(h)}
+                </button>
+              `).join('')}
+            </div>
+          </div>
+
+          <div style="margin-bottom: 18px;">
+            <div style="font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-bottom: 6px; text-align: left;">
+              ${t('minutes', 'Minutos')}:
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;">
+              ${[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map(m => `
+                <button type="button" class="btn sm ${m === selM ? 'primary' : 'ghost'}" data-m="${m}" style="padding: 6px 0; font-weight: 800; font-size: 12px; border-radius: 8px;">
+                  :${pad(m)}
+                </button>
+              `).join('')}
+            </div>
+          </div>
+
+          <div class="btn-row" style="display: flex; gap: 8px;">
+            <button type="button" class="btn ghost grow" id="time-dlg-cancel">${t('cancel', 'Cancelar')}</button>
+            <button type="button" class="btn primary grow" id="time-dlg-ok" style="font-weight: 800;">✓ ${t('save', 'Aceptar')}</button>
+          </div>
+        </div>
+      `;
+
+      overlay.querySelector('#time-dlg-close').onclick = () => overlay.remove();
+      overlay.querySelector('#time-dlg-cancel').onclick = () => overlay.remove();
+      overlay.querySelector('#time-dlg-ok').onclick = () => {
+        const finalTime = `${pad(selH)}:${pad(selM)}`;
+        overlay.remove();
+        if (typeof onSelect === 'function') onSelect(finalTime);
+      };
+
+      overlay.querySelectorAll('[data-h]').forEach(btn => {
+        btn.onclick = () => {
+          selH = parseInt(btn.getAttribute('data-h'), 10);
+          renderContent();
+        };
+      });
+
+      overlay.querySelectorAll('[data-m]').forEach(btn => {
+        btn.onclick = () => {
+          selM = parseInt(btn.getAttribute('data-m'), 10);
+          renderContent();
+        };
+      });
+    }
+
+    renderContent();
+    document.body.appendChild(overlay);
+  }
+
+  function renderTimePickerFieldHtml(id, initialTime, label) {
+    const curVal = initialTime || '10:00';
+    return `
+      <div class="field">
+        <label>⏰ ${label || t('time', 'Hora')}</label>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <input type="text" id="${id}" value="${curVal}" placeholder="HH:MM" style="flex: 1; font-weight: 800; font-size: 15px; letter-spacing: 1px; cursor: pointer;" readonly />
+          <button type="button" class="btn sm" id="${id}-btn" style="background: var(--surface2); color: var(--cyan); border: 1.5px solid var(--border); font-size: 13px; font-weight: 800; height: 42px; padding: 0 14px; white-space: nowrap; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+            ⏰ ${t('pickTime', 'Elegir')}
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
+  function bindTimePickerField(id, container, onChange) {
+    const root = container || document;
+    const inp = root.querySelector('#' + id);
+    const btn = root.querySelector('#' + id + '-btn');
+
+    const handleOpen = () => {
+      const cur = inp ? inp.value.trim() : '10:00';
+      openTimePicker(cur, (newTime) => {
+        if (inp) {
+          inp.value = newTime;
+          inp.dispatchEvent(new Event('change'));
+        }
+        if (typeof onChange === 'function') onChange(newTime);
+      });
+    };
+
+    if (btn) btn.onclick = handleOpen;
+    if (inp) inp.onclick = handleOpen;
+  }
+
   function confirmDialog(title, message, onConfirm, okText, okClass) {
     openSheet(title, (body) => {
       body.innerHTML = `
@@ -1347,13 +1498,8 @@
 
   function renderLangButton() {
     const cur = I18N.getLang();
-    const count = Math.max(NotifManager.getUnreadCount(), (pendingProfileRequests || []).length + (pendingPlayerCreationRequests || []).length);
     return `
       <div style="display: flex; align-items: center; gap: 6px;">
-        <button class="icon-btn" id="btn-profile-requests" title="${t('notificationCenter', 'Centro de Notificaciones')}" style="position: relative;">
-          <span style="font-size: 17px;">🔔</span>
-          <span id="requests-badge" style="position: absolute; top: -3px; right: -3px; background: #ef4444; color: #fff; font-size: 10px; font-weight: 900; min-width: 16px; height: 16px; line-height: 16px; text-align: center; border-radius: 999px; box-shadow: 0 0 6px rgba(239, 68, 68, 0.8); ${count > 0 ? '' : 'display: none;'}">${count}</span>
-        </button>
         <button class="icon-btn" id="btn-toggle-lang" title="${t('appLanguage')}">
           <span style="font-size: 13px; font-weight: 900; letter-spacing: 0.5px;">${cur.toUpperCase()}</span>
         </button>
@@ -1605,6 +1751,75 @@
   /* =========================================================
      VISTA 1: INICIO (HOME)
      ========================================================= */
+  function renderHomeNotificationsHtml() {
+    const notifs = NotifManager.getAll();
+    const pendingReqsCount = (pendingProfileRequests || []).length + (pendingPlayerCreationRequests || []).length + (pendingProfileClaimRequests || []).length;
+    const totalCount = Math.max(NotifManager.getUnreadCount(), pendingReqsCount);
+
+    return `
+      <div class="card" style="margin-bottom: 16px; border: 1.5px solid ${totalCount > 0 ? 'rgba(34, 211, 238, 0.4)' : 'var(--border)'}; background: ${totalCount > 0 ? 'rgba(34, 211, 238, 0.04)' : 'var(--surface)'};">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 16px;">🔔</span>
+            <b style="font-size: 14px; color: #fff;">${t('notificationCenter', 'Centro de Notificaciones')}</b>
+            ${totalCount > 0 ? `<span class="badge" style="background: #ef4444; color: #fff; font-size: 11px; font-weight: 900; padding: 2px 7px; border-radius: 999px;">${totalCount}</span>` : ''}
+          </div>
+          <div style="display: flex; gap: 6px;">
+            ${pendingReqsCount > 0 ? `
+              <button type="button" class="btn sm primary" id="btn-home-open-requests" style="font-size: 11.5px; padding: 4px 10px; font-weight: 800;">
+                👥 ${t('requests', 'Solicitudes')} (${pendingReqsCount})
+              </button>
+            ` : ''}
+            ${notifs.length > 0 ? `
+              <button type="button" class="btn sm ghost" id="btn-home-notif-mark-all" style="font-size: 11px; padding: 3px 8px; font-weight: 700;">
+                ✓ ${t('markAllRead', 'Leídas')}
+              </button>
+              <button type="button" class="btn sm danger ghost" id="btn-home-notif-clear-all" style="font-size: 11px; padding: 3px 8px; font-weight: 700;">
+                🗑️
+              </button>
+            ` : ''}
+          </div>
+        </div>
+
+        ${(notifs.length === 0 && pendingReqsCount === 0) ? `
+          <div style="padding: 14px; text-align: center; color: var(--muted); font-size: 12.5px;">
+            🎉 ¡Todo al día! No tienes notificaciones ni solicitudes pendientes.
+          </div>
+        ` : `
+          <div style="display: flex; flex-direction: column; gap: 8px; max-height: 280px; overflow-y: auto; padding: 2px;">
+            ${notifs.slice(0, 10).map(n => {
+              let ic = '🔔';
+              if (n.type === 'profile_req') ic = '🔄';
+              else if (n.type === 'creation_req') ic = '➕';
+              else if (n.type === 'claim_req') ic = '🔑';
+              else if (n.type === 'attendance') ic = (n.title && n.title.includes('🟢')) ? '🟢' : '❌';
+              else if (n.type === 'chat') ic = '💬';
+
+              const dateStr = n.time ? new Date(n.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+              return `
+                <div class="home-notif-item" data-nid="${n.id}" data-target="${n.targetId || ''}" data-type="${n.type}" style="background: ${n.read ? 'var(--surface2)' : 'rgba(34, 211, 238, 0.1)'}; border: 1px solid ${n.read ? 'var(--border)' : 'rgba(34, 211, 238, 0.45)'}; border-radius: 10px; padding: 8px 10px; display: flex; align-items: flex-start; gap: 8px; cursor: pointer; position: relative;">
+                  <span style="font-size: 16px; line-height: 1; flex-shrink: 0; margin-top: 2px;">${ic}</span>
+                  <div style="flex: 1; min-width: 0;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+                      <b style="font-size: 12.5px; color: ${n.read ? '#cbd5e1' : '#fff'}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                        ${escapeHtml(n.title)}
+                      </b>
+                      <span style="font-size: 10px; color: var(--muted); margin-left: 6px; flex-shrink: 0;">${dateStr}</span>
+                    </div>
+                    <div style="font-size: 11.5px; color: ${n.read ? 'var(--muted)' : '#e2e8f0'}; line-height: 1.3; word-break: break-word;">
+                      ${escapeHtml(n.body)}
+                    </div>
+                  </div>
+                  <button type="button" class="icon-btn ghost" data-home-delete-nid="${n.id}" style="width: 24px; height: 24px; font-size: 11px; color: var(--muted); flex-shrink: 0;" title="Eliminar">✕</button>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `}
+      </div>
+    `;
+  }
+
   function renderHomeView(view) {
     const totalPlayers = Store.state.players.length;
     const totalTrainings = Store.state.sessions.filter(s => s.type === 'training').length;
@@ -1623,31 +1838,8 @@
         ${renderLangButton()}
       </div>
 
-      <div class="hero-cta">
-        <button class="cta training" id="btn-quick-training">
-          <div class="cta-ic">⚽</div>
-          <div class="plus">${icon('plus', 16)}</div>
-          <div>
-            <h3>${t('training')}</h3>
-            <p>${t('trainingDesc')}</p>
-          </div>
-        </button>
-
-        <button class="cta match" id="btn-quick-match">
-          <div class="cta-ic">🏆</div>
-          <div class="plus">${icon('plus', 16)}</div>
-          <div>
-            <h3>${t('match')}</h3>
-            <p>${t('matchDesc')}</p>
-          </div>
-        </button>
-      </div>
-
-      <div style="margin-bottom: 14px;">
-        <button class="btn block ghost" id="btn-home-join-live" style="border: 1.5px dashed var(--cyan); background: rgba(34, 211, 238, 0.08); color: var(--cyan); font-weight: 800; font-size: 13.5px; border-radius: 14px; padding: 10px; display: flex; align-items: center; justify-content: center; gap: 8px;">
-          ${icon('qr', 18)} <span>${t('joinLive', '📡 Unirse a sesión en vivo')}</span>
-        </button>
-      </div>
+      <!-- Notificaciones y Solicitudes en Inicio -->
+      ${renderHomeNotificationsHtml()}
 
       <div class="quick-stats">
         <div class="qs">
@@ -1696,12 +1888,54 @@
     const btnLang = view.querySelector('#btn-toggle-lang');
     if (btnLang) btnLang.onclick = toggleLanguage;
 
-    view.querySelector('#btn-quick-training').onclick = () => showNewSessionModal('training');
-    view.querySelector('#btn-quick-match').onclick = () => showNewSessionModal('match');
     view.querySelector('#btn-see-all-sessions').onclick = () => navigate('history');
 
-    const btnJoinLive = view.querySelector('#btn-home-join-live');
-    if (btnJoinLive) btnJoinLive.onclick = () => showLiveSyncModal(null, 'guest');
+    const btnHomeReqs = view.querySelector('#btn-home-open-requests');
+    if (btnHomeReqs) btnHomeReqs.onclick = () => showProfileRequestsModal();
+
+    const btnHomeMarkAll = view.querySelector('#btn-home-notif-mark-all');
+    if (btnHomeMarkAll) {
+      btnHomeMarkAll.onclick = () => {
+        NotifManager.markAllAsRead();
+        renderHomeView(view);
+      };
+    }
+
+    const btnHomeClearAll = view.querySelector('#btn-home-notif-clear-all');
+    if (btnHomeClearAll) {
+      btnHomeClearAll.onclick = () => {
+        NotifManager.clearAll();
+        renderHomeView(view);
+      };
+    }
+
+    view.querySelectorAll('[data-home-delete-nid]').forEach(b => {
+      b.onclick = (e) => {
+        e.stopPropagation();
+        const nid = b.getAttribute('data-home-delete-nid');
+        NotifManager.remove(nid);
+        renderHomeView(view);
+      };
+    });
+
+    view.querySelectorAll('.home-notif-item').forEach(card => {
+      card.onclick = () => {
+        const nid = card.getAttribute('data-nid');
+        const type = card.getAttribute('data-type');
+        const targetId = card.getAttribute('data-target');
+        NotifManager.markAsRead(nid);
+
+        if (type === 'profile_req' || type === 'creation_req' || type === 'claim_req') {
+          showProfileRequestsModal();
+        } else if (type === 'attendance' && targetId) {
+          const conv = Store.convocation(targetId);
+          if (conv) showConvocationDetailsModal(conv);
+          else renderHomeView(view);
+        } else {
+          renderHomeView(view);
+        }
+      };
+    });
 
     const btnImp = view.querySelector('#btn-home-import');
     if (btnImp) btnImp.onclick = () => showImportModal();
@@ -1878,6 +2112,7 @@
         </div>
 
         ${renderDatePickerFieldHtml('sess-date', new Date().toISOString().slice(0, 10), t('date'))}
+        ${renderTimePickerFieldHtml('sess-time', new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), t('time', 'Hora'))}
 
         <div class="field" id="field-rival" style="${selectedType === 'match' ? '' : 'display: none;'}">
           <label>${t('rivalTeam')}</label>
@@ -2067,6 +2302,7 @@
       });
 
       bindDatePickerField('sess-date', body);
+      bindTimePickerField('sess-time', body);
     }, (foot) => {
       foot.innerHTML = `
         <button class="btn block ${selectedType === 'match' ? 'match' : 'primary'}" id="btn-start-session">
@@ -2107,6 +2343,8 @@
           targetPlayers.forEach(p => { convList[p.id] = 'called'; });
 
           const autoTitle = title || (selectedType === 'match' ? (rival ? 'vs ' + rival : t('match', 'Partido')) : t('training', 'Entrenamiento'));
+          const sessTimeInp = document.getElementById('sess-time');
+          const sessTime = (sessTimeInp && sessTimeInp.value) ? sessTimeInp.value.trim() : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
           Store.upsertConvocation({
             id: 'conv_' + s.id,
@@ -2114,7 +2352,7 @@
             type: selectedType,
             title: autoTitle,
             date: date,
-            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            time: sessTime || '10:00',
             rival: rival || '',
             teamId: selectedTeamIds[0] || '',
             teamIds: selectedTeamIds,
@@ -4664,7 +4902,28 @@
           </div>
         </div>
 
-        <div style="margin-bottom: 12px;">
+        <!-- Botones de Acción: Entrenamiento y Partido (movidos desde Inicio) -->
+        <div class="hero-cta" style="margin-bottom: 12px;">
+          <button class="cta training" id="btn-history-quick-training">
+            <div class="cta-ic">⚽</div>
+            <div class="plus">${icon('plus', 16)}</div>
+            <div>
+              <h3>${t('training')}</h3>
+              <p>${t('trainingDesc')}</p>
+            </div>
+          </button>
+
+          <button class="cta match" id="btn-history-quick-match">
+            <div class="cta-ic">🏆</div>
+            <div class="plus">${icon('plus', 16)}</div>
+            <div>
+              <h3>${t('match')}</h3>
+              <p>${t('matchDesc')}</p>
+            </div>
+          </button>
+        </div>
+
+        <div style="margin-bottom: 14px;">
           <button class="btn block ghost" id="btn-history-join-live" style="border: 1.5px dashed var(--cyan); background: rgba(34, 211, 238, 0.08); color: var(--cyan); font-weight: 800; font-size: 13px; border-radius: 12px; padding: 9px; display: flex; align-items: center; justify-content: center; gap: 8px;">
             ${icon('qr', 16)} <span>${t('joinLive', '📡 Unirse a sesión en vivo')}</span>
           </button>
@@ -4686,6 +4945,9 @@
           ` : list.map(s => renderSessionItemHtml(s)).join('')}
         </div>
       `;
+
+      view.querySelector('#btn-history-quick-training').onclick = () => showNewSessionModal('training');
+      view.querySelector('#btn-history-quick-match').onclick = () => showNewSessionModal('match');
 
       const btnJoin = view.querySelector('#btn-history-join-live');
       if (btnJoin) btnJoin.onclick = () => showLiveSyncModal(null, 'guest');
@@ -7099,8 +7361,16 @@
             ${team ? `<span class="badge" style="background: rgba(34, 211, 238, 0.15); color: var(--cyan); border-color: rgba(34, 211, 238, 0.3);">🛡️ ${escapeHtml(team.name)}</span>` : ''}
           </div>
 
-          <div class="conv-detail-meta" style="margin-bottom: 12px; font-size: 13px; line-height: 1.5;">
-            <div>📅 <b>${t('date')}:</b> ${formatConvocationDateWithDay(conv.date)} ${conv.time ? '• ⏰ ' + conv.time : ''}</div>
+          <div class="conv-detail-meta" style="margin-bottom: 12px; font-size: 13px; line-height: 1.5; background: var(--bg2); padding: 12px; border-radius: 12px; border: 1px solid var(--border);">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; flex-wrap: wrap;">
+              <div style="display: inline-flex; align-items: center; gap: 6px;">
+                <span>📅 <b>${t('date')}:</b> ${formatConvocationDateWithDay(conv.date)}</span>
+                <button type="button" class="btn sm ghost" id="btn-quick-change-date" style="padding: 2px 6px; font-size: 11px; border: 1px dashed var(--border);" title="Cambiar fecha">✏️</button>
+              </div>
+              <button type="button" class="btn sm" id="btn-quick-change-time" style="background: rgba(34, 211, 238, 0.15); color: var(--cyan); border: 1.5px solid rgba(34, 211, 238, 0.4); font-size: 13px; font-weight: 800; padding: 4px 12px; border-radius: 9px; display: inline-flex; align-items: center; gap: 5px; cursor: pointer;">
+                ⏰ ${conv.time || '10:00'} <span style="font-size: 11px; opacity: 0.85; font-weight: 600;">(Cambiar hora ✏️)</span>
+              </button>
+            </div>
             ${conv.venue ? `<div>📍 <b>Lugar / Campo:</b> ${escapeHtml(conv.venue)}</div>` : ''}
             ${conv.address ? `<div>🗺️ <b>Dirección:</b> ${escapeHtml(conv.address)} <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(conv.address)}" target="_blank" style="color: var(--cyan); text-decoration: underline; margin-left: 6px; font-weight: 700;">(Ver Mapa ↗)</a></div>` : ''}
             ${conv.rival ? `<div>⚔️ <b>Rival:</b> ${escapeHtml(conv.rival)}</div>` : ''}
@@ -7243,6 +7513,42 @@
         `;
 
         // Eventos en el cuerpo
+        const btnQuickTime = body.querySelector('#btn-quick-change-time');
+        if (btnQuickTime) {
+          btnQuickTime.onclick = () => {
+            openTimePicker(conv.time || '10:00', (newTime) => {
+              if (!newTime || newTime === conv.time) return;
+              conv.time = newTime;
+              Store.upsertConvocation(conv);
+              if (window.Cloud && window.Cloud.pushCoachState) {
+                window.Cloud.pushCoachState(Store.state, true);
+              }
+              haptic(30);
+              toast(`⏰ Hora actualizada a las ${newTime}`, 'success');
+              renderDetails();
+              if (onDone) onDone();
+            });
+          };
+        }
+
+        const btnQuickDate = body.querySelector('#btn-quick-change-date');
+        if (btnQuickDate) {
+          btnQuickDate.onclick = () => {
+            openDatePicker(conv.date, (newIso) => {
+              if (!newIso || newIso === conv.date) return;
+              conv.date = newIso;
+              Store.upsertConvocation(conv);
+              if (window.Cloud && window.Cloud.pushCoachState) {
+                window.Cloud.pushCoachState(Store.state, true);
+              }
+              haptic(30);
+              toast(`📅 Fecha actualizada`, 'success');
+              renderDetails();
+              if (onDone) onDone();
+            });
+          };
+        }
+
         const btnRemindDetails = body.querySelector('#btn-send-details-reminder');
         if (btnRemindDetails) {
           btnRemindDetails.onclick = async () => {
@@ -7715,10 +8021,7 @@
         </div>
 
         ${renderDatePickerFieldHtml('conv-date', c.date, t('date'))}
-        <div class="field">
-          <label>Hora</label>
-          <input type="time" id="conv-time" value="${c.time || '10:00'}" />
-        </div>
+        ${renderTimePickerFieldHtml('conv-time', c.time || '10:00', t('time', 'Hora'))}
 
         <div class="field-row">
           <div class="field">
@@ -8034,6 +8337,7 @@
       }
 
       bindDatePickerField('conv-date', body);
+      bindTimePickerField('conv-time', body);
     }, (foot) => {
       foot.innerHTML = `
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
@@ -8384,20 +8688,14 @@
         const btnPickTime = body.querySelector('#btn-pick-sched-time');
         const inpTime = body.querySelector('#sched-time');
         if (btnPickTime && inpTime) {
-          btnPickTime.onclick = () => {
+          const handlePickSchedTime = () => {
             const curVal = inpTime.value.trim() || '18:00';
-            if (window.AndroidBridge && window.AndroidBridge.pickTime) {
-              window.__onNativeTimePicked = (cbId, selectedTime) => {
-                if (cbId === 'sched_time_cb') inpTime.value = selectedTime;
-              };
-              window.AndroidBridge.pickTime(curVal, 'sched_time_cb');
-            } else {
-              const res = prompt('Introduce la hora (HH:MM):', curVal);
-              if (res && /^\d{1,2}:\d{2}$/.test(res.trim())) {
-                inpTime.value = res.trim();
-              }
-            }
+            openTimePicker(curVal, (newTime) => {
+              if (newTime) inpTime.value = newTime;
+            });
           };
+          btnPickTime.onclick = handlePickSchedTime;
+          inpTime.onclick = handlePickSchedTime;
         }
 
         body.querySelectorAll('[data-day-val]').forEach(btn => {
@@ -9115,6 +9413,9 @@
           <button class="btn btn-secondary block" id="btn-reset-test-presence" style="height: 38px; font-size: 12px; font-weight: 700; color: #f87171; border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.1);">
             🔄 ${t('resetTestPlayerLinks', 'Desvincular perfiles de prueba')}
           </button>
+          <button class="btn btn-secondary block" id="btn-force-players-cache-wipe" style="height: 42px; font-size: 12.5px; font-weight: 800; color: #facc15; border: 1.5px solid rgba(250, 204, 21, 0.5); background: rgba(250, 204, 21, 0.12); display: flex; align-items: center; justify-content: center; gap: 8px;">
+            🧹 ${t('forcePlayersCacheWipe', 'Forzar Borrado de Caché en Jugadores (App y PWA)')}
+          </button>
         </div>
       </div>
 
@@ -9304,6 +9605,28 @@
           btnResetPresence.disabled = false;
           btnResetPresence.textContent = '🔄 ' + t('resetTestPlayerLinks', 'Desvincular perfiles de prueba');
         }
+      };
+    }
+
+    const btnForceWipe = view.querySelector('#btn-force-players-cache-wipe');
+    if (btnForceWipe) {
+      btnForceWipe.onclick = () => {
+        confirmDialog(
+          '🧹 Forzar Borrado de Caché',
+          '¿Deseas enviar una orden de actualización inmediata a todos los jugadores? Al abrir la app o PWA verán una alerta para reiniciar la app y se borrará automáticamente la caché para cargar la última versión.',
+          () => {
+            Store.state.settings = Store.state.settings || {};
+            Store.state.settings.forceCachePurgeTimestamp = Date.now();
+            Store.save();
+            if (window.Cloud && window.Cloud.pushCoachState) {
+              window.Cloud.pushCoachState(Store.state, true);
+            }
+            toast('🚀 Orden de borrado de caché enviada a todos los jugadores', 'success');
+            haptic(35);
+          },
+          'Forzar Reinicio',
+          'warning'
+        );
       };
     }
 

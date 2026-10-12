@@ -25,9 +25,10 @@ import java.util.Set;
 
 public class BackgroundNotificationService extends Service {
     private static final String TAG = "PS_BgService";
-    private static final String PREFS_NAME = "CoachBgNotifs";
-    private static final String KEY_NOTIFIED_IDS = "notified_req_ids";
-    private static final String KEY_LAST_CHAT_TIME = "last_chat_time";
+    public static final String PREFS_NAME = "CoachBgNotifs";
+    public static final String KEY_NOTIFIED_IDS = "notified_req_ids";
+    public static final String KEY_NOTIFIED_CHAT_MSGS = "notified_chat_msgs";
+    public static final String KEY_LAST_CHAT_TIME = "last_chat_time";
 
     private static final String SERVICE_CHANNEL_ID = "coach_service_channel";
     private static final String ALERT_CHANNEL_ID = "player_stats_channel";
@@ -39,6 +40,38 @@ public class BackgroundNotificationService extends Service {
 
     public static void setAppInForeground(boolean inForeground) {
         isAppInForeground = inForeground;
+    }
+
+    public static void syncLastChatTime(Context ctx, long timestamp) {
+        if (ctx == null) return;
+        try {
+            SharedPreferences prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+            long cur = prefs.getLong(KEY_LAST_CHAT_TIME, 0L);
+            long target = Math.max(cur, timestamp > 0 ? timestamp : System.currentTimeMillis());
+            prefs.edit().putLong(KEY_LAST_CHAT_TIME, target).apply();
+        } catch (Exception e) {
+            Log.e(TAG, "Error syncLastChatTime", e);
+        }
+    }
+
+    public static void markChatAsRead(Context ctx, String chatId, long messageTime) {
+        if (ctx == null) return;
+        try {
+            SharedPreferences prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+            long target = Math.max(messageTime, System.currentTimeMillis());
+            SharedPreferences.Editor editor = prefs.edit();
+            editor.putLong(KEY_LAST_CHAT_TIME, Math.max(prefs.getLong(KEY_LAST_CHAT_TIME, 0L), target));
+            if (chatId != null && !chatId.isEmpty()) {
+                editor.putLong("read_time_" + chatId, target);
+                Set<String> set = prefs.getStringSet(KEY_NOTIFIED_CHAT_MSGS, null);
+                Set<String> newSet = set != null ? new HashSet<>(set) : new HashSet<String>();
+                newSet.add(chatId + "_" + messageTime);
+                editor.putStringSet(KEY_NOTIFIED_CHAT_MSGS, newSet);
+            }
+            editor.apply();
+        } catch (Exception e) {
+            Log.e(TAG, "Error markChatAsRead in service", e);
+        }
     }
 
     @Override
@@ -345,6 +378,21 @@ public class BackgroundNotificationService extends Service {
         }
     }
 
+    private Set<String> getNotifiedChatSignatures() {
+        Set<String> set = getPrefs().getStringSet(KEY_NOTIFIED_CHAT_MSGS, null);
+        return set != null ? new HashSet<>(set) : new HashSet<String>();
+    }
+
+    private void markChatSignatureNotified(String sig) {
+        Set<String> set = getNotifiedChatSignatures();
+        set.add(sig);
+        if (set.size() > 300) {
+            set.clear();
+            set.add(sig);
+        }
+        getPrefs().edit().putStringSet(KEY_NOTIFIED_CHAT_MSGS, set).apply();
+    }
+
     private void checkNewChatMessages() {
         String url = "https://firestore.googleapis.com/v1/projects/player-stats-2ac9d/databases/(default)/documents/clubs/default_club/chats";
         String json = fetchJson(url);
@@ -371,28 +419,41 @@ public class BackgroundNotificationService extends Service {
                 return;
             }
 
+            Set<String> notifiedSigs = getNotifiedChatSignatures();
             long highestTime = lastKnownTime;
             for (int i = 0; i < docs.length(); i++) {
                 JSONObject doc = docs.getJSONObject(i);
+                String docName = doc.optString("name", "");
+                String chatId = docName.contains("/") ? docName.substring(docName.lastIndexOf('/') + 1) : docName;
                 JSONObject fields = doc.optJSONObject("fields");
                 if (fields == null) continue;
 
                 String senderId = getFieldString(fields, "lastSenderId");
                 long msgTime = getFieldLong(fields, "lastMessageTime");
 
-                if (msgTime > lastKnownTime && !"coach".equalsIgnoreCase(senderId)) {
-                    if (msgTime > highestTime) highestTime = msgTime;
+                if (msgTime <= 0L || "coach".equalsIgnoreCase(senderId)) continue;
 
-                    String chatName = getFieldString(fields, "name");
-                    String lastMsg = getFieldString(fields, "lastMessage");
-                    if (chatName.isEmpty()) chatName = "Chat de Equipo";
+                String sig = chatId + "_" + msgTime;
+                long chatReadTime = prefs.getLong("read_time_" + chatId, 0L);
 
-                    postAlertNotification(
-                        "💬 " + chatName,
-                        lastMsg.isEmpty() ? "Nuevo mensaje recibido" : lastMsg,
-                        (int) (msgTime % Integer.MAX_VALUE)
-                    );
+                // Si ya fue notificado, o fue leído por el míster, o es anterior al tiempo conocido: no alertar
+                if (notifiedSigs.contains(sig) || msgTime <= chatReadTime || msgTime <= lastKnownTime) {
+                    continue;
                 }
+
+                if (msgTime > highestTime) highestTime = msgTime;
+
+                String chatName = getFieldString(fields, "name");
+                String lastMsg = getFieldString(fields, "lastMessage");
+                if (chatName.isEmpty()) chatName = "Chat de Equipo";
+
+                int notifId = chatId.hashCode();
+                postAlertNotification(
+                    "💬 " + chatName,
+                    lastMsg.isEmpty() ? "Nuevo mensaje recibido" : lastMsg,
+                    notifId
+                );
+                markChatSignatureNotified(sig);
             }
 
             if (highestTime > lastKnownTime) {

@@ -444,6 +444,11 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public void showSystemNotification(final String title, final String message) {
+            showSystemNotification(title, message, null);
+        }
+
+        @JavascriptInterface
+        public void showSystemNotification(final String title, final String message, final String tag) {
             runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
@@ -462,8 +467,9 @@ public class MainActivity extends Activity {
 
                         android.content.Intent intent = new android.content.Intent(MainActivity.this, MainActivity.class);
                         intent.setFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP | android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                        int notifId = (tag != null && !tag.isEmpty()) ? tag.hashCode() : (title + ":" + message).hashCode();
                         android.app.PendingIntent pendingIntent = android.app.PendingIntent.getActivity(
-                            MainActivity.this, 0, intent,
+                            MainActivity.this, notifId, intent,
                             Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? (android.app.PendingIntent.FLAG_UPDATE_CURRENT | android.app.PendingIntent.FLAG_IMMUTABLE) : android.app.PendingIntent.FLAG_UPDATE_CURRENT
                         );
 
@@ -482,9 +488,30 @@ public class MainActivity extends Activity {
                                .setPriority(android.app.Notification.PRIORITY_HIGH)
                                .setDefaults(android.app.Notification.DEFAULT_ALL);
 
-                        nm.notify((int) System.currentTimeMillis(), builder.build());
+                        nm.notify(notifId, builder.build());
+                        // Sincronizar tiempo de chat para que el servicio secundario sepa que ya fue notificado
+                        BackgroundNotificationService.syncLastChatTime(MainActivity.this, System.currentTimeMillis());
                     } catch (Exception e) {
                         Log.e(TAG, "Error showing system notification", e);
+                    }
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void markChatAsRead(final String chatId, final long timestamp) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        long time = timestamp > 0 ? timestamp : System.currentTimeMillis();
+                        BackgroundNotificationService.markChatAsRead(MainActivity.this, chatId, time);
+                        android.app.NotificationManager nm = (android.app.NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                        if (nm != null && chatId != null && !chatId.isEmpty()) {
+                            nm.cancel(chatId.hashCode());
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error in markChatAsRead bridge", e);
                     }
                 }
             });
@@ -500,6 +527,7 @@ public class MainActivity extends Activity {
                         if (nm != null) {
                             nm.cancelAll();
                         }
+                        BackgroundNotificationService.syncLastChatTime(MainActivity.this, System.currentTimeMillis());
                     } catch (Exception e) {
                         Log.e(TAG, "Error clearing notifications", e);
                     }
@@ -568,12 +596,14 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         BackgroundNotificationService.setAppInForeground(true);
+        BackgroundNotificationService.syncLastChatTime(this, System.currentTimeMillis());
     }
 
     @Override
     protected void onPause() {
         super.onPause();
         BackgroundNotificationService.setAppInForeground(false);
+        BackgroundNotificationService.syncLastChatTime(this, System.currentTimeMillis());
     }
 
     private void setupWebView() {

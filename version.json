@@ -1,5 +1,5 @@
 {
-  "version": "2026.10.12.3",
-  "buildTime": 1791800000000,
-  "description": "Auto cache clearing and animated attention glow for player profile selector"
+  "version": "2026.10.12.4",
+  "buildTime": 1791801000000,
+  "description": "Tactical pitch heatmap for all actions, career actions history, full Estonian language support, force cache purge from coach, weekly filter for recurring sessions"
 }

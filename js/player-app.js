@@ -33,13 +33,44 @@
 
       const daysEs = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
       const daysEn = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const daysEe = ['Pühapäev', 'Esmaspäev', 'Teisipäev', 'Kolmapäev', 'Neljapäev', 'Reede', 'Laupäev'];
 
-      const dayName = (currentLang === 'en' ? daysEn : daysEs)[dateObj.getDay()] || '';
+      const dayName = (currentLang === 'ee' ? daysEe : (currentLang === 'es' ? daysEs : daysEn))[dateObj.getDay()] || '';
       const dayPad = String(d).padStart(2, '0');
       const monthPad = String(m + 1).padStart(2, '0');
       return `${dayName}, ${dayPad}/${monthPad}/${y}`;
     }
     return isoStr;
+  }
+
+  function isDateInCurrentWeek(dateStr) {
+    if (!dateStr) return false;
+    const parts = String(dateStr).trim().split('-');
+    if (parts.length !== 3) return false;
+    const target = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+    if (isNaN(target.getTime())) return false;
+
+    const now = new Date();
+    const currentDay = now.getDay(); // 0 = Pühapäev/Domingo/Sunday, 1 = Esmaspäev/Lunes/Monday
+    const distToMonday = currentDay === 0 ? -6 : 1 - currentDay;
+    const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + distToMonday, 0, 0, 0, 0);
+    const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6, 23, 59, 59, 999);
+
+    return target >= monday && target <= sunday;
+  }
+
+  function getLangDisplay(lang) {
+    if (lang === 'ee') return '🇪🇪 EE';
+    if (lang === 'es') return '🇪🇸 ES';
+    return '🇬🇧 EN';
+  }
+
+  function cycleLang() {
+    currentLang = currentLang === 'en' ? 'ee' : (currentLang === 'ee' ? 'es' : 'en');
+    try { localStorage.setItem('lang', currentLang); } catch (e) {}
+    updateHeaderIdentity();
+    updateTabbarLabels();
+    renderCurrentTab();
   }
 
   window.__handleAppBack = function () {
@@ -246,7 +277,282 @@
       messageDeleted: 'Message deleted for everyone',
       messageDeletedForMe: 'Message removed for you',
       messageEdited: 'Message updated',
-      copiedToClipboard: 'Message copied to clipboard'
+      copiedToClipboard: 'Message copied to clipboard',
+      stat_touches: 'Ball Touches',
+      stat_passOk: 'Accurate Passes',
+      stat_passKo: 'Inaccurate Passes',
+      stat_shotOn: 'Shots on Target',
+      stat_shotOff: 'Shots Off Target',
+      stat_goal: 'Goals Scored',
+      stat_assist: 'Assists',
+      stat_dribbleOk: 'Successful Take-ons',
+      stat_dribbleKo: 'Failed Take-ons',
+      stat_recovery: 'Ball Recoveries',
+      stat_loss: 'Ball Losses',
+      stat_duelWon: 'Duels Won',
+      stat_duelLost: 'Duels Lost',
+      stat_cross: 'Crosses',
+      stat_keyPass: 'Key Passes',
+      stat_header: 'Headers',
+      stat_foulRecv: 'Fouls Won',
+      stat_foul: 'Fouls Committed',
+      stat_save: 'Goalkeeper Saves',
+      stat_yellow: 'Yellow Cards',
+      stat_red: 'Red Cards',
+      appUpdateRequired: 'App Update Required',
+      appUpdateDesc: 'The coach has requested a cache and app refresh to ensure all updates, tactical features, and latest stats load properly.',
+      restartApp: '🔄 Restart App',
+      clearCacheBtn: '🔄 Clear App Cache & Refresh',
+      careerActionsTitle: 'Career Actions Breakdown',
+      careerActionsDesc: 'Complete record of all tactical contributions and match actions',
+      noCareerActions: 'No individual career actions recorded yet.',
+      actions: 'actions',
+      matchDate: 'Match Date',
+      trainingDate: 'Training Date',
+      kickoffTime: 'Kick-off Time',
+      trainingTime: 'Training Time',
+      meetingTime: 'Meeting / Arrival Time',
+      pitchAndVenue: 'Pitch & Venue',
+      coachInstructions: "Coach's Instructions & Notes",
+      kitAndGear: 'Kit & Gear',
+      defaultKitMatch: 'Official match kit, shin guards and water bottle',
+      defaultKitTraining: 'Training gear, shin guards, football boots and water bottle',
+      matchSquad: 'Match Squad',
+      trainingSquad: 'Training Squad',
+      attendanceResponse: 'Your Attendance Response:',
+      tapMatchDetails: 'Tap for Match Details & Squad',
+      tapTrainingDetails: 'Tap for Training Details & Squad',
+      opponentLabel: 'Opponent:',
+      officialFixture: 'Official Fixture',
+      officialTraining: 'Official Training',
+      venueNotSpecified: 'Venue location not specified',
+      newBadge: 'NEW',
+      pendingApproval: 'Pending Approval',
+      noActionsInZone: 'No actions recorded in this sector',
+      zoneDetailsTitle: 'Pitch Zone Breakdown',
+      matchDetails: 'Match Details',
+      trainingDetails: 'Training Details'
+    },
+    ee: {
+      appName: 'Player stats (Mängija)',
+      convocations: 'Kutsed',
+      myProfile: 'Minu Profiil',
+      squad: 'Koosseis',
+      h2h: 'Face to Face',
+      chat: 'Vestlus',
+      live: 'Otse',
+      selectIdentity: 'Vali, kes sa oled...',
+      profileLocked: 'Profiil Lukustatud',
+      changeProfile: 'Muuda ▾',
+      reqChange: 'Taotle Muutmist',
+      allTeams: 'Kõik meeskonnad',
+      searchTeammate: 'Otsi meeskonnakaaslast nime või numbri järgi...',
+      callUpOfficial: 'Ametlik Kutse',
+      match: 'Mäng',
+      training: 'Treening',
+      venue: 'Koht / Väljak',
+      address: 'Aadress',
+      openInMaps: 'Ava Google Mapsis ↗',
+      coachNote: 'Treeneri märkus',
+      willYouAttend: 'Kas osaled sellel üritusel?',
+      iWillAttend: '🟢 Osaled',
+      iCannotAttend: '❌ Ei saa osaleda',
+      attendanceConfirmed: '🟢 Osalemine kinnitatud',
+      absenceReported: '❌ Puudumine teatatud',
+      pendingResponse: '⏳ Ootab sinu vastust',
+      notCalledUp: 'ℹ️ Sind pole sellesse nimekirja kutsutud',
+      confirmedBadge: 'Kinnitatud',
+      absentBadge: 'Puuduvad',
+      pendingBadge: 'Ootel',
+      viewAttendees: '👥 Vaata osalejate nimekirja ▾',
+      attendeesTitle: 'Kutse Osalejate Nimekiri',
+      noAttendeesYet: 'Keegi pole veel kinnitanud',
+      noAbsentYet: 'Puudumisi pole teatatud',
+      allAnswered: 'Kõik kutsutud mängijad on vastanud',
+      emptyConvs: 'Aktiivseid kutseid pole',
+      emptyConvsDesc: 'Treener pole veel avaldanud kutseid eelseisvateks mängudeks või treeninguteks.',
+      chooseIdentityTitle: 'Kes sa oled meeskonnas?',
+      chooseIdentityDesc: 'Vali oma nimi, et siduda oma profiil selle seadmega. Pärast valimist see lukustatakse.',
+      confirmIdentityBtn: 'Seo minu profiil',
+      reqChangeTitle: 'Taotle Profiili Muutmist',
+      reqChangeDesc: 'Sinu profiil on praegu seotud mängijaga {name}. Vigade vältimiseks saadetakse teise mängija valimisel luba treenerile:',
+      selectNewPlayer: 'Vali õige mängija:',
+      reasonPlaceholder: 'Põhjus (nt valesti valitud, uus telefon...)',
+      sendReqBtn: '🚀 Saada Taotlus Treenerile',
+      reqSentBanner: '⏳ Taotlus saadetud treenerile profiili muutmiseks mängijale {name}. Ootab kinnitamist...',
+      reqApprovedToast: '✅ Treener kinnitas sinu profiilimuudatuse!',
+      reqRejectedToast: '❌ Treener lükkas profiilimuudatuse tagasi.',
+      performanceRating: 'Esitushinne',
+      ratingDesc: 'Mänguhinne arvutatakse tegelike taktikaliste panuste, pallipuudete ja tõhususe põhjal.',
+      matchesAttended: 'Mängitud Mänge',
+      trainingsAttended: 'Osaletud Treeninguid',
+      totalSessions: 'Sessioone Kokku',
+      goalsScored: 'Löödud Väravaid',
+      passAccuracy: 'Söödutäpsus',
+      passesAccurate: 'täpset söötu',
+      shotAccuracy: 'Löökide Täpsus',
+      shotsOnTarget: 'raami',
+      ballTouches: 'Pallipuuted',
+      dribblesWon: 'Edukad Triblingud',
+      duelsWon: 'Võidetud Kahevõitlused',
+      recoveries: 'Palli Tagasivõitmised',
+      recentMatchesTitle: 'Viimased Mängud ja Tegevused',
+      noMatchesYet: 'Mänge ega sessioone pole veel salvestatud.',
+      noActionsYet: 'Individuaalseid tegevusi pole veel salvestatud.',
+      tapSkillHint: 'Puuduta mis tahes oskust radaril, et näha selle selgitust ℹ️',
+      footRight: 'Paremajalgne',
+      footLeft: 'Vasakujalgne',
+      footBoth: 'Mõlemajalgne',
+      h2hTitle: 'Face to Face Võrdlus',
+      h2hDesc: 'Vali kaks meeskonnakaaslast, et võrrelda nende oskusi ja statistikat:',
+      player1: 'Mängija 1',
+      player2: 'Mängija 2',
+      choosePlayer: 'Vali Mängija',
+      fullProfile: 'Täielik Profiil',
+      close: 'Sulge',
+      skillsRadar: 'Sportlike Võimete Radar',
+      cumulativeStats: 'Koondstatistika',
+      squadTitle: 'Mängijate Koosseis',
+      squadSubtitle: 'Sirvi klubi meeskondade mängijaid ja puuduta, et näha nende statistikat:',
+      h2hNeedTwo: 'Võrdlemiseks on vaja vähemalt 2 mängijat koosseisus.',
+      locked: 'Lukustatud',
+      reasonLabel: 'Põhjus / Märkused:',
+      chooseWhoYouAre: '-- Vali, kes sa tegelikult oled --',
+      reqSelectTargetErr: 'Palun vali mängija, kelleks soovid vahetada',
+      reqSentSuccess: 'Taotlus saadetud treenerile! See uueneb kohe pärast kinnitamist.',
+      sending: 'Saadan...',
+      linkedSuccess: 'Profiil edukalt seotud!',
+      loadingPlayers: 'Mängijate laadimine pilvest...',
+      passesLabel: 'SÖÖDUD',
+      shotsLabel: 'LÖÖGID',
+      goalsLabel: 'VÄRAVAD',
+      dribblesLabel: 'TRIBLINGUD',
+      recoveriesLabel: 'PALLI VÕIDUD',
+      touchesLabel: 'PUUTED',
+      pitchGoalsTitle: 'Taktikaline Väljakukaart',
+      pitchGoalsDesc: 'Tegevused ja väravad väljaku tsoonide kaupa',
+      untrackedGoalsHint: 'tsoonita salvestatud tegevused',
+      chatWithPlayer: '💬 Vestle selle mängijaga',
+      zone_box_opp: 'Vastase Karistusala',
+      zone_front: 'Karistusala Esine',
+      zone_wing_off_l: 'Ründav Vasak Äär',
+      zone_wing_off_r: 'Ründav Parem Äär',
+      zone_wing_l: 'Vasak Äär',
+      zone_wing_r: 'Parem Äär',
+      zone_mid: 'Keskväli / Oma väljakupool',
+      filterAll: 'Kõik',
+      filterMatches: '🏆 Mängud',
+      filterTrainings: '⚽ Treeningud',
+      requestCoachProfile: '➕ Pole nimekirjas? Taotle registreerimist treenerilt',
+      requestCoachProfileTitle: 'Taotle Registreerimist Treenerilt',
+      requestCoachProfileDesc: 'Saada oma andmed treenerile, et ta saaks luua sinu profiili meeskonna andmebaasis.',
+      fullNameLabel: 'Ees- ja perekonnanimi *',
+      fullNamePlaceholder: 'nt Lucas Tamm',
+      dorsalLabel: 'Särginumber',
+      dorsalPlaceholder: 'nt 10',
+      positionLabel: 'Positsioon',
+      positionPlaceholder: 'nt Ründaja, Väravavaht...',
+      notesLabel: 'Märkused / Meeskond',
+      notesPlaceholder: 'nt U14 Meeskond, uus liituja...',
+      sendRequest: 'Saada Taotlus Treenerile',
+      nameRequired: 'Palun sisesta oma ees- ja perekonnanimi',
+      requestSent: 'Taotlus treenerile saadetud!',
+      coachCardTitle: 'Peatreeneri Profiil',
+      viewCoachProfile: 'Vaata Treeneri Profiili',
+      coachProfileSubtitle: 'Tehniline direktor ja treenerite tiim',
+      chatWithCoach: '💬 Vestle Treeneriga',
+      confirmPlayerIdentity: 'Kinnita Isik',
+      areYouPlayer: 'Kas oled {name}?',
+      securityCodeDesc: 'Sinu profiili kaitsmiseks genereeriti see turvakood. Edasta see kood treenerile, et ta saaks kinnitada juurdepääsu sinu seadmes.',
+      securityCodeTitle: 'Turvakood',
+      waitingCoachApproval: 'Ootan treeneri kinnitust koodile...',
+      copyCode: '📋 Kopeeri Kood',
+      codeCopied: '✅ Kood kopeeritud lõikelauale!',
+      sendViaViber: '📱 Saada Viberi kaudu',
+      cancelSelectOther: '✕ Tühista ja vali teine mängija',
+      viberShareMsg: 'Tere treener, minu turvakood on {code}, et pääseda ligi profiilile ({name}) rakenduses Player Stats.',
+      player: 'Mängija',
+      allPlayers: 'Kõik Mängijad',
+      creationApproved: '🎉 Treener kinnitas ja lõi sinu profiili! Nüüd saad vaadata oma statistikat.',
+      creationRejected: '❌ Treener lükkas registreerimistaotluse tagasi.',
+      profileChangeSecurityTitle: 'Kinnita Profiili Muutmine',
+      profileChangeSecurityDesc: 'Sinu konto kaitsmiseks genereeriti see turvakood. Edasta see kood treenerile, et ta saaks lubada profiili muutmise mängijale {name}.',
+      viberProfileChangeMsg: 'Tere treener, minu kinnituskood on {code}, et muuta profiil mängijale {name} rakenduses Player Stats.',
+      birthDate: 'Sünniaeg',
+      age: 'Vanus',
+      secondaryPositions: 'Teisesed Positsioonid',
+      guardian: 'Lapsevanem / Hooldaja',
+      callCoach: 'Helista Treenerile',
+      call: 'Helista',
+      voteReset: 'Osalemise vastus tühistatud (ootel)',
+      viberCoachContactMsg: 'Tere treener!',
+      messageViaViber: 'Saada sõnum Viberis',
+      contact: 'Kontakt',
+      msgDeletedForEveryone: 'See sõnum kustutati',
+      messageOptions: 'Sõnumi valikud',
+      copyMessage: 'Kopeeri sõnum',
+      editMessage: 'Muuda sõnumit',
+      deleteForEveryone: 'Kustuta kõigilt',
+      deleteForMe: 'Kustuta minu jaoks',
+      deleteForEveryoneConfirm: 'Kas soovid kindlasti selle sõnumi kõigilt kustutada?',
+      messageDeleted: 'Sõnum kustutatud kõigilt',
+      messageDeletedForMe: 'Sõnum eemaldatud sinu jaoks',
+      messageEdited: 'Sõnum uuendatud',
+      copiedToClipboard: 'Sõnum kopeeritud lõikelauale',
+      stat_touches: 'Pallipuuted',
+      stat_passOk: 'Täpsed Söödud',
+      stat_passKo: 'Ebatäpsed Söödud',
+      stat_shotOn: 'Löögid Raami',
+      stat_shotOff: 'Löögid Mööda',
+      stat_goal: 'Löödud Väravad',
+      stat_assist: 'Väravasöödud',
+      stat_dribbleOk: 'Edukad Triblingud',
+      stat_dribbleKo: 'Ebaõnnestunud Triblingud',
+      stat_recovery: 'Palli Tagasivõitmised',
+      stat_loss: 'Pallikaotused',
+      stat_duelWon: 'Võidetud Kahevõitlused',
+      stat_duelLost: 'Kaotatud Kahevõitlused',
+      stat_cross: 'Tsenderdused',
+      stat_keyPass: 'Võtmesöödud',
+      stat_header: 'Pealöögid',
+      stat_foulRecv: 'Teenitud Vead',
+      stat_foul: 'Tehtud Vead',
+      stat_save: 'Väravavahi Tõrjed',
+      stat_yellow: 'Kollased Kaardid',
+      stat_red: 'Punased Kaardid',
+      appUpdateRequired: 'Rakenduse uuendus vajalik',
+      appUpdateDesc: 'Treener on taotlenud vahemälu ja rakenduse värskendamist, et tagada uusimate andmete kuvamine.',
+      restartApp: '🔄 Taaskäivita rakendus',
+      clearCacheBtn: '🔄 Tühjenda vahemälu ja värskenda',
+      careerActionsTitle: 'Karjääri Tegevuste Ülevaade',
+      careerActionsDesc: 'Kõik mängija poolt sooritatud tegevused ja panused läbi karjääri',
+      noCareerActions: 'Ühtegi individuaalset tegevust pole veel salvestatud.',
+      actions: 'tegevust',
+      matchDate: 'Mängu Kuupäev',
+      trainingDate: 'Treeningu Kuupäev',
+      kickoffTime: 'Algusaeg',
+      trainingTime: 'Treeningu Aeg',
+      meetingTime: 'Kogunemisaeg',
+      pitchAndVenue: 'Väljak ja Asukoht',
+      coachInstructions: 'Treeneri Juhised ja Märkused',
+      kitAndGear: 'Vorm ja Varustus',
+      defaultKitMatch: 'Ametlik mänguvorm, säärekaitsmed ja joogipudel',
+      defaultKitTraining: 'Treeningriided, säärekaitsmed, jalgpallisaapad ja joogipudel',
+      matchSquad: 'Mängu Koosseis',
+      trainingSquad: 'Treeningu Nimekiri',
+      attendanceResponse: 'Sinu Osalemise Vastus:',
+      tapMatchDetails: 'Puuduta mängu detailide ja koosseisu nägemiseks',
+      tapTrainingDetails: 'Puuduta treeningu detailide ja nimekirja nägemiseks',
+      opponentLabel: 'Vastane:',
+      officialFixture: 'Ametlik Mäng',
+      officialTraining: 'Ametlik Treening',
+      venueNotSpecified: 'Asukohta pole määratud',
+      newBadge: 'UUS',
+      pendingApproval: 'Ootab kinnitust',
+      noActionsInZone: 'Selles tsoonis pole tegevusi salvestatud',
+      zoneDetailsTitle: 'Väljakutsooni Ülevaade',
+      matchDetails: 'Mängu Üksikasjad',
+      trainingDetails: 'Treeningu Üksikasjad'
     },
     es: {
       appName: 'Player stats (Player)',
@@ -344,8 +650,8 @@
       dribblesLabel: 'REGATES',
       recoveriesLabel: 'RECUP.',
       touchesLabel: 'TOQUES',
-      pitchGoalsTitle: 'Mapa Táctico de Goles',
-      pitchGoalsDesc: 'Goles anotados según la zona del campo',
+      pitchGoalsTitle: 'Mapa Táctico del Campo',
+      pitchGoalsDesc: 'Acciones tácticas geolocalizadas según la zona del campo',
       untrackedGoalsHint: 'goles contabilizados en partidos anteriores sin zona asignada',
       chatWithPlayer: '💬 Chatear con este jugador',
       zone_box_opp: 'Área Rival',
@@ -413,7 +719,61 @@
       messageDeleted: 'Mensaje eliminado para todos',
       messageDeletedForMe: 'Mensaje eliminado para ti',
       messageEdited: 'Mensaje actualizado',
-      copiedToClipboard: 'Mensaje copiado al portapapeles'
+      copiedToClipboard: 'Mensaje copiado al portapapeles',
+      stat_touches: 'Toques de Balón',
+      stat_passOk: 'Pases Acertados',
+      stat_passKo: 'Pases Fallados',
+      stat_shotOn: 'Tiros a Puerta',
+      stat_shotOff: 'Tiros Fuera',
+      stat_goal: 'Goles Marcados',
+      stat_assist: 'Asistencias',
+      stat_dribbleOk: 'Regates Acertados',
+      stat_dribbleKo: 'Regates Fallidos',
+      stat_recovery: 'Recuperaciones',
+      stat_loss: 'Pérdidas de Balón',
+      stat_duelWon: 'Duelos Ganados',
+      stat_duelLost: 'Duelos Perdidos',
+      stat_cross: 'Centros al Área',
+      stat_keyPass: 'Pases Clave',
+      stat_header: 'Remates de Cabeza',
+      stat_foulRecv: 'Faltas Recibidas',
+      stat_foul: 'Faltas Cometidas',
+      stat_save: 'Paradas',
+      stat_yellow: 'Tarjetas Amarillas',
+      stat_red: 'Tarjetas Rojas',
+      appUpdateRequired: 'Actualización Requerida',
+      appUpdateDesc: 'El entrenador ha solicitado una limpieza de caché y actualización para asegurar que tienes los últimos datos y estadísticas.',
+      restartApp: '🔄 Reiniciar App',
+      clearCacheBtn: '🔄 Borrar Caché y Recargar',
+      careerActionsTitle: 'Historial de Acciones en la Carrera',
+      careerActionsDesc: 'Registro completo de todas las acciones y contribuciones a lo largo de su trayectoria',
+      noCareerActions: 'Aún no hay acciones individuales registradas.',
+      actions: 'acciones',
+      matchDate: 'Fecha del Partido',
+      trainingDate: 'Fecha de Entrenamiento',
+      kickoffTime: 'Hora de Inicio',
+      trainingTime: 'Hora de Entrenamiento',
+      meetingTime: 'Hora de Convocatoria / Llegada',
+      pitchAndVenue: 'Campo y Lugar',
+      coachInstructions: 'Instrucciones del Entrenador',
+      kitAndGear: 'Equipación y Material',
+      defaultKitMatch: 'Equipación oficial de partido, espinilleras y botella de agua',
+      defaultKitTraining: 'Ropa de entrenamiento, espinilleras, botas y botella de agua',
+      matchSquad: 'Convocatoria del Partido',
+      trainingSquad: 'Convocados al Entrenamiento',
+      attendanceResponse: 'Tu Respuesta de Asistencia:',
+      tapMatchDetails: 'Toca para ver detalles del partido y plantilla',
+      tapTrainingDetails: 'Toca para ver detalles del entrenamiento y plantilla',
+      opponentLabel: 'Rival:',
+      officialFixture: 'Partido Oficial',
+      officialTraining: 'Entrenamiento Oficial',
+      venueNotSpecified: 'Ubicación no especificada',
+      newBadge: 'NUEVO',
+      pendingApproval: 'Pendiente de Aprobación',
+      noActionsInZone: 'Sin acciones registradas en este sector',
+      zoneDetailsTitle: 'Detalle de la Zona del Campo',
+      matchDetails: 'Detalles del Partido',
+      trainingDetails: 'Detalles del Entrenamiento'
     }
   };
 
@@ -458,6 +818,82 @@
     }
   };
 
+  const SKILL_EXPLANATIONS_EE = {
+    pas: {
+      name: 'Söötmine (PAS)',
+      icon: '🎯',
+      desc: 'Hindab väljakunägemist, lühikeste ja pikkade söötude täpsust, ründefaasi viivaid sööte ning söödutäpsust vastase surve all.'
+    },
+    tir: {
+      name: 'Löömine (TIR / SHT)',
+      icon: '⚽',
+      desc: 'Mõõdab realiseerimist karistusalas, löögitugevust, raamilöökide osakaalu, kauglöökide täpsust ja väravate löömise efektiivsust.'
+    },
+    reg: {
+      name: 'Tribling (DRI / REG)',
+      icon: '⚡',
+      desc: 'Peegeldab 1v1 olukordade edukust, palli kontrolli kitsastes oludes, suunamuutuste kiirust, tehnilist osavust ja kaitsjatest möödumist.'
+    },
+    fis: {
+      name: 'Füüsis (PHY / FIS)',
+      icon: '💪',
+      desc: 'Näitab mängu vastupidavust, kõrge intensiivsusega töömahtu, õhuvõitluse tugevust, füüsilist vastupanu kahevõitlustes ja aktiivset osalust.'
+    },
+    def: {
+      name: 'Kaitsetöö (DEF)',
+      icon: '🛡️',
+      desc: 'Hindab kaitsepositsiooni valikut, puhtaid palli tagasivõitmisi, maas peetud kahevõitluste võitmist, vaheltlõikeid ja pressingupanust.'
+    },
+    dis: {
+      name: 'Distsipliin (DIS)',
+      icon: '🏅',
+      desc: 'Mõõdab sportlikku käitumist, austust kohtunike ja meeskonnakaaslaste vastu, treeneri taktikalistest juhistest kinnipidamist ning vigade/kaartide vältimist.'
+    },
+    rating: {
+      name: 'Mänguhinne (⭐ 1.0 - 10.0)',
+      icon: '⭐',
+      desc: 'Üldine esituse indeks, mis arvutatakse positsioonipõhise algoritmi abil, tasakaalustades sööte, väravaid, palli tagasivõitmisi, kahevõitlusi ja aktiivsust.'
+    }
+  };
+
+  const SKILL_EXPLANATIONS_ES = {
+    pas: {
+      name: 'Pase (PAS)',
+      icon: '🎯',
+      desc: 'Evalúa la visión de distribución, precisión en pases rasos y aéreos, pases progresivos a tres cuartos de campo y velocidad bajo presión rival.'
+    },
+    tir: {
+      name: 'Tiro (TIR)',
+      icon: '⚽',
+      desc: 'Mide la definición dentro del área, potencia de disparo, porcentaje a puerta, precisión a media distancia y efectividad goleadora.'
+    },
+    reg: {
+      name: 'Regate (REG)',
+      icon: '⚡',
+      desc: 'Refleja el éxito en duelos 1 contra 1, control en espacios reducidos, cambio de ritmo, agilidad técnica y desborde ante rivales.'
+    },
+    fis: {
+      name: 'Físico (FIS)',
+      icon: '💪',
+      desc: 'Refleja la resistencia en el partido, volumen de trabajo a alta intensidad, competitividad en saltos y disputa física durante todo el encuentro.'
+    },
+    def: {
+      name: 'Defensa (DEF)',
+      icon: '🛡️',
+      desc: 'Evalúa la colocación táctica, recuperaciones limpias de balón, duelos defensivos ganados en el suelo, intercepciones y presión.'
+    },
+    dis: {
+      name: 'Disciplina (DIS)',
+      icon: '🏅',
+      desc: 'Mide la deportividad, juego limpio, respeto a árbitros y compañeros, seguimiento de las pautas del míster y bajo cómputo de faltas o tarjetas.'
+    },
+    rating: {
+      name: 'Nota del Partido (⭐ 1.0 - 10.0)',
+      icon: '⭐',
+      desc: 'Índice global de rendimiento ponderado por posición táctica según pases, goles, recuperaciones defensivas, duelos ganados y toques activos.'
+    }
+  };
+
   function t(key, fallback) {
     const dict = DICT[currentLang] || DICT.en;
     if (dict[key] !== undefined) return dict[key];
@@ -467,77 +903,80 @@
 
   const POSITION_MAP = {
     // Standard tactical codes
-    'POR': { en: 'Goalkeeper (GK)', es: 'Portero (POR)' },
-    'GK': { en: 'Goalkeeper (GK)', es: 'Portero (POR)' },
-    'DFC': { en: 'Centre Back (CB)', es: 'Defensa Central (DFC)' },
-    'CB': { en: 'Centre Back (CB)', es: 'Defensa Central (DFC)' },
-    'LI': { en: 'Left Back (LB)', es: 'Lateral Izquierdo (LI)' },
-    'LB': { en: 'Left Back (LB)', es: 'Lateral Izquierdo (LI)' },
-    'LD': { en: 'Right Back (RB)', es: 'Lateral Derecho (LD)' },
-    'RB': { en: 'Right Back (RB)', es: 'Lateral Derecho (LD)' },
-    'MCD': { en: 'Defensive Midfield (CDM)', es: 'Mediocentro Defensivo (MCD)' },
-    'CDM': { en: 'Defensive Midfield (CDM)', es: 'Mediocentro Defensivo (MCD)' },
-    'MC': { en: 'Central Midfield (CM)', es: 'Mediocentro (MC)' },
-    'CM': { en: 'Central Midfield (CM)', es: 'Mediocentro (MC)' },
-    'MCO': { en: 'Attacking Midfield (CAM)', es: 'Mediapunta (MCO)' },
-    'CAM': { en: 'Attacking Midfield (CAM)', es: 'Mediapunta (MCO)' },
-    'EI': { en: 'Left Winger (LW)', es: 'Extremo Izquierdo (EI)' },
-    'LW': { en: 'Left Winger (LW)', es: 'Extremo Izquierdo (EI)' },
-    'ED': { en: 'Right Winger (RW)', es: 'Extremo Derecho (ED)' },
-    'RW': { en: 'Right Winger (RW)', es: 'Extremo Derecho (ED)' },
-    'DC': { en: 'Striker (ST)', es: 'Delantero Centro (DC)' },
-    'ST': { en: 'Striker (ST)', es: 'Delantero Centro (DC)' },
+    'POR': { en: 'Goalkeeper (GK)', ee: 'Väravavaht (VV)', es: 'Portero (POR)' },
+    'GK': { en: 'Goalkeeper (GK)', ee: 'Väravavaht (VV)', es: 'Portero (POR)' },
+    'DFC': { en: 'Centre Back (CB)', ee: 'Keskkaitsja (KK)', es: 'Defensa Central (DFC)' },
+    'CB': { en: 'Centre Back (CB)', ee: 'Keskkaitsja (KK)', es: 'Defensa Central (DFC)' },
+    'LI': { en: 'Left Back (LB)', ee: 'Vasakkaitsja (VK)', es: 'Lateral Izquierdo (LI)' },
+    'LB': { en: 'Left Back (LB)', ee: 'Vasakkaitsja (VK)', es: 'Lateral Izquierdo (LI)' },
+    'LD': { en: 'Right Back (RB)', ee: 'Paremkaitsja (PK)', es: 'Lateral Derecho (LD)' },
+    'RB': { en: 'Right Back (RB)', ee: 'Paremkaitsja (PK)', es: 'Lateral Derecho (LD)' },
+    'MCD': { en: 'Defensive Midfield (CDM)', ee: 'Kaitsev poolkaitsja (KPK)', es: 'Mediocentro Defensivo (MCD)' },
+    'CDM': { en: 'Defensive Midfield (CDM)', ee: 'Kaitsev poolkaitsja (KPK)', es: 'Mediocentro Defensivo (MCD)' },
+    'MC': { en: 'Central Midfield (CM)', ee: 'Keskpoolkaitsja (KP)', es: 'Mediocentro (MC)' },
+    'CM': { en: 'Central Midfield (CM)', ee: 'Keskpoolkaitsja (KP)', es: 'Mediocentro (MC)' },
+    'MCO': { en: 'Attacking Midfield (CAM)', ee: 'Ründav poolkaitsja (RPK)', es: 'Mediapunta (MCO)' },
+    'CAM': { en: 'Attacking Midfield (CAM)', ee: 'Ründav poolkaitsja (RPK)', es: 'Mediapunta (MCO)' },
+    'EI': { en: 'Left Winger (LW)', ee: 'Vasakäär (VÄ)', es: 'Extremo Izquierdo (EI)' },
+    'LW': { en: 'Left Winger (LW)', ee: 'Vasakäär (VÄ)', es: 'Extremo Izquierdo (EI)' },
+    'ED': { en: 'Right Winger (RW)', ee: 'Parem-äär (PÄ)', es: 'Extremo Derecho (ED)' },
+    'RW': { en: 'Right Winger (RW)', ee: 'Parem-äär (PÄ)', es: 'Extremo Derecho (ED)' },
+    'DC': { en: 'Striker (ST)', ee: 'Ründaja (R)', es: 'Delantero Centro (DC)' },
+    'ST': { en: 'Striker (ST)', ee: 'Ründaja (R)', es: 'Delantero Centro (DC)' },
     // Full names and keywords
-    'portero': { en: 'Goalkeeper', es: 'Portero' },
-    'goalkeeper': { en: 'Goalkeeper', es: 'Portero' },
-    'defensa central': { en: 'Centre Back', es: 'Defensa Central' },
-    'centre back': { en: 'Centre Back', es: 'Defensa Central' },
-    'defensa': { en: 'Defender', es: 'Defensa' },
-    'defender': { en: 'Defender', es: 'Defensa' },
-    'lateral izquierdo': { en: 'Left Back', es: 'Lateral Izquierdo' },
-    'left back': { en: 'Left Back', es: 'Lateral Izquierdo' },
-    'lateral derecho': { en: 'Right Back', es: 'Lateral Derecho' },
-    'right back': { en: 'Right Back', es: 'Lateral Derecho' },
-    'lateral': { en: 'Full Back', es: 'Lateral' },
-    'full back': { en: 'Full Back', es: 'Lateral' },
-    'carrilero': { en: 'Wing Back', es: 'Carrilero' },
-    'wing back': { en: 'Wing Back', es: 'Carrilero' },
-    'mediocentro defensivo': { en: 'Defensive Midfielder', es: 'Mediocentro Defensivo' },
-    'defensive midfielder': { en: 'Defensive Midfielder', es: 'Mediocentro Defensivo' },
-    'pivote': { en: 'Defensive Midfielder', es: 'Pivote' },
-    'mediocentro': { en: 'Central Midfielder', es: 'Mediocentro' },
-    'central midfielder': { en: 'Central Midfielder', es: 'Mediocentro' },
-    'centrocampista': { en: 'Midfielder', es: 'Centrocampista' },
-    'midfielder': { en: 'Midfielder', es: 'Centrocampista' },
-    'mediapunta': { en: 'Attacking Midfielder', es: 'Mediapunta' },
-    'attacking midfielder': { en: 'Attacking Midfielder', es: 'Mediapunta' },
-    'extremo izquierdo': { en: 'Left Winger', es: 'Extremo Izquierdo' },
-    'left winger': { en: 'Left Winger', es: 'Extremo Izquierdo' },
-    'extremo derecho': { en: 'Right Winger', es: 'Extremo Derecho' },
-    'right winger': { en: 'Right Winger', es: 'Extremo Derecho' },
-    'extremo': { en: 'Winger', es: 'Extremo' },
-    'winger': { en: 'Winger', es: 'Extremo' },
-    'delantero centro': { en: 'Striker', es: 'Delantero Centro' },
-    'delantero': { en: 'Forward / Striker', es: 'Delantero' },
-    'striker': { en: 'Striker', es: 'Delantero Centro' },
-    'forward': { en: 'Forward', es: 'Delantero' },
-    'jugador': { en: 'Player', es: 'Jugador' },
-    'player': { en: 'Player', es: 'Jugador' }
+    'portero': { en: 'Goalkeeper', ee: 'Väravavaht', es: 'Portero' },
+    'goalkeeper': { en: 'Goalkeeper', ee: 'Väravavaht', es: 'Portero' },
+    'defensa central': { en: 'Centre Back', ee: 'Keskkaitsja', es: 'Defensa Central' },
+    'centre back': { en: 'Centre Back', ee: 'Keskkaitsja', es: 'Defensa Central' },
+    'defensa': { en: 'Defender', ee: 'Kaitsja', es: 'Defensa' },
+    'defender': { en: 'Defender', ee: 'Kaitsja', es: 'Defensa' },
+    'lateral izquierdo': { en: 'Left Back', ee: 'Vasakkaitsja', es: 'Lateral Izquierdo' },
+    'left back': { en: 'Left Back', ee: 'Vasakkaitsja', es: 'Lateral Izquierdo' },
+    'lateral derecho': { en: 'Right Back', ee: 'Paremkaitsja', es: 'Lateral Derecho' },
+    'right back': { en: 'Right Back', ee: 'Paremkaitsja', es: 'Lateral Derecho' },
+    'lateral': { en: 'Full Back', ee: 'Äärekaitsja', es: 'Lateral' },
+    'full back': { en: 'Full Back', ee: 'Äärekaitsja', es: 'Lateral' },
+    'carrilero': { en: 'Wing Back', ee: 'Äärekaitsja', es: 'Carrilero' },
+    'wing back': { en: 'Wing Back', ee: 'Äärekaitsja', es: 'Carrilero' },
+    'mediocentro defensivo': { en: 'Defensive Midfielder', ee: 'Kaitsev poolkaitsja', es: 'Mediocentro Defensivo' },
+    'defensive midfielder': { en: 'Defensive Midfielder', ee: 'Kaitsev poolkaitsja', es: 'Mediocentro Defensivo' },
+    'pivote': { en: 'Defensive Midfielder', ee: 'Kaitsev poolkaitsja', es: 'Pivote' },
+    'mediocentro': { en: 'Central Midfielder', ee: 'Keskpoolkaitsja', es: 'Mediocentro' },
+    'central midfielder': { en: 'Central Midfielder', ee: 'Keskpoolkaitsja', es: 'Mediocentro' },
+    'centrocampista': { en: 'Midfielder', ee: 'Poolkaitsja', es: 'Centrocampista' },
+    'midfielder': { en: 'Midfielder', ee: 'Poolkaitsja', es: 'Centrocampista' },
+    'mediapunta': { en: 'Attacking Midfielder', ee: 'Ründav poolkaitsja', es: 'Mediapunta' },
+    'attacking midfielder': { en: 'Attacking Midfielder', ee: 'Ründav poolkaitsja', es: 'Mediapunta' },
+    'extremo izquierdo': { en: 'Left Winger', ee: 'Vasakäär', es: 'Extremo Izquierdo' },
+    'left winger': { en: 'Left Winger', ee: 'Vasakäär', es: 'Extremo Izquierdo' },
+    'extremo derecho': { en: 'Right Winger', ee: 'Parem-äär', es: 'Extremo Derecho' },
+    'right winger': { en: 'Right Winger', ee: 'Parem-äär', es: 'Extremo Derecho' },
+    'extremo': { en: 'Winger', ee: 'Ääreründaja', es: 'Extremo' },
+    'winger': { en: 'Winger', ee: 'Ääreründaja', es: 'Extremo' },
+    'delantero centro': { en: 'Striker', ee: 'Tipu-ründaja', es: 'Delantero Centro' },
+    'delantero': { en: 'Forward / Striker', ee: 'Ründaja', es: 'Delantero' },
+    'striker': { en: 'Striker', ee: 'Tipu-ründaja', es: 'Delantero Centro' },
+    'forward': { en: 'Forward', ee: 'Ründaja', es: 'Delantero' },
+    'jugador': { en: 'Player', ee: 'Mängija', es: 'Jugador' },
+    'player': { en: 'Player', ee: 'Mängija', es: 'Jugador' }
   };
 
   function formatPosition(pos) {
-    if (!pos) return currentLang === 'en' ? 'Player' : 'Jugador';
+    if (!pos) return currentLang === 'ee' ? 'Mängija' : (currentLang === 'en' ? 'Player' : 'Jugador');
     const clean = String(pos).trim();
     const upper = clean.toUpperCase();
     if (POSITION_MAP[upper]) {
-      return currentLang === 'en' ? POSITION_MAP[upper].en : POSITION_MAP[upper].es;
+      return POSITION_MAP[upper][currentLang] || POSITION_MAP[upper].en || clean;
     }
     const lower = clean.toLowerCase();
     if (POSITION_MAP[lower]) {
-      return currentLang === 'en' ? POSITION_MAP[lower].en : POSITION_MAP[lower].es;
+      return POSITION_MAP[lower][currentLang] || POSITION_MAP[lower].en || clean;
     }
     if (clean.includes('/')) {
       const parts = clean.split('/').map(s => s.trim());
+      if (currentLang === 'ee' && parts[1]) {
+        return formatPosition(parts[1]);
+      }
       if (currentLang === 'en' && parts[1]) {
         return formatPosition(parts[1]);
       }
@@ -715,6 +1154,19 @@
   /* -------------------------------------------------------------
      CÁLCULO DE MÉTRICAS DEL JUGADOR (SIN MINUTOS, CON ASISTENCIAS SEPARADAS)
      ------------------------------------------------------------- */
+  function getPlayerAggregate(pid) {
+    const totals = {};
+    const perSession = [];
+    const sessList = (clubData && clubData.sessions) ? clubData.sessions : [];
+    sessList.forEach(s => {
+      const st = (s.stats || {})[pid];
+      if (!st || !Object.keys(st).some(k => st[k] > 0)) return;
+      perSession.push({ session: s, stats: st });
+      Object.keys(st).forEach(k => { totals[k] = (totals[k] || 0) + (st[k] || 0); });
+    });
+    return { totals, sessions: perSession, count: perSession.length };
+  }
+
   function calculatePlayerStats(pid) {
     const res = {
       matchesAttended: 0,
@@ -727,8 +1179,21 @@
       passKo: 0,
       touches: 0,
       dribbleOk: 0,
+      dribbleKo: 0,
       duelWon: 0,
+      duelLost: 0,
       recoveries: 0,
+      losses: 0,
+      keyPass: 0,
+      assists: 0,
+      saves: 0,
+      fouls: 0,
+      foulsRecv: 0,
+      yellows: 0,
+      reds: 0,
+      crosses: 0,
+      headers: 0,
+      totals: {},
       aggregatedRating: 6.0,
       ratingsSum: 0,
       ratingsCount: 0
@@ -758,8 +1223,24 @@
           res.passKo += pStats.passKo || 0;
           res.touches += pStats.touches || 0;
           res.dribbleOk += pStats.dribbleOk || 0;
+          res.dribbleKo += pStats.dribbleKo || 0;
           res.duelWon += pStats.duelWon || 0;
+          res.duelLost += pStats.duelLost || 0;
           res.recoveries += pStats.recovery || 0;
+          res.losses += pStats.loss || 0;
+          res.keyPass += pStats.keyPass || 0;
+          res.assists += pStats.assist || 0;
+          res.saves += pStats.save || 0;
+          res.fouls += pStats.foul || 0;
+          res.foulsRecv += pStats.foulRecv || 0;
+          res.yellows += pStats.yellow || 0;
+          res.reds += pStats.red || 0;
+          res.crosses += pStats.cross || 0;
+          res.headers += pStats.header || 0;
+
+          Object.keys(pStats).forEach(k => {
+            res.totals[k] = (res.totals[k] || 0) + (pStats[k] || 0);
+          });
 
           const matchRat = calculateMatchRating(pStats, pos);
           res.ratingsSum += matchRat;
@@ -782,40 +1263,77 @@
   }
 
   function calculatePlayerRadar(pid) {
-    const s = calculatePlayerStats(pid);
-    const totalActions = (s.passOk || 0) + (s.passKo || 0) + (s.shotsOn || 0) + (s.goals || 0) + (s.dribbleOk || 0) + (s.recoveries || 0) + (s.touches || 0);
+    const agg = getPlayerAggregate(pid);
+    const st = agg.totals || {};
+    const count = agg.count || 0;
+    const pl = (clubData && clubData.players) ? clubData.players.find(x => x.id === pid) : null;
+
+    const totalActions = Object.values(st).reduce((sum, v) => sum + (typeof v === 'number' ? v : 0), 0);
 
     // Sin sesiones ni acciones trackeadas: empezar todas las habilidades en 50
-    if (s.totalSessions === 0 && totalActions === 0) {
+    if (count === 0 || totalActions === 0) {
       return { pas: 50, tir: 50, reg: 50, fis: 50, def: 50, dis: 50 };
     }
 
-    const passScore = s.passAcc > 0 ? Math.min(99, Math.max(20, Math.round(50 + (s.passAcc - 50) * 0.7))) : 50;
-    const shotScore = s.goals > 0 ? Math.min(99, Math.max(20, Math.round(50 + s.goals * 5 + (s.shotAcc - 50) * 0.3))) : (s.shotsOn > 0 ? 52 : 50);
-    const regScore = s.dribbleOk > 0 ? Math.min(99, Math.max(20, Math.round(50 + s.dribbleOk * 5))) : 50;
-    const defScore = s.recoveries > 0 ? Math.min(99, Math.max(20, Math.round(50 + s.recoveries * 4))) : 50;
-    const fisScore = s.totalSessions > 0 ? Math.min(99, Math.max(20, Math.round(50 + s.totalSessions * 3 + (s.touches > 20 ? 8 : 0)))) : 50;
+    const passes = (st.passOk || 0) + (st.passKo || 0);
+    let pas = 50;
+    if (passes > 0) {
+      const passAcc = (st.passOk || 0) / passes;
+      pas = Math.min(99, Math.max(20, Math.round(50 + (passAcc - 0.5) * 40 + Math.min(25, (st.keyPass || 0) * 3 + ((st.passOk || 0) / count) * 1.5))));
+    }
 
-    return {
-      pas: passScore,
-      tir: shotScore,
-      reg: regScore,
-      fis: fisScore,
-      def: defScore,
-      dis: 50
-    };
+    const shots = (st.shotOn || 0) + (st.shotOff || 0);
+    let tir = 50;
+    if (shots > 0 || (st.goal || 0) > 0) {
+      const shotAcc = shots > 0 ? (st.shotOn || 0) / shots : 0.5;
+      tir = Math.min(99, Math.max(20, Math.round(50 + (shotAcc - 0.5) * 30 + Math.min(35, (st.goal || 0) * 8 + (st.shotOn || 0) * 2))));
+    }
+
+    const dribbles = (st.dribbleOk || 0) + (st.dribbleKo || 0);
+    let reg = 50;
+    if (dribbles > 0) {
+      const dribAcc = (st.dribbleOk || 0) / dribbles;
+      reg = Math.min(99, Math.max(20, Math.round(50 + (dribAcc - 0.5) * 35 + Math.min(25, (st.dribbleOk || 0) * 3))));
+    }
+
+    const recoveries = st.recovery || 0;
+    const losses = st.loss || 0;
+    let def = Math.min(99, Math.max(20, Math.round(50 + Math.min(35, ((recoveries / count) * 5) + ((st.save || 0) * 6) - ((losses / count) * 3)))));
+
+    const duels = (st.duelWon || 0) + (st.duelLost || 0);
+    let fis = 50;
+    if (duels > 0 || (st.touches || 0) > 0) {
+      const duelAcc = duels > 0 ? (st.duelWon || 0) / duels : 0.5;
+      fis = Math.min(99, Math.max(20, Math.round(50 + (duelAcc - 0.5) * 30 + Math.min(25, ((st.touches || 0) / count) * 1.2))));
+    }
+
+    let dis = 50;
+    if (pl && pl.disciplineScore !== undefined && pl.disciplineScore !== null) {
+      dis = Number(pl.disciplineScore);
+    } else {
+      const foulDeduction = (st.foul || 0) * 2 + (st.yellow || 0) * 5 + (st.red || 0) * 15;
+      dis = Math.min(99, Math.max(20, Math.round(50 + Math.min(45, count * 5) - (foulDeduction / count))));
+    }
+
+    return { pas, tir, reg, def, fis, dis };
   }
 
   /* -------------------------------------------------------------
-     RADAR SVG INTERACTIVO (CLIC = EXPLICACIÓN EN INGLÉS)
+     RADAR SVG INTERACTIVO (CLIC = EXPLICACIÓN EN IDIOMA SELECCIONADO)
      ------------------------------------------------------------- */
   function renderRadarSVG(rd) {
+    const axesLabels = {
+      en: { pas: 'PASS', tir: 'SHOT', reg: 'DRIB', fis: 'PHYS', def: 'DEF' },
+      ee: { pas: 'SÖÖT', tir: 'LÖÖK', reg: 'TRIB', fis: 'FÜÜS', def: 'KAIT' },
+      es: { pas: 'PASE', tir: 'TIRO', reg: 'REG',  fis: 'FÍS',  def: 'DEF' }
+    };
+    const langLabels = axesLabels[currentLang] || axesLabels.en;
     const axes = [
-      { key: 'pas', label: 'PASS', val: rd.pas },
-      { key: 'tir', label: 'SHOT', val: rd.tir },
-      { key: 'reg', label: 'DRIB', val: rd.reg },
-      { key: 'fis', label: 'PHYS', val: rd.fis },
-      { key: 'def', label: 'DEF', val: rd.def }
+      { key: 'pas', label: langLabels.pas, val: rd.pas },
+      { key: 'tir', label: langLabels.tir, val: rd.tir },
+      { key: 'reg', label: langLabels.reg, val: rd.reg },
+      { key: 'fis', label: langLabels.fis, val: rd.fis },
+      { key: 'def', label: langLabels.def, val: rd.def }
     ];
 
     const cx = 130, cy = 130, rMax = 88;
@@ -882,10 +1400,11 @@
   }
 
   /* -------------------------------------------------------------
-     POPUP MODAL: EXPLICACIÓN DE HABILIDADES EN INGLÉS (PUNTO 7)
+     POPUP MODAL: EXPLICACIÓN DE HABILIDADES
      ------------------------------------------------------------- */
   function showSkillExplanationModal(skillKey) {
-    const info = SKILL_EXPLANATIONS_EN[skillKey] || SKILL_EXPLANATIONS_EN.rating;
+    const dict = currentLang === 'ee' ? SKILL_EXPLANATIONS_EE : (currentLang === 'es' ? SKILL_EXPLANATIONS_ES : SKILL_EXPLANATIONS_EN);
+    const info = dict[skillKey] || dict.rating || SKILL_EXPLANATIONS_EN[skillKey] || SKILL_EXPLANATIONS_EN.rating;
     const overlay = document.createElement('div');
     overlay.className = 'dialog-overlay';
     overlay.innerHTML = `
@@ -901,7 +1420,7 @@
           ${info.desc}
         </p>
         <button type="button" class="btn block primary" id="dlg-skill-ok" style="font-weight: 800; font-size: 13px;">
-          Got it
+          ${t('close', 'Got it')}
         </button>
       </div>
     `;
@@ -1005,7 +1524,7 @@
     }
 
     const btnLang = document.getElementById('btn-portal-lang');
-    if (btnLang) btnLang.textContent = currentLang.toUpperCase();
+    if (btnLang) btnLang.innerHTML = getLangDisplay(currentLang);
     const badge = document.getElementById('portal-cloud-badge');
     if (badge) badge.textContent = `🟢 ${t('live')}`;
     updateConvocationsBadge();
@@ -1528,7 +2047,7 @@
             <span style="font-size: 11.5px; color: var(--muted);">${t('chooseIdentityDesc')}</span>
           </div>
           <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
-            <button type="button" class="btn sm ghost" id="dialog-id-lang" style="font-weight: 900; font-size: 12px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 8px;">🌐 ${currentLang.toUpperCase()}</button>
+            <button type="button" class="btn sm ghost" id="dialog-id-lang" style="font-weight: 900; font-size: 12px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 8px;">${getLangDisplay(currentLang)}</button>
             <button type="button" class="icon-btn ghost" id="dialog-id-close" style="width: 32px; height: 32px;">✕</button>
           </div>
         </div>
@@ -1560,7 +2079,7 @@
           </button>
           <div style="text-align: center; margin-top: 10px;">
             <button type="button" class="btn sm ghost" id="btn-dialog-id-clear-cache" style="font-size: 11px; opacity: 0.75; color: var(--muted); border: 1px dashed var(--border); padding: 4px 12px; border-radius: 8px;" title="Clear cache and reload latest version">
-              🔄 Clear App Cache & Refresh
+              ${t('clearCacheBtn', '🔄 Clear App Cache & Refresh')}
             </button>
           </div>
         </div>
@@ -1594,11 +2113,8 @@
     const langBtn = overlay.querySelector('#dialog-id-lang');
     if (langBtn) {
       langBtn.onclick = () => {
-        currentLang = currentLang === 'en' ? 'es' : 'en';
-        try { localStorage.setItem('lang', currentLang); } catch (e) {}
+        cycleLang();
         overlay.remove();
-        updateHeaderIdentity();
-        renderCurrentTab();
         showSelectIdentityModal();
       };
     }
@@ -2202,6 +2718,8 @@
 
   function isConvUnopened(c, pid) {
     if (!c || !pid) return false;
+    const isRecurring = !!(c.isRecurring || c.scheduleId || (c.id && c.id.startsWith('rec_')));
+    if (isRecurring && !isDateInCurrentWeek(c.date)) return false;
     if (!isPlayerCalledUpInConv(c, pid)) return false;
     try {
       return localStorage.getItem(`portal_conv_opened_${pid}_${c.id}`) !== 'true';
@@ -2265,6 +2783,10 @@
     const filteredConvs = convs.filter(c => {
       if (convFilterType !== 'all' && c.type !== convFilterType) return false;
       if (!myP || !myPlayerId) return false;
+
+      // Si es un entrenamiento recurrente, sólo mostrar sesiones de la semana actual
+      const isRecurring = !!(c.isRecurring || c.scheduleId || (c.id && c.id.startsWith('rec_')));
+      if (isRecurring && !isDateInCurrentWeek(c.date)) return false;
 
       // Debe pertenecer al equipo de la convocatoria
       const convTeams = (Array.isArray(c.teamIds) && c.teamIds.length > 0)
@@ -2356,7 +2878,7 @@
                           ${isUnopened ? `
                             <span class="badge-conv-new" id="conv-new-dot-${c.id}" style="display: inline-flex; align-items: center; gap: 4px; background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.5); font-size: 10px; font-weight: 900; padding: 2px 7px; border-radius: 12px; letter-spacing: 0.3px;">
                               <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 6px #ef4444;"></span>
-                              NEW
+                              ${t('newBadge', 'NEW')}
                             </span>
                           ` : ''}
                         </div>
@@ -2390,7 +2912,7 @@
                     <button type="button" class="btn block ghost btn-open-conv-details" data-open-conv-id="${c.id}" style="height: 38px; font-size: 12.5px; font-weight: 800; border-radius: 10px; border: 1px dashed ${isMatch ? 'rgba(56, 189, 248, 0.45)' : 'rgba(34, 197, 94, 0.45)'}; background: ${isMatch ? 'rgba(56, 189, 248, 0.08)' : 'rgba(34, 197, 94, 0.08)'}; color: ${isMatch ? '#38bdf8' : '#86efac'}; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; cursor: pointer; width: 100%;">
                       <div style="display: flex; align-items: center; gap: 7px;">
                         <span>${isMatch ? '🏆' : '⚽'}</span>
-                        <span>${isMatch ? 'Tap for Match Details & Squad' : 'Tap for Training Details & Squad'}</span>
+                        <span>${isMatch ? t('tapMatchDetails', 'Tap for Match Details & Squad') : t('tapTrainingDetails', 'Tap for Training Details & Squad')}</span>
                       </div>
                       <span style="font-size: 14px; font-weight: 900;">➔</span>
                     </button>
@@ -2578,7 +3100,7 @@
     const pendingPlayers = [];
 
     calledPlayerIds.forEach(pid => {
-      const p = allPlayersMap[pid] || { id: pid, name: pid.replace(/^manual_/, ''), mainPosition: 'Player' };
+      const p = allPlayersMap[pid] || { id: pid, name: pid.replace(/^manual_/, ''), mainPosition: t('player', 'Player') };
       const r = responses[pid];
       const st = r ? r.status : null;
       if (st === 'called' || st === 'attending' || st === 'yes') attendingPlayers.push(p);
@@ -2600,7 +3122,7 @@
         if (m < 0) m += 1440;
         const hh = String(Math.floor(m / 60)).padStart(2, '0');
         const mm = String(m % 60).padStart(2, '0');
-        meetingTimeStr = `${hh}:${mm} (45 min before kick-off)`;
+        meetingTimeStr = `${hh}:${mm} (${currentLang === 'ee' ? '45 min enne algust' : (currentLang === 'es' ? '45 min antes del partido' : '45 min before kick-off')})`;
       }
     }
 
@@ -2613,8 +3135,8 @@
           <div style="display: flex; align-items: center; gap: 8px;">
             <span style="font-size: 22px;">🏆</span>
             <div>
-              <h3 style="margin: 0; font-size: 16px; font-weight: 900; color: #fff;">Match Details</h3>
-              <small style="font-size: 11px; color: var(--muted);">${team ? escapeHtml(team.name) : 'Official Match Call-up'}</small>
+              <h3 style="margin: 0; font-size: 16px; font-weight: 900; color: #fff;">${t('matchDetails')}</h3>
+              <small style="font-size: 11px; color: var(--muted);">${team ? escapeHtml(team.name) : t('callUpOfficial')}</small>
             </div>
           </div>
           <button type="button" class="icon-btn ghost" id="dlg-match-det-x" style="width: 32px; height: 32px; font-size: 16px;">✕</button>
@@ -2624,14 +3146,14 @@
           <!-- Banner -->
           <div style="background: linear-gradient(135deg, rgba(56, 189, 248, 0.16) 0%, rgba(3, 105, 161, 0.2) 100%); border: 1.5px solid rgba(56, 189, 248, 0.35); border-radius: 14px; padding: 14px; text-align: center;">
             <div style="font-size: 11px; font-weight: 800; color: #38bdf8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">
-              ${team ? `🛡️ ${escapeHtml(team.name)}` : 'OFFICIAL FIXTURE'}
+              ${team ? `🛡️ ${escapeHtml(team.name)}` : t('officialFixture')}
             </div>
             <div style="font-size: 20px; font-weight: 900; color: #fff; margin-bottom: 4px;">
-              ${escapeHtml(conv.title || (conv.rival ? 'vs ' + conv.rival : 'Match Call-up'))}
+              ${escapeHtml(conv.title || (conv.rival ? 'vs ' + conv.rival : t('callUpOfficial')))}
             </div>
             ${conv.rival ? `
               <div style="font-size: 13px; font-weight: 800; color: #7dd3fc;">
-                ⚔️ Opponent: <b>${escapeHtml(conv.rival)}</b>
+                ⚔️ ${t('opponentLabel')} <b>${escapeHtml(conv.rival)}</b>
               </div>
             ` : ''}
           </div>
@@ -2639,16 +3161,16 @@
           <!-- Schedule Grid -->
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
             <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px;">
-              <div style="font-size: 11px; color: var(--muted); font-weight: 700; margin-bottom: 2px;">📅 MATCH DATE</div>
+              <div style="font-size: 11px; color: var(--muted); font-weight: 700; margin-bottom: 2px;">📅 ${t('matchDate').toUpperCase()}</div>
               <div style="font-size: 13px; font-weight: 800; color: #fff;">${formatDisplayDate(conv.date)}</div>
             </div>
             <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px;">
-              <div style="font-size: 11px; color: var(--muted); font-weight: 700; margin-bottom: 2px;">⏰ KICK-OFF TIME</div>
+              <div style="font-size: 11px; color: var(--muted); font-weight: 700; margin-bottom: 2px;">⏰ ${t('kickoffTime').toUpperCase()}</div>
               <div style="font-size: 13px; font-weight: 800; color: #38bdf8;">${conv.time || '10:00'}</div>
             </div>
             ${meetingTimeStr ? `
               <div style="grid-column: span 2; background: rgba(234, 179, 8, 0.1); border: 1px solid rgba(234, 179, 8, 0.3); border-radius: 12px; padding: 10px 12px;">
-                <div style="font-size: 11px; color: #fde047; font-weight: 800; margin-bottom: 2px;">⏱️ MEETING / ARRIVAL TIME</div>
+                <div style="font-size: 11px; color: #fde047; font-weight: 800; margin-bottom: 2px;">⏱️ ${t('meetingTime').toUpperCase()}</div>
                 <div style="font-size: 13px; font-weight: 900; color: #fff;">${escapeHtml(meetingTimeStr)}</div>
               </div>
             ` : ''}
@@ -2656,7 +3178,7 @@
 
           <!-- Venue & Address -->
           <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 12px;">
-            <div style="font-size: 11px; color: var(--muted); font-weight: 700; margin-bottom: 4px;">📍 PITCH & VENUE</div>
+            <div style="font-size: 11px; color: var(--muted); font-weight: 700; margin-bottom: 4px;">📍 ${t('pitchAndVenue').toUpperCase()}</div>
             ${conv.venue ? `
               <div style="font-size: 13.5px; font-weight: 800; color: #fff; margin-bottom: 4px;">
                 ${escapeHtml(conv.venue)}
@@ -2667,19 +3189,19 @@
                 🗺️ ${escapeHtml(conv.address)}
               </div>
               <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(conv.address)}" target="_blank" class="btn sm primary" style="display: inline-flex; align-items: center; gap: 6px; height: 32px; font-size: 12px; font-weight: 800; text-decoration: none;">
-                🗺️ Open in Google Maps ↗
+                🗺️ ${t('openInMaps')}
               </a>
             ` : (conv.venue ? `
               <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(conv.venue)}" target="_blank" class="btn sm primary" style="display: inline-flex; align-items: center; gap: 6px; height: 32px; font-size: 12px; font-weight: 800; text-decoration: none;">
-                🗺️ Open in Google Maps ↗
+                🗺️ ${t('openInMaps')}
               </a>
-            ` : '<div style="font-size: 12px; color: var(--muted);">Venue location not specified</div>')}
+            ` : `<div style="font-size: 12px; color: var(--muted);">${t('venueNotSpecified')}</div>`)}
           </div>
 
           <!-- Coach Instructions & Tactical Notes -->
           ${conv.notes ? `
             <div style="background: rgba(34, 211, 238, 0.08); border-left: 3px solid var(--cyan); border-radius: 8px; padding: 10px 12px;">
-              <div style="font-size: 11px; font-weight: 800; color: var(--cyan); margin-bottom: 4px;">📝 COACH'S INSTRUCTIONS & NOTES</div>
+              <div style="font-size: 11px; font-weight: 800; color: var(--cyan); margin-bottom: 4px;">📝 ${t('coachInstructions').toUpperCase()}</div>
               <div style="font-size: 12.5px; color: #bae6fd; line-height: 1.45; white-space: pre-line;">${escapeHtml(conv.notes)}</div>
             </div>
           ` : ''}
@@ -2688,9 +3210,9 @@
           <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; display: flex; align-items: center; gap: 10px;">
             <span style="font-size: 22px;">👕</span>
             <div>
-              <div style="font-size: 11px; color: var(--muted); font-weight: 700;">KIT & GEAR</div>
+              <div style="font-size: 11px; color: var(--muted); font-weight: 700;">${t('kitAndGear').toUpperCase()}</div>
               <div style="font-size: 12.5px; font-weight: 800; color: #fff;">
-                ${conv.kit ? escapeHtml(conv.kit) : 'Official match kit, shin guards and water bottle'}
+                ${conv.kit ? escapeHtml(conv.kit) : t('defaultKitMatch')}
               </div>
             </div>
           </div>
@@ -2698,7 +3220,7 @@
           <!-- Match Squad Attendance Breakdown -->
           <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 14px; padding: 12px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-              <div style="font-size: 12px; font-weight: 800; color: #fff;">👥 MATCH SQUAD (${calledPlayerIds.length})</div>
+              <div style="font-size: 12px; font-weight: 800; color: #fff;">👥 ${t('matchSquad').toUpperCase()} (${calledPlayerIds.length})</div>
               <div style="display: flex; gap: 6px; font-size: 11.5px; font-weight: 800;">
                 <span style="color: #86efac;">🟢 ${attendingPlayers.length}</span>
                 <span style="color: #fca5a5;">❌ ${absentPlayers.length}</span>
@@ -2729,18 +3251,18 @@
           <!-- Attendance Response Box -->
           <div style="background: rgba(34, 197, 94, 0.08); border: 1.5px solid rgba(34, 197, 94, 0.3); border-radius: 14px; padding: 12px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-              <span style="font-size: 12px; font-weight: 800; color: #fff;">Your Attendance Response:</span>
+              <span style="font-size: 12px; font-weight: 800; color: #fff;">${t('attendanceResponse')}</span>
               <span id="match-modal-vote-badge" class="badge" style="${isAttending ? 'background: rgba(34,197,94,0.2); color: #86efac;' : (isAbsent ? 'background: rgba(239,68,68,0.2); color: #fca5a5;' : 'background: var(--surface); color: var(--muted);')}">
-                ${isAttending ? 'Confirmed' : (isAbsent ? 'Unavailable' : 'Pending Response')}
+                ${isAttending ? t('confirmedBadge') : (isAbsent ? t('absentBadge') : t('pendingBadge'))}
               </span>
             </div>
 
             <div style="display: flex; gap: 8px;">
               <button type="button" class="btn sm match-modal-vote-btn ${isAttending ? 'primary' : 'ghost'}" data-vote="called" style="flex: 1; height: 38px; font-weight: 800; border-radius: 10px;">
-                👍 I will attend
+                👍 ${t('iWillAttend')}
               </button>
               <button type="button" class="btn sm match-modal-vote-btn ${isAbsent ? 'danger' : 'ghost'}" data-vote="absent" style="flex: 1; height: 38px; font-weight: 800; border-radius: 10px;">
-                ❌ Cannot attend
+                ❌ ${t('iCannotAttend')}
               </button>
             </div>
           </div>
@@ -2748,7 +3270,7 @@
 
         <div style="margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border); flex-shrink: 0;">
           <button type="button" class="btn block ghost" id="dlg-match-det-close" style="height: 40px; font-weight: 800; border-radius: 10px;">
-            Close
+            ${t('close')}
           </button>
         </div>
       </div>
@@ -2770,7 +3292,7 @@
         const isCurrent = btn.classList.contains('primary') || btn.classList.contains('danger');
         const nextVote = isCurrent ? 'pending' : vote;
         const myP = getMyPlayer();
-        const pName = myP ? `${myP.name || ''} ${myP.lastName || ''}`.trim() : 'Player';
+        const pName = myP ? `${myP.name || ''} ${myP.lastName || ''}`.trim() : t('player', 'Player');
 
         haptic(35);
 
@@ -2788,15 +3310,15 @@
         const badgeEl = overlay.querySelector('#match-modal-vote-badge');
         if (badgeEl) {
           if (nextVote === 'called') {
-            badgeEl.textContent = 'Confirmed';
+            badgeEl.textContent = t('confirmedBadge');
             badgeEl.style.background = 'rgba(34,197,94,0.2)';
             badgeEl.style.color = '#86efac';
           } else if (nextVote === 'absent') {
-            badgeEl.textContent = 'Unavailable';
+            badgeEl.textContent = t('absentBadge');
             badgeEl.style.background = 'rgba(239,68,68,0.2)';
             badgeEl.style.color = '#fca5a5';
           } else {
-            badgeEl.textContent = 'Pending Response';
+            badgeEl.textContent = t('pendingBadge');
             badgeEl.style.background = 'var(--surface)';
             badgeEl.style.color = 'var(--muted)';
           }
@@ -2815,7 +3337,7 @@
         try {
           if (window.Cloud && window.Cloud.voteAttendance) {
             await window.Cloud.voteAttendance(conv.id, myPlayerId, nextVote, pName);
-            toast(nextVote === 'called' ? 'Attendance confirmed!' : (nextVote === 'absent' ? 'Absence reported' : 'Response reset to pending'), 'success');
+            toast(nextVote === 'called' ? t('attendanceConfirmed') : (nextVote === 'absent' ? t('absenceReported') : t('voteReset')), 'success');
           }
         } catch (e) {
           console.error(e);
@@ -2848,7 +3370,7 @@
     const pendingPlayers = [];
 
     calledPlayerIds.forEach(pid => {
-      const p = allPlayersMap[pid] || { id: pid, name: pid.replace(/^manual_/, ''), mainPosition: 'Player' };
+      const p = allPlayersMap[pid] || { id: pid, name: pid.replace(/^manual_/, ''), mainPosition: t('player', 'Player') };
       const r = responses[pid];
       const st = r ? r.status : null;
       if (st === 'called' || st === 'attending' || st === 'yes') attendingPlayers.push(p);
@@ -2870,8 +3392,8 @@
           <div style="display: flex; align-items: center; gap: 8px;">
             <span style="font-size: 22px;">⚽</span>
             <div>
-              <h3 style="margin: 0; font-size: 16px; font-weight: 900; color: #fff;">Training Details</h3>
-              <small style="font-size: 11px; color: var(--muted);">${team ? escapeHtml(team.name) : 'Team Training Session'}</small>
+              <h3 style="margin: 0; font-size: 16px; font-weight: 900; color: #fff;">${t('trainingDetails')}</h3>
+              <small style="font-size: 11px; color: var(--muted);">${team ? escapeHtml(team.name) : t('officialTraining')}</small>
             </div>
           </div>
           <button type="button" class="icon-btn ghost" id="dlg-tr-det-x" style="width: 32px; height: 32px; font-size: 16px;">✕</button>
@@ -2881,28 +3403,28 @@
           <!-- Banner -->
           <div style="background: linear-gradient(135deg, rgba(34, 197, 94, 0.16) 0%, rgba(21, 128, 61, 0.2) 100%); border: 1.5px solid rgba(34, 197, 94, 0.35); border-radius: 14px; padding: 14px; text-align: center;">
             <div style="font-size: 11px; font-weight: 800; color: #86efac; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">
-              ${team ? `🛡️ ${escapeHtml(team.name)}` : 'TRAINING SESSION'}
+              ${team ? `🛡️ ${escapeHtml(team.name)}` : t('officialTraining')}
             </div>
             <div style="font-size: 20px; font-weight: 900; color: #fff; margin-bottom: 4px;">
-              ${escapeHtml(conv.title || 'Team Training')}
+              ${escapeHtml(conv.title || t('officialTraining'))}
             </div>
           </div>
 
           <!-- Schedule Grid -->
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
             <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px;">
-              <div style="font-size: 11px; color: var(--muted); font-weight: 700; margin-bottom: 2px;">📅 DATE</div>
+              <div style="font-size: 11px; color: var(--muted); font-weight: 700; margin-bottom: 2px;">📅 ${t('trainingDate').toUpperCase()}</div>
               <div style="font-size: 13px; font-weight: 800; color: #fff;">${formatDisplayDate(conv.date)}</div>
             </div>
             <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px;">
-              <div style="font-size: 11px; color: var(--muted); font-weight: 700; margin-bottom: 2px;">⏰ START TIME</div>
+              <div style="font-size: 11px; color: var(--muted); font-weight: 700; margin-bottom: 2px;">⏰ ${t('trainingTime').toUpperCase()}</div>
               <div style="font-size: 13px; font-weight: 800; color: #86efac;">${conv.time || '10:00'}</div>
             </div>
           </div>
 
           <!-- Venue & Address -->
           <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 12px;">
-            <div style="font-size: 11px; color: var(--muted); font-weight: 700; margin-bottom: 4px;">📍 PITCH & VENUE</div>
+            <div style="font-size: 11px; color: var(--muted); font-weight: 700; margin-bottom: 4px;">📍 ${t('pitchAndVenue').toUpperCase()}</div>
             ${conv.venue ? `
               <div style="font-size: 13.5px; font-weight: 800; color: #fff; margin-bottom: 4px;">
                 ${escapeHtml(conv.venue)}
@@ -2913,19 +3435,19 @@
                 🗺️ ${escapeHtml(conv.address)}
               </div>
               <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(conv.address)}" target="_blank" class="btn sm primary" style="display: inline-flex; align-items: center; gap: 6px; height: 32px; font-size: 12px; font-weight: 800; text-decoration: none;">
-                🗺️ Open in Google Maps ↗
+                🗺️ ${t('openInMaps')}
               </a>
             ` : (conv.venue ? `
               <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(conv.venue)}" target="_blank" class="btn sm primary" style="display: inline-flex; align-items: center; gap: 6px; height: 32px; font-size: 12px; font-weight: 800; text-decoration: none;">
-                🗺️ Open in Google Maps ↗
+                🗺️ ${t('openInMaps')}
               </a>
-            ` : '<div style="font-size: 12px; color: var(--muted);">Venue location not specified</div>')}
+            ` : `<div style="font-size: 12px; color: var(--muted);">${t('venueNotSpecified')}</div>`)}
           </div>
 
           <!-- Coach Instructions & Notes -->
           ${conv.notes ? `
             <div style="background: rgba(34, 197, 94, 0.08); border-left: 3px solid #22c55e; border-radius: 8px; padding: 10px 12px;">
-              <div style="font-size: 11px; font-weight: 800; color: #86efac; margin-bottom: 4px;">📝 COACH'S TRAINING FOCUS & NOTES</div>
+              <div style="font-size: 11px; font-weight: 800; color: #86efac; margin-bottom: 4px;">📝 ${t('coachInstructions').toUpperCase()}</div>
               <div style="font-size: 12.5px; color: #bbf7d0; line-height: 1.45; white-space: pre-line;">${escapeHtml(conv.notes)}</div>
             </div>
           ` : ''}
@@ -2933,7 +3455,7 @@
           <!-- Training Squad Attendance Breakdown -->
           <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 14px; padding: 12px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-              <div style="font-size: 12px; font-weight: 800; color: #fff;">👥 CALLED PLAYERS (${calledPlayerIds.length})</div>
+              <div style="font-size: 12px; font-weight: 800; color: #fff;">👥 ${t('trainingSquad').toUpperCase()} (${calledPlayerIds.length})</div>
               <div style="display: flex; gap: 6px; font-size: 11.5px; font-weight: 800;">
                 <span style="color: #86efac;">🟢 ${attendingPlayers.length}</span>
                 <span style="color: #fca5a5;">❌ ${absentPlayers.length}</span>
@@ -2964,18 +3486,18 @@
           <!-- Attendance Response Box -->
           <div style="background: rgba(34, 197, 94, 0.08); border: 1.5px solid rgba(34, 197, 94, 0.3); border-radius: 14px; padding: 12px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-              <span style="font-size: 12px; font-weight: 800; color: #fff;">Your Attendance Response:</span>
+              <span style="font-size: 12px; font-weight: 800; color: #fff;">${t('attendanceResponse')}</span>
               <span id="tr-modal-vote-badge" class="badge" style="${isAttending ? 'background: rgba(34,197,94,0.2); color: #86efac;' : (isAbsent ? 'background: rgba(239,68,68,0.2); color: #fca5a5;' : 'background: var(--surface); color: var(--muted);')}">
-                ${isAttending ? 'Confirmed' : (isAbsent ? 'Unavailable' : 'Pending Response')}
+                ${isAttending ? t('confirmedBadge') : (isAbsent ? t('absentBadge') : t('pendingBadge'))}
               </span>
             </div>
 
             <div style="display: flex; gap: 8px;">
               <button type="button" class="btn sm tr-modal-vote-btn ${isAttending ? 'primary' : 'ghost'}" data-vote="called" style="flex: 1; height: 38px; font-weight: 800; border-radius: 10px;">
-                👍 I will attend
+                👍 ${t('iWillAttend')}
               </button>
               <button type="button" class="btn sm tr-modal-vote-btn ${isAbsent ? 'danger' : 'ghost'}" data-vote="absent" style="flex: 1; height: 38px; font-weight: 800; border-radius: 10px;">
-                ❌ Cannot attend
+                ❌ ${t('iCannotAttend')}
               </button>
             </div>
           </div>
@@ -2983,7 +3505,7 @@
 
         <div style="margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border); flex-shrink: 0;">
           <button type="button" class="btn block ghost" id="dlg-tr-det-close" style="height: 40px; font-weight: 800; border-radius: 10px;">
-            Close
+            ${t('close')}
           </button>
         </div>
       </div>
@@ -3005,7 +3527,7 @@
         const isCurrent = btn.classList.contains('primary') || btn.classList.contains('danger');
         const nextVote = isCurrent ? 'pending' : vote;
         const myP = getMyPlayer();
-        const pName = myP ? `${myP.name || ''} ${myP.lastName || ''}`.trim() : 'Player';
+        const pName = myP ? `${myP.name || ''} ${myP.lastName || ''}`.trim() : t('player', 'Player');
 
         haptic(35);
 
@@ -3023,15 +3545,15 @@
         const badgeEl = overlay.querySelector('#tr-modal-vote-badge');
         if (badgeEl) {
           if (nextVote === 'called') {
-            badgeEl.textContent = 'Confirmed';
+            badgeEl.textContent = t('confirmedBadge');
             badgeEl.style.background = 'rgba(34,197,94,0.2)';
             badgeEl.style.color = '#86efac';
           } else if (nextVote === 'absent') {
-            badgeEl.textContent = 'Unavailable';
+            badgeEl.textContent = t('absentBadge');
             badgeEl.style.background = 'rgba(239,68,68,0.2)';
             badgeEl.style.color = '#fca5a5';
           } else {
-            badgeEl.textContent = 'Pending Response';
+            badgeEl.textContent = t('pendingBadge');
             badgeEl.style.background = 'var(--surface)';
             badgeEl.style.color = 'var(--muted)';
           }
@@ -3050,7 +3572,7 @@
         try {
           if (window.Cloud && window.Cloud.voteAttendance) {
             await window.Cloud.voteAttendance(conv.id, myPlayerId, nextVote, pName);
-            toast(nextVote === 'called' ? 'Attendance confirmed!' : (nextVote === 'absent' ? 'Absence reported' : 'Response reset to pending'), 'success');
+            toast(nextVote === 'called' ? t('attendanceConfirmed') : (nextVote === 'absent' ? t('absenceReported') : t('voteReset')), 'success');
           }
         } catch (e) {
           console.error(e);
@@ -3155,95 +3677,318 @@
   }
 
   /* -------------------------------------------------------------
-     MAPA TÁCTICO DE GOLES POR ZONAS DEL CAMPO (PUNTO 10)
+     MAPA TÁCTICO DE ACCIONES POR ZONAS DEL CAMPO E HISTORIAL DE CARRERA
      ------------------------------------------------------------- */
-  function getPlayerGoalsByZone(pid) {
-    const counts = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0, 11: 0 };
-    let totalTrackedGoals = 0;
+  const ACTION_META = {
+    touches:   { emoji: '⚽', key: 'stat_touches' },
+    passOk:    { emoji: '✅', key: 'stat_passOk' },
+    passKo:    { emoji: '❌', key: 'stat_passKo' },
+    shotOn:    { emoji: '🎯', key: 'stat_shotOn' },
+    shotOff:   { emoji: '↗️', key: 'stat_shotOff' },
+    goal:      { emoji: '🥅', key: 'stat_goal' },
+    assist:    { emoji: '🅰️', key: 'stat_assist' },
+    dribbleOk: { emoji: '💨', key: 'stat_dribbleOk' },
+    dribbleKo: { emoji: '🚫', key: 'stat_dribbleKo' },
+    recovery:  { emoji: '🛡️', key: 'stat_recovery' },
+    loss:      { emoji: '⚠️', key: 'stat_loss' },
+    duelWon:   { emoji: '💪', key: 'stat_duelWon' },
+    duelLost:  { emoji: '🤕', key: 'stat_duelLost' },
+    cross:     { emoji: '🔀', key: 'stat_cross' },
+    keyPass:   { emoji: '🔑', key: 'stat_keyPass' },
+    header:    { emoji: '🗣️', key: 'stat_header' },
+    foulRecv:  { emoji: '🙋', key: 'stat_foulRecv' },
+    foul:      { emoji: '🦵', key: 'stat_foul' },
+    save:      { emoji: '🧤', key: 'stat_save' },
+    yellow:    { emoji: '🟨', key: 'stat_yellow' },
+    red:       { emoji: '🟥', key: 'stat_red' }
+  };
+
+  function getActionInfo(k) {
+    const meta = ACTION_META[k] || { emoji: '⚽', key: 'actions' };
+    const label = t(meta.key, k);
+    return { emoji: meta.emoji, label };
+  }
+
+  function showPitchZoneDetailModal(zoneName, actionsMap, total) {
+    const items = Object.entries(actionsMap || {}).filter(([_, count]) => count > 0);
+    items.sort((a, b) => b[1] - a[1]);
+    const actionsHtml = items.length > 0 ? items.map(([k, cnt]) => {
+      const info = getActionInfo(k);
+      const pct = total > 0 ? Math.round((cnt / total) * 100) : 0;
+      return `
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 8px;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <span style="font-size: 24px;">${info.emoji}</span>
+            <div>
+              <b style="font-size: 14px; color: #fff; display: block;">${escapeHtml(info.label)}</b>
+              <small style="color: var(--muted); font-size: 11px;">${pct}% ${currentLang === 'ee' ? 'koguarvust selles tsoonis' : (currentLang === 'es' ? 'del total en este sector' : 'of total in this sector')}</small>
+            </div>
+          </div>
+          <div style="text-align: right;">
+            <span style="font-size: 18px; font-weight: 900; color: #22d3ee; font-variant-numeric: tabular-nums;">${cnt}</span>
+            <small style="display: block; font-size: 10px; color: var(--muted);">${cnt === 1 ? (currentLang === 'ee' ? 'tegevus' : (currentLang === 'es' ? 'acción' : 'action')) : (currentLang === 'ee' ? 'tegevust' : (currentLang === 'es' ? 'acciones' : 'actions'))}</small>
+          </div>
+        </div>
+      `;
+    }).join('') : `<p class="hint">${t('noActionsInZone')}</p>`;
+
+    const dialog = document.createElement('div');
+    dialog.className = 'dialog-overlay';
+    dialog.innerHTML = `
+      <div class="dialog-box" style="max-width: 380px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <div>
+            <span style="font-size: 10.5px; font-weight: 800; color: var(--cyan); text-transform: uppercase;">${t('zoneDetailsTitle')}</span>
+            <h3 style="margin: 2px 0 0; font-size: 17px; font-weight: 900;">${zoneName}</h3>
+          </div>
+          <span style="font-size: 20px; font-weight: 900; color: #facc15; background: rgba(250, 204, 21, 0.15); border: 1px solid rgba(250, 204, 21, 0.35); padding: 4px 10px; border-radius: 10px;">${total}</span>
+        </div>
+        <div style="font-size: 12px; color: var(--muted); margin-bottom: 12px;">
+          ${currentLang === 'ee' ? `Selles tsoonis sooritatud ${total} tegevuse jaotus:` : (currentLang === 'es' ? `Desglose de las ${total} acción(es) realizadas en esta zona:` : `Breakdown of ${total} action(s) performed in this area:`)}
+        </div>
+        <div style="max-height: 48vh; overflow-y: auto; padding-right: 2px;">
+          ${actionsHtml}
+        </div>
+        <button type="button" class="btn block primary" style="margin-top: 16px;" id="btn-close-zone-detail">
+          ${t('close')}
+        </button>
+      </div>
+    `;
+    document.body.appendChild(dialog);
+    dialog.querySelector('#btn-close-zone-detail').onclick = () => dialog.remove();
+    dialog.onclick = (e) => { if (e.target === dialog) dialog.remove(); };
+  }
+
+  window.handlePlayerPitchZoneClick = function(el) {
+    const name = el.getAttribute('data-zone-name') || 'Zone';
+    const total = parseInt(el.getAttribute('data-zone-count'), 10) || 0;
+    const actionsRaw = el.getAttribute('data-zone-actions') || '{}';
+    let actionsMap = {};
+    try { actionsMap = JSON.parse(actionsRaw); } catch (e) { actionsMap = {}; }
+    if (total > 0) {
+      showPitchZoneDetailModal(name, actionsMap, total);
+    } else {
+      toast(t('noActionsInZone'), 'info');
+    }
+  };
+
+  function renderPlayerPitchHeatmapHtml(pid) {
+    const playerZones = [];
     (clubData.sessions || []).forEach(s => {
       (s.zones || []).forEach(zItem => {
-        if (zItem.p === pid && zItem.k === 'goal') {
-          const zid = parseInt(zItem.z, 10);
-          if (counts[zid] !== undefined) {
-            counts[zid]++;
-            totalTrackedGoals++;
-          }
+        if (zItem.p === pid) {
+          playerZones.push(zItem);
         }
       });
     });
-    return { counts, totalTrackedGoals };
-  }
 
-  function renderPlayerGoalsPitchHtml(pid) {
-    const { counts, totalTrackedGoals } = getPlayerGoalsByZone(pid);
-    const pStats = calculatePlayerStats(pid);
-    const totalGoals = pStats.goals;
+    const counts = {};
+    const zoneActionsMap = {
+      top_l: {},
+      top_c: {},
+      top_r: {},
+      wing_l: {},
+      mid_t: {},
+      wing_r: {},
+      mid_b: {}
+    };
+    for (let i = 1; i <= 11; i++) counts[i] = 0;
+    playerZones.forEach(z => {
+      const zid = parseInt(z.z, 10);
+      counts[zid] = (counts[zid] || 0) + 1;
+      let areaKey = 'mid_b';
+      if (zid === 3) areaKey = 'top_l';
+      else if (zid === 1) areaKey = 'top_c';
+      else if (zid === 4) areaKey = 'top_r';
+      else if (zid === 7 || zid === 10) areaKey = 'wing_l';
+      else if (zid === 2) areaKey = 'mid_t';
+      else if (zid === 8 || zid === 11) areaKey = 'wing_r';
+      else if (zid === 5 || zid === 6) areaKey = 'mid_b';
 
-    function cellContent(zoneId, label, emoji) {
-      const qty = counts[zoneId] || 0;
-      const hasGoals = qty > 0;
-      return `
-        <span class="z-emoji" style="font-size: ${hasGoals ? '18px' : '14px'};">${hasGoals ? '⚽' : emoji}</span>
-        <span style="font-size: 10px; font-weight: 700; opacity: 0.9;">${label}</span>
-        ${hasGoals ? `
-          <span class="badge" style="background: #facc15; color: #000; font-weight: 900; font-size: 11px; padding: 2px 7px; border-radius: 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.4); margin-top: 2px;">
-            ${qty} ${qty === 1 ? (currentLang === 'en' ? 'goal' : 'gol') : (currentLang === 'en' ? 'goals' : 'goles')}
-          </span>
-        ` : `
-          <span style="font-size: 9px; opacity: 0.55; color: #fff;">0</span>
-        `}
-      `;
-    }
+      zoneActionsMap[areaKey][z.k] = (zoneActionsMap[areaKey][z.k] || 0) + 1;
+    });
+
+    const total = playerZones.length;
+
+    const getHeatBg = (cnt) => {
+      if (!cnt) return 'rgba(0, 0, 0, 0.28)';
+      const pct = cnt / Math.max(1, total * 0.5);
+      if (pct > 0.5) return 'rgba(239, 68, 68, 0.65)';
+      if (pct > 0.25) return 'rgba(249, 115, 22, 0.55)';
+      return 'rgba(34, 197, 94, 0.45)';
+    };
+
+    const cntTopL = counts[3] || 0;
+    const cntTopC = counts[1] || 0;
+    const cntTopR = counts[4] || 0;
+    const cntWingL = (counts[7] || 0) + (counts[10] || 0);
+    const cntMidT = counts[2] || 0;
+    const cntWingR = (counts[8] || 0) + (counts[11] || 0);
+    const cntMidB = (counts[5] || 0) + (counts[6] || 0);
+
+    const getZoneBadgeHtml = (cnt, actMap) => {
+      if (!cnt) return '';
+      const entries = Object.entries(actMap || {}).filter(([_, c]) => c > 0);
+      entries.sort((a, b) => b[1] - a[1]);
+      if (!entries.length) return `<span class="zone-top-action-badge">${cnt} act.</span>`;
+      const [topKey, topCnt] = entries[0];
+      const info = getActionInfo(topKey);
+      return `<span class="zone-top-action-badge" style="background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.25); border-radius: 6px; padding: 1px 5px; font-size: 9.5px; font-weight: 800; color: #fff; margin-top: 2px;">${info.emoji} ${escapeHtml(info.label)}: ${topCnt}</span>`;
+    };
 
     return `
       <div class="card" style="margin-bottom: 14px; border: 1px solid var(--border); padding: 14px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
           <div>
             <div style="font-size: 13.5px; font-weight: 900; color: #fff; display: flex; align-items: center; gap: 6px;">
-              <span>🗺️</span> <span>${t('pitchGoalsTitle', 'Mapa Táctico de Goles')}</span>
+              <span>🗺️</span> <span>${t('pitchGoalsTitle')}</span>
             </div>
             <small style="color: var(--muted); font-size: 11px;">
-              ${t('pitchGoalsDesc', 'Goles anotados según la zona del campo')}
+              ${t('pitchGoalsDesc')}
             </small>
           </div>
           <div style="text-align: right;">
-            <span class="badge" style="background: rgba(134, 239, 172, 0.18); color: #86efac; border: 1px solid rgba(134, 239, 172, 0.4); font-size: 11.5px; font-weight: 900;">
-              ⚽ ${totalGoals} ${t('goalsScored')}
+            <span class="badge" style="background: rgba(34, 211, 238, 0.15); color: var(--cyan); border: 1px solid rgba(34, 211, 238, 0.35); font-size: 11.5px; font-weight: 900;">
+              📍 ${total} ${t('actions')}
             </span>
           </div>
         </div>
 
+        <div style="font-size: 11px; color: var(--muted); margin-bottom: 8px; text-align: center;">
+          ${total > 0 ? `<b>${total}</b> ${t('actions')} • <span style="color: var(--cyan);">${currentLang === 'ee' ? 'Puuduta tsooni detailide nägemiseks' : (currentLang === 'es' ? 'Toca cualquier zona para ver detalles' : 'Tap any zone to see details')}</span>` : t('noActionsInZone')}
+        </div>
+
         <div class="pitch-field-grid" style="margin: 0 auto; box-shadow: 0 6px 20px rgba(0,0,0,0.5);">
-          <div class="pitch-grid-cell pz-top-l ${counts[3] > 0 ? 'has-actions' : ''}" style="background: ${counts[3] > 0 ? 'rgba(234, 179, 8, 0.3)' : 'rgba(56, 189, 248, 0.25)'};">
-            ${cellContent(3, t('zone_wing_off_l', 'Banda Of. Izq'), '↖️')}
+          <!-- Fila 1: Ataque -->
+          <div class="pitch-grid-cell pz-top-l ${cntTopL > 0 ? 'has-actions' : ''}" style="grid-area: top_l; background: ${getHeatBg(cntTopL)}; cursor: pointer;" data-zone-name="${t('zone_wing_off_l')}" data-zone-count="${cntTopL}" data-zone-actions='${JSON.stringify(zoneActionsMap.top_l)}' onclick="window.handlePlayerPitchZoneClick(this)">
+            <span class="z-emoji">↖️</span>
+            <span style="font-size: 11px; font-weight: 900;">${cntTopL}</span>
+            <span style="font-size: 9px; opacity: 0.85;">${t('zone_wing_off_l')}</span>
+            ${getZoneBadgeHtml(cntTopL, zoneActionsMap.top_l)}
           </div>
-          <div class="pitch-grid-cell pz-top-c ${counts[1] > 0 ? 'has-actions' : ''}" style="background: ${counts[1] > 0 ? 'rgba(239, 68, 68, 0.7)' : 'rgba(239, 68, 68, 0.35)'}; border: ${counts[1] > 0 ? '2px solid #facc15' : '1.5px dashed rgba(255,255,255,0.4)'};">
-            ${cellContent(1, t('zone_box_opp', 'Área Rival'), '🥅')}
+          <div class="pitch-grid-cell pz-top-c ${cntTopC > 0 ? 'has-actions' : ''}" style="grid-area: top_c; background: ${getHeatBg(cntTopC)}; border: ${cntTopC > 0 ? '2px solid #facc15' : '1.5px dashed rgba(255,255,255,0.4)'}; cursor: pointer;" data-zone-name="${t('zone_box_opp')}" data-zone-count="${cntTopC}" data-zone-actions='${JSON.stringify(zoneActionsMap.top_c)}' onclick="window.handlePlayerPitchZoneClick(this)">
+            <span class="z-emoji">🥅</span>
+            <span style="font-size: 12px; font-weight: 900; color: #fde047;">${cntTopC}</span>
+            <span style="font-size: 9px; opacity: 0.9;">${t('zone_box_opp')}</span>
+            ${getZoneBadgeHtml(cntTopC, zoneActionsMap.top_c)}
           </div>
-          <div class="pitch-grid-cell pz-top-r ${counts[4] > 0 ? 'has-actions' : ''}" style="background: ${counts[4] > 0 ? 'rgba(234, 179, 8, 0.3)' : 'rgba(6, 182, 212, 0.25)'};">
-            ${cellContent(4, t('zone_wing_off_r', 'Banda Of. Der'), '↗️')}
+          <div class="pitch-grid-cell pz-top-r ${cntTopR > 0 ? 'has-actions' : ''}" style="grid-area: top_r; background: ${getHeatBg(cntTopR)}; cursor: pointer;" data-zone-name="${t('zone_wing_off_r')}" data-zone-count="${cntTopR}" data-zone-actions='${JSON.stringify(zoneActionsMap.top_r)}' onclick="window.handlePlayerPitchZoneClick(this)">
+            <span class="z-emoji">↗️</span>
+            <span style="font-size: 11px; font-weight: 900;">${cntTopR}</span>
+            <span style="font-size: 9px; opacity: 0.85;">${t('zone_wing_off_r')}</span>
+            ${getZoneBadgeHtml(cntTopR, zoneActionsMap.top_r)}
           </div>
 
-          <div class="pitch-grid-cell pz-wing-l ${counts[7] > 0 ? 'has-actions' : ''}" style="background: ${counts[7] > 0 ? 'rgba(234, 179, 8, 0.3)' : 'rgba(59, 130, 246, 0.25)'};">
-            ${cellContent(7, t('zone_wing_l', 'Banda Izq'), '⬅️')}
-          </div>
-          <div class="pitch-grid-cell pz-mid-t ${counts[2] > 0 ? 'has-actions' : ''}" style="background: ${counts[2] > 0 ? 'rgba(249, 115, 22, 0.65)' : 'rgba(249, 115, 22, 0.35)'}; border: ${counts[2] > 0 ? '2px solid #facc15' : '1.5px dashed rgba(255,255,255,0.4)'};">
-            ${cellContent(2, t('zone_front', 'Frontal'), '🎯')}
-          </div>
-          <div class="pitch-grid-cell pz-wing-r ${counts[8] > 0 ? 'has-actions' : ''}" style="background: ${counts[8] > 0 ? 'rgba(234, 179, 8, 0.3)' : 'rgba(14, 165, 233, 0.25)'};">
-            ${cellContent(8, t('zone_wing_r', 'Banda Der'), '➡️')}
+          <!-- Fila 2-3: Bandas unidas laterales -->
+          <div class="pitch-grid-cell pz-wing-l ${cntWingL > 0 ? 'has-actions' : ''}" style="grid-area: wing_l; background: ${getHeatBg(cntWingL)}; cursor: pointer;" data-zone-name="${t('zone_wing_l')}" data-zone-count="${cntWingL}" data-zone-actions='${JSON.stringify(zoneActionsMap.wing_l)}' onclick="window.handlePlayerPitchZoneClick(this)">
+            <span class="z-emoji">⬅️</span>
+            <span style="font-size: 12px; font-weight: 900;">${cntWingL}</span>
+            <span style="font-size: 9px; opacity: 0.85;">${t('zone_wing_l')}</span>
+            ${getZoneBadgeHtml(cntWingL, zoneActionsMap.wing_l)}
           </div>
 
-          <div class="pitch-grid-cell pz-mid-b ${counts[5] > 0 ? 'has-actions' : ''}" style="background: ${counts[5] > 0 ? 'rgba(34, 197, 94, 0.65)' : 'rgba(34, 197, 94, 0.35)'};">
-            ${cellContent(5, t('zone_mid', 'Medio'), '⚽')}
+          <!-- Fila 2 Centro: Frontal del Área -->
+          <div class="pitch-grid-cell pz-mid-t ${cntMidT > 0 ? 'has-actions' : ''}" style="grid-area: mid_t; background: ${getHeatBg(cntMidT)}; border: ${cntMidT > 0 ? '2px solid #facc15' : '1.5px dashed rgba(255,255,255,0.4)'}; cursor: pointer;" data-zone-name="${t('zone_front')}" data-zone-count="${cntMidT}" data-zone-actions='${JSON.stringify(zoneActionsMap.mid_t)}' onclick="window.handlePlayerPitchZoneClick(this)">
+            <span class="z-emoji">🎯</span>
+            <span style="font-size: 11.5px; font-weight: 900;">${cntMidT}</span>
+            <span style="font-size: 9px; opacity: 0.85;">${t('zone_front')}</span>
+            ${getZoneBadgeHtml(cntMidT, zoneActionsMap.mid_t)}
+          </div>
+
+          <div class="pitch-grid-cell pz-wing-r ${cntWingR > 0 ? 'has-actions' : ''}" style="grid-area: wing_r; background: ${getHeatBg(cntWingR)}; cursor: pointer;" data-zone-name="${t('zone_wing_r')}" data-zone-count="${cntWingR}" data-zone-actions='${JSON.stringify(zoneActionsMap.wing_r)}' onclick="window.handlePlayerPitchZoneClick(this)">
+            <span class="z-emoji">➡️</span>
+            <span style="font-size: 12px; font-weight: 900;">${cntWingR}</span>
+            <span style="font-size: 9px; opacity: 0.85;">${t('zone_wing_r')}</span>
+            ${getZoneBadgeHtml(cntWingR, zoneActionsMap.wing_r)}
+          </div>
+
+          <!-- Fila 3 Centro: Centro del Campo -->
+          <div class="pitch-grid-cell pz-mid-b ${cntMidB > 0 ? 'has-actions' : ''}" style="grid-area: mid_b; background: ${getHeatBg(cntMidB)}; cursor: pointer;" data-zone-name="${t('zone_mid')}" data-zone-count="${cntMidB}" data-zone-actions='${JSON.stringify(zoneActionsMap.mid_b)}' onclick="window.handlePlayerPitchZoneClick(this)">
+            <span class="z-emoji">⚽</span>
+            <span style="font-size: 11.5px; font-weight: 900;">${cntMidB}</span>
+            <span style="font-size: 9px; opacity: 0.85;">${t('zone_mid')}</span>
+            ${getZoneBadgeHtml(cntMidB, zoneActionsMap.mid_b)}
           </div>
         </div>
-        
-        ${totalGoals > 0 && totalTrackedGoals < totalGoals ? `
-          <div style="margin-top: 8px; text-align: center; font-size: 11px; color: var(--muted);">
-            ℹ️ ${totalGoals - totalTrackedGoals} ${t('untrackedGoalsHint', 'goles contabilizados en partidos anteriores sin zona asignada')}
+      </div>
+    `;
+  }
+
+  function renderPlayerGoalsPitchHtml(pid) {
+    return renderPlayerPitchHeatmapHtml(pid);
+  }
+
+  function getPlayerCareerActions(pid) {
+    const totals = {};
+    let grandTotal = 0;
+    (clubData.sessions || []).forEach(s => {
+      const pStats = (s.stats && s.stats[pid]) ? s.stats[pid] : null;
+      if (pStats) {
+        Object.entries(pStats).forEach(([k, cnt]) => {
+          if (cnt && typeof cnt === 'number' && cnt > 0) {
+            totals[k] = (totals[k] || 0) + cnt;
+            grandTotal += cnt;
+          }
+        });
+      }
+    });
+    return { totals, grandTotal };
+  }
+
+  function renderPlayerCareerActionsListHtml(pid) {
+    const { totals, grandTotal } = getPlayerCareerActions(pid);
+    const entries = Object.entries(totals);
+    entries.sort((a, b) => b[1] - a[1]);
+
+    if (!entries.length) {
+      return `
+        <div class="card" style="margin-bottom: 14px; border: 1px solid var(--border); padding: 14px;">
+          <div style="font-size: 13.5px; font-weight: 900; color: #fff; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
+            <span>📋</span> <span>${t('careerActionsTitle')}</span>
           </div>
-        ` : ''}
+          <p style="color: var(--muted); font-size: 12px; margin: 8px 0 0;">${t('noCareerActions')}</p>
+        </div>
+      `;
+    }
+
+    const itemsHtml = entries.map(([k, cnt]) => {
+      const info = getActionInfo(k);
+      const pct = grandTotal > 0 ? Math.round((cnt / grandTotal) * 100) : 0;
+      return `
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 9px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px;">
+          <div style="display: flex; align-items: center; gap: 10px; overflow: hidden;">
+            <span style="font-size: 20px; flex-shrink: 0;">${info.emoji}</span>
+            <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+              <b style="font-size: 13px; color: #fff;">${escapeHtml(info.label)}</b>
+              <small style="display: block; font-size: 10.5px; color: var(--muted);">${pct}% ${currentLang === 'ee' ? 'kõigist tegevustest' : (currentLang === 'es' ? 'del total de acciones' : 'of career actions')}</small>
+            </div>
+          </div>
+          <div style="text-align: right; flex-shrink: 0; margin-left: 8px;">
+            <span style="font-size: 16px; font-weight: 900; color: var(--cyan); font-variant-numeric: tabular-nums;">${cnt}</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    return `
+      <div class="card" style="margin-bottom: 14px; border: 1px solid var(--border); padding: 14px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <div>
+            <div style="font-size: 13.5px; font-weight: 900; color: #fff; display: flex; align-items: center; gap: 6px;">
+              <span>📋</span> <span>${t('careerActionsTitle')}</span>
+            </div>
+            <small style="color: var(--muted); font-size: 11px;">
+              ${t('careerActionsDesc')}
+            </small>
+          </div>
+          <span class="badge" style="background: rgba(34, 197, 94, 0.15); color: #86efac; border: 1px solid rgba(34, 197, 94, 0.35); font-size: 11.5px; font-weight: 900;">
+            ⚡ ${grandTotal} ${t('actions')}
+          </span>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 6px; max-height: 280px; overflow-y: auto; padding-right: 2px;">
+          ${itemsHtml}
+        </div>
       </div>
     `;
   }
@@ -3412,8 +4157,11 @@
           </div>
         </div>
 
-        <!-- Mapa Táctico de Goles por Zonas (Punto 10) -->
+        <!-- Mapa Táctico de Goles y Acciones por Zonas -->
         ${renderPlayerGoalsPitchHtml(myP.id)}
+
+        <!-- Historial Completo de Acciones en la Carrera -->
+        ${renderPlayerCareerActionsListHtml(myP.id)}
 
         <!-- Historial de Partidos y Acciones Detalladas -->
         <div class="section-title"><span>${t('recentMatchesTitle')}</span></div>
@@ -3920,8 +4668,11 @@
           </button>
         ` : ''}
 
-        <!-- Mapa Táctico de Goles por Zonas (Punto 10) -->
+        <!-- Mapa Táctico de Goles y Acciones por Zonas -->
         ${renderPlayerGoalsPitchHtml(pid)}
+
+        <!-- Historial Completo de Acciones en la Carrera -->
+        ${renderPlayerCareerActionsListHtml(pid)}
 
         <!-- Partidos Recientes -->
         <div style="font-size: 13px; font-weight: 800; margin-bottom: 6px;">${t('recentMatchesTitle')}</div>
@@ -4222,14 +4973,8 @@
 
     const btnLang = document.getElementById('btn-portal-lang');
     if (btnLang) {
-      btnLang.textContent = currentLang.toUpperCase();
-      btnLang.onclick = () => {
-        currentLang = currentLang === 'en' ? 'es' : 'en';
-        try { localStorage.setItem('lang', currentLang); } catch (e) {}
-        btnLang.textContent = currentLang.toUpperCase();
-        updateHeaderIdentity();
-        renderCurrentTab();
-      };
+      btnLang.innerHTML = getLangDisplay(currentLang);
+      btnLang.onclick = cycleLang;
     }
   }
 
@@ -4323,6 +5068,38 @@
   }
 
   /* -------------------------------------------------------------
+     MODAL DE BORRADO FORZADO DE CACHÉ SOLICITADO POR EL ENTRENADOR
+     ------------------------------------------------------------- */
+  function showForceCachePurgeModal(remotePurgeTime) {
+    if (document.getElementById('dialog-force-purge-overlay')) return;
+    const overlay = document.createElement('div');
+    overlay.className = 'dialog-overlay';
+    overlay.id = 'dialog-force-purge-overlay';
+    overlay.style.zIndex = '999999';
+    overlay.innerHTML = `
+      <div class="dialog-box" style="width: 90%; max-width: 420px; text-align: center; padding: 26px 20px; border-radius: 20px; border: 2px solid var(--cyan); box-shadow: 0 10px 40px rgba(0,0,0,0.8);">
+        <div style="font-size: 46px; margin-bottom: 12px;">🔄</div>
+        <h3 style="margin: 0 0 10px; font-size: 19px; font-weight: 900; color: #fff;">${t('appUpdateRequired')}</h3>
+        <p style="font-size: 13.5px; color: var(--muted); line-height: 1.5; margin: 0 0 22px;">
+          ${t('appUpdateDesc')}
+        </p>
+        <button type="button" class="btn block primary" id="btn-force-purge-restart" style="height: 48px; font-size: 15px; font-weight: 900; border-radius: 12px;">
+          ${t('restartApp')}
+        </button>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    overlay.querySelector('#btn-force-purge-restart').onclick = () => {
+      try { localStorage.setItem('player_last_cache_purge', String(remotePurgeTime)); } catch (e) {}
+      if (typeof window.clearAppCacheAndReload === 'function') {
+        window.clearAppCacheAndReload();
+      } else {
+        window.location.reload(true);
+      }
+    };
+  }
+
+  /* -------------------------------------------------------------
      INICIALIZACIÓN Y ENLACE EN VIVO CON FIREBASE
      ------------------------------------------------------------- */
   function init() {
@@ -4332,6 +5109,13 @@
       if (cached) {
         clubData = JSON.parse(cached);
         window.clubData = clubData;
+        if (clubData.settings && clubData.settings.forceCachePurgeTimestamp) {
+          const remotePurgeTime = clubData.settings.forceCachePurgeTimestamp;
+          const lastPurged = parseInt(localStorage.getItem('player_last_cache_purge') || '0', 10);
+          if (remotePurgeTime > lastPurged) {
+            showForceCachePurgeModal(remotePurgeTime);
+          }
+        }
         if (myPlayerId && Array.isArray(clubData.players) && clubData.players.length > 0) {
           const isPending = (myPlayerId === localStorage.getItem('portal_pending_creation_id'));
           const myCachedP = clubData.players.find(p => p.id === myPlayerId);
@@ -4350,6 +5134,7 @@
     } catch (e) {}
 
     setupNavigation();
+    updateTabbarLabels();
     updateHeaderIdentity();
     renderCurrentTab();
 
@@ -4384,6 +5169,15 @@
       // Escuchar estado completo del club
       window.Cloud.listenToClubState((remoteState) => {
         if (!remoteState) return;
+
+        // Comprobar si el entrenador ha solicitado borrado forzado de caché
+        if (remoteState.settings && remoteState.settings.forceCachePurgeTimestamp) {
+          const remotePurgeTime = remoteState.settings.forceCachePurgeTimestamp;
+          const lastPurged = parseInt(localStorage.getItem('player_last_cache_purge') || '0', 10);
+          if (remotePurgeTime > lastPurged) {
+            showForceCachePurgeModal(remotePurgeTime);
+          }
+        }
 
         // Comprobar si el perfil del jugador ha sido eliminado o desvinculado por el entrenador
         if (myPlayerId && Array.isArray(remoteState.players)) {

@@ -55,11 +55,11 @@
     if (chatId && currentlyOpenChatId === chatId) return; // NO NOTIFICAR SI EL CHAT ESTÁ ABIERTO
     if (chatId && isChatMuted(chatId)) return;
     if (global.AndroidBridge && global.AndroidBridge.showSystemNotification) {
-      try { global.AndroidBridge.showSystemNotification(title, body); } catch (e) {}
+      try { global.AndroidBridge.showSystemNotification(title, body, chatId || ''); } catch (e) {}
     }
     if ('Notification' in global && Notification.permission === 'granted') {
       try {
-        new Notification(title, { body: body, icon: 'icons/icon-192.png' });
+        new Notification(title, { body: body, icon: 'icons/icon-192.png', tag: chatId || undefined });
       } catch (e) {}
     }
   }
@@ -313,6 +313,9 @@
       const readTime = Math.max(Date.now(), (lastMessageTime || 0)) + 10000;
       try {
         localStorage.setItem(`chat_last_read_${curId}_${chatId}`, String(readTime));
+        if (lastMessageTime) {
+          localStorage.setItem(`chat_notified_${chatId}_${lastMessageTime}`, '1');
+        }
       } catch (e) {}
 
       // Limpiar inmediatamente de la tarjeta del chat en el DOM
@@ -324,6 +327,13 @@
         if (dot) dot.remove();
         const badge = card.querySelector('.chat-card-new-badge');
         if (badge) badge.remove();
+      }
+
+      // Notificar al puente nativo de Android para cancelar la notificación activa y sincronizar el servicio
+      if (global.AndroidBridge && global.AndroidBridge.markChatAsRead) {
+        try {
+          global.AndroidBridge.markChatAsRead(chatId, readTime);
+        } catch (e) {}
       }
 
       // Recalcular el indicador de mensajes no leídos en la pestaña
@@ -374,15 +384,15 @@
               ChatUI.markChatAsRead(curUserId, c.id, c.lastMessageTime);
             } else {
               unreadCount++;
-              const knownKey = `last_notified_${c.id}_${c.lastMessageTime}`;
-              if (!isFirstSnapshot && !sessionStorage.getItem(knownKey)) {
-                sessionStorage.setItem(knownKey, '1');
+              const knownKey = `chat_notified_${c.id}_${c.lastMessageTime}`;
+              if (!isFirstSnapshot && !localStorage.getItem(knownKey)) {
+                try { localStorage.setItem(knownKey, '1'); } catch (e) {}
                 sendNotification(c.lastSenderName || 'Chat', c.lastMessage || 'Nuevo mensaje', c.id);
               }
             }
           }
           if (isFirstSnapshot) {
-            sessionStorage.setItem(`last_notified_${c.id}_${c.lastMessageTime}`, '1');
+            try { localStorage.setItem(`chat_notified_${c.id}_${c.lastMessageTime}`, '1'); } catch (e) {}
           }
         });
         isFirstSnapshot = false;
