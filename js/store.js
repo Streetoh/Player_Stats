@@ -893,6 +893,7 @@
           teamId: '',
           daysOfWeek: [2, 4], // 1=Lun, 2=Mar, 3=Mie, 4=Jue, 5=Vie, 6=Sab, 0=Dom
           time: '18:00',
+          dayTimes: {},
           venue: '',
           address: '',
           notes: '',
@@ -946,14 +947,23 @@
           if (targetDays.includes(dayOfWeek)) {
             const dateStr = curD.toISOString().slice(0, 10);
             const targetId = `rec_${sched.id}_${dateStr.replace(/-/g, '')}`;
+            const targetTime = (sched.dayTimes && sched.dayTimes[dayOfWeek]) ? sched.dayTimes[dayOfWeek] : (sched.time || '18:00');
 
-            const exists = (this.state.convocations || []).some(c => 
+            const existingConv = (this.state.convocations || []).find(c => 
               c.id === targetId ||
-              (c.date === dateStr && c.scheduleId === sched.id) ||
-              (c.date === dateStr && c.type === 'training' && (c.teamId || '') === (sched.teamId || '') && (c.time || '') === (sched.time || '18:00'))
+              (c.date === dateStr && c.scheduleId === sched.id)
             );
 
-            if (!exists) {
+            if (existingConv) {
+              // Si la convocatoria ya existe pero el entrenador modificó la hora o datos para este día, actualizar convocatorias futuras
+              const isFuture = (new Date(dateStr + 'T23:59:59') >= new Date());
+              if (isFuture && existingConv.time !== targetTime) {
+                existingConv.time = targetTime;
+                if (sched.venue) existingConv.venue = sched.venue;
+                if (sched.address) existingConv.address = sched.address;
+                if (sched.notes) existingConv.notes = sched.notes;
+              }
+            } else {
               const defaultList = {};
               teamPlayers.forEach(p => { defaultList[p.id] = 'called'; });
 
@@ -967,7 +977,7 @@
                 title: autoTitle,
                 type: 'training',
                 date: dateStr,
-                time: sched.time || '18:00',
+                time: targetTime,
                 venue: sched.venue || '',
                 address: sched.address || '',
                 teamId: sched.teamId || '',

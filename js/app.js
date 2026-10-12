@@ -8567,7 +8567,11 @@
             <div style="display: flex; flex-direction: column; gap: 10px;" id="recurring-list">
               ${schedules.map(sc => {
                 const team = sc.teamId ? Store.team(sc.teamId) : null;
-                const daysLabels = (sc.daysOfWeek || []).map(d => dayNames[d] || d).join(', ');
+                const daysLabels = (sc.daysOfWeek || []).map(d => {
+                  const dName = dayNames[d] || d;
+                  const dTime = (sc.dayTimes && sc.dayTimes[d]) ? sc.dayTimes[d] : (sc.time || '18:00');
+                  return `${dName} (${dTime})`;
+                }).join(', ');
                 return `
                   <div class="card" style="padding: 12px; border: 1.5px solid var(--border); border-radius: 14px; background: var(--surface2);">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">
@@ -8576,7 +8580,7 @@
                           ${escapeHtml(sc.title || (team ? 'Entrenamiento ' + team.name : 'Entrenamiento'))}
                         </h4>
                         <div style="font-size: 12px; color: var(--muted); margin-top: 3px;">
-                          ⏰ <b>${sc.time || '18:00'}</b> • 🗓️ <span style="color: var(--cyan); font-weight: 800;">${daysLabels}</span>
+                          🗓️ <span style="color: var(--cyan); font-weight: 800;">${daysLabels}</span>
                         </div>
                         ${sc.venue ? `<div style="font-size: 11.5px; color: var(--dim);">📍 ${escapeHtml(sc.venue)}</div>` : ''}
                         ${team ? `<span class="badge" style="background: ${team.color || 'var(--cyan)'}22; color: ${team.color || 'var(--cyan)'}; margin-top: 4px;">🛡️ ${escapeHtml(team.name)}</span>` : ''}
@@ -8644,16 +8648,23 @@
         const existing = schedId ? Store.recurringSchedule(schedId) : null;
         const teams = Store.state.teams || [];
         const daysMap = [
-          { val: 1, label: t('dayMon', 'Lun') },
-          { val: 2, label: t('dayTue', 'Mar') },
-          { val: 3, label: t('dayWed', 'Mié') },
-          { val: 4, label: t('dayThu', 'Jue') },
-          { val: 5, label: t('dayFri', 'Vie') },
-          { val: 6, label: t('daySat', 'Sáb') },
-          { val: 0, label: t('daySun', 'Dom') }
+          { val: 1, label: t('dayMon', 'Lun'), full: 'Lunes' },
+          { val: 2, label: t('dayTue', 'Mar'), full: 'Martes' },
+          { val: 3, label: t('dayWed', 'Mié'), full: 'Miércoles' },
+          { val: 4, label: t('dayThu', 'Jue'), full: 'Jueves' },
+          { val: 5, label: t('dayFri', 'Vie'), full: 'Viernes' },
+          { val: 6, label: t('daySat', 'Sáb'), full: 'Sábado' },
+          { val: 0, label: t('daySun', 'Dom'), full: 'Domingo' }
         ];
 
         let selectedDays = existing ? (existing.daysOfWeek || [2, 4]) : [2, 4];
+        let dayTimes = Object.assign({}, (existing && existing.dayTimes) ? existing.dayTimes : {});
+        // Inicializar hora para cada día seleccionado si no existe
+        selectedDays.forEach(d => {
+          if (!dayTimes[d]) {
+            dayTimes[d] = existing ? (existing.time || '18:00') : '18:00';
+          }
+        });
 
         body.innerHTML = `
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
@@ -8692,6 +8703,17 @@
             </div>
           </div>
 
+          <!-- Selección de hora individual por cada día -->
+          <div class="field" style="background: rgba(34, 211, 238, 0.05); border: 1.5px solid rgba(34, 211, 238, 0.3); border-radius: 12px; padding: 12px; margin-bottom: 14px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <label style="margin: 0; font-size: 12.5px; font-weight: 900; color: #fff;">
+                ⏰ ${t('timePerDay', 'Hora de entrenamiento por cada día')}
+              </label>
+              <span style="font-size: 11px; color: var(--muted);">${t('customTimePerDay', 'Personaliza cada día')}</span>
+            </div>
+            <div id="sched-day-times-container" style="display: flex; flex-direction: column; gap: 8px;"></div>
+          </div>
+
           <div class="field-row">
             <div class="field">
               <label>🗓️ ${t('startDate', 'Fecha Desde')}</label>
@@ -8703,18 +8725,9 @@
             </div>
           </div>
 
-          <div class="field-row">
-            <div class="field">
-              <label>${t('time', 'Hora')}</label>
-              <div style="display: flex; gap: 6px; align-items: center;">
-                <input type="text" id="sched-time" value="${existing ? (existing.time || '18:00') : '18:00'}" placeholder="HH:MM" style="flex: 1;" />
-                <button type="button" class="btn sm" id="btn-pick-sched-time" style="background: var(--surface2); color: var(--cyan); border: 1px solid var(--border); font-size: 13px; font-weight: 800; height: 38px; padding: 0 10px;">⏰ Elegir</button>
-              </div>
-            </div>
-            <div class="field">
-              <label>${t('venue', 'Lugar / Campo')}</label>
-              <input type="text" id="sched-venue" placeholder="Ej: Campo 2" value="${escapeHtml(existing ? (existing.venue || '') : '')}" />
-            </div>
+          <div class="field">
+            <label>${t('venue', 'Lugar / Campo')}</label>
+            <input type="text" id="sched-venue" placeholder="Ej: Campo 2" value="${escapeHtml(existing ? (existing.venue || '') : '')}" />
           </div>
 
           <div class="field">
@@ -8732,20 +8745,57 @@
           </button>
         `;
 
-        body.querySelector('#btn-sched-back').onclick = renderSchedulesList;
+        function renderDayTimesInputs() {
+          const container = body.querySelector('#sched-day-times-container');
+          if (!container) return;
 
-        const btnPickTime = body.querySelector('#btn-pick-sched-time');
-        const inpTime = body.querySelector('#sched-time');
-        if (btnPickTime && inpTime) {
-          const handlePickSchedTime = () => {
-            const curVal = inpTime.value.trim() || '18:00';
-            openTimePicker(curVal, (newTime) => {
-              if (newTime) inpTime.value = newTime;
-            });
-          };
-          btnPickTime.onclick = handlePickSchedTime;
-          inpTime.onclick = handlePickSchedTime;
+          const sortedSelected = daysMap.filter(d => selectedDays.includes(d.val));
+          if (sortedSelected.length === 0) {
+            container.innerHTML = `<div style="font-size: 12px; color: var(--muted); text-align: center; padding: 6px;">${t('selectAtLeastOneDay', 'Selecciona al menos un día')}</div>`;
+            return;
+          }
+
+          container.innerHTML = sortedSelected.map(d => {
+            const curTime = dayTimes[d.val] || '18:00';
+            return `
+              <div class="day-time-row" data-day="${d.val}" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; background: var(--surface2); padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border);">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="font-size: 15px;">📅</span>
+                  <b style="font-size: 13.5px; color: #fff;">${d.full || d.label}</b>
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <input type="text" class="day-time-input" data-day-time="${d.val}" value="${curTime}" placeholder="HH:MM" style="width: 72px; text-align: center; font-weight: 800; font-size: 13.5px; height: 34px; padding: 2px 4px; border-radius: 8px;" readonly />
+                  <button type="button" class="btn sm btn-pick-day-time" data-pick-day="${d.val}" style="background: var(--surface); color: var(--cyan); border: 1px solid var(--border); font-size: 12px; font-weight: 800; height: 34px; padding: 0 10px; border-radius: 8px;">
+                    ⏰ ${t('pickTime', 'Elegir')}
+                  </button>
+                </div>
+              </div>
+            `;
+          }).join('');
+
+          container.querySelectorAll('.day-time-row').forEach(row => {
+            const dayVal = row.getAttribute('data-day');
+            const inp = row.querySelector('.day-time-input');
+            const btn = row.querySelector('.btn-pick-day-time');
+
+            const handlePick = () => {
+              const curVal = (dayTimes[dayVal] || inp.value || '18:00').trim();
+              openTimePicker(curVal, (newTime) => {
+                if (newTime) {
+                  inp.value = newTime;
+                  dayTimes[dayVal] = newTime;
+                }
+              });
+            };
+
+            if (inp) inp.onclick = handlePick;
+            if (btn) btn.onclick = handlePick;
+          });
         }
+
+        renderDayTimesInputs();
+
+        body.querySelector('#btn-sched-back').onclick = renderSchedulesList;
 
         body.querySelectorAll('[data-day-val]').forEach(btn => {
           btn.onclick = () => {
@@ -8754,10 +8804,19 @@
               if (selectedDays.length > 1) {
                 selectedDays = selectedDays.filter(x => x !== dayVal);
                 btn.className = 'btn sm ghost';
+                delete dayTimes[dayVal];
+                renderDayTimesInputs();
+              } else {
+                toast(t('mustSelectAtLeastOneDay', 'Debes seleccionar al menos un día'), 'warning');
               }
             } else {
               selectedDays.push(dayVal);
               btn.className = 'btn sm primary';
+              if (!dayTimes[dayVal]) {
+                const anyExistingTime = Object.values(dayTimes)[0] || '18:00';
+                dayTimes[dayVal] = anyExistingTime;
+              }
+              renderDayTimesInputs();
             }
           };
         });
@@ -8765,19 +8824,25 @@
         body.querySelector('#btn-save-sched').onclick = () => {
           const title = body.querySelector('#sched-title').value.trim();
           const teamId = body.querySelector('#sched-team').value;
-          const time = body.querySelector('#sched-time').value.trim() || '18:00';
           const venue = body.querySelector('#sched-venue').value.trim();
           const address = body.querySelector('#sched-address').value.trim();
           const notes = body.querySelector('#sched-notes').value.trim();
           const startDate = body.querySelector('#sched-start-date').value;
           const endDate = body.querySelector('#sched-end-date').value;
 
+          const finalDayTimes = {};
+          selectedDays.forEach(d => {
+            finalDayTimes[d] = dayTimes[d] || '18:00';
+          });
+          const defaultTime = finalDayTimes[selectedDays[0]] || '18:00';
+
           Store.upsertRecurringSchedule({
             id: existing ? existing.id : null,
             title: title,
             teamId: teamId,
             daysOfWeek: selectedDays,
-            time: time,
+            time: defaultTime,
+            dayTimes: finalDayTimes,
             venue: venue,
             address: address,
             notes: notes,
