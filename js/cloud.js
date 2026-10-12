@@ -1008,6 +1008,55 @@
         console.error('[Cloud] Error resolviendo solicitud de acceso a perfil:', err);
         return false;
       }
+    },
+
+    /* =========================================================
+       RECORDATORIOS DE ASISTENCIA A CONVOCATORIAS
+       ========================================================= */
+    sendConvocationReminder: async function (reminderData) {
+      if (!this.init()) return false;
+      if (!reminderData || !reminderData.id) return false;
+      try {
+        await db.collection('clubs')
+          .doc(CLUB_ID)
+          .collection('convocation_reminders')
+          .doc(reminderData.id)
+          .set({
+            ...reminderData,
+            createdAt: reminderData.createdAt || Date.now()
+          });
+        return true;
+      } catch (err) {
+        console.error('[Cloud] Error enviando recordatorio de convocatoria:', err);
+        return false;
+      }
+    },
+
+    listenToConvocationReminders: function (playerId, callback) {
+      if (!this.init() || !playerId) return null;
+      try {
+        const threshold = Date.now() - (15 * 60 * 1000);
+        return db.collection('clubs')
+          .doc(CLUB_ID)
+          .collection('convocation_reminders')
+          .where('targetPlayerIds', 'array-contains', playerId)
+          .onSnapshot((snapshot) => {
+            if (!snapshot) return;
+            snapshot.docChanges().forEach((change) => {
+              if (change.type === 'added') {
+                const data = change.doc.data();
+                if (data && (!data.createdAt || data.createdAt >= threshold)) {
+                  if (typeof callback === 'function') callback(data);
+                }
+              }
+            });
+          }, (err) => {
+            console.warn('[Cloud] Error escuchando recordatorios:', err);
+          });
+      } catch (err) {
+        console.error('[Cloud] Error configurando listener de recordatorios:', err);
+        return null;
+      }
     }
   };
 

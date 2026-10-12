@@ -1536,9 +1536,12 @@
 
     let html = `
       <div class="topbar">
-        <div>
-          <h1>${t('appName')}</h1>
-          <span class="sub">${t('appSubtitle')}</span>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <img src="icons/club-logo.png" style="width: 38px; height: 38px; object-fit: contain; border-radius: 50%;" alt="Club Logo" onerror="this.style.display='none'">
+          <div>
+            <h1>${t('appName')}</h1>
+            <span class="sub">${t('appSubtitle')}</span>
+          </div>
         </div>
         ${renderLangButton()}
       </div>
@@ -6732,6 +6735,67 @@
     return text;
   }
 
+  /* =========================================================
+     ENVÍO DE RECORDATORIOS DE ASISTENCIA A JUGADORES PENDIENTES
+     ========================================================= */
+  async function sendConvocationAttendanceReminder(conv) {
+    if (!conv) return;
+    const allPlayersMap = {};
+    Store.sortedPlayers().forEach(p => { allPlayersMap[p.id] = p; });
+
+    const calledPlayerIds = Object.keys(conv.list || {}).filter(pid => conv.list[pid] && conv.list[pid] !== 'uncalled');
+    const responses = conv.responses || {};
+
+    const pendingPlayers = [];
+    calledPlayerIds.forEach(pid => {
+      const resp = responses[pid];
+      const st = conv.list[pid];
+      if (resp && (resp.status === 'attending' || resp.status === 'yes' || resp.status === 'absent' || resp.status === 'no')) return;
+      if (st === 'absent') return;
+      const p = allPlayersMap[pid] || { id: pid, name: pid.replace(/^manual_/, '') };
+      pendingPlayers.push(p);
+    });
+
+    if (pendingPlayers.length === 0) {
+      toast(t('allResponded', '¡Todos los jugadores ya han confirmado su asistencia para este evento!'), 'info');
+      return;
+    }
+
+    const coachName = (Store.state.coachProfile && Store.state.coachProfile.name) ? Store.state.coachProfile.name : 'Daniel Requena';
+    const eventTitle = conv.title || (conv.type === 'match' ? 'Match vs ' + (conv.rival || 'Rival') : 'Training Session');
+    const eventDate = `${conv.date}${conv.time ? ' at ' + conv.time : ''}`;
+    const pendingPids = pendingPlayers.map(p => p.id);
+
+    const reminderData = {
+      id: 'rem_' + conv.id + '_' + Date.now(),
+      convId: conv.id,
+      eventTitle: eventTitle,
+      eventDate: eventDate,
+      targetPlayerIds: pendingPids,
+      title: 'Call-up Attendance Reminder',
+      message: `Coach ${coachName} is waiting for your attendance response for "${eventTitle}" on ${eventDate}. Please respond now!`,
+      createdAt: Date.now()
+    };
+
+    haptic(40);
+    if (window.Cloud && window.Cloud.sendConvocationReminder) {
+      await window.Cloud.sendConvocationReminder(reminderData);
+    }
+
+    // Broadcast también al chat del equipo
+    if (conv.teamId && window.Cloud && window.Cloud.sendChatMessage) {
+      try {
+        await window.Cloud.sendChatMessage(`team_${conv.teamId}`, {
+          senderId: 'coach',
+          senderName: `(Coach) ${coachName}`,
+          text: `🔔 [Attendance Reminder] Coach ${coachName} is waiting for your attendance response for "${eventTitle}" on ${eventDate}. Please open the app and confirm!`
+        });
+      } catch (e) {}
+    }
+
+    toast(`🔔 Recordatorio enviado a ${pendingPids.length} jugador(es) pendiente(s)`, 'success');
+  }
+
   function showConvocationDetailsModal(conv, onDone) {
     if (!conv) return;
     const team = Store.team(conv.teamId);
@@ -6884,8 +6948,13 @@
 
             <!-- SECCIÓN 2: Pendientes de Respuesta -->
             <div class="conv-detail-group" style="margin-bottom: 14px;">
-              <div class="conv-detail-group-title" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1.5px solid rgba(250, 204, 21, 0.4); padding-bottom: 4px; margin-bottom: 8px;">
+              <div class="conv-detail-group-title" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1.5px solid rgba(250, 204, 21, 0.4); padding-bottom: 6px; margin-bottom: 8px;">
                 <span style="color: #fde047; font-weight: 900; font-size: 12.5px;">⏳ PENDIENTES DE RESPUESTA / SIN CONTESTAR (${pending.length})</span>
+                ${pending.length > 0 ? `
+                  <button type="button" class="btn sm" id="btn-send-details-reminder" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: #fff; font-weight: 800; font-size: 11px; padding: 4px 10px; border: none; border-radius: 8px; box-shadow: 0 2px 8px rgba(245, 158, 11, 0.35);">
+                    🔔 ${t('sendAttendanceReminder', 'Enviar Recordatorio')} (${pending.length})
+                  </button>
+                ` : ''}
               </div>
               ${pending.length === 0 ? `
                 <div style="padding: 12px; text-align: center; color: #86efac; font-size: 12px; background: rgba(34, 197, 94, 0.08); border: 1px solid rgba(34, 197, 94, 0.3); border-radius: 10px; font-weight: 700;">
@@ -6922,6 +6991,13 @@
         `;
 
         // Eventos en el cuerpo
+        const btnRemindDetails = body.querySelector('#btn-send-details-reminder');
+        if (btnRemindDetails) {
+          btnRemindDetails.onclick = async () => {
+            await sendConvocationAttendanceReminder(conv);
+          };
+        }
+
         const btnPasteProm = body.querySelector('#btn-prominent-paste-replies');
         if (btnPasteProm) btnPasteProm.onclick = () => openPasteDialog();
 
@@ -8248,9 +8324,16 @@
                         📅 <b>${formatConvocationDateWithDay(c.date)}</b> ${c.time ? '• ⏰ ' + c.time : ''} ${c.venue ? '• 📍 ' + escapeHtml(c.venue) : ''}
                       </div>
                     </div>
-                    <button class="btn sm" data-quick-viber="${c.id}" style="background: #7c3aed; color: #fff; border-color: #a855f7; flex-shrink: 0; font-size: 11.5px; font-weight: 800; padding: 4px 8px;" title="Viber">
-                      💜 Viber
-                    </button>
+                    <div style="display: flex; gap: 6px; align-items: center; flex-shrink: 0;">
+                      ${nPending > 0 ? `
+                        <button class="btn sm" data-quick-remind="${c.id}" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: #fff; border: none; font-size: 11.5px; font-weight: 800; padding: 4px 8px; border-radius: 8px; box-shadow: 0 2px 6px rgba(245, 158, 11, 0.3);" title="${t('sendAttendanceReminder', 'Enviar Recordatorio')}">
+                          🔔 ${nPending}
+                        </button>
+                      ` : ''}
+                      <button class="btn sm" data-quick-viber="${c.id}" style="background: #7c3aed; color: #fff; border-color: #a855f7; font-size: 11.5px; font-weight: 800; padding: 4px 8px;" title="Viber">
+                        💜 Viber
+                      </button>
+                    </div>
                   </div>
 
                   <div class="conv-badge-row" style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px;">
@@ -8308,6 +8391,17 @@
         b.onclick = () => {
           convCoachFilterType = b.getAttribute('data-coach-conv-filter');
           build();
+        };
+      });
+
+      view.querySelectorAll('[data-quick-remind]').forEach(btn => {
+        btn.onclick = async (e) => {
+          e.stopPropagation();
+          const cid = btn.getAttribute('data-quick-remind');
+          const conv = Store.convocation(cid);
+          if (conv) {
+            await sendConvocationAttendanceReminder(conv);
+          }
         };
       });
 

@@ -554,21 +554,61 @@
           }
         });
 
+        function isChatCustomPinned(cid) {
+          try {
+            return localStorage.getItem(`chat_pinned_${curId}_${cid}`) === 'true';
+          } catch (e) {
+            return false;
+          }
+        }
+
+        function toggleChatCustomPin(cid) {
+          try {
+            const k = `chat_pinned_${curId}_${cid}`;
+            if (localStorage.getItem(k) === 'true') {
+              localStorage.removeItem(k);
+            } else {
+              localStorage.setItem(k, 'true');
+            }
+          } catch (e) {}
+        }
+
+        function canDeleteChat(c) {
+          if (!c || !c.id) return false;
+          if (isCoach) return true;
+          // Para jugadores:
+          // 1) Chat con el entrenador NUNCA se puede borrar
+          if (c.id === pinnedCoachChatId || c.id === `coach_${curId}`) return false;
+          // 2) Chat de equipo sólo se puede borrar si NO pertenece a ese equipo
+          if (c.type === 'team' || c.id.startsWith('team_')) {
+            if (c.id === pinnedTeamId) return false;
+            if (myTeamId && c.teamId === myTeamId) return false;
+            return true;
+          }
+          return true;
+        }
+
         let displayChats = Object.values(mergedMap).filter(c => {
           if (!c || !c.id) return false;
-          // Filtrar chats borrados por el usuario (salvo que haya entrado un nuevo mensaje de otra persona)
-          const delFlag = localStorage.getItem('chat_deleted_' + c.id);
-          if (delFlag) {
-            const delTime = parseInt(delFlag, 10) || 0;
-            if (c.lastMessageTime && c.lastMessageTime > delTime && c.lastSenderId && c.lastSenderId !== curId) {
-              try { localStorage.removeItem('chat_deleted_' + c.id); } catch (e) {}
-            } else {
-              return false;
+          // Filtrar chats borrados por el usuario:
+          // El chat con el entrenador NUNCA se oculta para el jugador
+          if (!isCoach && (c.id === pinnedCoachChatId || c.id === `coach_${curId}`)) {
+            try { localStorage.removeItem('chat_deleted_' + c.id); } catch (e) {}
+          } else {
+            const delFlag = localStorage.getItem('chat_deleted_' + c.id);
+            if (delFlag) {
+              const delTime = parseInt(delFlag, 10) || 0;
+              // Si llegó o se envió cualquier mensaje posterior al momento de borrado, volver a mostrar
+              if (c.lastMessageTime && c.lastMessageTime > delTime) {
+                try { localStorage.removeItem('chat_deleted_' + c.id); } catch (e) {}
+              } else {
+                return false;
+              }
             }
           }
           if (c.deleted === true || c.isDeleted === true) {
-            if (c.lastMessageTime && c.lastSenderId && c.lastSenderId !== curId) {
-              // Nuevo mensaje recibido: reactivar
+            if (c.lastMessageTime && c.lastMessageTime > ((c.deletedAt) || 0)) {
+              // Reactivar si hay actividad
             } else {
               return false;
             }
@@ -581,10 +621,10 @@
               return false;
             }
           }
-          // Filtrar conversaciones directas/coach vacías sin mensajes para no mostrarlas antes de que se envíe nada
+          // Filtrar conversaciones directas vacías sin mensajes
           if ((c.type === 'direct' || c.type === 'coach' || c.id.startsWith('direct_') || c.id.startsWith('coach_')) && !c.lastMessage && !c.lastMessageTime) {
-            if (!isCoach && c.id === pinnedCoachChatId) {
-              // Permitir acceso directo permanente del jugador con el entrenador
+            if (!isCoach && (c.id === pinnedCoachChatId || c.id === `coach_${curId}`)) {
+              // Permitir acceso permanente del jugador al chat con el entrenador
             } else {
               return false;
             }
@@ -598,14 +638,38 @@
           return true;
         });
 
-        // ORDEN: Fijados (pinned) arriba de todo, luego por fecha de mensaje reciente
-        displayChats.sort((a, b) => {
-          if (a.isPinned && !b.isPinned) return -1;
-          if (!a.isPinned && b.isPinned) return 1;
-          if (a.isPinned && b.isPinned) {
-            if (a.type === 'team') return -1;
-            if (b.type === 'team') return 1;
+        // Marcar estado fijado de cada conversación
+        displayChats.forEach(c => {
+          if (!isCoach) {
+            c.isPinned = (c.id === pinnedCoachChatId || c.id === pinnedTeamId || isChatCustomPinned(c.id));
+          } else {
+            c.isPinned = isChatCustomPinned(c.id);
           }
+        });
+
+        // ORDEN DE CONVERSACIONES:
+        // 1) En App de Jugadores:
+        //    a. Chat con el entrenador SIEMPRE el 1º arriba de todo
+        //    b. Chat del equipo en 2º lugar
+        //    c. Chats fijados por el jugador
+        //    d. Resto de conversaciones por orden cronológico reciente
+        // 2) En App de Entrenador:
+        //    a. Chats fijados por el entrenador arriba de todo
+        //    b. Resto de conversaciones por orden cronológico reciente
+        displayChats.sort((a, b) => {
+          if (!isCoach) {
+            if (a.id === pinnedCoachChatId) return -1;
+            if (b.id === pinnedCoachChatId) return 1;
+
+            if (a.id === pinnedTeamId) return -1;
+            if (b.id === pinnedTeamId) return 1;
+          }
+
+          const aCustom = isChatCustomPinned(a.id);
+          const bCustom = isChatCustomPinned(b.id);
+          if (aCustom && !bCustom) return -1;
+          if (!aCustom && bCustom) return 1;
+
           return (b.lastMessageTime || 0) - (a.lastMessageTime || 0);
         });
 
@@ -682,7 +746,7 @@
                   <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
                     ${isUnread ? `<span class="badge chat-card-new-badge" style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.5); font-weight: 900; font-size: 9.5px; padding: 1px 5px; border-radius: 8px;">● ${t('newBadge', 'NUEVO')}</span>` : ''}
                     <small style="font-size: 11px; color: var(--muted);">${timeStr}</small>
-                    ${!isTeamChat ? `
+                    ${canDeleteChat(c) ? `
                       <button type="button" class="icon-btn ghost btn-delete-chat-card" data-chat-id="${c.id}" data-chat-name="${escapeHtml(displayName)}" style="width: 24px; height: 24px; font-size: 12px; color: #f87171; opacity: 0.7; padding: 0;" title="${t('deleteChat', isEn ? 'Delete conversation' : 'Eliminar conversación')}">
                         🗑️
                       </button>
@@ -697,11 +761,101 @@
           `;
         }).join('');
 
+        function openRoomContextMenu(chatObj) {
+          if (!chatObj) return;
+          haptic(30);
+          const cid = chatObj.id;
+          const cleanName = (chatObj.name || 'Chat').replace(/^Chat:\s*/i, '').replace(/^🛡️\s*Chat:\s*/i, '🛡️ ');
+          const isPermPinned = !isCoach && (cid === pinnedCoachChatId || cid === pinnedTeamId);
+          const isPinned = isPermPinned || isChatCustomPinned(cid);
+          const isMuted = isChatMuted(cid);
+          const deletable = canDeleteChat(chatObj);
+
+          const overlay = document.createElement('div');
+          overlay.className = 'dialog-overlay';
+          overlay.style.zIndex = '99999';
+          overlay.innerHTML = `
+            <div class="dialog-box" style="max-width: 360px; width: 90%; padding: 18px 16px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
+                <b style="font-size: 15px; color: #fff; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; flex: 1;">
+                  ${escapeHtml(cleanName)}
+                </b>
+                <button type="button" class="icon-btn ghost" id="dlg-ctx-x" style="width: 28px; height: 28px;">✕</button>
+              </div>
+
+              <div style="display: flex; flex-direction: column; gap: 8px;">
+                ${isPermPinned ? `
+                  <div style="padding: 10px 12px; border-radius: 10px; background: rgba(250, 204, 21, 0.1); border: 1px solid rgba(250, 204, 21, 0.3); font-size: 12px; color: #fde047; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+                    <span>📌</span>
+                    <span>${isEn ? 'Permanently pinned by club' : 'Fijado de forma permanente'}</span>
+                  </div>
+                ` : `
+                  <button type="button" class="btn block ghost" id="btn-ctx-pin" style="height: 42px; justify-content: flex-start; padding: 0 12px; gap: 10px; font-weight: 700; font-size: 13px; border: 1px solid var(--border); background: var(--surface2);">
+                    <span style="font-size: 16px;">${isPinned ? '📍' : '📌'}</span>
+                    <span>${isPinned ? (isEn ? 'Unpin conversation' : 'Desanclar conversación') : (isEn ? 'Pin conversation to top' : 'Anclar al principio')}</span>
+                  </button>
+                `}
+
+                <button type="button" class="btn block ghost" id="btn-ctx-mute" style="height: 42px; justify-content: flex-start; padding: 0 12px; gap: 10px; font-weight: 700; font-size: 13px; border: 1px solid var(--border); background: var(--surface2);">
+                  <span style="font-size: 16px;">${isMuted ? '🔔' : '🔕'}</span>
+                  <span>${isMuted ? (isEn ? 'Unmute notifications' : 'Activar notificaciones') : (isEn ? 'Mute notifications' : 'Silenciar notificaciones')}</span>
+                </button>
+
+                ${deletable ? `
+                  <button type="button" class="btn block danger ghost" id="btn-ctx-delete" style="height: 42px; justify-content: flex-start; padding: 0 12px; gap: 10px; font-weight: 700; font-size: 13px; border: 1.5px solid rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.1); color: #fca5a5;">
+                    <span style="font-size: 16px;">🗑️</span>
+                    <span>${isEn ? 'Delete conversation' : 'Eliminar conversación'}</span>
+                  </button>
+                ` : ''}
+              </div>
+            </div>
+          `;
+
+          function close() { overlay.remove(); }
+          overlay.querySelector('#dlg-ctx-x').onclick = close;
+          overlay.onclick = (e) => { if (e.target === overlay) close(); };
+
+          const btnPin = overlay.querySelector('#btn-ctx-pin');
+          if (btnPin) {
+            btnPin.onclick = () => {
+              close();
+              toggleChatCustomPin(cid);
+              const nowPinned = isChatCustomPinned(cid);
+              if (global.UI && global.UI.toast) {
+                global.UI.toast(nowPinned ? (isEn ? '📌 Chat pinned to top' : '📌 Chat anclado') : (isEn ? '📍 Chat unpinned' : '📍 Chat desanclado'), 'info');
+              }
+              renderRooms();
+            };
+          }
+
+          const btnMute = overlay.querySelector('#btn-ctx-mute');
+          if (btnMute) {
+            btnMute.onclick = () => {
+              close();
+              toggleChatMute(cid);
+              const nowMuted = isChatMuted(cid);
+              if (global.UI && global.UI.toast) {
+                global.UI.toast(nowMuted ? (isEn ? '🔕 Notifications muted' : '🔕 Chat silenciado') : (isEn ? '🔔 Notifications enabled' : '🔔 Notificaciones activadas'), 'info');
+              }
+              renderRooms();
+            };
+          }
+
+          const btnDelete = overlay.querySelector('#btn-ctx-delete');
+          if (btnDelete) {
+            btnDelete.onclick = () => {
+              close();
+              handleDeleteChat(cid, cleanName, chatObj);
+            };
+          }
+
+          document.body.appendChild(overlay);
+        }
+
         async function handleDeleteChat(cid, cname, chatObj) {
           haptic(25);
+          if (!canDeleteChat(chatObj || { id: cid })) return;
           const isGroupChat = (chatObj && (chatObj.type === 'group' || cid.startsWith('group_')));
-          const isTeamChat = (chatObj && (chatObj.type === 'team' || cid.startsWith('team_')));
-          if (isTeamChat) return;
 
           if (isGroupChat && isCoach) {
             const confirmMsg = t('deleteGroupConfirm', isEn ? `Permanently delete group "${cname}" for everyone?` : `¿Eliminar el grupo "${cname}" de forma definitiva para todos?`);
@@ -748,9 +902,8 @@
                 pressFired = true;
                 const cid = item.getAttribute('data-chat-id');
                 const chatObj = displayChats.find(x => x.id === cid);
-                const cname = chatObj ? (chatObj.name || '').replace(/^Chat:\s*/i, '') : 'Chat';
-                handleDeleteChat(cid, cname, chatObj);
-              }, 550);
+                openRoomContextMenu(chatObj);
+              }, 480);
             }
           }, { passive: true });
 
@@ -768,6 +921,13 @@
 
           item.addEventListener('touchcancel', () => {
             if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+          });
+
+          item.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            const cid = item.getAttribute('data-chat-id');
+            const chatObj = displayChats.find(x => x.id === cid);
+            openRoomContextMenu(chatObj);
           });
 
           item.onclick = () => {
@@ -2523,6 +2683,7 @@
             payload.replyTo = replyToSend;
           }
           await global.Cloud.sendChatMessage(chatId, payload);
+          try { localStorage.removeItem('chat_deleted_' + chatId); } catch (e) {}
           ChatUI.markChatAsRead(curId, chatId);
         }
       }
@@ -2564,23 +2725,28 @@
       const curName = options.currentUserName || 'Usuario';
       const isCoach = !!options.isCoach;
       const isEn = (global.Store && global.Store.state && global.Store.state.lang === 'en') || (localStorage.getItem('preferred_lang') === 'en');
+      const coachName = getCoachName();
 
       let chatId;
       let title = otherUserName || 'Chat';
       let chatType = 'direct';
 
-      if (otherUserId === 'coach' || curId === 'coach') {
-        const playerId = otherUserId === 'coach' ? curId : otherUserId;
+      const isCoachTarget = (otherUserId === 'coach') || (otherUserName && coachName && otherUserName.toLowerCase().includes(coachName.toLowerCase()));
+
+      if (isCoachTarget || curId === 'coach') {
+        const playerId = (otherUserId === 'coach' || isCoachTarget) ? curId : otherUserId;
         chatId = `coach_${playerId}`;
         chatType = 'coach';
         if (!isCoach) {
-          title = `(Coach) ${getCoachName()}`;
+          title = `(Coach) ${coachName}`;
         }
       } else {
         const p1 = curId < otherUserId ? curId : otherUserId;
         const p2 = curId < otherUserId ? otherUserId : curId;
         chatId = `direct_${p1}_${p2}`;
       }
+
+      try { localStorage.removeItem('chat_deleted_' + chatId); } catch (e) {}
 
       ChatUI.openConversationModal(chatId, {
         currentUserId: curId,

@@ -215,6 +215,11 @@
       allPlansDeleted: 'Todos los planes han sido eliminados',
       matchesOnly: '🏟️ Partidos',
       trainingsOnly: '🏃 Entrenamientos',
+      sendAttendanceReminder: 'Enviar Recordatorio',
+      remind: 'Recordar',
+      allResponded: '¡Todos los jugadores ya han confirmado su asistencia!',
+      attendanceConfirmed: 'Asistencia confirmada',
+      absenceReported: 'Baja registrada',
 
       // Radar y Rating
       skillRadar: 'Radar de Habilidades',
@@ -719,6 +724,11 @@
       allPlansDeleted: 'All plans have been deleted',
       matchesOnly: '🏟️ Matches only',
       trainingsOnly: '🏃 Trainings only',
+      sendAttendanceReminder: 'Send Attendance Reminder',
+      remind: 'Remind',
+      allResponded: 'All players have already confirmed their attendance!',
+      attendanceConfirmed: 'Attendance confirmed',
+      absenceReported: 'Absence recorded',
 
       // Radar & Rating
       skillRadar: 'Skill Radar',

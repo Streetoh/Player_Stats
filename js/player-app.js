@@ -920,7 +920,7 @@
   function updateHeaderIdentity() {
     const nameEl = document.getElementById('portal-my-name');
     const avatarEl = document.getElementById('portal-my-avatar');
-    const lockIndicatorEl = document.querySelector('#btn-select-identity span:last-child');
+    const lockIndicatorEl = document.getElementById('portal-lbl-change');
     const lblProfile = document.getElementById('portal-lbl-profile');
     if (lblProfile) lblProfile.textContent = t('myProfile') + ':';
 
@@ -936,8 +936,11 @@
         avatarEl.innerHTML = myP.photo ? `<img src="${myP.photo}" alt="" />` : `<span>${(myP.name ? myP.name[0] : 'P').toUpperCase()}</span>`;
       }
       if (lockIndicatorEl) {
-        lockIndicatorEl.innerHTML = isProfileLocked() ? `🔒 ${t('locked')}` : `${t('changeProfile')}`;
-        lockIndicatorEl.style.color = isProfileLocked() ? '#facc15' : 'var(--cyan)';
+        const locked = isProfileLocked();
+        lockIndicatorEl.innerHTML = locked ? `🔒 ${t('locked', 'Locked')}` : `${t('changeProfile', 'Change ▾')}`;
+        lockIndicatorEl.style.color = locked ? '#facc15' : 'var(--cyan)';
+        lockIndicatorEl.style.background = locked ? 'rgba(250, 204, 21, 0.15)' : 'rgba(6, 182, 212, 0.15)';
+        lockIndicatorEl.style.border = locked ? '1px solid rgba(250, 204, 21, 0.35)' : '1px solid rgba(6, 182, 212, 0.3)';
       }
       if (window.ChatUI && ChatUI.initPresenceHeartbeat) {
         ChatUI.initPresenceHeartbeat(myPlayerId, `${myP.name || ''} ${myP.lastName || ''}`.trim());
@@ -949,8 +952,10 @@
       if (nameEl) nameEl.textContent = t('selectIdentity');
       if (avatarEl) avatarEl.innerHTML = '<span>?</span>';
       if (lockIndicatorEl) {
-        lockIndicatorEl.textContent = `${t('changeProfile')}`;
+        lockIndicatorEl.textContent = `${t('changeProfile', 'Change ▾')}`;
         lockIndicatorEl.style.color = 'var(--cyan)';
+        lockIndicatorEl.style.background = 'rgba(6, 182, 212, 0.15)';
+        lockIndicatorEl.style.border = '1px solid rgba(6, 182, 212, 0.3)';
       }
     }
 
@@ -958,6 +963,51 @@
     if (btnLang) btnLang.textContent = currentLang.toUpperCase();
     const badge = document.getElementById('portal-cloud-badge');
     if (badge) badge.textContent = `🟢 ${t('live')}`;
+  }
+
+  /* -------------------------------------------------------------
+     VENTANA MODAL EN INGLÉS PARA REINICIAR APP TRAS APROBACIÓN DE PERFIL
+     ------------------------------------------------------------- */
+  function showProfileApprovedRestartModal(newPlayerId) {
+    try {
+      localStorage.setItem('portal_player_id', newPlayerId);
+      localStorage.setItem('portal_player_locked', 'true');
+      localStorage.removeItem('portal_pending_creation_id');
+      localStorage.removeItem('portal_pending_creation_name');
+      localStorage.removeItem('portal_pending_creation_dorsal');
+      localStorage.removeItem('portal_pending_creation_pos');
+      localStorage.removeItem('cached_club_state');
+    } catch (e) {}
+
+    haptic(60);
+
+    const overlay = document.createElement('div');
+    overlay.className = 'dialog-overlay';
+    overlay.style.zIndex = '99999';
+    overlay.innerHTML = `
+      <div class="dialog-box" style="width: 90%; max-width: 400px; text-align: center; padding: 24px 20px;">
+        <div style="font-size: 46px; margin-bottom: 12px;">🎉</div>
+        <h3 style="margin: 0 0 10px; font-size: 18px; font-weight: 900; color: #fff;">Profile Created & Approved!</h3>
+        <p style="font-size: 13.5px; color: var(--muted); line-height: 1.5; margin: 0 0 20px;">
+          Your coach has approved your registration and created your player profile. Please restart the app now to clear cache and activate your profile.
+        </p>
+        <button type="button" class="btn block primary" id="btn-restart-app-now" style="height: 48px; font-weight: 900; font-size: 14.5px; background: linear-gradient(135deg, #06b6d4, #3b82f6); border: none; box-shadow: 0 4px 18px rgba(6, 182, 212, 0.4);">
+          🔄 Restart App
+        </button>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    overlay.querySelector('#btn-restart-app-now').onclick = () => {
+      if ('caches' in window) {
+        caches.keys().then(names => {
+          for (let name of names) caches.delete(name);
+        }).catch(() => {});
+      }
+      const cleanUrl = window.location.pathname + '?_t=' + Date.now();
+      window.location.replace(cleanUrl);
+    };
   }
 
   /* -------------------------------------------------------------
@@ -974,17 +1024,7 @@
         const newPlayerId = r.createdPlayerId;
         if (newPlayerId) {
           myPlayerId = newPlayerId;
-          try {
-            localStorage.setItem('portal_player_id', newPlayerId);
-            localStorage.removeItem('portal_pending_creation_id');
-            localStorage.removeItem('portal_pending_creation_name');
-            localStorage.removeItem('portal_pending_creation_dorsal');
-            localStorage.removeItem('portal_pending_creation_pos');
-          } catch (e) {}
-          toast(t('creationApproved', '🎉 Your coach approved and created your profile! You can now view your stats.'), 'success');
-          haptic(50);
-          updateHeaderIdentity();
-          renderCurrentTab();
+          showProfileApprovedRestartModal(newPlayerId);
         }
       } else if (r.status === 'rejected') {
         try {
@@ -3135,8 +3175,30 @@
       };
     });
 
-    const btnIdentity = document.getElementById('btn-select-identity');
-    if (btnIdentity) btnIdentity.onclick = showSelectIdentityModal;
+    const myInfoBtn = document.getElementById('portal-my-info-btn');
+    if (myInfoBtn) {
+      myInfoBtn.onclick = (e) => {
+        e.stopPropagation();
+        if (isProfileLocked()) {
+          const tabBtn = document.querySelector('#portal-tabbar [data-tab="stats"]');
+          if (tabBtn) tabBtn.click();
+        } else {
+          showSelectIdentityModal();
+        }
+      };
+    }
+
+    const lblChange = document.getElementById('portal-lbl-change');
+    if (lblChange) {
+      lblChange.onclick = (e) => {
+        e.stopPropagation();
+        if (isProfileLocked()) {
+          showRequestProfileChangeModal();
+        } else {
+          showSelectIdentityModal();
+        }
+      };
+    }
 
     const btnLang = document.getElementById('btn-portal-lang');
     if (btnLang) {
@@ -3149,6 +3211,95 @@
         renderCurrentTab();
       };
     }
+  }
+
+  /* -------------------------------------------------------------
+     MANEJO DE RECORDATORIOS DE ASISTENCIA ENVIADOS POR EL ENTRENADOR
+     ------------------------------------------------------------- */
+  function handleIncomingConvocationReminder(reminder) {
+    if (!reminder || !reminder.id) return;
+    const seenKey = 'reminder_seen_' + reminder.id;
+    if (localStorage.getItem(seenKey)) return;
+    try { localStorage.setItem(seenKey, 'true'); } catch (e) {}
+
+    const convId = reminder.convId;
+    if (convId && liveVotes[convId] && liveVotes[convId][myPlayerId]) {
+      const existingStatus = liveVotes[convId][myPlayerId].status;
+      if (existingStatus === 'called' || existingStatus === 'attending' || existingStatus === 'yes' || existingStatus === 'absent' || existingStatus === 'no') {
+        return;
+      }
+    }
+
+    const title = reminder.title || 'Call-up Attendance Reminder';
+    const message = reminder.message || 'Coach Daniel Requena is waiting for your attendance response. Please respond now!';
+
+    if (window.AndroidBridge && window.AndroidBridge.showSystemNotification) {
+      try { window.AndroidBridge.showSystemNotification(title, message); } catch (e) {}
+    } else if ('Notification' in window && Notification.permission === 'granted') {
+      try { new Notification(title, { body: message, icon: 'icons/icon-192.png' }); } catch (e) {}
+    }
+
+    haptic(60);
+    toast(`🔔 ${title}`, 'info');
+
+    const overlay = document.createElement('div');
+    overlay.className = 'dialog-overlay';
+    overlay.style.zIndex = '99999';
+    overlay.innerHTML = `
+      <div class="dialog-box" style="width: 90%; max-width: 420px; text-align: center; padding: 22px 18px;">
+        <div style="font-size: 44px; margin-bottom: 8px;">📋</div>
+        <h3 style="margin: 0 0 8px; font-size: 17.5px; font-weight: 900; color: #fff;">${escapeHtml(title)}</h3>
+        <p style="font-size: 13.5px; color: var(--muted); line-height: 1.5; margin: 0 0 18px;">
+          ${escapeHtml(message)}
+        </p>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <button type="button" class="btn block" id="btn-remind-yes" style="height: 44px; background: linear-gradient(135deg, #10b981, #059669); color: #fff; font-weight: 900; font-size: 14px; border: none; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);">
+            🟢 Confirm Attendance (Yes)
+          </button>
+          <button type="button" class="btn block" id="btn-remind-no" style="height: 44px; background: rgba(239, 68, 68, 0.18); color: #fca5a5; font-weight: 800; font-size: 13.5px; border: 1.5px solid rgba(239, 68, 68, 0.4);">
+            ❌ Can't Attend (No)
+          </button>
+          <button type="button" class="btn ghost block" id="btn-remind-dismiss" style="height: 38px; color: var(--muted); font-size: 12.5px;">
+            Dismiss
+          </button>
+        </div>
+      </div>
+    `;
+
+    function close() { overlay.remove(); }
+    overlay.querySelector('#btn-remind-dismiss').onclick = close;
+    overlay.onclick = (e) => { if (e.target === overlay) close(); };
+
+    const myP = getMyPlayer();
+    const pName = myP ? `${myP.name || ''} ${myP.lastName || ''}`.trim() : 'Player';
+
+    overlay.querySelector('#btn-remind-yes').onclick = async () => {
+      close();
+      if (convId) {
+        liveVotes[convId] = liveVotes[convId] || {};
+        liveVotes[convId][myPlayerId] = { status: 'called', playerName: pName, timestamp: Date.now() };
+        if (window.Cloud && window.Cloud.voteAttendance) {
+          try { await window.Cloud.voteAttendance(convId, myPlayerId, 'called', pName); } catch (e) {}
+        }
+        toast(t('attendanceConfirmed', '✅ Attendance confirmed!'), 'success');
+        if (currentTab === 'convocations') renderConvocationsView();
+      }
+    };
+
+    overlay.querySelector('#btn-remind-no').onclick = async () => {
+      close();
+      if (convId) {
+        liveVotes[convId] = liveVotes[convId] || {};
+        liveVotes[convId][myPlayerId] = { status: 'absent', playerName: pName, timestamp: Date.now() };
+        if (window.Cloud && window.Cloud.voteAttendance) {
+          try { await window.Cloud.voteAttendance(convId, myPlayerId, 'absent', pName); } catch (e) {}
+        }
+        toast(t('absenceReported', '❌ Absence registered.'), 'info');
+        if (currentTab === 'convocations') renderConvocationsView();
+      }
+    };
+
+    document.body.appendChild(overlay);
   }
 
   /* -------------------------------------------------------------
@@ -3263,6 +3414,13 @@
       const pendingCreationId = localStorage.getItem('portal_pending_creation_id');
       if (pendingCreationId) {
         listenToMyCreationRequest(pendingCreationId);
+      }
+
+      // Escuchar recordatorios de convocatoria del entrenador
+      if (myPlayerId && window.Cloud && window.Cloud.listenToConvocationReminders) {
+        window.Cloud.listenToConvocationReminders(myPlayerId, (reminder) => {
+          handleIncomingConvocationReminder(reminder);
+        });
       }
     }
 
