@@ -1,5 +1,5 @@
 {
-  "version": "2026.10.12.4",
-  "buildTime": 1791801000000,
-  "description": "Tactical pitch heatmap for all actions, career actions history, full Estonian language support, force cache purge from coach, weekly filter for recurring sessions"
+  "version": "2026.10.12.5",
+  "buildTime": 1791804000000,
+  "description": "Modular Firestore subcollections architecture (unlimited scalability), live Home notification updates"
 }

@@ -29,6 +29,21 @@
 
   const CLUB_ID = 'default_club';
 
+  let knownRemotePlayerIds = null;
+  let knownRemoteConvIds = null;
+  let knownRemoteSessionIds = null;
+
+  async function commitBatchOperations(operations) {
+    if (!operations || !operations.length) return;
+    const CHUNK_SIZE = 400;
+    for (let i = 0; i < operations.length; i += CHUNK_SIZE) {
+      const chunk = operations.slice(i, i + CHUNK_SIZE);
+      const batch = db.batch();
+      chunk.forEach(op => op(batch));
+      await batch.commit();
+    }
+  }
+
   const Cloud = {
     config: FIREBASE_CONFIG,
     lastError: null,
@@ -117,7 +132,7 @@
        1. FUNCIONES PARA EL ENTRENADOR (APP MAESTRA)
        ------------------------------------------------------------- */
 
-    // Sube el estado completo (jugadores, sesiones, convocatorias, equipos, entrenador, horarios) a Firestore
+    // Sube el estado completo (jugadores, sesiones, convocatorias, equipos, entrenador, horarios) a Firestore de forma modular en subcolecciones
     pushCoachState: async function (stateData, force = false) {
       this.lastError = null;
       if (!this.init()) {
@@ -144,10 +159,10 @@
         isSyncing = true;
         this._notifyStatus('syncing');
 
-        // Optimizar y comprimir jugadores para que quepan holgadamente en el límite de 1MB de Firestore
+        // Optimizar y comprimir fotos de jugadores
         const sanitizedPlayers = await Promise.all((stateData.players || []).map(async (p) => {
           const copy = Object.assign({}, p);
-          delete copy.originalPhoto; // Eliminar duplicado innecesario
+          delete copy.originalPhoto;
           delete copy.cropSettings;
           if (copy.photo && copy.photo.length > 8000) {
             copy.photo = await Cloud._compressPhotoForCloud(copy.photo, 128, 0.68);
@@ -172,11 +187,11 @@
           return obj;
         }
 
-        const rawPayload = {
-          players: sanitizedPlayers,
+        const clubRef = db.collection('clubs').doc(CLUB_ID);
+
+        // 1. Guardar documento raíz (configuración, perfil, equipos, horarios recurrentes y metadatos)
+        const rootPayload = {
           teams: stateData.teams || [],
-          sessions: stateData.sessions || [],
-          convocations: stateData.convocations || [],
           recurringSchedules: stateData.recurringSchedules || [],
           coachProfile: sanitizedCoachProfile,
           settings: {
@@ -185,13 +200,100 @@
             convocatoriaWebUrl: (stateData.settings && stateData.settings.convocatoriaWebUrl) || '',
             forceCachePurgeTimestamp: (stateData.settings && stateData.settings.forceCachePurgeTimestamp) || 0
           },
+          schemaVersion: 2,
           updatedAt: global.firebase.firestore.FieldValue.serverTimestamp(),
           clientTime: now
         };
 
-        const cleanData = cleanUndefined(rawPayload);
+        // Retrocompatibilidad con clientes anteriores si el volumen es holgado (< 750 KB)
+        const playersCopy = sanitizedPlayers || [];
+        const convsCopy = stateData.convocations || [];
+        const sessionsCopy = stateData.sessions || [];
+        try {
+          const approxSize = JSON.stringify({ playersCopy, convsCopy, sessionsCopy }).length;
+          if (approxSize < 750000) {
+            rootPayload.players = playersCopy;
+            rootPayload.convocations = convsCopy;
+            rootPayload.sessions = sessionsCopy;
+          }
+        } catch (e) {}
 
-        await db.collection('clubs').doc(CLUB_ID).set(cleanData, { merge: true });
+        await clubRef.set(cleanUndefined(rootPayload), { merge: true });
+
+        // 2. Inicializar conjuntos de IDs remotos si es la primera sincronización de la sesión
+        if (knownRemotePlayerIds === null || knownRemoteConvIds === null || knownRemoteSessionIds === null) {
+          try {
+            const [pSnap, cSnap, sSnap] = await Promise.all([
+              clubRef.collection('players').get(),
+              clubRef.collection('convocations').get(),
+              clubRef.collection('sessions').get()
+            ]);
+            knownRemotePlayerIds = new Set(pSnap.docs.map(d => d.id));
+            knownRemoteConvIds = new Set(cSnap.docs.map(d => d.id));
+            knownRemoteSessionIds = new Set(sSnap.docs.map(d => d.id));
+          } catch (e) {
+            console.warn('[Cloud] Error inicializando IDs remotos:', e);
+            knownRemotePlayerIds = new Set();
+            knownRemoteConvIds = new Set();
+            knownRemoteSessionIds = new Set();
+          }
+        }
+
+        const batchOps = [];
+
+        // 3. Subcolección de Jugadores (clubs/default_club/players/{playerId})
+        const activePlayerIds = new Set();
+        sanitizedPlayers.forEach(p => {
+          if (!p || !p.id) return;
+          activePlayerIds.add(p.id);
+          knownRemotePlayerIds.add(p.id);
+          const pRef = clubRef.collection('players').doc(p.id);
+          batchOps.push(batch => batch.set(pRef, cleanUndefined(p), { merge: true }));
+        });
+        knownRemotePlayerIds.forEach(id => {
+          if (!activePlayerIds.has(id)) {
+            const pRef = clubRef.collection('players').doc(id);
+            batchOps.push(batch => batch.delete(pRef));
+            knownRemotePlayerIds.delete(id);
+          }
+        });
+
+        // 4. Subcolección de Convocatorias (clubs/default_club/convocations/{convId})
+        const activeConvIds = new Set();
+        (stateData.convocations || []).forEach(c => {
+          if (!c || !c.id) return;
+          activeConvIds.add(c.id);
+          knownRemoteConvIds.add(c.id);
+          const cRef = clubRef.collection('convocations').doc(c.id);
+          batchOps.push(batch => batch.set(cRef, cleanUndefined(c), { merge: true }));
+        });
+        knownRemoteConvIds.forEach(id => {
+          if (!activeConvIds.has(id)) {
+            const cRef = clubRef.collection('convocations').doc(id);
+            batchOps.push(batch => batch.delete(cRef));
+            knownRemoteConvIds.delete(id);
+          }
+        });
+
+        // 5. Subcolección de Sesiones (clubs/default_club/sessions/{sessionId})
+        const activeSessIds = new Set();
+        (stateData.sessions || []).forEach(s => {
+          if (!s || !s.id) return;
+          activeSessIds.add(s.id);
+          knownRemoteSessionIds.add(s.id);
+          const sRef = clubRef.collection('sessions').doc(s.id);
+          batchOps.push(batch => batch.set(sRef, cleanUndefined(s), { merge: true }));
+        });
+        knownRemoteSessionIds.forEach(id => {
+          if (!activeSessIds.has(id)) {
+            const sRef = clubRef.collection('sessions').doc(id);
+            batchOps.push(batch => batch.delete(sRef));
+            knownRemoteSessionIds.delete(id);
+          }
+        });
+
+        // 6. Ejecutar en lotes atómicos seguros (máx 400 escrituras por commit)
+        await commitBatchOperations(batchOps);
 
         isSyncing = false;
         this.lastError = null;
@@ -200,7 +302,7 @@
       } catch (err) {
         isSyncing = false;
         this.lastError = err && err.message ? err.message : String(err);
-        console.error('[Cloud] Error subiendo estado del entrenador:', err);
+        console.error('[Cloud] Error subiendo estado modular del entrenador:', err);
         this._notifyStatus('error', this.lastError);
         return false;
       }
@@ -273,28 +375,112 @@
        2. FUNCIONES PARA LOS JUGADORES (PORTAL JUGADOR / PWA)
        ------------------------------------------------------------- */
 
-    // Carga o escucha el estado publicado por el entrenador en tiempo real
+    // Carga o escucha el estado publicado por el entrenador en tiempo real desde subcolecciones modulares
     listenToClubState: function (onStateUpdate) {
       if (!this.init()) return null;
 
       try {
-        if (stateUnsubscribe) stateUnsubscribe();
+        if (stateUnsubscribe) {
+          try { stateUnsubscribe(); } catch (e) {}
+          stateUnsubscribe = null;
+        }
 
-        stateUnsubscribe = db.collection('clubs').doc(CLUB_ID)
-          .onSnapshot((doc) => {
-            if (doc.exists) {
-              const data = doc.data();
-              if (typeof onStateUpdate === 'function') {
-                onStateUpdate(data);
-              }
-            }
-          }, (error) => {
-            console.error('[Cloud] Error escuchando datos del club:', error);
+        const clubRef = db.collection('clubs').doc(CLUB_ID);
+
+        let currentRootData = null;
+        let currentPlayers = [];
+        let currentConvocations = [];
+        let currentSessions = [];
+
+        function emitCombinedState() {
+          if (typeof onStateUpdate !== 'function') return;
+          const root = currentRootData || {};
+          const hasSubPlayers = Array.isArray(currentPlayers) && currentPlayers.length > 0;
+          const hasSubConvs = Array.isArray(currentConvocations) && currentConvocations.length > 0;
+          const hasSubSessions = Array.isArray(currentSessions) && currentSessions.length > 0;
+
+          const combined = {
+            settings: root.settings || {
+              lang: 'es',
+              clubName: 'Jõhvi JK Noova',
+              convocatoriaWebUrl: '',
+              forceCachePurgeTimestamp: 0
+            },
+            coachProfile: root.coachProfile || {},
+            teams: root.teams || [],
+            recurringSchedules: root.recurringSchedules || [],
+            players: hasSubPlayers ? currentPlayers : (root.players || []),
+            convocations: hasSubConvs ? currentConvocations : (root.convocations || []),
+            sessions: hasSubSessions ? currentSessions : (root.sessions || []),
+            updatedAt: root.updatedAt || null,
+            clientTime: root.clientTime || Date.now(),
+            schemaVersion: 2
+          };
+
+          onStateUpdate(combined);
+        }
+
+        // 1. Listener del Documento Raíz (Configuraciones, Perfil, Equipos y Horarios)
+        const rootUnsub = clubRef.onSnapshot((doc) => {
+          if (doc.exists) {
+            currentRootData = doc.data();
+            emitCombinedState();
+          }
+        }, (err) => {
+          console.error('[Cloud] Error escuchando doc raíz del club:', err);
+        });
+
+        // 2. Listener de la Subcolección de Jugadores
+        const playersUnsub = clubRef.collection('players').onSnapshot((snapshot) => {
+          const list = [];
+          snapshot.forEach(doc => {
+            const data = doc.data();
+            if (data && data.id) list.push(data);
           });
+          currentPlayers = list;
+          emitCombinedState();
+        }, (err) => {
+          console.warn('[Cloud] Error escuchando subcolección players:', err);
+        });
+
+        // 3. Listener de la Subcolección de Convocatorias
+        const convsUnsub = clubRef.collection('convocations').onSnapshot((snapshot) => {
+          const list = [];
+          snapshot.forEach(doc => {
+            const data = doc.data();
+            if (data && data.id) list.push(data);
+          });
+          list.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+          currentConvocations = list;
+          emitCombinedState();
+        }, (err) => {
+          console.warn('[Cloud] Error escuchando subcolección convocations:', err);
+        });
+
+        // 4. Listener de la Subcolección de Sesiones (Partidos y Entrenamientos)
+        const sessionsUnsub = clubRef.collection('sessions').onSnapshot((snapshot) => {
+          const list = [];
+          snapshot.forEach(doc => {
+            const data = doc.data();
+            if (data && data.id) list.push(data);
+          });
+          list.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.createdAt || 0) - (a.createdAt || 0));
+          currentSessions = list;
+          emitCombinedState();
+        }, (err) => {
+          console.warn('[Cloud] Error escuchando subcolección sessions:', err);
+        });
+
+        stateUnsubscribe = function unsubscribeAll() {
+          try { if (rootUnsub) rootUnsub(); } catch (e) {}
+          try { if (playersUnsub) playersUnsub(); } catch (e) {}
+          try { if (convsUnsub) convsUnsub(); } catch (e) {}
+          try { if (sessionsUnsub) sessionsUnsub(); } catch (e) {}
+        };
 
         return stateUnsubscribe;
       } catch (err) {
-        console.error('[Cloud] Error configurando listener de estado:', err);
+        console.error('[Cloud] Error configurando listeners de estado modular:', err);
         return null;
       }
     },
