@@ -425,6 +425,48 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public void openMaps(final String query) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    if (query == null || query.trim().isEmpty()) return;
+                    try {
+                        String cleanQuery = query.trim();
+                        Uri gmmIntentUri = Uri.parse("geo:0,0?q=" + Uri.encode(cleanQuery));
+                        Intent mapIntent = new Intent(Intent.ACTION_VIEW, gmmIntentUri);
+                        mapIntent.setPackage("com.google.android.apps.maps");
+                        mapIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        try {
+                            startActivity(mapIntent);
+                            return;
+                        } catch (Exception exNoMapsApp) {
+                            try {
+                                mapIntent.setPackage(null);
+                                startActivity(mapIntent);
+                                return;
+                            } catch (Exception exNoGeo) {
+                                Uri webUri = Uri.parse("https://www.google.com/maps/search/?api=1&query=" + Uri.encode(cleanQuery));
+                                Intent webIntent = new Intent(Intent.ACTION_VIEW, webUri);
+                                webIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                                startActivity(webIntent);
+                            }
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error abriendo mapa: " + query, e);
+                        try {
+                            Uri webUri = Uri.parse("https://www.google.com/maps/search/?api=1&query=" + Uri.encode(query.trim()));
+                            Intent webIntent = new Intent(Intent.ACTION_VIEW, webUri);
+                            webIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            startActivity(webIntent);
+                        } catch (Exception ignored) {
+                            Toast.makeText(MainActivity.this, "No se pudo abrir el mapa", Toast.LENGTH_SHORT).show();
+                        }
+                    }
+                }
+            });
+        }
+
+        @JavascriptInterface
         public void requestNotificationPermission() {
             if (Build.VERSION.SDK_INT >= 33) {
                 runOnUiThread(new Runnable() {
@@ -626,8 +668,87 @@ public class MainActivity extends Activity {
                 String scheme = uri.getScheme();
                 String host = uri.getHost();
 
-                if ("whatsapp".equalsIgnoreCase(scheme) || "intent".equalsIgnoreCase(scheme)
-                    || "viber".equalsIgnoreCase(scheme) || "tg".equalsIgnoreCase(scheme)
+                // 1. Manejar intent:// (ej. redirecciones desde la web hacia Google Maps u otras apps)
+                if ("intent".equalsIgnoreCase(scheme)) {
+                    try {
+                        Intent intent = Intent.parseUri(uri.toString(), Intent.URI_INTENT_SCHEME);
+                        if (intent != null) {
+                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            try {
+                                startActivity(intent);
+                                return true;
+                            } catch (Exception exNoAct) {
+                                String fallbackUrl = intent.getStringExtra("browser_fallback_url");
+                                if (fallbackUrl != null && !fallbackUrl.isEmpty()) {
+                                    Intent fallbackIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(fallbackUrl));
+                                    fallbackIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                                    startActivity(fallbackIntent);
+                                    return true;
+                                }
+                                if ("com.google.android.apps.maps".equals(intent.getPackage())) {
+                                    Uri dataUri = intent.getData();
+                                    if (dataUri != null) {
+                                        Intent directIntent = new Intent(Intent.ACTION_VIEW, dataUri);
+                                        directIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                                        startActivity(directIntent);
+                                        return true;
+                                    }
+                                }
+                            }
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error procesando intent:// URI: " + uri, e);
+                    }
+                    return true;
+                }
+
+                // 2. Manejar geo:
+                if ("geo".equalsIgnoreCase(scheme)) {
+                    try {
+                        Intent mapIntent = new Intent(Intent.ACTION_VIEW, uri);
+                        mapIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        try {
+                            mapIntent.setPackage("com.google.android.apps.maps");
+                            startActivity(mapIntent);
+                            return true;
+                        } catch (Exception ex) {
+                            mapIntent.setPackage(null);
+                            startActivity(mapIntent);
+                            return true;
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error abriendo geo URI: " + uri, e);
+                    }
+                    return true;
+                }
+
+                // 3. Manejar URLs web directas de Google Maps (maps.google.com, google.com/maps, maps.app.goo.gl)
+                boolean isGoogleMaps = host != null && (
+                    host.contains("maps.google.") ||
+                    host.contains("maps.app.goo.gl") ||
+                    (host.contains("google.") && uri.getPath() != null && uri.getPath().startsWith("/maps"))
+                );
+                if (isGoogleMaps) {
+                    try {
+                        Intent mapIntent = new Intent(Intent.ACTION_VIEW, uri);
+                        mapIntent.setPackage("com.google.android.apps.maps");
+                        mapIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        try {
+                            startActivity(mapIntent);
+                            return true;
+                        } catch (Exception ex) {
+                            mapIntent.setPackage(null);
+                            startActivity(mapIntent);
+                            return true;
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error abriendo enlace Maps: " + uri, e);
+                    }
+                    return true;
+                }
+
+                // 4. Mensajería externa, llamadas y correos
+                if ("whatsapp".equalsIgnoreCase(scheme) || "viber".equalsIgnoreCase(scheme) || "tg".equalsIgnoreCase(scheme)
                     || "tel".equalsIgnoreCase(scheme) || "mailto".equalsIgnoreCase(scheme)
                     || ("https".equalsIgnoreCase(scheme) && host != null && (host.contains("whatsapp.com") || host.contains("wa.me") || host.contains("t.me") || host.contains("viber.com")))) {
                     try {

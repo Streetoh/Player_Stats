@@ -1606,6 +1606,9 @@
      INICIALIZACIÓN Y NAVEGACIÓN
      ========================================================= */
   function init() {
+    if (window.Store && window.Store.autoCreateTodayScheduledSessions) {
+      window.Store.autoCreateTodayScheduledSessions();
+    }
     renderTabbar();
     autoSeedIfEmpty();
     navigate('home');
@@ -1935,6 +1938,9 @@
   };
 
   function renderHomeView(view) {
+    if (window.Store && window.Store.autoCreateTodayScheduledSessions) {
+      window.Store.autoCreateTodayScheduledSessions();
+    }
     const totalPlayers = Store.state.players.length;
     const totalTrainings = Store.state.sessions.filter(s => s.type === 'training').length;
     const totalMatches = Store.state.sessions.filter(s => s.type === 'match').length;
@@ -3123,9 +3129,12 @@
     const otherSlotIndex = targetSlotIndex === 0 ? 1 : 0;
     const currentSlots = session.slots || [null, null];
     const otherPlayerId = currentSlots[otherSlotIndex];
-    const teamFilter = session.teamId || 'all';
+    const sessionTeams = Array.isArray(session.teamIds) && session.teamIds.length > 0
+      ? session.teamIds
+      : (session.teamId ? [session.teamId] : []);
+    const defaultTeamFilter = sessionTeams.length > 1 ? sessionTeams : (sessionTeams[0] || 'all');
 
-    let players = Store.sortedPlayers(teamFilter);
+    let players = Store.sortedPlayers(defaultTeamFilter);
 
     openSheet(t('selectPlayer'), (body) => {
       body.innerHTML = `
@@ -3135,9 +3144,12 @@
         </div>
 
         <div class="chips" id="picker-team-chips" style="margin-bottom: 14px;">
-          <button class="chip ${teamFilter === 'all' ? 'active' : ''}" data-team="all">${t('all')}</button>
+          ${sessionTeams.length > 1 ? `
+            <button class="chip active" data-team="session_teams">🛡️ Equipos sesión (${sessionTeams.length})</button>
+          ` : ''}
+          <button class="chip ${sessionTeams.length <= 1 && defaultTeamFilter === 'all' ? 'active' : ''}" data-team="all">${t('all')}</button>
           ${Store.state.teams.map(t => `
-            <button class="chip ${teamFilter === t.id ? 'active' : ''}" data-team="${t.id}">
+            <button class="chip ${sessionTeams.length <= 1 && defaultTeamFilter === t.id ? 'active' : ''}" data-team="${t.id}">
               <span class="dot" style="background: ${t.color}"></span>
               ${escapeHtml(t.name)}
             </button>
@@ -3151,7 +3163,7 @@
 
       const searchInput = body.querySelector('#picker-search-input');
       const grid = body.querySelector('#picker-players-grid');
-      let currentFilterTeam = teamFilter;
+      let currentFilterTeam = defaultTeamFilter;
 
       function updateGrid() {
         const query = searchInput.value.toLowerCase().trim();
@@ -3173,7 +3185,8 @@
         c.onclick = () => {
           body.querySelectorAll('#picker-team-chips .chip').forEach(x => x.classList.remove('active'));
           c.classList.add('active');
-          currentFilterTeam = c.getAttribute('data-team');
+          const tVal = c.getAttribute('data-team');
+          currentFilterTeam = (tVal === 'session_teams') ? sessionTeams : tVal;
           updateGrid();
         };
       });
@@ -4952,6 +4965,9 @@
      VISTA 2: SESIONES / HISTORIAL
      ========================================================= */
   function renderHistoryView(view) {
+    if (window.Store && window.Store.autoCreateTodayScheduledSessions) {
+      window.Store.autoCreateTodayScheduledSessions();
+    }
     let filter = 'all';
 
     function build() {
@@ -5321,20 +5337,30 @@
       ...(s.slots || []).filter(Boolean)
     ]);
 
-    let defaultTeamId = s.teamId || null;
-    if (!defaultTeamId && trackedPlayerIds.size > 0) {
+    const sessionTeams = Array.isArray(s.teamIds) && s.teamIds.length > 0
+      ? s.teamIds
+      : (s.teamId ? [s.teamId] : []);
+
+    let defaultTeamFilter = sessionTeams.length > 1 ? 'session_teams' : (sessionTeams[0] || 'all');
+    if (defaultTeamFilter === 'all' && trackedPlayerIds.size > 0) {
       for (const pid of trackedPlayerIds) {
         const p = Store.player(pid);
-        if (p && p.teamId) { defaultTeamId = p.teamId; break; }
+        if (p && p.teamId) { defaultTeamFilter = p.teamId; break; }
       }
     }
 
-    let selectedTeamFilter = defaultTeamId || 'all';
+    let selectedTeamFilter = defaultTeamFilter;
 
     openSheet(Store.sessionTitle(s), (body) => {
       function renderSquadContent() {
         const teams = Store.state.teams || [];
-        const filteredPlayers = allPlayers.filter(p => selectedTeamFilter === 'all' || p.teamId === selectedTeamFilter);
+        const filteredPlayers = allPlayers.filter(p => {
+          if (selectedTeamFilter === 'session_teams') {
+            return sessionTeams.length > 0 ? sessionTeams.includes(p.teamId) : true;
+          }
+          if (selectedTeamFilter === 'all') return true;
+          return p.teamId === selectedTeamFilter;
+        });
         const sortedSquad = filteredPlayers.slice().sort((a, b) => {
           const aTracked = trackedPlayerIds.has(a.id) ? 1 : 0;
           const bTracked = trackedPlayerIds.has(b.id) ? 1 : 0;
@@ -5425,6 +5451,9 @@
             <div style="margin-bottom: 10px;">
               <label style="font-size: 11.5px; font-weight: 700; color: var(--muted); margin-bottom: 4px; display: block;">Equipo del partido:</label>
               <select id="session-team-filter" style="width: 100%; font-weight: 800; font-size: 13.5px; padding: 8px 10px; border-radius: 10px;">
+                ${sessionTeams.length > 1 ? `
+                  <option value="session_teams" ${selectedTeamFilter === 'session_teams' ? 'selected' : ''}>🛡️ Equipos de la sesión (${sessionTeams.map(tid => { const tm = Store.team(tid); return tm ? tm.name : ''; }).filter(Boolean).join(' + ')})</option>
+                ` : ''}
                 <option value="all" ${selectedTeamFilter === 'all' ? 'selected' : ''}>Todos los jugadores (${allPlayers.length})</option>
                 ${teams.map(tm => `
                   <option value="${tm.id}" ${selectedTeamFilter === tm.id ? 'selected' : ''}>${escapeHtml(tm.name)}</option>
@@ -7446,7 +7475,7 @@
               </button>
             </div>
             ${conv.venue ? `<div>📍 <b>Lugar / Campo:</b> ${escapeHtml(conv.venue)}</div>` : ''}
-            ${conv.address ? `<div>🗺️ <b>Dirección:</b> ${escapeHtml(conv.address)} <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(conv.address)}" target="_blank" style="color: var(--cyan); text-decoration: underline; margin-left: 6px; font-weight: 700;">(Ver Mapa ↗)</a></div>` : ''}
+            ${conv.address ? `<div>🗺️ <b>Dirección:</b> ${escapeHtml(conv.address)} <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(conv.address)}" target="_blank" onclick="window.openLocationInMaps('${escapeHtml(conv.address)}'); return false;" style="color: var(--cyan); text-decoration: underline; margin-left: 6px; font-weight: 700;">(Ver Mapa ↗)</a></div>` : ''}
             ${conv.rival ? `<div>⚔️ <b>Rival:</b> ${escapeHtml(conv.rival)}</div>` : ''}
             ${conv.notes ? `<div style="margin-top: 4px; color: var(--muted);">📝 <b>Notas:</b> ${escapeHtml(conv.notes)}</div>` : ''}
           </div>
@@ -8859,7 +8888,7 @@
             <div id="sched-day-times-container" style="display: flex; flex-direction: column; gap: 10px;"></div>
           </div>
 
-          <div class="field-row">
+          <div class="schedule-dates-stack" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px;">
             ${renderDatePickerFieldHtml('sched-start-date', existing && existing.startDate ? existing.startDate : new Date().toISOString().slice(0, 10), '🗓️ ' + t('startDate', 'Fecha Desde'))}
             ${renderDatePickerFieldHtml('sched-end-date', existing && existing.endDate ? existing.endDate : new Date(Date.now() + 30*86400000).toISOString().slice(0, 10), '🗓️ ' + t('endDate', 'Fecha Hasta'))}
           </div>
@@ -9189,6 +9218,10 @@
             endDate: endDate,
             active: existing ? existing.active : true
           });
+
+          if (Store.autoCreateTodayScheduledSessions) {
+            Store.autoCreateTodayScheduledSessions();
+          }
 
           if (window.Cloud && window.Cloud.pushCoachState) {
             window.Cloud.pushCoachState(Store.state, true);
@@ -10185,6 +10218,20 @@
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
   }
+
+  window.openLocationInMaps = function (query) {
+    if (!query) return;
+    if (window.AndroidBridge && window.AndroidBridge.openMaps) {
+      try {
+        window.AndroidBridge.openMaps(query);
+        return;
+      } catch (e) {
+        console.error('Error abriendo mapa nativo:', e);
+      }
+    }
+    const url = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(query);
+    window.open(url, '_blank');
+  };
 
   window.__showCoachProfile = function () {
     showEditCoachProfileModal();

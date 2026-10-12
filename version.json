@@ -1,5 +1,5 @@
 {
-  "version": "2026.10.12.10",
-  "buildTime": 1791817000000,
-  "description": "Coach app: Fixed recurring days mapping, auto-delete future trainings on schedule removal, and collapsible past trainings section"
+  "version": "2026.10.13.1",
+  "buildTime": 1791823300000,
+  "description": "Fix date inputs layout, player short names in training squad, auto-create today scheduled sessions, and native Google Maps opening"
 }

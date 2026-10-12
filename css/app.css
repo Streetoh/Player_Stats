@@ -1119,48 +1119,64 @@ button { font-family: inherit; color: inherit; border: 0; background: none; curs
   align-items: center;
   gap: 8px;
   width: 100%;
+  min-width: 0;
 }
 .date-picker-input-wrapper {
   position: relative;
   flex: 1;
+  min-width: 0;
 }
 .date-picker-input-wrapper input {
   width: 100%;
-  padding-right: 36px;
+  min-width: 0;
+  box-sizing: border-box;
+  padding-right: 32px;
+  padding-left: 10px;
   font-weight: 700;
   letter-spacing: 0.5px;
-  font-size: 15px;
+  font-size: 14.5px;
+  text-overflow: clip;
 }
 .date-picker-icon {
   position: absolute;
-  right: 12px;
+  right: 10px;
   top: 50%;
   transform: translateY(-50%);
   font-size: 15px;
   color: var(--cyan);
   cursor: pointer;
-  padding: 4px;
+  padding: 2px;
 }
 .btn-open-calendar {
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 48px;
-  padding: 0 14px;
+  height: 44px;
+  padding: 0 12px;
   border-radius: 12px;
   background: var(--surface2);
   border: 1px solid var(--border);
   color: var(--text);
   font-weight: 700;
-  font-size: 13.5px;
+  font-size: 13px;
   cursor: pointer;
+  white-space: nowrap;
   transition: all 0.15s;
 }
 .btn-open-calendar:active {
   transform: scale(0.96);
   background: var(--surface3);
 }
+
+@media (max-width: 440px) {
+  .btn-open-calendar {
+    padding: 0 9px;
+    font-size: 12px;
+    gap: 4px;
+  }
+}
+
 
 /* Modal del Calendario Visual */
 .calendar-modal {

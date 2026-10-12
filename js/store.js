@@ -265,9 +265,13 @@
       return [p.name, p.lastName].filter(Boolean).join(' ') || p.nickname || '—';
     },
 
-    sortedPlayers(teamId) {
+    sortedPlayers(teamFilter) {
       return this.state.players
-        .filter(p => !teamId || teamId === 'all' || p.teamId === teamId)
+        .filter(p => {
+          if (!teamFilter || teamFilter === 'all') return true;
+          if (Array.isArray(teamFilter)) return teamFilter.includes(p.teamId);
+          return p.teamId === teamFilter;
+        })
         .slice()
         .sort((a, b) => {
           const da = parseInt(a.mainDorsal, 10), db = parseInt(b.mainDorsal, 10);
@@ -1072,6 +1076,95 @@
         this.save();
       }
       return generatedCount;
+    },
+
+    autoCreateTodayScheduledSessions() {
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, '0');
+      const d = String(now.getDate()).padStart(2, '0');
+      const todayStr = `${y}-${m}-${d}`;
+
+      this.state.sessions = Array.isArray(this.state.sessions) ? this.state.sessions : [];
+      this.state.convocations = Array.isArray(this.state.convocations) ? this.state.convocations : [];
+
+      // Asegurar que las convocatorias recurrentes estén generadas hasta la fecha
+      if (this.state.recurringSchedules && this.state.recurringSchedules.length > 0) {
+        this.generateRecurringConvocations(30);
+      }
+
+      const todayTrainings = this.state.convocations.filter(c => c.date === todayStr && c.type === 'training');
+      if (!todayTrainings.length) return 0;
+
+      let createdCount = 0;
+
+      todayTrainings.forEach(c => {
+        const targetTeamIds = Array.isArray(c.teamIds) && c.teamIds.length > 0
+          ? c.teamIds
+          : (c.teamId ? [c.teamId] : []);
+        const targetTeamsSortedStr = targetTeamIds.slice().sort().join(',');
+
+        // Comprobar si ya existe una sesión en el menú sesiones vinculada a este entrenamiento de hoy
+        const exists = this.state.sessions.some(s => {
+          if (s.convocationId && s.convocationId === c.id) return true;
+          if (c.sessionId && s.id === c.sessionId) return true;
+          if (s.scheduleId && c.scheduleId && s.scheduleId === c.scheduleId && s.date === c.date) return true;
+          // Misma fecha, tipo entrenamiento y mismos equipos
+          if (s.date === c.date && s.type === 'training') {
+            const sTeams = Array.isArray(s.teamIds) && s.teamIds.length > 0 ? s.teamIds : (s.teamId ? [s.teamId] : []);
+            const sTeamsSortedStr = sTeams.slice().sort().join(',');
+            if (sTeamsSortedStr === targetTeamsSortedStr) return true;
+          }
+          return false;
+        });
+
+        if (!exists) {
+          const autoTitle = c.title || (targetTeamIds.length > 1
+            ? 'Entrenamiento (' + targetTeamIds.map(tid => { const tm = this.team(tid); return tm ? tm.name : ''; }).filter(Boolean).join(' / ') + ')'
+            : (targetTeamIds[0] && this.team(targetTeamIds[0]) ? 'Entrenamiento ' + this.team(targetTeamIds[0]).name : 'Entrenamiento'));
+
+          const newSession = {
+            id: uid('s'),
+            convocationId: c.id,
+            scheduleId: c.scheduleId || '',
+            type: 'training',
+            date: c.date,
+            time: c.time || '18:00',
+            endTime: c.endTime || '',
+            duration: c.duration || 90,
+            createdAt: Date.now(),
+            title: autoTitle,
+            rival: '',
+            venue: c.venue || '',
+            address: c.address || '',
+            teamId: targetTeamIds[0] || '',
+            teamIds: targetTeamIds,
+            notes: c.notes || '',
+            status: 'active',
+            elapsedMs: 0,
+            timerStartedAt: null,
+            slots: [null, null],
+            enabledStats: null,
+            score: { home: 0, away: 0 },
+            period: 'B1',
+            zones: [],
+            stats: {},
+            log: []
+          };
+
+          c.sessionId = newSession.id;
+          this.state.sessions.unshift(newSession);
+          createdCount++;
+        }
+      });
+
+      if (createdCount > 0) {
+        this.save();
+        if (window.Cloud && window.Cloud.pushCoachState) {
+          window.Cloud.pushCoachState(this.state, true);
+        }
+      }
+      return createdCount;
     },
 
     fmtTime(ms, session) {

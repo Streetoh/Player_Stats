@@ -1200,6 +1200,38 @@
       .replace(/'/g, '&#039;');
   }
 
+  function formatPlayerShortName(p) {
+    if (!p) return '';
+    const firstName = (p.name || '').trim();
+    const lastName = (p.lastName || '').trim();
+    if (lastName) {
+      const initial = lastName.charAt(0).toUpperCase();
+      return `${firstName} ${initial}.`;
+    }
+    const parts = firstName.split(/\s+/);
+    if (parts.length > 1) {
+      const first = parts[0];
+      const initial = parts[1].charAt(0).toUpperCase();
+      return `${first} ${initial}.`;
+    }
+    return firstName;
+  }
+
+  function openLocationInMaps(query) {
+    if (!query) return;
+    if (window.AndroidBridge && window.AndroidBridge.openMaps) {
+      try {
+        window.AndroidBridge.openMaps(query);
+        return;
+      } catch (e) {
+        console.error('Error abriendo mapa nativo en Portal Jugadores:', e);
+      }
+    }
+    const url = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(query);
+    window.open(url, '_blank');
+  }
+  window.openLocationInMaps = openLocationInMaps;
+
   function getDeviceId() {
     let devId = localStorage.getItem('portal_device_id');
     if (!devId) {
@@ -3063,7 +3095,7 @@
                           ${c.venue ? `📍 <b>${t('venue')}:</b> ${escapeHtml(c.venue)}<br />` : ''}
                           ${c.address ? `
                             🗺️ <b>${t('address')}:</b> ${escapeHtml(c.address)}
-                            <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(c.address)}" target="_blank" onclick="event.stopPropagation();" style="color: var(--cyan); font-weight: 800; text-decoration: underline; margin-left: 4px;">
+                            <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(c.address)}" target="_blank" onclick="event.stopPropagation(); window.openLocationInMaps('${escapeHtml(c.address)}'); return false;" style="color: var(--cyan); font-weight: 800; text-decoration: underline; margin-left: 4px;">
                               ${t('openInMaps')}
                             </a><br />
                           ` : ''}
@@ -3361,11 +3393,11 @@
               <div style="font-size: 12px; color: var(--muted); margin-bottom: 8px;">
                 🗺️ ${escapeHtml(conv.address)}
               </div>
-              <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(conv.address)}" target="_blank" class="btn sm primary" style="display: inline-flex; align-items: center; gap: 6px; height: 32px; font-size: 12px; font-weight: 800; text-decoration: none;">
+              <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(conv.address)}" target="_blank" onclick="window.openLocationInMaps('${escapeHtml(conv.address)}'); return false;" class="btn sm primary" style="display: inline-flex; align-items: center; gap: 6px; height: 32px; font-size: 12px; font-weight: 800; text-decoration: none;">
                 🗺️ ${t('openInMaps')}
               </a>
             ` : (conv.venue ? `
-              <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(conv.venue)}" target="_blank" class="btn sm primary" style="display: inline-flex; align-items: center; gap: 6px; height: 32px; font-size: 12px; font-weight: 800; text-decoration: none;">
+              <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(conv.venue)}" target="_blank" onclick="window.openLocationInMaps('${escapeHtml(conv.venue)}'); return false;" class="btn sm primary" style="display: inline-flex; align-items: center; gap: 6px; height: 32px; font-size: 12px; font-weight: 800; text-decoration: none;">
                 🗺️ ${t('openInMaps')}
               </a>
             ` : `<div style="font-size: 12px; color: var(--muted);">${t('venueNotSpecified')}</div>`)}
@@ -3413,7 +3445,7 @@
                   <div style="display: flex; align-items: center; gap: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; font-size: 11.5px; overflow: hidden;">
                     <span>${statusIcon}</span>
                     <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;">
-                      <b style="color: #fff;">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(p.name || '')}</b>
+                      <b style="color: #fff;">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(formatPlayerShortName(p))}</b>
                     </div>
                   </div>
                 `;
@@ -3607,11 +3639,11 @@
               <div style="font-size: 12px; color: var(--muted); margin-bottom: 8px;">
                 🗺️ ${escapeHtml(conv.address)}
               </div>
-              <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(conv.address)}" target="_blank" class="btn sm primary" style="display: inline-flex; align-items: center; gap: 6px; height: 32px; font-size: 12px; font-weight: 800; text-decoration: none;">
+              <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(conv.address)}" target="_blank" onclick="window.openLocationInMaps('${escapeHtml(conv.address)}'); return false;" class="btn sm primary" style="display: inline-flex; align-items: center; gap: 6px; height: 32px; font-size: 12px; font-weight: 800; text-decoration: none;">
                 🗺️ ${t('openInMaps')}
               </a>
             ` : (conv.venue ? `
-              <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(conv.venue)}" target="_blank" class="btn sm primary" style="display: inline-flex; align-items: center; gap: 6px; height: 32px; font-size: 12px; font-weight: 800; text-decoration: none;">
+              <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(conv.venue)}" target="_blank" onclick="window.openLocationInMaps('${escapeHtml(conv.venue)}'); return false;" class="btn sm primary" style="display: inline-flex; align-items: center; gap: 6px; height: 32px; font-size: 12px; font-weight: 800; text-decoration: none;">
                 🗺️ ${t('openInMaps')}
               </a>
             ` : `<div style="font-size: 12px; color: var(--muted);">${t('venueNotSpecified')}</div>`)}
@@ -3648,7 +3680,7 @@
                   <div style="display: flex; align-items: center; gap: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; font-size: 11.5px; overflow: hidden;">
                     <span>${statusIcon}</span>
                     <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;">
-                      <b style="color: #fff;">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(p.name || '')}</b>
+                      <b style="color: #fff;">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(formatPlayerShortName(p))}</b>
                     </div>
                   </div>
                 `;
