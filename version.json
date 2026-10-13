@@ -1,5 +1,5 @@
 {
-  "version": "2026.10.13.2",
-  "buildTime": 1791825600000,
-  "description": "Fix Estonian attendance translation (Osalen), localize chat search and action sheet modals into ee/en/es, and add luminous glow effect to today's convocations"
+  "version": "2026.10.13.3",
+  "buildTime": 1791829200000,
+  "description": "Fix PWA profile access loss, prevent request spamming with 60s cooldown, persist pending security code verification across app switches, and support Google Family Link"
 }

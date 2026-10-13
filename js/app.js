@@ -979,8 +979,17 @@
   }
 
   function handleIncomingProfileClaimRequests(requests) {
-    pendingProfileClaimRequests = requests || [];
-    const validIds = new Set((requests || []).map(r => r.id));
+    // Deduplicar solicitudes por targetPlayerId, conservando únicamente la más reciente por jugador
+    const latestMap = new Map();
+    (requests || []).forEach(r => {
+      const key = r.targetPlayerId || r.id;
+      if (!latestMap.has(key) || (r.createdAt || 0) > (latestMap.get(key).createdAt || 0)) {
+        latestMap.set(key, r);
+      }
+    });
+    const dedupedRequests = Array.from(latestMap.values());
+    pendingProfileClaimRequests = dedupedRequests;
+    const validIds = new Set(dedupedRequests.map(r => r.id));
 
     let stored = NotifManager.getAll();
     stored = stored.filter(n => {
@@ -989,7 +998,7 @@
     });
     NotifManager.save(stored);
 
-    (requests || []).forEach(cl => {
+    dedupedRequests.forEach(cl => {
       NotifManager.add({
         id: 'claim_' + cl.id,
         type: 'claim_req',
@@ -1003,7 +1012,7 @@
     updateRequestsBadge();
 
     if (!isFirstClaimRequestsSnapshot) {
-      requests.forEach(r => {
+      dedupedRequests.forEach(r => {
         if (!knownProfileClaimRequestIds.has(r.id)) {
           const reqPlayerName = r.targetPlayerName || 'Jugador';
           toast(`🔐 Acceso: ${reqPlayerName} (Código ${r.securityCode})`, 'info', () => showNotificationsCenterModal());
@@ -1017,7 +1026,7 @@
       });
     }
     isFirstClaimRequestsSnapshot = false;
-    knownProfileClaimRequestIds = new Set((requests || []).map(r => r.id));
+    knownProfileClaimRequestIds = new Set(dedupedRequests.map(r => r.id));
   }
 
   window.__handleAppBack = function () {

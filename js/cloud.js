@@ -391,6 +391,9 @@
         let currentPlayers = [];
         let currentConvocations = [];
         let currentSessions = [];
+        let hasReceivedPlayersSnapshot = false;
+        let hasReceivedConvsSnapshot = false;
+        let hasReceivedSessionsSnapshot = false;
 
         function emitCombinedState() {
           if (typeof onStateUpdate !== 'function') return;
@@ -398,6 +401,18 @@
           const hasSubPlayers = Array.isArray(currentPlayers) && currentPlayers.length > 0;
           const hasSubConvs = Array.isArray(currentConvocations) && currentConvocations.length > 0;
           const hasSubSessions = Array.isArray(currentSessions) && currentSessions.length > 0;
+
+          // EVITAR CARRERA: Nunca emitir un array vacío de jugadores si la subcolección aún no ha entregado su snapshot
+          let finalPlayers = null;
+          if (hasSubPlayers) {
+            finalPlayers = currentPlayers;
+          } else if (hasReceivedPlayersSnapshot) {
+            finalPlayers = currentPlayers;
+          } else if (Array.isArray(root.players) && root.players.length > 0) {
+            finalPlayers = root.players;
+          } else {
+            finalPlayers = null; // Aún cargando subcolección
+          }
 
           const combined = {
             settings: root.settings || {
@@ -409,12 +424,13 @@
             coachProfile: root.coachProfile || {},
             teams: root.teams || [],
             recurringSchedules: root.recurringSchedules || [],
-            players: hasSubPlayers ? currentPlayers : (root.players || []),
+            players: finalPlayers !== null ? finalPlayers : (root.players || []),
             convocations: hasSubConvs ? currentConvocations : (root.convocations || []),
             sessions: hasSubSessions ? currentSessions : (root.sessions || []),
             updatedAt: root.updatedAt || null,
             clientTime: root.clientTime || Date.now(),
-            schemaVersion: 2
+            schemaVersion: 2,
+            _playersLoaded: hasReceivedPlayersSnapshot || hasSubPlayers
           };
 
           onStateUpdate(combined);
@@ -432,6 +448,7 @@
 
         // 2. Listener de la Subcolección de Jugadores
         const playersUnsub = clubRef.collection('players').onSnapshot((snapshot) => {
+          hasReceivedPlayersSnapshot = true;
           const list = [];
           snapshot.forEach(doc => {
             const data = doc.data();
@@ -1122,17 +1139,35 @@
        ========================================================= */
     submitProfileClaimRequest: async function (claimData) {
       if (!this.init()) throw new Error('No hay conexión con la nube.');
-      if (!claimData || !claimData.id) throw new Error('Datos de solicitud incompletos.');
+      if (!claimData || (!claimData.id && !claimData.targetPlayerId)) throw new Error('Datos de solicitud incompletos.');
+      // Usar ID determinista por targetPlayerId para garantizar 1 sola solicitud activa por jugador
+      const docId = claimData.id || ('claim_' + claimData.targetPlayerId);
+      claimData.id = docId;
       await db.collection('clubs')
         .doc(CLUB_ID)
         .collection('profile_claim_requests')
-        .doc(claimData.id)
+        .doc(docId)
         .set({
           ...claimData,
           status: 'pending',
           serverTime: global.firebase.firestore.FieldValue.serverTimestamp()
         }, { merge: true });
-      return true;
+      return docId;
+    },
+
+    deleteProfileClaimRequest: async function (reqId) {
+      if (!this.init() || !reqId) return false;
+      try {
+        await db.collection('clubs')
+          .doc(CLUB_ID)
+          .collection('profile_claim_requests')
+          .doc(reqId)
+          .delete();
+        return true;
+      } catch (err) {
+        console.warn('[Cloud] Error eliminando solicitud de acceso:', err);
+        return false;
+      }
     },
 
     listenToProfileClaimRequests: function (callback) {
@@ -1188,6 +1223,7 @@
             status: status,
             resolvedAt: Date.now()
           });
+        // Dejar margen de 5 minutos para que el jugador vuelva de Viber/SMS y reciba 'approved'
         setTimeout(async () => {
           try {
             await db.collection('clubs')
@@ -1196,7 +1232,7 @@
               .doc(reqId)
               .delete();
           } catch (e) {}
-        }, 8000);
+        }, 5 * 60 * 1000);
         return true;
       } catch (err) {
         console.error('[Cloud] Error resolviendo solicitud de acceso a perfil:', err);

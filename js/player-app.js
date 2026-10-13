@@ -16,6 +16,16 @@
   let currentTab = 'convocations';
   let clubData = null;
   let myPlayerId = localStorage.getItem('portal_player_id') || null;
+  if (!myPlayerId) {
+    const backupId = localStorage.getItem('portal_player_id_backup');
+    if (backupId) {
+      myPlayerId = backupId;
+      try {
+        localStorage.setItem('portal_player_id', backupId);
+        localStorage.setItem('portal_player_locked', 'true');
+      } catch (e) {}
+    }
+  }
   let liveVotes = {}; // { [convId]: { [pid]: response } }
   let currentLang = localStorage.getItem('lang') || 'en';
   window.currentLang = currentLang;
@@ -485,7 +495,9 @@
       langChangedToast: 'Language changed to English',
       startTime: 'Start',
       endTime: 'End',
-      duration: 'Duration'
+      duration: 'Duration',
+      claimCooldownWait: 'Please wait {sec}s before requesting another verification code.',
+      downloadApk: 'Download Android App (APK)'
     },
     ee: {
       appName: 'Player stats (Mängija)',
@@ -719,7 +731,9 @@
       langChangedToast: 'Keel muudetud: Eesti keel',
       startTime: 'Algus',
       endTime: 'Lõpp',
-      duration: 'Kestus'
+      duration: 'Kestus',
+      claimCooldownWait: 'Palun oota {sec}s enne uue kinnituskoodi taotlemist.',
+      downloadApk: 'Laadi alla Androidi äpp (APK)'
     },
     es: {
       appName: 'Player stats (Player)',
@@ -953,7 +967,9 @@
       langChangedToast: 'Idioma cambiado a Español',
       startTime: 'Inicio',
       endTime: 'Fin',
-      duration: 'Duración'
+      duration: 'Duración',
+      claimCooldownWait: 'Por favor, espera {sec}s antes de solicitar otro código de verificación.',
+      downloadApk: 'Descargar App Android (APK)'
     }
   };
 
@@ -1829,6 +1845,7 @@
     console.warn('[Portal] Active player profile was deleted by coach.');
     try {
       localStorage.removeItem('portal_player_id');
+      localStorage.removeItem('portal_player_id_backup');
       localStorage.removeItem('portal_player_locked');
       localStorage.removeItem('portal_pending_creation_id');
       localStorage.removeItem('portal_pending_creation_name');
@@ -1878,6 +1895,7 @@
     const oldPid = myPlayerId;
     try {
       localStorage.removeItem('portal_player_id');
+      localStorage.removeItem('portal_player_id_backup');
       localStorage.removeItem('portal_player_locked');
       localStorage.removeItem('portal_player_linked_at');
       localStorage.removeItem('portal_pending_creation_id');
@@ -2236,6 +2254,19 @@
      SOLICITUD DE CAMBIO DE PERFIL (PUNTO 6)
      ------------------------------------------------------------- */
   async function showSelectIdentityModal() {
+    // Si hay una solicitud de acceso pendiente activa en localStorage, mostrar esa directamente
+    const savedClaimJson = localStorage.getItem('portal_pending_claim');
+    if (savedClaimJson) {
+      try {
+        const parsed = JSON.parse(savedClaimJson);
+        if (parsed && parsed.targetPlayerId && (Date.now() - (parsed.createdAt || 0)) < 45 * 60 * 1000) {
+          const pObj = (clubData && clubData.players) ? clubData.players.find(p => p.id === parsed.targetPlayerId) : null;
+          showConfirmIdentitySecurityCodeModal(pObj || { id: parsed.targetPlayerId, name: parsed.targetPlayerName, mainDorsal: parsed.targetPlayerDorsal }, parsed);
+          return;
+        }
+      } catch (e) {}
+    }
+
     if (!clubData || !clubData.players || clubData.players.length === 0) {
       await loadInitialClubData();
     }
@@ -2293,10 +2324,13 @@
           <button type="button" class="btn sm ghost" id="btn-dialog-id-req-creation" style="width: 100%; border: 1.5px dashed var(--cyan); color: var(--cyan); font-weight: 800; font-size: 12px; height: 38px; border-radius: 10px;">
             ${t('requestCoachProfile', '➕ Not on the list? Request registration from coach')}
           </button>
-          <div style="text-align: center; margin-top: 10px;">
+          <div style="text-align: center; margin-top: 10px; display: flex; flex-direction: column; align-items: center; gap: 6px;">
             <button type="button" class="btn sm ghost" id="btn-dialog-id-clear-cache" style="font-size: 11px; opacity: 0.75; color: var(--muted); border: 1px dashed var(--border); padding: 4px 12px; border-radius: 8px;" title="Clear cache and reload latest version">
               ${t('clearCacheBtn', '🔄 Clear App Cache & Refresh')}
             </button>
+            <a href="PlayerStats_Player.apk" download="PlayerStats_Player.apk" style="display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--cyan); text-decoration: none; font-weight: 800; padding: 4px 10px; border-radius: 8px; background: rgba(34, 211, 238, 0.08); border: 1px solid rgba(34, 211, 238, 0.25);">
+              📲 ${t('downloadApk', 'Descargar App Android (APK)')}
+            </a>
           </div>
         </div>
       </div>
@@ -2364,31 +2398,70 @@
   /* -------------------------------------------------------------
      CONFIRMACIÓN CON CÓDIGO DE SEGURIDAD AL RECLAMAR PERFIL
      ------------------------------------------------------------- */
-  function showConfirmIdentitySecurityCodeModal(player) {
-    if (!player) return;
+  function showConfirmIdentitySecurityCodeModal(player, savedClaim) {
+    if (!player && !savedClaim) return;
 
-    // Generar código de seguridad de 3 letras y 3 números (ej. JKN-742)
-    const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-    const digits = '23456789';
-    let codeL = '';
-    for (let i = 0; i < 3; i++) {
-      codeL += letters.charAt(Math.floor(Math.random() * letters.length));
-    }
-    let codeD = '';
-    for (let i = 0; i < 3; i++) {
-      codeD += digits.charAt(Math.floor(Math.random() * digits.length));
-    }
-    const securityCode = `${codeL}-${codeD}`;
+    const isResuming = Boolean(savedClaim);
+    const pId = player ? player.id : (savedClaim ? savedClaim.targetPlayerId : null);
+    if (!pId) return;
 
-    const claimReqId = 'claim_' + player.id + '_' + Date.now().toString(36);
+    // Cooldown de 60 segundos si es una NUEVA solicitud (evita spam de solicitudes consecutivas)
+    if (!isResuming) {
+      const lastClaimTime = parseInt(localStorage.getItem('portal_last_claim_timestamp') || '0', 10);
+      const elapsed = Date.now() - lastClaimTime;
+      if (elapsed < 60000) {
+        const waitSec = Math.ceil((60000 - elapsed) / 1000);
+        toast(t('claimCooldownWait', 'Por favor, espera {sec}s antes de solicitar otro código.').replace('{sec}', waitSec), 'warning');
+        haptic(30);
+        return;
+      }
+    }
+
+    let securityCode = '';
+    if (isResuming && savedClaim.securityCode) {
+      securityCode = savedClaim.securityCode;
+    } else {
+      // Generar código de seguridad de 3 letras y 3 números (ej. JKN-742)
+      const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+      const digits = '23456789';
+      let codeL = '';
+      for (let i = 0; i < 3; i++) {
+        codeL += letters.charAt(Math.floor(Math.random() * letters.length));
+      }
+      let codeD = '';
+      for (let i = 0; i < 3; i++) {
+        codeD += digits.charAt(Math.floor(Math.random() * digits.length));
+      }
+      securityCode = `${codeL}-${codeD}`;
+    }
+
+    // ID determinista para que no se dupliquen solicitudes en Firestore
+    const claimReqId = 'claim_' + pId;
     let claimUnsub = null;
+
+    const pName = savedClaim ? (savedClaim.targetPlayerName || '') : `${player.name || ''} ${player.lastName || ''}`.trim();
+    const pDorsalVal = (player && player.mainDorsal != null) ? player.mainDorsal : (savedClaim ? savedClaim.targetPlayerDorsal : null);
+    const pDorsal = pDorsalVal != null ? `#${pDorsalVal}` : '';
+    const team = (player && clubData && clubData.teams) ? clubData.teams.find(t => t.id === player.teamId) : null;
+
+    // Guardar solicitud pendiente en localStorage para que NO se pierda al salir de la app (ej. abrir Viber/WhatsApp)
+    const pendingClaimData = {
+      id: claimReqId,
+      targetPlayerId: pId,
+      targetPlayerName: pName,
+      targetPlayerDorsal: pDorsalVal,
+      securityCode: securityCode,
+      createdAt: (isResuming && savedClaim.createdAt) ? savedClaim.createdAt : Date.now()
+    };
+    try {
+      localStorage.setItem('portal_pending_claim', JSON.stringify(pendingClaimData));
+      if (!isResuming) {
+        localStorage.setItem('portal_last_claim_timestamp', String(Date.now()));
+      }
+    } catch (e) {}
 
     const overlay = document.createElement('div');
     overlay.className = 'dialog-overlay';
-
-    const pName = `${player.name || ''} ${player.lastName || ''}`.trim();
-    const pDorsal = player.mainDorsal != null ? `#${player.mainDorsal}` : '';
-    const team = clubData.teams ? clubData.teams.find(t => t.id === player.teamId) : null;
 
     overlay.innerHTML = `
       <div class="dialog-box" style="max-height: 88vh; width: 92%; max-width: 440px; padding: 22px 18px; text-align: center;">
@@ -2398,18 +2471,18 @@
           ${t('confirmPlayerIdentity', 'Confirm Identity')}
         </h3>
         <p style="margin: 0 0 16px; font-size: 13.5px; color: var(--cyan); font-weight: 800;">
-          ${t('areYouPlayer', 'Are you {name}?').replace('{name}', pName)}
+          ${t('areYouPlayer', 'Are you {name}?').replace('{name}', escapeHtml(pName))}
         </p>
 
         <!-- Tarjeta del jugador seleccionado -->
         <div style="display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 12px; background: var(--surface2); border: 1px solid var(--border); margin-bottom: 16px; text-align: left;">
-          ${renderAvatar(player, 'md')}
+          ${player ? renderAvatar(player, 'md') : '<div style="width:40px;height:40px;border-radius:50%;background:#0284c7;display:flex;align-items:center;justify-content:center;font-weight:900;">⚽</div>'}
           <div style="flex: 1; overflow: hidden;">
             <b style="font-size: 15px; color: #fff; display: block;" class="ellipsis">
               ${pDorsal} ${escapeHtml(pName)}
             </b>
             <small style="color: var(--muted); font-size: 12px;">
-              ${formatPosition(player.mainPosition)} ${team ? '• ' + escapeHtml(team.name) : ''}
+              ${player ? formatPosition(player.mainPosition) : ''} ${team ? '• ' + escapeHtml(team.name) : ''}
             </small>
           </div>
         </div>
@@ -2507,22 +2580,21 @@
     }
 
     overlay.querySelector('#btn-cancel-claim-req').onclick = () => {
+      try {
+        localStorage.removeItem('portal_pending_claim');
+      } catch (e) {}
+      if (window.Cloud && window.Cloud.deleteProfileClaimRequest) {
+        window.Cloud.deleteProfileClaimRequest(claimReqId);
+      }
       close();
       showSelectIdentityModal();
     };
 
     document.body.appendChild(overlay);
 
-    // Enviar solicitud a Firestore
+    // Enviar solicitud a Firestore (o actualizar la existente)
     if (window.Cloud && window.Cloud.submitProfileClaimRequest) {
-      window.Cloud.submitProfileClaimRequest({
-        id: claimReqId,
-        targetPlayerId: player.id,
-        targetPlayerName: pName,
-        targetPlayerDorsal: player.mainDorsal != null ? player.mainDorsal : null,
-        securityCode: securityCode,
-        createdAt: Date.now()
-      }).catch(err => {
+      window.Cloud.submitProfileClaimRequest(pendingClaimData).catch(err => {
         console.error('Error enviando solicitud de acceso:', err);
       });
     }
@@ -2533,16 +2605,21 @@
         if (!data) return;
         if (data.status === 'approved') {
           close();
-          myPlayerId = player.id;
+          myPlayerId = pId;
           try {
-            localStorage.setItem('portal_player_id', player.id);
+            localStorage.removeItem('portal_pending_claim');
+            localStorage.setItem('portal_player_id', pId);
+            localStorage.setItem('portal_player_id_backup', pId);
             localStorage.setItem('portal_player_locked', 'true');
             localStorage.setItem('portal_player_linked_at', String(Date.now()));
           } catch (e) {}
           if (window.Cloud && window.Cloud.clearPlayerUnlink) {
-            window.Cloud.clearPlayerUnlink(player.id);
+            window.Cloud.clearPlayerUnlink(pId);
           }
-          listenToMyUnlink(player.id);
+          if (window.Cloud && window.Cloud.deleteProfileClaimRequest) {
+            window.Cloud.deleteProfileClaimRequest(claimReqId);
+          }
+          listenToMyUnlink(pId);
           haptic(50);
           if (window.ChatUI && window.ChatUI.initGlobalUnreadListener) {
             window.ChatUI.initGlobalUnreadListener(myPlayerId);
@@ -2551,6 +2628,9 @@
           toast(t('profileAccessApproved', '🎉 ¡Acceso autorizado por el entrenador! Ya puedes ver tu perfil.'), 'success');
           renderCurrentTab();
         } else if (data.status === 'rejected') {
+          try {
+            localStorage.removeItem('portal_pending_claim');
+          } catch (e) {}
           close();
           toast(t('profileAccessDenied', '❌ Acceso denegado por el entrenador'), 'error');
           haptic(30);
@@ -5419,7 +5499,7 @@
         }
 
         // Comprobar si el perfil del jugador ha sido eliminado o desvinculado por el entrenador
-        if (myPlayerId && Array.isArray(remoteState.players)) {
+        if (myPlayerId && Array.isArray(remoteState.players) && remoteState.players.length > 0) {
           const isPending = (myPlayerId === localStorage.getItem('portal_pending_creation_id'));
           const myRemoteP = remoteState.players.find(p => p.id === myPlayerId);
           if (!myRemoteP && !isPending) {
@@ -5437,7 +5517,7 @@
           clubData = remoteState;
         } else if (clubData && clubData.players && clubData.players.length > 0) {
           clubData = Object.assign({}, clubData, remoteState, {
-            players: (remoteState.players && Array.isArray(remoteState.players)) ? remoteState.players : clubData.players,
+            players: (remoteState.players && Array.isArray(remoteState.players) && remoteState.players.length > 0) ? remoteState.players : clubData.players,
             teams: (remoteState.teams && remoteState.teams.length > 0) ? remoteState.teams : clubData.teams
           });
         } else {
@@ -5513,10 +5593,35 @@
 
     // 3. Cargar datos locales de respaldo y pedir identidad si aún no la tiene
     loadInitialClubData().then(() => {
-      if (!myPlayerId && clubData && clubData.players && clubData.players.length > 0) {
-        setTimeout(() => {
-          if (!myPlayerId) showSelectIdentityModal();
-        }, 300);
+      if (!myPlayerId) {
+        const savedClaimJson = localStorage.getItem('portal_pending_claim');
+        let activeClaim = null;
+        if (savedClaimJson) {
+          try {
+            const parsed = JSON.parse(savedClaimJson);
+            // Válido durante 45 minutos tras haber sido enviado
+            if (parsed && parsed.targetPlayerId && (Date.now() - (parsed.createdAt || 0)) < 45 * 60 * 1000) {
+              activeClaim = parsed;
+            } else {
+              localStorage.removeItem('portal_pending_claim');
+            }
+          } catch (e) {}
+        }
+
+        if (activeClaim) {
+          const pObj = (clubData && clubData.players) ? clubData.players.find(p => p.id === activeClaim.targetPlayerId) : null;
+          setTimeout(() => {
+            if (!myPlayerId) {
+              showConfirmIdentitySecurityCodeModal(pObj || { id: activeClaim.targetPlayerId, name: activeClaim.targetPlayerName, mainDorsal: activeClaim.targetPlayerDorsal }, activeClaim);
+            }
+          }, 150);
+        } else if (clubData && clubData.players && clubData.players.length > 0) {
+          setTimeout(() => {
+            if (!myPlayerId && !localStorage.getItem('portal_pending_claim')) {
+              showSelectIdentityModal();
+            }
+          }, 300);
+        }
       }
     });
   }
