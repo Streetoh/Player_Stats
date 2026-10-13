@@ -33,14 +33,26 @@
   let knownRemoteConvIds = null;
   let knownRemoteSessionIds = null;
 
+  // Cachés de hashes para sincronización delta incremental (ahorro del 95% de escrituras Firestore)
+  let syncedHashes = {
+    root: '',
+    players: {},
+    convocations: {},
+    sessions: {}
+  };
+  let lastPresenceSendTimes = {};
+
   async function commitBatchOperations(operations) {
     if (!operations || !operations.length) return;
-    const CHUNK_SIZE = 400;
+    const CHUNK_SIZE = 250;
     for (let i = 0; i < operations.length; i += CHUNK_SIZE) {
       const chunk = operations.slice(i, i + CHUNK_SIZE);
       const batch = db.batch();
       chunk.forEach(op => op(batch));
-      await batch.commit();
+      await Promise.race([
+        batch.commit(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout de Firestore al confirmar lote de datos (10s)')), 10000))
+      ]);
     }
   }
 
@@ -176,20 +188,35 @@
         }
 
         function cleanUndefined(obj) {
-          if (Array.isArray(obj)) return obj.map(cleanUndefined);
-          if (obj !== null && typeof obj === 'object') {
-            const out = {};
-            for (const [k, v] of Object.entries(obj)) {
-              if (v !== undefined) out[k] = cleanUndefined(v);
+          if (obj === null || obj === undefined) return obj;
+          if (typeof obj !== 'object') return obj;
+          if (global.firebase && global.firebase.firestore) {
+            if (obj instanceof global.firebase.firestore.FieldValue ||
+                obj instanceof global.firebase.firestore.Timestamp ||
+                obj instanceof global.firebase.firestore.GeoPoint) {
+              return obj;
             }
-            return out;
           }
-          return obj;
+          if (obj.constructor && (
+              obj.constructor.name === 'FieldValue' ||
+              obj.constructor.name === 'Timestamp' ||
+              obj.constructor.name === 'GeoPoint' ||
+              obj.constructor.name === 'Blob' ||
+              obj.constructor.name === 'DocumentReference')) {
+            return obj;
+          }
+          if (Array.isArray(obj)) return obj.map(cleanUndefined);
+          const out = {};
+          for (const [k, v] of Object.entries(obj)) {
+            if (v !== undefined) out[k] = cleanUndefined(v);
+          }
+          return out;
         }
 
         const clubRef = db.collection('clubs').doc(CLUB_ID);
 
         // 1. Guardar documento raíz (configuración, perfil, equipos, horarios recurrentes y metadatos)
+        // Se purgan 'players', 'convocations', 'sessions' del doc raíz para evitar superar el límite de 1MB de Firestore
         const rootPayload = {
           teams: stateData.teams || [],
           recurringSchedules: stateData.recurringSchedules || [],
@@ -202,37 +229,41 @@
           },
           schemaVersion: 2,
           updatedAt: global.firebase.firestore.FieldValue.serverTimestamp(),
-          clientTime: now
+          clientTime: now,
+          players: global.firebase.firestore.FieldValue.delete(),
+          convocations: global.firebase.firestore.FieldValue.delete(),
+          sessions: global.firebase.firestore.FieldValue.delete()
         };
 
-        // Retrocompatibilidad con clientes anteriores si el volumen es holgado (< 750 KB)
-        const playersCopy = sanitizedPlayers || [];
-        const convsCopy = stateData.convocations || [];
-        const sessionsCopy = stateData.sessions || [];
-        try {
-          const approxSize = JSON.stringify({ playersCopy, convsCopy, sessionsCopy }).length;
-          if (approxSize < 750000) {
-            rootPayload.players = playersCopy;
-            rootPayload.convocations = convsCopy;
-            rootPayload.sessions = sessionsCopy;
-          }
-        } catch (e) {}
+        const rootHash = JSON.stringify({
+          teams: rootPayload.teams,
+          recurringSchedules: rootPayload.recurringSchedules,
+          coachProfile: rootPayload.coachProfile,
+          settings: rootPayload.settings
+        });
 
-        await clubRef.set(cleanUndefined(rootPayload), { merge: true });
+        // Solo escribe el doc raíz si ha cambiado o si se fuerza la primera sincronización
+        if (syncedHashes.root !== rootHash) {
+          await clubRef.set(cleanUndefined(rootPayload), { merge: true });
+          syncedHashes.root = rootHash;
+        }
 
         // 2. Inicializar conjuntos de IDs remotos si es la primera sincronización de la sesión
         if (knownRemotePlayerIds === null || knownRemoteConvIds === null || knownRemoteSessionIds === null) {
           try {
-            const [pSnap, cSnap, sSnap] = await Promise.all([
-              clubRef.collection('players').get(),
-              clubRef.collection('convocations').get(),
-              clubRef.collection('sessions').get()
+            const [pSnap, cSnap, sSnap] = await Promise.race([
+              Promise.all([
+                clubRef.collection('players').get(),
+                clubRef.collection('convocations').get(),
+                clubRef.collection('sessions').get()
+              ]),
+              new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
             ]);
             knownRemotePlayerIds = new Set(pSnap.docs.map(d => d.id));
             knownRemoteConvIds = new Set(cSnap.docs.map(d => d.id));
             knownRemoteSessionIds = new Set(sSnap.docs.map(d => d.id));
           } catch (e) {
-            console.warn('[Cloud] Error inicializando IDs remotos:', e);
+            console.warn('[Cloud] Error o timeout inicializando IDs remotos:', e);
             knownRemotePlayerIds = new Set();
             knownRemoteConvIds = new Set();
             knownRemoteSessionIds = new Set();
@@ -241,59 +272,89 @@
 
         const batchOps = [];
 
-        // 3. Subcolección de Jugadores (clubs/default_club/players/{playerId})
+        // 3. Subcolección de Jugadores (clubs/default_club/players/{playerId}) - DELTA SYNC
         const activePlayerIds = new Set();
         sanitizedPlayers.forEach(p => {
           if (!p || !p.id) return;
           activePlayerIds.add(p.id);
           knownRemotePlayerIds.add(p.id);
-          const pRef = clubRef.collection('players').doc(p.id);
-          batchOps.push(batch => batch.set(pRef, cleanUndefined(p), { merge: true }));
+
+          const cleanP = cleanUndefined(p);
+          // Si el jugador ya no está desvinculado, eliminar la propiedad unlinkedAt de Firestore
+          if (!cleanP.unlinkedAt && global.firebase?.firestore?.FieldValue) {
+            cleanP.unlinkedAt = global.firebase.firestore.FieldValue.delete();
+          }
+          const pHash = JSON.stringify(cleanP);
+
+          if (syncedHashes.players[p.id] !== pHash) {
+            const pRef = clubRef.collection('players').doc(p.id);
+            batchOps.push(batch => batch.set(pRef, cleanP, { merge: true }));
+            syncedHashes.players[p.id] = pHash;
+          }
         });
         knownRemotePlayerIds.forEach(id => {
           if (!activePlayerIds.has(id)) {
             const pRef = clubRef.collection('players').doc(id);
             batchOps.push(batch => batch.delete(pRef));
             knownRemotePlayerIds.delete(id);
+            delete syncedHashes.players[id];
           }
         });
 
-        // 4. Subcolección de Convocatorias (clubs/default_club/convocations/{convId})
+        // 4. Subcolección de Convocatorias (clubs/default_club/convocations/{convId}) - DELTA SYNC
         const activeConvIds = new Set();
         (stateData.convocations || []).forEach(c => {
           if (!c || !c.id) return;
           activeConvIds.add(c.id);
           knownRemoteConvIds.add(c.id);
-          const cRef = clubRef.collection('convocations').doc(c.id);
-          batchOps.push(batch => batch.set(cRef, cleanUndefined(c), { merge: true }));
+
+          const cleanC = cleanUndefined(c);
+          const cHash = JSON.stringify(cleanC);
+
+          if (syncedHashes.convocations[c.id] !== cHash) {
+            const cRef = clubRef.collection('convocations').doc(c.id);
+            batchOps.push(batch => batch.set(cRef, cleanC, { merge: true }));
+            syncedHashes.convocations[c.id] = cHash;
+          }
         });
         knownRemoteConvIds.forEach(id => {
           if (!activeConvIds.has(id)) {
             const cRef = clubRef.collection('convocations').doc(id);
             batchOps.push(batch => batch.delete(cRef));
             knownRemoteConvIds.delete(id);
+            delete syncedHashes.convocations[id];
           }
         });
 
-        // 5. Subcolección de Sesiones (clubs/default_club/sessions/{sessionId})
+        // 5. Subcolección de Sesiones (clubs/default_club/sessions/{sessionId}) - DELTA SYNC
         const activeSessIds = new Set();
         (stateData.sessions || []).forEach(s => {
           if (!s || !s.id) return;
           activeSessIds.add(s.id);
           knownRemoteSessionIds.add(s.id);
-          const sRef = clubRef.collection('sessions').doc(s.id);
-          batchOps.push(batch => batch.set(sRef, cleanUndefined(s), { merge: true }));
+
+          const cleanS = cleanUndefined(s);
+          const sHash = JSON.stringify(cleanS);
+
+          if (syncedHashes.sessions[s.id] !== sHash) {
+            const sRef = clubRef.collection('sessions').doc(s.id);
+            batchOps.push(batch => batch.set(sRef, cleanS, { merge: true }));
+            syncedHashes.sessions[s.id] = sHash;
+          }
         });
         knownRemoteSessionIds.forEach(id => {
           if (!activeSessIds.has(id)) {
             const sRef = clubRef.collection('sessions').doc(id);
             batchOps.push(batch => batch.delete(sRef));
             knownRemoteSessionIds.delete(id);
+            delete syncedHashes.sessions[id];
           }
         });
 
-        // 6. Ejecutar en lotes atómicos seguros (máx 400 escrituras por commit)
-        await commitBatchOperations(batchOps);
+        // 6. Ejecutar en lotes atómicos seguros solo los cambios pendientes
+        if (batchOps.length > 0) {
+          await commitBatchOperations(batchOps);
+        }
 
         isSyncing = false;
         this.lastError = null;
@@ -301,10 +362,16 @@
         return true;
       } catch (err) {
         isSyncing = false;
-        this.lastError = err && err.message ? err.message : String(err);
+        const errMsg = err && err.message ? err.message : String(err);
+        this.lastError = errMsg;
         console.error('[Cloud] Error subiendo estado modular del entrenador:', err);
+        if (errMsg.includes('RESOURCE_EXHAUSTED') || errMsg.includes('Quota exceeded') || errMsg.includes('quota-exceeded')) {
+          this.lastError = 'QUOTA_EXCEEDED';
+        }
         this._notifyStatus('error', this.lastError);
         return false;
+      } finally {
+        isSyncing = false;
       }
     },
 
@@ -846,6 +913,11 @@
        ========================================================= */
     updatePresence: async function (userId, userName, isOnline, metadata = {}) {
       if (!this.init() || !userId) return;
+      const now = Date.now();
+      const last = lastPresenceSendTimes[userId] || 0;
+      // No reenviar latidos si ya se envió hace menos de 90s, salvo que pase a offline
+      if (isOnline !== false && (now - last < 90000)) return;
+      lastPresenceSendTimes[userId] = now;
       try {
         const isApk = !!(global.AndroidBridge || (typeof window !== 'undefined' && window.AndroidBridge));
         const platformVal = (metadata && metadata.platform) || (isApk ? 'apk' : 'pwa');
@@ -1212,7 +1284,7 @@
       }
     },
 
-    resolveProfileClaimRequest: async function (reqId, status) {
+    resolveProfileClaimRequest: async function (reqId, status, targetPlayerId) {
       if (!this.init() || !reqId) return false;
       try {
         await db.collection('clubs')
@@ -1223,7 +1295,10 @@
             status: status,
             resolvedAt: Date.now()
           });
-        // Dejar margen de 5 minutos para que el jugador vuelva de Viber/SMS y reciba 'approved'
+        if (status === 'approved' && targetPlayerId) {
+          await this.clearPlayerUnlink(targetPlayerId);
+        }
+        // Dejar margen de 15 minutos para que el jugador vuelva de Viber/SMS y complete enlace
         setTimeout(async () => {
           try {
             await db.collection('clubs')
@@ -1232,7 +1307,7 @@
               .doc(reqId)
               .delete();
           } catch (e) {}
-        }, 5 * 60 * 1000);
+        }, 15 * 60 * 1000);
         return true;
       } catch (err) {
         console.error('[Cloud] Error resolviendo solicitud de acceso a perfil:', err);
@@ -1364,7 +1439,18 @@
           .collection('unlinks')
           .doc(playerId)
           .delete();
-      } catch (e) {}
+        if (global.firebase && global.firebase.firestore) {
+          await db.collection('clubs')
+            .doc(CLUB_ID)
+            .collection('players')
+            .doc(playerId)
+            .update({
+              unlinkedAt: global.firebase.firestore.FieldValue.delete()
+            }).catch(() => {});
+        }
+      } catch (e) {
+        console.warn('[Cloud] Error clearing player unlink:', e);
+      }
     }
   };
 

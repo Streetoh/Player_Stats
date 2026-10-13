@@ -335,6 +335,7 @@
       syncAllNow: 'Sincronizar Todo a la Nube Ahora',
       syncError: 'Error al sincronizar',
       syncErrorFallback: 'Error al sincronizar. Comprueba tu conexión a Internet.',
+      firestoreQuotaExceeded: '⚠️ Límite de cuota gratuita diaria de Firestore alcanzado (20.000 operaciones). Tus datos locales están seguros y se sincronizarán al restablecerse la cuota (00:00 PST / 10:00 hora local).',
       shareSessionDesc: 'Escanea este QR con la otra app para sincronizar estadísticas en vivo:',
 
       // Traducciones añadidas
@@ -869,6 +870,7 @@
       syncAllNow: 'Sync All to Cloud Now',
       syncError: 'Sync error',
       syncErrorFallback: 'Sync error. Please check your internet connection.',
+      firestoreQuotaExceeded: '⚠️ Daily free Firestore quota reached (20,000 operations). Your local data is safe and will sync once quota resets (00:00 PST / 10:00 local time).',
       shareSessionDesc: 'Scan this QR code with the other app to sync stats live:',
 
       // Added translations

@@ -1236,20 +1236,21 @@
             btn.textContent = '...';
             try {
               const reqObj = (pendingProfileClaimRequests || []).find(x => x.id === claimId);
+              const targetPid = reqObj ? reqObj.targetPlayerId : null;
               if (window.Cloud && window.Cloud.resolveProfileClaimRequest) {
-                await window.Cloud.resolveProfileClaimRequest(claimId, 'approved');
+                await window.Cloud.resolveProfileClaimRequest(claimId, 'approved', targetPid);
               }
-              if (reqObj && reqObj.targetPlayerId) {
-                const targetP = Store.player(reqObj.targetPlayerId);
-                if (targetP && targetP.unlinkedAt) {
+              if (targetPid) {
+                const targetP = Store.player(targetPid);
+                if (targetP) {
                   delete targetP.unlinkedAt;
                   Store.save();
-                  if (window.Cloud && window.Cloud.pushCoachState) {
-                    window.Cloud.pushCoachState(Store.state, true);
-                  }
                 }
                 if (window.Cloud && window.Cloud.clearPlayerUnlink) {
-                  await window.Cloud.clearPlayerUnlink(reqObj.targetPlayerId);
+                  await window.Cloud.clearPlayerUnlink(targetPid);
+                }
+                if (window.Cloud && window.Cloud.pushCoachState) {
+                  window.Cloud.pushCoachState(Store.state, true);
                 }
               }
               pendingProfileClaimRequests = pendingProfileClaimRequests.filter(x => x.id !== claimId);
@@ -10122,21 +10123,29 @@
       btnSyncNow.onclick = async () => {
         btnSyncNow.disabled = true;
         btnSyncNow.textContent = '⏳ ' + t('syncing', 'Sincronizando...');
-        if (window.Cloud) {
-          const ok = await window.Cloud.pushCoachState(Store.state, true);
-          if (ok) {
-            toast(t('syncSuccess', '¡Datos sincronizados en la nube en tiempo real!'), 'success');
-          } else {
-            const err = window.Cloud && window.Cloud.lastError;
-            if (err) {
-              toast(t('syncError', 'Error al sincronizar') + ': ' + err, 'error');
+        try {
+          if (window.Cloud) {
+            const ok = await window.Cloud.pushCoachState(Store.state, true);
+            if (ok) {
+              toast(t('syncSuccess', '¡Datos sincronizados en la nube en tiempo real!'), 'success');
             } else {
-              toast(t('syncErrorFallback', 'Error al sincronizar. Comprueba tu conexión a Internet.'), 'warning');
+              const err = window.Cloud && window.Cloud.lastError;
+              if (err === 'QUOTA_EXCEEDED') {
+                toast(t('firestoreQuotaExceeded', '⚠️ Límite de cuota gratuita diaria de Firestore alcanzado (20.000 operaciones). Tus datos locales están seguros y se sincronizarán al restablecerse la cuota (00:00 PST / 10:00).'), 'warning');
+              } else if (err) {
+                toast(t('syncError', 'Error al sincronizar') + ': ' + err, 'error');
+              } else {
+                toast(t('syncErrorFallback', 'Error al sincronizar. Comprueba tu conexión a Internet.'), 'warning');
+              }
             }
           }
+        } catch (err) {
+          console.error('[Cloud] Error en botón sincronizar:', err);
+          toast(t('syncError', 'Error al sincronizar') + ': ' + (err.message || err), 'error');
+        } finally {
+          btnSyncNow.disabled = false;
+          btnSyncNow.textContent = '☁️ ' + t('syncAllNow', 'Sincronizar Todo a la Nube Ahora');
         }
-        btnSyncNow.disabled = false;
-        btnSyncNow.textContent = '☁️ ' + t('syncAllNow', 'Sincronizar Todo a la Nube Ahora');
       };
     }
 

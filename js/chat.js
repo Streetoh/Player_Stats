@@ -675,10 +675,10 @@
       global.Cloud.updatePresence(userId, userName, true);
       if (!window._presenceInterval) {
         window._presenceInterval = setInterval(() => {
-          global.Cloud.updatePresence(userId, userName, !document.hidden);
-        }, 60000);
+          if (!document.hidden) global.Cloud.updatePresence(userId, userName, true);
+        }, 180000);
         document.addEventListener('visibilitychange', () => {
-          global.Cloud.updatePresence(userId, userName, !document.hidden);
+          if (!document.hidden) global.Cloud.updatePresence(userId, userName, true);
         });
         window.addEventListener('pagehide', () => {
           global.Cloud.updatePresence(userId, userName, false);
@@ -2163,7 +2163,7 @@
         if (targetPresenceId) {
           const updatePresenceUI = (pr) => {
             if (!presenceIndicator) return;
-            const isFresh = !!(pr && pr.isOnline && (pr.lastSeen ? (Date.now() - pr.lastSeen < 150000) : false));
+            const isFresh = !!(pr && pr.isOnline && (pr.lastSeen ? (Date.now() - pr.lastSeen < 360000) : false));
             if (isFresh) {
               presenceIndicator.innerHTML = `🟢 <span style="color: #4ade80; font-weight: 700;">${t('online', 'En línea')}</span>`;
             } else if (pr && pr.lastSeen) {

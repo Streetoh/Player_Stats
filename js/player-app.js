@@ -1739,11 +1739,11 @@
 
     if (!window._portalPresenceInterval) {
       window._portalPresenceInterval = setInterval(() => {
-        sendBeat(!document.hidden);
-      }, 30000);
+        if (!document.hidden) sendBeat(true);
+      }, 180000);
 
       document.addEventListener('visibilitychange', () => {
-        sendBeat(!document.hidden);
+        if (!document.hidden) sendBeat(true);
       });
 
       window.addEventListener('pagehide', () => {
@@ -2010,8 +2010,11 @@
     window._unlinkListenerUnsub = window.Cloud.listenToPlayerUnlink(playerId, (data) => {
       const linkedAt = parseInt(localStorage.getItem('portal_player_linked_at') || '0', 10);
       const unlinkedAt = data ? (data.unlinkedAt || 0) : 0;
-      if (unlinkedAt && unlinkedAt >= linkedAt) {
+      // Solo desvincular si el evento ocurrió estrictamente después de que este dispositivo se vinculó
+      if (unlinkedAt && linkedAt > 0 && unlinkedAt > (linkedAt + 5000)) {
         handlePlayerProfileUnlinked();
+      } else if (unlinkedAt && linkedAt === 0) {
+        try { localStorage.setItem('portal_player_linked_at', String(Date.now())); } catch (e) {}
       }
     });
   }
@@ -2755,7 +2758,13 @@
         haptic(30);
         const vUrl = 'viber://forward?text=' + encodeURIComponent(vMsg);
         try {
-          window.location.href = vUrl;
+          const a = document.createElement('a');
+          a.href = vUrl;
+          a.target = '_blank';
+          a.rel = 'noopener noreferrer';
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(() => a.remove(), 200);
         } catch (e) {
           window.open(vUrl, '_blank');
         }
@@ -5619,14 +5628,9 @@
           }
         }
         if (myPlayerId && Array.isArray(clubData.players) && clubData.players.length > 0) {
-          const isPending = (myPlayerId === localStorage.getItem('portal_pending_creation_id'));
           const myCachedP = clubData.players.find(p => p.id === myPlayerId);
-          if (!myCachedP && !isPending) {
-            handlePlayerProfileRemoved();
-            return;
-          }
           const linkedAt = parseInt(localStorage.getItem('portal_player_linked_at') || '0', 10);
-          if (myCachedP && myCachedP.unlinkedAt && myCachedP.unlinkedAt >= linkedAt) {
+          if (myCachedP && myCachedP.unlinkedAt && linkedAt > 0 && myCachedP.unlinkedAt > (linkedAt + 5000)) {
             handlePlayerProfileUnlinked();
             return;
           }
@@ -5682,7 +5686,7 @@
         }
 
         // Comprobar si el perfil del jugador ha sido eliminado o desvinculado por el entrenador
-        if (myPlayerId && Array.isArray(remoteState.players) && remoteState.players.length > 0) {
+        if (myPlayerId && remoteState._playersLoaded && Array.isArray(remoteState.players) && remoteState.players.length > 0) {
           const isPending = (myPlayerId === localStorage.getItem('portal_pending_creation_id'));
           const myRemoteP = remoteState.players.find(p => p.id === myPlayerId);
           if (!myRemoteP && !isPending) {
@@ -5690,7 +5694,7 @@
             return;
           }
           const linkedAt = parseInt(localStorage.getItem('portal_player_linked_at') || '0', 10);
-          if (myRemoteP && myRemoteP.unlinkedAt && myRemoteP.unlinkedAt >= linkedAt) {
+          if (myRemoteP && myRemoteP.unlinkedAt && linkedAt > 0 && myRemoteP.unlinkedAt > (linkedAt + 5000)) {
             handlePlayerProfileUnlinked();
             return;
           }
