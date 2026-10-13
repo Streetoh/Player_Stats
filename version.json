@@ -1,5 +1,5 @@
 {
-  "version": "2026.10.13.3",
-  "buildTime": 1791829200000,
-  "description": "Fix PWA profile access loss, prevent request spamming with 60s cooldown, persist pending security code verification across app switches, and support Google Family Link"
+  "version": "2026.10.13.4",
+  "buildTime": 1791830400000,
+  "description": "Add interactive APK download guide modal with browser tab download, notification shade guidance, and Family Link instructions"
 }

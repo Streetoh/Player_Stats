@@ -184,6 +184,14 @@
           <button type="button" class="btn primary block" id="btn-close-lang-modal-done" style="height: 44px; font-weight: 900; font-size: 14px; border-radius: 12px; background: linear-gradient(135deg, #06b6d4, #3b82f6); border: none; box-shadow: 0 4px 14px rgba(6, 182, 212, 0.35);">
             ✓ ${t('doneBtn', 'Done')}
           </button>
+
+          ${!window.AndroidBridge ? `
+            <div style="text-align: center; margin-top: 12px; border-top: 1px dashed var(--border); padding-top: 10px;">
+              <button type="button" class="btn sm ghost block" id="btn-lang-modal-apk" style="height: 38px; font-size: 12px; color: var(--cyan); border: 1.5px solid rgba(34, 211, 238, 0.4); border-radius: 10px; font-weight: 800; background: rgba(34, 211, 238, 0.08);">
+                📲 ${t('downloadApk', 'Descargar App Android (APK)')}
+              </button>
+            </div>
+          ` : ''}
         </div>
       `;
 
@@ -195,6 +203,13 @@
       };
       if (closeBtnX) closeBtnX.onclick = close;
       if (closeBtnDone) closeBtnDone.onclick = close;
+
+      const btnLangApk = overlay.querySelector('#btn-lang-modal-apk');
+      if (btnLangApk) {
+        btnLangApk.onclick = () => {
+          showApkDownloadGuideModal();
+        };
+      }
 
       overlay.querySelectorAll('.lang-option-card').forEach(card => {
         card.onclick = () => {
@@ -497,7 +512,19 @@
       endTime: 'End',
       duration: 'Duration',
       claimCooldownWait: 'Please wait {sec}s before requesting another verification code.',
-      downloadApk: 'Download Android App (APK)'
+      downloadApk: 'Download Android App (APK)',
+      apkDownloadTitle: 'Download Android App',
+      apkDownloadStarted: 'Download started on your device!',
+      apkHowToInstallTitle: 'Where to find it & how to install?',
+      apkStep1Bold: 'Check notification bar:',
+      apkStep1Desc: 'Swipe down from the top edge of your screen and tap "PlayerStats_Player.apk" once completed.',
+      apkStep2Bold: 'Or open your Downloads folder:',
+      apkStep2Desc: 'Open your phone\'s "Files", "My Files" or "Downloads" app to find and tap "PlayerStats_Player.apk".',
+      apkFamilyLinkTitle: 'For Google Family Link users:',
+      apkFamilyLinkDesc: 'Ask parents to open Family Link -> App limits -> "Player stats (Player)" -> select "Always allowed".',
+      openInBrowserDownload: 'Open & download in browser tab',
+      retryDownload: 'Retry Download',
+      downloadStartedToast: '📥 Downloading APK...'
     },
     ee: {
       appName: 'Player stats (Mängija)',
@@ -733,7 +760,19 @@
       endTime: 'Lõpp',
       duration: 'Kestus',
       claimCooldownWait: 'Palun oota {sec}s enne uue kinnituskoodi taotlemist.',
-      downloadApk: 'Laadi alla Androidi äpp (APK)'
+      downloadApk: 'Laadi alla Androidi äpp (APK)',
+      apkDownloadTitle: 'Androidi äpi allalaadimine',
+      apkDownloadStarted: 'Allalaadimine algas sinu seadmes!',
+      apkHowToInstallTitle: 'Kust seda leida ja kuidas paigaldada?',
+      apkStep1Bold: 'Vaata teavitusriba:',
+      apkStep1Desc: 'Tõmba ekraani ülaservast alla ja puuduta teavitust "PlayerStats_Player.apk", kui see on valmis.',
+      apkStep2Bold: 'Või ava kaust Allalaadimised:',
+      apkStep2Desc: 'Ava oma telefoni rakendus "Minu failid", "Failid" või "Allalaadimised" ja puuduta "PlayerStats_Player.apk".',
+      apkFamilyLinkTitle: 'Google Family Linki kasutajatele:',
+      apkFamilyLinkDesc: 'Palu vanematel avada Family Link -> Rakenduste piirangud -> "Player stats (Player)" -> valida "Alati lubatud".',
+      openInBrowserDownload: 'Ava ja laadi alla brauseris',
+      retryDownload: 'Laadi uuesti alla',
+      downloadStartedToast: '📥 Faili allalaadimine...'
     },
     es: {
       appName: 'Player stats (Player)',
@@ -969,7 +1008,19 @@
       endTime: 'Fin',
       duration: 'Duración',
       claimCooldownWait: 'Por favor, espera {sec}s antes de solicitar otro código de verificación.',
-      downloadApk: 'Descargar App Android (APK)'
+      downloadApk: 'Descargar App Android (APK)',
+      apkDownloadTitle: 'Descarga de la App Android',
+      apkDownloadStarted: '¡Descarga iniciada en tu dispositivo!',
+      apkHowToInstallTitle: '¿Dónde encontrarla y cómo instalarla?',
+      apkStep1Bold: 'Mira la barra de notificaciones:',
+      apkStep1Desc: 'Desliza hacia abajo desde el borde superior de tu pantalla y pulsa sobre la notificación "PlayerStats_Player.apk" cuando termine.',
+      apkStep2Bold: 'O abre tu carpeta Descargas:',
+      apkStep2Desc: 'Abre la aplicación "Mis Archivos", "Archivos" o "Descargas" de tu teléfono y busca "PlayerStats_Player.apk". Tócalo para instalar.',
+      apkFamilyLinkTitle: 'Para usuarios con Google Family Link:',
+      apkFamilyLinkDesc: 'Pide a tus padres que abran Family Link -> Límites de apps -> "Player stats (Player)" -> y seleccionen "Siempre permitida".',
+      openInBrowserDownload: 'Abrir y descargar en navegador',
+      retryDownload: 'Volver a descargar',
+      downloadStartedToast: '📥 Descargando archivo APK...'
     }
   };
 
@@ -2251,6 +2302,129 @@
   }
 
   /* -------------------------------------------------------------
+     DESCARGA E INSTALACIÓN DE LA APK NATIVA PARA ANDROID
+     ------------------------------------------------------------- */
+  function showApkDownloadGuideModal() {
+    haptic(40);
+    const existing = document.getElementById('dialog-apk-download-modal');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'dialog-apk-download-modal';
+    overlay.className = 'dialog-overlay';
+    overlay.style.zIndex = '9999999';
+
+    const fullUrl = new URL('PlayerStats_Player.apk', window.location.href).href;
+
+    overlay.innerHTML = `
+      <div class="dialog-box" style="width: 92%; max-width: 440px; padding: 22px 18px; border-radius: 20px; box-shadow: 0 16px 48px rgba(0,0,0,0.7); text-align: left;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; gap: 8px;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="width: 42px; height: 42px; border-radius: 12px; background: rgba(34, 211, 238, 0.15); border: 1.5px solid #22d3ee; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0;">
+              📥
+            </div>
+            <div>
+              <h3 style="margin: 0; font-size: 16.5px; font-weight: 900; color: #fff;">${t('apkDownloadTitle', 'Descarga de la App Android')}</h3>
+              <span style="font-size: 11.5px; color: var(--cyan); font-weight: 700;">PlayerStats_Player.apk (0.92 MB)</span>
+            </div>
+          </div>
+          <button type="button" class="icon-btn ghost" id="btn-close-apk-modal-x" style="width: 32px; height: 32px; font-size: 15px; color: var(--muted);">✕</button>
+        </div>
+
+        <div style="background: rgba(34, 197, 94, 0.12); border: 1px solid rgba(34, 197, 94, 0.35); border-radius: 12px; padding: 10px 12px; margin-bottom: 14px; display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 22px;">✅</span>
+          <span style="font-size: 12.5px; color: #86efac; font-weight: 800; line-height: 1.35;">
+            ${t('apkDownloadStarted', '¡Descarga iniciada en tu dispositivo!')}
+          </span>
+        </div>
+
+        <p style="font-size: 12px; color: #cbd5e1; margin: 0 0 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">
+          ${t('apkHowToInstallTitle', '¿Dónde encontrarla y cómo instalarla?')}
+        </p>
+
+        <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px;">
+          <div style="display: flex; gap: 10px; background: var(--surface2); padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border);">
+            <span style="font-size: 18px; flex-shrink: 0;">1️⃣</span>
+            <div style="font-size: 12.5px; color: #e2e8f0; line-height: 1.4;">
+              <b>${t('apkStep1Bold', 'Mira la barra de notificaciones:')}</b><br/>
+              ${t('apkStep1Desc', 'Desliza hacia abajo desde el borde superior de tu pantalla y pulsa sobre la notificación "PlayerStats_Player.apk" cuando termine.')}
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 10px; background: var(--surface2); padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border);">
+            <span style="font-size: 18px; flex-shrink: 0;">2️⃣</span>
+            <div style="font-size: 12.5px; color: #e2e8f0; line-height: 1.4;">
+              <b>${t('apkStep2Bold', 'O abre tu carpeta Descargas:')}</b><br/>
+              ${t('apkStep2Desc', 'Abre la aplicación "Mis Archivos", "Archivos" o "Descargas" de tu teléfono y busca "PlayerStats_Player.apk". Tócalo para instalar.')}
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 10px; background: rgba(250, 204, 21, 0.08); padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(250, 204, 21, 0.3);">
+            <span style="font-size: 18px; flex-shrink: 0;">👨‍👩‍👦</span>
+            <div style="font-size: 12px; color: #fde047; line-height: 1.35;">
+              <b>${t('apkFamilyLinkTitle', 'Para usuarios con Google Family Link:')}</b><br/>
+              ${t('apkFamilyLinkDesc', 'Pide a tus padres que abran Family Link -> Límites de apps -> "Player stats (Player)" -> y seleccionen "Siempre permitida".')}
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <button type="button" class="btn primary block" id="btn-trigger-browser-download" style="height: 42px; font-weight: 800; font-size: 13px; background: linear-gradient(135deg, #0284c7, #2563eb); border: none;">
+            🌐 ${t('openInBrowserDownload', 'Abrir y descargar en navegador')}
+          </button>
+          <button type="button" class="btn sm secondary block" id="btn-retry-apk-download" style="height: 38px; font-weight: 800; font-size: 12.5px;">
+            🔄 ${t('retryDownload', 'Volver a descargar')}
+          </button>
+          <button type="button" class="btn sm ghost block" id="btn-close-apk-guide" style="height: 34px; font-weight: 700; font-size: 12px; color: var(--muted);">
+            ${t('close', 'Cerrar')}
+          </button>
+        </div>
+      </div>
+    `;
+
+    function close() { overlay.remove(); }
+    overlay.querySelector('#btn-close-apk-modal-x').onclick = close;
+    overlay.querySelector('#btn-close-apk-guide').onclick = close;
+    overlay.onclick = (e) => { if (e.target === overlay) close(); };
+
+    function triggerDownload() {
+      try {
+        const link = document.createElement('a');
+        link.href = fullUrl;
+        link.download = 'PlayerStats_Player.apk';
+        link.target = '_blank';
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => link.remove(), 250);
+        toast(t('downloadStartedToast', '📥 Descargando archivo APK...'), 'info');
+      } catch (e) {
+        window.location.href = fullUrl;
+      }
+    }
+
+    overlay.querySelector('#btn-retry-apk-download').onclick = () => {
+      triggerDownload();
+      haptic(30);
+    };
+
+    overlay.querySelector('#btn-trigger-browser-download').onclick = () => {
+      haptic(40);
+      try {
+        window.open(fullUrl, '_blank');
+      } catch (e) {
+        window.location.href = fullUrl;
+      }
+      toast(t('downloadStartedToast', '📥 Descargando archivo APK...'), 'info');
+    };
+
+    document.body.appendChild(overlay);
+
+    // Disparar la descarga inmediatamente al abrir el modal
+    triggerDownload();
+  }
+  window.__downloadPlayerApk = showApkDownloadGuideModal;
+
+  /* -------------------------------------------------------------
      SOLICITUD DE CAMBIO DE PERFIL (PUNTO 6)
      ------------------------------------------------------------- */
   async function showSelectIdentityModal() {
@@ -2328,9 +2502,11 @@
             <button type="button" class="btn sm ghost" id="btn-dialog-id-clear-cache" style="font-size: 11px; opacity: 0.75; color: var(--muted); border: 1px dashed var(--border); padding: 4px 12px; border-radius: 8px;" title="Clear cache and reload latest version">
               ${t('clearCacheBtn', '🔄 Clear App Cache & Refresh')}
             </button>
-            <a href="PlayerStats_Player.apk" download="PlayerStats_Player.apk" style="display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--cyan); text-decoration: none; font-weight: 800; padding: 4px 10px; border-radius: 8px; background: rgba(34, 211, 238, 0.08); border: 1px solid rgba(34, 211, 238, 0.25);">
-              📲 ${t('downloadApk', 'Descargar App Android (APK)')}
-            </a>
+            ${!window.AndroidBridge ? `
+              <button type="button" class="btn sm ghost" id="btn-dialog-id-download-apk" style="display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: 11.5px; color: var(--cyan); font-weight: 800; padding: 6px 14px; border-radius: 10px; background: rgba(34, 211, 238, 0.09); border: 1.5px solid rgba(34, 211, 238, 0.4); cursor: pointer; width: 100%; max-width: 280px; margin-top: 4px;">
+                📲 ${t('downloadApk', 'Descargar App Android (APK)')}
+              </button>
+            ` : ''}
           </div>
         </div>
       </div>
@@ -2357,6 +2533,13 @@
         } else {
           window.location.reload(true);
         }
+      };
+    }
+
+    const btnDownloadApk = overlay.querySelector('#btn-dialog-id-download-apk');
+    if (btnDownloadApk) {
+      btnDownloadApk.onclick = () => {
+        showApkDownloadGuideModal();
       };
     }
 
