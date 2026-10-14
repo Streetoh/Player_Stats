@@ -155,6 +155,7 @@
     s.settings.enabledStats = (s.settings.enabledStats || []).filter(k => STAT_MAP[k]);
     if (!s.settings.enabledStats.length) s.settings.enabledStats = d.settings.enabledStats;
     s.sessions.forEach(x => {
+      x.type = (x.type === 'match' ? 'match' : 'training');
       x.stats = x.stats || {};
       x.log = Array.isArray(x.log) ? x.log : [];
       x.slots = Array.isArray(x.slots) ? x.slots : [null, null];
@@ -594,6 +595,7 @@
     record(sessionId, playerId, key, delta) {
       const s = this.session(sessionId);
       if (!s || !playerId || !STAT_MAP[key]) return null;
+      s.type = s.type === 'match' ? 'match' : 'training';
       const keys = [key];
       if (delta > 0 && this.state.settings.linkGoalShot && STAT_MAP[key].linked) {
         keys.push.apply(keys, STAT_MAP[key].linked);
@@ -621,7 +623,7 @@
         goalDeltaHome = delta;
       }
 
-      const entry = { t: Date.now(), m: this.elapsed(s), p: playerId, k: applied, d: delta };
+      const entry = { t: Date.now(), m: this.elapsed(s), p: playerId, k: applied, d: delta, type: s.type };
       if (goalDeltaHome > 0) {
         entry.goalScoreHome = goalDeltaHome;
       }
@@ -653,6 +655,7 @@
     setCount(sessionId, playerId, key, value) {
       const s = this.session(sessionId);
       if (!s) return;
+      s.type = s.type === 'match' ? 'match' : 'training';
       const st = s.stats[playerId] = s.stats[playerId] || {};
       st[key] = Math.max(0, parseInt(value, 10) || 0);
       this.save();
@@ -865,6 +868,49 @@
       const finalScore = 6.0 + (scoreDelta * confidence);
 
       return Math.min(10.0, Math.max(1.0, Math.round(finalScore * 10) / 10));
+    },
+
+    /* Rating General (1 al 10) estilo FIFA: promedio de Entrenamientos y Partidos.
+       Si solo tiene entrenamientos, muestra directamente entrenamientos sin penalizar. */
+    calculatePlayerOverallRating(playerId, position) {
+      const allSessions = (this.state && this.state.sessions) || [];
+      const trainingSessions = allSessions.filter(s => (s.type || 'training') === 'training');
+      const matchSessions = allSessions.filter(s => (s.type || 'training') === 'match');
+
+      const aggTrain = this.playerAggregate(playerId, trainingSessions);
+      const aggMatch = this.playerAggregate(playerId, matchSessions);
+
+      const hasTrain = aggTrain.count > 0;
+      const hasMatch = aggMatch.count > 0;
+
+      let rTrain = hasTrain ? this.calculateMatchRating(aggTrain.totals, position) : null;
+      let rMatch = hasMatch ? this.calculateMatchRating(aggMatch.totals, position) : null;
+
+      let rating = 6.0;
+      let mode = 'none'; // 'combined' | 'training' | 'match' | 'none'
+
+      if (hasTrain && hasMatch) {
+        rating = (rTrain + rMatch) / 2;
+        mode = 'combined';
+      } else if (hasTrain && !hasMatch) {
+        rating = rTrain;
+        mode = 'training';
+      } else if (!hasTrain && hasMatch) {
+        rating = rMatch;
+        mode = 'match';
+      } else {
+        rating = 6.0;
+        mode = 'none';
+      }
+
+      return {
+        rating: Number(rating.toFixed(1)),
+        mode,
+        hasTrain,
+        hasMatch,
+        rTrain: rTrain != null ? Number(rTrain.toFixed(1)) : null,
+        rMatch: rMatch != null ? Number(rMatch.toFixed(1)) : null
+      };
     },
 
     /* Radar de Habilidades (Spider Chart de 0 a 99) — delega en SkillsEngine v2 (js/skills-engine.js) */

@@ -300,9 +300,19 @@
       searchTeammate: 'Search teammate by name or number...',
       searchChatOrTeammate: 'Search chat or teammate...',
       todayBadge: 'TODAY',
-      callUpOfficial: 'Official Call-up',
       match: 'Match',
       training: 'Training',
+      overallRating: 'Overall Rating',
+      combinedRating: 'Combined Rating',
+      onlyTrainingRating: 'Training Only',
+      onlyMatchRating: 'Matches Only',
+      baseRating: 'Base Rating',
+      trainingsTab: 'Trainings',
+      matchesTab: 'Matches',
+      noMatchesRecordedYet: 'No matches recorded yet',
+      noMatchesRecordedDesc: 'This player has no minutes or stats recorded in competitive matches yet.',
+      noTrainingsRecordedYet: 'No training sessions recorded yet',
+      participatingTeams: 'Participating teams',
       venue: 'Ground / Venue',
       address: 'Address',
       openInMaps: 'Open in Google Maps ↗',
@@ -592,9 +602,19 @@
       searchTeammate: 'Otsi meeskonnakaaslast nime või numbri järgi...',
       searchChatOrTeammate: 'Otsi vestlust või meeskonnakaaslast...',
       todayBadge: 'TÄNA',
-      callUpOfficial: 'Ametlik Kutse',
       match: 'Mäng',
       training: 'Treening',
+      overallRating: 'Üldhinnang',
+      combinedRating: 'Kombineeritud hinnang',
+      onlyTrainingRating: 'Ainult treeningud',
+      onlyMatchRating: 'Ainult mängud',
+      baseRating: 'Baashinnang',
+      trainingsTab: 'Treeningud',
+      matchesTab: 'Mängud',
+      noMatchesRecordedYet: 'Ühtegi mängu pole veel salvestatud',
+      noMatchesRecordedDesc: 'Sellel mängijal pole veel võistlusmängude statistikat salvestatud.',
+      noTrainingsRecordedYet: 'Ühtegi treeningut pole veel salvestatud',
+      participatingTeams: 'Osalevad meeskonnad',
       venue: 'Koht / Väljak',
       address: 'Aadress',
       openInMaps: 'Ava Google Mapsis ↗',
@@ -884,9 +904,19 @@
       searchTeammate: 'Buscar compañero por nombre o dorsal...',
       searchChatOrTeammate: 'Buscar chat o compañero...',
       todayBadge: 'HOY',
-      callUpOfficial: 'Convocatoria Oficial',
       match: 'Partido',
       training: 'Entrenamiento',
+      overallRating: 'Rating General',
+      combinedRating: 'Valoración Combinada',
+      onlyTrainingRating: 'Solo Entrenamientos',
+      onlyMatchRating: 'Solo Partidos',
+      baseRating: 'Valoración Base',
+      trainingsTab: 'Entrenamientos',
+      matchesTab: 'Partidos',
+      noMatchesRecordedYet: 'Sin partidos registrados todavía',
+      noMatchesRecordedDesc: 'Este jugador aún no tiene minutos ni estadísticas registradas en partidos de competición.',
+      noTrainingsRecordedYet: 'Sin entrenamientos registrados todavía',
+      participatingTeams: 'Equipos participantes',
       venue: 'Lugar / Campo',
       address: 'Dirección',
       openInMaps: 'Abrir en Google Maps ↗',
@@ -1572,10 +1602,10 @@
   /* -------------------------------------------------------------
      CÁLCULO DE MÉTRICAS DEL JUGADOR (SIN MINUTOS, CON ASISTENCIAS SEPARADAS)
      ------------------------------------------------------------- */
-  function getPlayerAggregate(pid) {
+  function getPlayerAggregate(pid, customSessions) {
     const totals = {};
     const perSession = [];
-    const sessList = (clubData && clubData.sessions) ? clubData.sessions : [];
+    const sessList = Array.isArray(customSessions) ? customSessions : ((clubData && clubData.sessions) ? clubData.sessions : []);
     sessList.forEach(s => {
       const st = (s.stats || {})[pid];
       if (!st || !Object.keys(st).some(k => st[k] > 0)) return;
@@ -1585,7 +1615,7 @@
     return { totals, sessions: perSession, count: perSession.length };
   }
 
-  function calculatePlayerStats(pid) {
+  function calculatePlayerStats(pid, customSessions) {
     const res = {
       matchesAttended: 0,
       trainingsAttended: 0,
@@ -1622,8 +1652,10 @@
     const p = clubData.players ? clubData.players.find(x => x.id === pid) : null;
     const pos = p ? p.mainPosition : 'Jugador';
 
-    if (clubData.sessions) {
-      clubData.sessions.forEach(s => {
+    const sessions = Array.isArray(customSessions) ? customSessions : ((clubData && clubData.sessions) || []);
+    if (sessions) {
+      sessions.forEach(s => {
+        const sType = s.type === 'match' ? 'match' : 'training';
         const pStats = s.stats && s.stats[pid];
         const hasActions = pStats && Object.values(pStats).some(v => v > 0);
         let wasPresent = hasActions || (s.list && s.list[pid] === 'called');
@@ -1635,7 +1667,7 @@
         }
 
         if (wasPresent) {
-          if (s.type === 'match') res.matchesAttended++;
+          if (sType === 'match') res.matchesAttended++;
           else res.trainingsAttended++;
         }
 
@@ -1684,6 +1716,47 @@
       : '6.0';
 
     return res;
+  }
+
+  function calculatePlayerOverallRating(pid, position) {
+    const allSessions = (clubData && clubData.sessions) || [];
+    const trainingSessions = allSessions.filter(s => (s.type || 'training') === 'training');
+    const matchSessions = allSessions.filter(s => (s.type || 'training') === 'match');
+
+    const aggTrain = getPlayerAggregate(pid, trainingSessions);
+    const aggMatch = getPlayerAggregate(pid, matchSessions);
+
+    const hasTrain = aggTrain.count > 0;
+    const hasMatch = aggMatch.count > 0;
+
+    const rTrain = hasTrain ? calculateMatchRating(aggTrain.totals, position) : null;
+    const rMatch = hasMatch ? calculateMatchRating(aggMatch.totals, position) : null;
+
+    let rating = 6.0;
+    let mode = 'none'; // 'combined' | 'training' | 'match' | 'none'
+
+    if (hasTrain && hasMatch) {
+      rating = (rTrain + rMatch) / 2;
+      mode = 'combined';
+    } else if (hasTrain && !hasMatch) {
+      rating = rTrain;
+      mode = 'training';
+    } else if (!hasTrain && hasMatch) {
+      rating = rMatch;
+      mode = 'match';
+    } else {
+      rating = 6.0;
+      mode = 'none';
+    }
+
+    return {
+      rating: Number(rating.toFixed(1)),
+      mode,
+      hasTrain,
+      hasMatch,
+      rTrain: rTrain != null ? Number(rTrain.toFixed(1)) : null,
+      rMatch: rMatch != null ? Number(rMatch.toFixed(1)) : null
+    };
   }
 
   function calculatePlayerAttendanceStreak(pid) {
@@ -1966,20 +2039,21 @@
     return _skillsLeagueCache.league;
   }
 
-  function calculatePlayerRadar(pid) {
+  function calculatePlayerRadar(pid, customSessions) {
+    const sessions = Array.isArray(customSessions) ? customSessions : ((clubData && clubData.sessions) || []);
     if (window.SkillsEngine) {
       return window.SkillsEngine.computePlayerSkills(pid, {
         players: (clubData && clubData.players) || [],
-        sessions: (clubData && clubData.sessions) || [],
+        sessions: sessions,
         league: getSkillsLeague()
       });
     }
-    return legacyPlayerRadar(pid);
+    return legacyPlayerRadar(pid, customSessions);
   }
 
   /* Fórmula v1 (solo respaldo si skills-engine.js no está cargado) */
-  function legacyPlayerRadar(pid) {
-    const agg = getPlayerAggregate(pid);
+  function legacyPlayerRadar(pid, customSessions) {
+    const agg = getPlayerAggregate(pid, customSessions);
     const st = agg.totals || {};
     const count = agg.count || 0;
     const pl = (clubData && clubData.players) ? clubData.players.find(x => x.id === pid) : null;
@@ -4999,9 +5073,10 @@
     }
   };
 
-  function renderPlayerPitchHeatmapHtml(pid) {
+  function renderPlayerPitchHeatmapHtml(pid, customSessions) {
     const playerZones = [];
-    (clubData.sessions || []).forEach(s => {
+    const sessions = Array.isArray(customSessions) ? customSessions : ((clubData && clubData.sessions) || []);
+    sessions.forEach(s => {
       (s.zones || []).forEach(zItem => {
         if (zItem.p === pid) {
           playerZones.push(zItem);
@@ -5141,14 +5216,15 @@
     `;
   }
 
-  function renderPlayerGoalsPitchHtml(pid) {
-    return renderPlayerPitchHeatmapHtml(pid);
+  function renderPlayerGoalsPitchHtml(pid, customSessions) {
+    return renderPlayerPitchHeatmapHtml(pid, customSessions);
   }
 
-  function getPlayerCareerActions(pid) {
+  function getPlayerCareerActions(pid, customSessions) {
     const totals = {};
     let grandTotal = 0;
-    (clubData.sessions || []).forEach(s => {
+    const sessions = Array.isArray(customSessions) ? customSessions : ((clubData && clubData.sessions) || []);
+    sessions.forEach(s => {
       const pStats = (s.stats && s.stats[pid]) ? s.stats[pid] : null;
       if (pStats) {
         Object.entries(pStats).forEach(([k, cnt]) => {
@@ -5162,8 +5238,8 @@
     return { totals, grandTotal };
   }
 
-  function renderPlayerCareerActionsListHtml(pid) {
-    const { totals, grandTotal } = getPlayerCareerActions(pid);
+  function renderPlayerCareerActionsListHtml(pid, customSessions) {
+    const { totals, grandTotal } = getPlayerCareerActions(pid, customSessions);
     const entries = Object.entries(totals);
     entries.sort((a, b) => b[1] - a[1]);
 
@@ -5292,13 +5368,121 @@
     }
 
     const team = clubData.teams ? clubData.teams.find(t => t.id === myP.teamId) : null;
-    const stats = calculatePlayerStats(myP.id);
-    const radar = calculatePlayerRadar(myP.id);
+    const allSessions = (clubData && clubData.sessions) || [];
+    const trainingSessions = allSessions.filter(s => (s.type || 'training') === 'training');
+    const matchSessions = allSessions.filter(s => (s.type || 'training') === 'match');
+    const aggTraining = getPlayerAggregate(myP.id, trainingSessions);
+    const aggMatch = getPlayerAggregate(myP.id, matchSessions);
+    const overall = calculatePlayerOverallRating(myP.id, myP.mainPosition);
+    let activeProfileTab = (aggTraining.count === 0 && aggMatch.count > 0) ? 'match' : 'training';
+
     const streak = calculatePlayerAttendanceStreak(myP.id);
     const streakMilestone = getPlayerStreakMilestone(streak);
     const secPositions = myP.secondaryPositions && myP.secondaryPositions.length ? myP.secondaryPositions : (myP.secondaryPosition ? [myP.secondaryPosition] : []);
     const ageStr = myP.birthDate ? calculateAgeYearsMonths(myP.birthDate, currentLang) : '';
     const mvpCount = calculatePlayerMvpCount(myP.id);
+    const globalRadar = calculatePlayerRadar(myP.id);
+
+    function renderTabContent(tabName) {
+      const isMatch = (tabName === 'match');
+      const curSessions = isMatch ? matchSessions : trainingSessions;
+      const curAgg = isMatch ? aggMatch : aggTraining;
+
+      if (isMatch && curAgg.count === 0) {
+        return `
+          <div class="card empty" style="padding: 28px 16px; text-align: center; border: 1.5px dashed var(--border); border-radius: 16px; background: rgba(15, 23, 42, 0.4); margin-bottom: 20px;">
+            <div style="font-size: 42px; margin-bottom: 10px;">🏆</div>
+            <h3 style="font-size: 16px; font-weight: 900; color: #fff; margin-bottom: 6px;">${t('noMatchesRecordedYet', 'Sin partidos registrados todavía')}</h3>
+            <p style="font-size: 12.5px; color: var(--muted); margin: 0; line-height: 1.45;">${t('noMatchesRecordedDesc', 'Cuando el entrenador registre tus estadísticas en partidos, aquí podrás ver tu valoración y métricas competitivas.')}</p>
+          </div>
+        `;
+      }
+
+      if (!isMatch && curAgg.count === 0) {
+        return `
+          <div class="card empty" style="padding: 28px 16px; text-align: center; border: 1.5px dashed var(--border); border-radius: 16px; background: rgba(15, 23, 42, 0.4); margin-bottom: 20px;">
+            <div style="font-size: 42px; margin-bottom: 10px;">⚽</div>
+            <h3 style="font-size: 16px; font-weight: 900; color: #fff; margin-bottom: 6px;">${t('noTrainingsRecordedYet', 'Sin entrenamientos registrados todavía')}</h3>
+            <p style="font-size: 12.5px; color: var(--muted); margin: 0; line-height: 1.45;">${t('noActionsYet', 'Aún no hay acciones registradas')}</p>
+          </div>
+        `;
+      }
+
+      const curStats = calculatePlayerStats(myP.id, curSessions);
+      const curRadar = calculatePlayerRadar(myP.id, curSessions);
+
+      return `
+        <!-- NOTA DE RENDIMIENTO (MATCH RATING) DESTACADA -->
+        <div class="card" style="margin-bottom: 14px; border: 1px solid rgba(34, 211, 238, 0.35); background: linear-gradient(135deg, rgba(34, 211, 238, 0.12) 0%, rgba(19, 31, 56, 0.7) 100%); cursor: pointer;" id="card-rating-explain">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <div style="font-size: 11px; font-weight: 800; color: var(--cyan); text-transform: uppercase; letter-spacing: 0.5px;">
+                ⭐ ${isMatch ? t('matchesTab', 'Partidos') : t('trainingsTab', 'Entrenamientos')} • ${t('performanceRating')} ℹ️
+              </div>
+              <div style="font-size: 28px; font-weight: 900; color: #fff; margin-top: 2px;">
+                ${curStats.aggregatedRating} <span style="font-size: 16px; color: var(--muted); font-weight: 700;">/ 10</span>
+              </div>
+              <small style="font-size: 11px; color: var(--muted);">${t('ratingDesc')}</small>
+            </div>
+            <div style="font-size: 32px; padding-right: 8px;">📊</div>
+          </div>
+        </div>
+
+        <!-- Radar de Habilidades (Interactivo) -->
+        <div class="section-title"><span>${t('skillsRadar')}</span></div>
+        <div class="card" style="margin-bottom: 14px; border: 1px solid var(--border);" id="radar-card">
+          ${renderRadarSVG(curRadar)}
+        </div>
+
+        <!-- Cifras Clave -->
+        <div class="section-title"><span>${t('cumulativeStats')}</span></div>
+        <div class="stats-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px;">
+          <div class="stat-card" style="background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 12px; text-align: center;">
+            <div style="font-size: 11px; font-weight: 800; color: ${isMatch ? 'var(--match)' : 'var(--train)'}; text-transform: uppercase;">
+              ${isMatch ? '🏟️ ' + t('matchesAttended') : '🏃‍♂️ ' + t('trainingsAttended')}
+            </div>
+            <div style="font-size: 24px; font-weight: 900; color: #fff; margin-top: 2px;">
+              ${isMatch ? curStats.matchesAttended : curStats.trainingsAttended}
+            </div>
+          </div>
+          <div class="stat-card" style="background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 12px; text-align: center;">
+            <div style="font-size: 11px; font-weight: 800; color: #86efac; text-transform: uppercase;">⚽ ${t('goalsScored')}</div>
+            <div style="font-size: 24px; font-weight: 900; color: #86efac; margin-top: 2px;">${curStats.goals}</div>
+          </div>
+          <div class="stat-card" style="background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 12px; text-align: center;">
+            <div style="font-size: 11px; font-weight: 800; color: var(--cyan); text-transform: uppercase;">🎯 ${t('passAccuracy')}</div>
+            <div style="font-size: 24px; font-weight: 900; color: var(--cyan); margin-top: 2px;">${curStats.passAcc}%</div>
+            <small style="font-size: 10.5px; color: var(--muted);">${curStats.passOk} ${t('passesAccurate')}</small>
+          </div>
+          <div class="stat-card" style="background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 12px; text-align: center;">
+            <div style="font-size: 11px; font-weight: 800; color: #facc15; text-transform: uppercase;">🎯 ${t('shotAccuracy')}</div>
+            <div style="font-size: 24px; font-weight: 900; color: #facc15; margin-top: 2px;">${curStats.shotAcc}%</div>
+            <small style="font-size: 10.5px; color: var(--muted);">${curStats.shotsOn} ${t('shotsOnTarget')}</small>
+          </div>
+          <div class="stat-card" style="background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 12px; text-align: center;">
+            <div style="font-size: 11px; font-weight: 800; color: #c084fc; text-transform: uppercase;">👟 ${t('ballTouches')}</div>
+            <div style="font-size: 24px; font-weight: 900; color: #c084fc; margin-top: 2px;">${curStats.touches}</div>
+          </div>
+          <div class="stat-card" style="background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 12px; text-align: center;">
+            <div style="font-size: 11px; font-weight: 800; color: #38bdf8; text-transform: uppercase;">🛡️ ${t('recoveries')}</div>
+            <div style="font-size: 24px; font-weight: 900; color: #38bdf8; margin-top: 2px;">${curStats.recoveries}</div>
+            <small style="font-size: 10.5px; color: var(--muted);">${curStats.losses} ${t('losses')}</small>
+          </div>
+        </div>
+
+        <!-- Mapa Táctico de Goles y Acciones por Zonas -->
+        ${renderPlayerGoalsPitchHtml(myP.id, curSessions)}
+
+        <!-- Historial Completo de Acciones en la Carrera -->
+        ${renderPlayerCareerActionsListHtml(myP.id, curSessions)}
+
+        <!-- Historial de Sesiones y Acciones Detalladas -->
+        <div class="section-title"><span>${isMatch ? t('recentMatchesTitle') : t('sessions')}</span></div>
+        <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
+          ${renderPlayerMatchHistory(myP.id, curSessions)}
+        </div>
+      `;
+    }
 
     view.innerHTML = `
       <div style="padding: 6px 0;">
@@ -5331,6 +5515,18 @@
                 </span>
               </div>
             ` : ''}
+            <div style="margin-top: 8px; display: flex; flex-direction: column; gap: 2px;">
+              <span class="rating-pill" style="font-size: 13px; font-weight: 900; background: linear-gradient(135deg, rgba(234, 179, 8, 0.25), rgba(202, 138, 4, 0.4)); color: #fef08a; border: 1.5px solid #facc15; padding: 4px 10px; border-radius: 999px; display: inline-flex; align-items: center; gap: 5px; width: fit-content;">
+                ⭐ ${overall.rating.toFixed(1)} ${t('overallRating', 'Rating General')}
+              </span>
+              <span style="font-size: 10.5px; font-weight: 800; color: ${overall.mode === 'combined' ? '#38bdf8' : (overall.mode === 'training' ? '#4ade80' : '#facc15')}; margin-left: 6px;">
+                ${overall.mode === 'combined' 
+                  ? t('combinedRating', 'Valoración Combinada') 
+                  : (overall.mode === 'training' 
+                      ? t('onlyTrainingRating', 'Solo Entrenamientos') 
+                      : (overall.mode === 'match' ? t('onlyMatchRating', 'Solo Partidos') : t('baseRating', 'Valoración Base')))}
+              </span>
+            </div>
             ${mvpCount > 0 ? `
               <div style="margin-top: 6px;">
                 <span class="badge" style="background: rgba(250, 204, 21, 0.2); color: #fde047; border: 1px solid rgba(250, 204, 21, 0.5); font-weight: 800; font-size: 11px;">
@@ -5400,90 +5596,64 @@
           <button type="button" class="btn block" id="btn-open-my-fut-card" style="width: 100%; height: 50px; font-size: 14px; font-weight: 900; border-radius: 14px; background: linear-gradient(135deg, #18181b 0%, #27272a 50%, #18181b 100%); color: #facc15; border: 2px solid #eab308; box-shadow: 0 4px 20px rgba(234, 179, 8, 0.25); display: flex; align-items: center; justify-content: center; gap: 10px; cursor: pointer;">
             <span style="font-size: 22px;">🃏</span>
             <span>${t('viewMyFutCard', 'Ver mi Carta FUT Coleccionable')}</span>
-            <span class="badge" style="background: rgba(250, 204, 21, 0.2); color: #fef08a; border: 1px solid #facc15; font-size: 11px; margin-left: 4px;">OVR ${window.FutCard && FutCard.computeOvr ? FutCard.computeOvr(radar) : Math.min(99, Math.max(45, Math.round(stats.aggregatedRating * 10)))}</span>
+            <span class="badge" style="background: rgba(250, 204, 21, 0.2); color: #fef08a; border: 1px solid #facc15; font-size: 11px; margin-left: 4px;">OVR ${window.FutCard && FutCard.computeOvr ? FutCard.computeOvr(globalRadar) : Math.min(99, Math.max(45, Math.round(overall.rating * 10)))}</span>
           </button>
         </div>
 
-        <!-- NOTA DE RENDIMIENTO (MATCH RATING) DESTACADA -->
-        <div class="card" style="margin-bottom: 14px; border: 1px solid rgba(34, 211, 238, 0.35); background: linear-gradient(135deg, rgba(34, 211, 238, 0.12) 0%, rgba(19, 31, 56, 0.7) 100%); cursor: pointer;" id="card-rating-explain">
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <div>
-              <div style="font-size: 11px; font-weight: 800; color: var(--cyan); text-transform: uppercase; letter-spacing: 0.5px;">
-                ⭐ ${t('performanceRating')} ℹ️
-              </div>
-              <div style="font-size: 28px; font-weight: 900; color: #fff; margin-top: 2px;">
-                ${stats.aggregatedRating} <span style="font-size: 16px; color: var(--muted); font-weight: 700;">/ 10</span>
-              </div>
-              <small style="font-size: 11px; color: var(--muted);">${t('ratingDesc')}</small>
-            </div>
-            <div style="font-size: 32px; padding-right: 8px;">📊</div>
-          </div>
+        <!-- Selector de Sub-Pestañas: Entrenamientos vs Partidos -->
+        <div class="segmented profile-view-tabs" style="margin-bottom: 14px;">
+          <button type="button" class="${activeProfileTab === 'training' ? 'active t-training' : ''}" data-ptab="training">
+            ⚽ ${t('trainingsTab', 'Entrenamientos')} (${aggTraining.count})
+          </button>
+          <button type="button" class="${activeProfileTab === 'match' ? 'active t-match' : ''}" data-ptab="match">
+            🏆 ${t('matchesTab', 'Partidos')} (${aggMatch.count})
+          </button>
         </div>
 
-        <!-- Radar de Habilidades (Interactivo) -->
-        <div class="section-title"><span>${t('skillsRadar')}</span></div>
-        <div class="card" style="margin-bottom: 14px; border: 1px solid var(--border);" id="radar-card">
-          ${renderRadarSVG(radar)}
-        </div>
-
-        <!-- Cifras Clave (Partidos y Entrenamientos Asistidos por separado, Sin Minutos) -->
-        <div class="section-title"><span>${t('cumulativeStats')}</span></div>
-        <div class="stats-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px;">
-          <div class="stat-card" style="background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 12px; text-align: center;">
-            <div style="font-size: 11px; font-weight: 800; color: var(--match); text-transform: uppercase;">🏟️ ${t('matchesAttended')}</div>
-            <div style="font-size: 24px; font-weight: 900; color: #fff; margin-top: 2px;">${stats.matchesAttended}</div>
-          </div>
-          <div class="stat-card" style="background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 12px; text-align: center;">
-            <div style="font-size: 11px; font-weight: 800; color: var(--train); text-transform: uppercase;">🏃‍♂️ ${t('trainingsAttended')}</div>
-            <div style="font-size: 24px; font-weight: 900; color: #fff; margin-top: 2px;">${stats.trainingsAttended}</div>
-          </div>
-          <div class="stat-card" style="background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 12px; text-align: center;">
-            <div style="font-size: 11px; font-weight: 800; color: #86efac; text-transform: uppercase;">⚽ ${t('goalsScored')}</div>
-            <div style="font-size: 24px; font-weight: 900; color: #86efac; margin-top: 2px;">${stats.goals}</div>
-          </div>
-          <div class="stat-card" style="background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 12px; text-align: center;">
-            <div style="font-size: 11px; font-weight: 800; color: var(--cyan); text-transform: uppercase;">🎯 ${t('passAccuracy')}</div>
-            <div style="font-size: 24px; font-weight: 900; color: var(--cyan); margin-top: 2px;">${stats.passAcc}%</div>
-            <small style="font-size: 10.5px; color: var(--muted);">${stats.passOk} ${t('passesAccurate')}</small>
-          </div>
-          <div class="stat-card" style="background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 12px; text-align: center;">
-            <div style="font-size: 11px; font-weight: 800; color: #facc15; text-transform: uppercase;">🎯 ${t('shotAccuracy')}</div>
-            <div style="font-size: 24px; font-weight: 900; color: #facc15; margin-top: 2px;">${stats.shotAcc}%</div>
-            <small style="font-size: 10.5px; color: var(--muted);">${stats.shotsOn} ${t('shotsOnTarget')}</small>
-          </div>
-          <div class="stat-card" style="background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 12px; text-align: center;">
-            <div style="font-size: 11px; font-weight: 800; color: #c084fc; text-transform: uppercase;">👟 ${t('ballTouches')}</div>
-            <div style="font-size: 24px; font-weight: 900; color: #c084fc; margin-top: 2px;">${stats.touches}</div>
-          </div>
-        </div>
-
-        <!-- Mapa Táctico de Goles y Acciones por Zonas -->
-        ${renderPlayerGoalsPitchHtml(myP.id)}
-
-        <!-- Historial Completo de Acciones en la Carrera -->
-        ${renderPlayerCareerActionsListHtml(myP.id)}
-
-        <!-- Historial de Partidos y Acciones Detalladas -->
-        <div class="section-title"><span>${t('recentMatchesTitle')}</span></div>
-        <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
-          ${renderPlayerMatchHistory(myP.id)}
+        <div id="my-stats-tab-content">
+          ${renderTabContent(activeProfileTab)}
         </div>
       </div>
     `;
 
-    // Conectar popup de explicación de rating
-    const ratingCard = view.querySelector('#card-rating-explain');
-    if (ratingCard) ratingCard.onclick = () => showSkillExplanationModal('rating');
+    function bindTabInteractions() {
+      const ratingCard = view.querySelector('#card-rating-explain');
+      if (ratingCard) ratingCard.onclick = () => showSkillExplanationModal('rating');
+
+      view.querySelectorAll('.radar-click-label').forEach(el => {
+        el.onclick = () => {
+          const skill = el.getAttribute('data-skill');
+          showSkillExplanationModal(skill);
+        };
+      });
+    }
+
+    bindTabInteractions();
+
+    view.querySelectorAll('.profile-view-tabs button').forEach(b => {
+      b.onclick = () => {
+        const newTab = b.getAttribute('data-ptab');
+        activeProfileTab = newTab;
+        view.querySelectorAll('.profile-view-tabs button').forEach(x => {
+          x.className = (x.getAttribute('data-ptab') === newTab ? `active t-${newTab}` : '');
+        });
+        const contentEl = view.querySelector('#my-stats-tab-content');
+        if (contentEl) {
+          contentEl.innerHTML = renderTabContent(newTab);
+          bindTabInteractions();
+        }
+      };
+    });
 
     // Conectar botón Ver Carta FUT
     const btnOpenMyFut = view.querySelector('#btn-open-my-fut-card');
     if (btnOpenMyFut) {
       btnOpenMyFut.onclick = () => {
         if (window.FutCard && FutCard.showModal) {
-          const ovr = FutCard.computeOvr ? FutCard.computeOvr(radar) : Math.min(99, Math.max(45, Math.round(stats.aggregatedRating * 10)));
+          const ovr = FutCard.computeOvr ? FutCard.computeOvr(globalRadar) : Math.min(99, Math.max(45, Math.round(overall.rating * 10)));
           FutCard.showModal({
             player: myP,
-            radar: radar,
+            radar: globalRadar,
             ovr: ovr,
             team: team,
             streak: streak,
@@ -5492,18 +5662,11 @@
         }
       };
     }
-
-    // Conectar clic en etiquetas del radar
-    view.querySelectorAll('.radar-click-label').forEach(el => {
-      el.onclick = () => {
-        const skill = el.getAttribute('data-skill');
-        showSkillExplanationModal(skill);
-      };
-    });
   }
 
-  function renderPlayerMatchHistory(pid) {
-    if (!clubData || !clubData.sessions || clubData.sessions.length === 0) {
+  function renderPlayerMatchHistory(pid, customSessions) {
+    const sessions = Array.isArray(customSessions) ? customSessions : ((clubData && clubData.sessions) || []);
+    if (!sessions || sessions.length === 0) {
       return `
         <div class="card" style="padding: 16px; text-align: center; border: 1px dashed var(--border); color: var(--muted); font-size: 13px;">
           ${t('noMatchesYet')}
@@ -5511,7 +5674,7 @@
       `;
     }
 
-    const matches = clubData.sessions.filter(s => {
+    const matches = sessions.filter(s => {
       const st = s.stats && s.stats[pid];
       return st && Object.values(st).some(v => v > 0);
     }).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
@@ -5914,9 +6077,92 @@
     if (!p) return;
 
     const team = clubData.teams ? clubData.teams.find(t => t.id === p.teamId) : null;
-    const stats = calculatePlayerStats(pid);
-    const radar = calculatePlayerRadar(pid);
+    const allSessions = (clubData && clubData.sessions) || [];
+    const trainingSessions = allSessions.filter(s => (s.type || 'training') === 'training');
+    const matchSessions = allSessions.filter(s => (s.type || 'training') === 'match');
+    const aggTraining = getPlayerAggregate(pid, trainingSessions);
+    const aggMatch = getPlayerAggregate(pid, matchSessions);
+    const overall = calculatePlayerOverallRating(pid, p.mainPosition);
+    let activeProfileTab = (aggTraining.count === 0 && aggMatch.count > 0) ? 'match' : 'training';
+
     const streak = calculatePlayerAttendanceStreak(pid);
+    const globalRadar = calculatePlayerRadar(pid);
+
+    function renderModalTabContent(tabName) {
+      const isMatch = (tabName === 'match');
+      const curSessions = isMatch ? matchSessions : trainingSessions;
+      const curAgg = isMatch ? aggMatch : aggTraining;
+
+      if (isMatch && curAgg.count === 0) {
+        return `
+          <div class="card empty" style="padding: 24px 14px; text-align: center; border: 1.5px dashed var(--border); border-radius: 14px; background: rgba(15, 23, 42, 0.4); margin-bottom: 12px;">
+            <div style="font-size: 36px; margin-bottom: 8px;">🏆</div>
+            <h3 style="font-size: 15px; font-weight: 900; color: #fff; margin-bottom: 4px;">${t('noMatchesRecordedYet', 'Sin partidos registrados todavía')}</h3>
+            <p style="font-size: 12px; color: var(--muted); margin: 0; line-height: 1.4;">${t('noMatchesRecordedDesc', 'Cuando el entrenador registre sus estadísticas en partidos, aquí aparecerán sus métricas.')}</p>
+          </div>
+        `;
+      }
+
+      if (!isMatch && curAgg.count === 0) {
+        return `
+          <div class="card empty" style="padding: 24px 14px; text-align: center; border: 1.5px dashed var(--border); border-radius: 14px; background: rgba(15, 23, 42, 0.4); margin-bottom: 12px;">
+            <div style="font-size: 36px; margin-bottom: 8px;">⚽</div>
+            <h3 style="font-size: 15px; font-weight: 900; color: #fff; margin-bottom: 4px;">${t('noTrainingsRecordedYet', 'Sin entrenamientos registrados todavía')}</h3>
+            <p style="font-size: 12px; color: var(--muted); margin: 0; line-height: 1.4;">${t('noActionsYet', 'Aún no hay acciones registradas')}</p>
+          </div>
+        `;
+      }
+
+      const curStats = calculatePlayerStats(pid, curSessions);
+      const curRadar = calculatePlayerRadar(pid, curSessions);
+
+      return `
+        <!-- Radar -->
+        <div class="card" style="margin-bottom: 12px; border: 1px solid var(--border);" id="dlg-radar-box">
+          ${renderRadarSVG(curRadar)}
+        </div>
+
+        <!-- Cifras -->
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; text-align: center; margin-bottom: 14px;">
+          <div style="background: var(--surface2); padding: 8px 4px; border-radius: 10px; border: 1px solid var(--border);">
+            <div style="font-size: 10px; font-weight: 800; color: ${isMatch ? 'var(--match)' : 'var(--train)'};">${isMatch ? t('matchesAttended') : t('trainingsAttended')}</div>
+            <div style="font-size: 18px; font-weight: 900; color: #fff;">${isMatch ? curStats.matchesAttended : curStats.trainingsAttended}</div>
+          </div>
+          <div style="background: var(--surface2); padding: 8px 4px; border-radius: 10px; border: 1px solid var(--border);">
+            <div style="font-size: 10px; font-weight: 800; color: #86efac;">${t('goalsScored')}</div>
+            <div style="font-size: 18px; font-weight: 900; color: #86efac;">${curStats.goals}</div>
+          </div>
+          <div style="background: var(--surface2); padding: 8px 4px; border-radius: 10px; border: 1px solid var(--border);">
+            <div style="font-size: 10px; font-weight: 800; color: var(--cyan);">${t('passAccuracy')}</div>
+            <div style="font-size: 18px; font-weight: 900; color: var(--cyan);">${curStats.passAcc}%</div>
+          </div>
+          <div style="background: var(--surface2); padding: 8px 4px; border-radius: 10px; border: 1px solid var(--border);">
+            <div style="font-size: 10px; font-weight: 800; color: #facc15;">${t('shotAccuracy')}</div>
+            <div style="font-size: 18px; font-weight: 900; color: #facc15;">${curStats.shotAcc}%</div>
+          </div>
+          <div style="background: var(--surface2); padding: 8px 4px; border-radius: 10px; border: 1px solid var(--border);">
+            <div style="font-size: 10px; font-weight: 800; color: #c084fc;">${t('ballTouches')}</div>
+            <div style="font-size: 18px; font-weight: 900; color: #c084fc;">${curStats.touches}</div>
+          </div>
+          <div style="background: var(--surface2); padding: 8px 4px; border-radius: 10px; border: 1px solid var(--border);">
+            <div style="font-size: 10px; font-weight: 800; color: #38bdf8;">${t('recoveries')}</div>
+            <div style="font-size: 18px; font-weight: 900; color: #38bdf8;">${curStats.recoveries}</div>
+          </div>
+        </div>
+
+        <!-- Mapa Táctico de Goles y Acciones por Zonas -->
+        ${renderPlayerGoalsPitchHtml(pid, curSessions)}
+
+        <!-- Historial Completo de Acciones en la Carrera -->
+        ${renderPlayerCareerActionsListHtml(pid, curSessions)}
+
+        <!-- Partidos/Sesiones Recientes -->
+        <div style="font-size: 13px; font-weight: 800; margin-bottom: 6px;">${isMatch ? t('recentMatchesTitle') : t('sessions')}</div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          ${renderPlayerMatchHistory(pid, curSessions)}
+        </div>
+      `;
+    }
 
     const overlay = document.createElement('div');
     overlay.className = 'dialog-overlay';
@@ -5947,43 +6193,21 @@
                 <span style="color: var(--cyan); font-weight: 800;">(${calculateAgeYearsMonths(p.birthDate, currentLang)})</span>
               </div>
             ` : ''}
-            <div style="margin-top: 6px; font-size: 13.5px; font-weight: 900; color: #22d3ee; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px;">
-              <span>⭐ ${t('performanceRating')}: ${stats.aggregatedRating} / 10</span>
-              ${streak > 0 ? `<span class="badge" style="background: rgba(249, 115, 22, 0.2); color: #fb923c; border: 1px solid rgba(249, 115, 22, 0.5); font-size: 11px;">🔥 ${streak} ${streak === 1 ? t('streakSessionSingle') : t('streakSessions')}</span>` : ''}
+            <div style="margin-top: 6px; display: flex; flex-direction: column; gap: 2px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px;">
+                <span class="rating-pill" style="font-size: 12.5px; font-weight: 900; background: linear-gradient(135deg, rgba(234, 179, 8, 0.25), rgba(202, 138, 4, 0.4)); color: #fef08a; border: 1.5px solid #facc15; padding: 3px 9px; border-radius: 999px; display: inline-flex; align-items: center; gap: 4px; width: fit-content;">
+                  ⭐ ${overall.rating.toFixed(1)} ${t('overallRating', 'Rating General')}
+                </span>
+                ${streak > 0 ? `<span class="badge" style="background: rgba(249, 115, 22, 0.2); color: #fb923c; border: 1px solid rgba(249, 115, 22, 0.5); font-size: 11px;">🔥 ${streak} ${streak === 1 ? t('streakSessionSingle') : t('streakSessions')}</span>` : ''}
+              </div>
+              <span style="font-size: 10px; font-weight: 800; color: ${overall.mode === 'combined' ? '#38bdf8' : (overall.mode === 'training' ? '#4ade80' : '#facc15')}; margin-left: 6px;">
+                ${overall.mode === 'combined' 
+                  ? t('combinedRating', 'Valoración Combinada') 
+                  : (overall.mode === 'training' 
+                      ? t('onlyTrainingRating', 'Solo Entrenamientos') 
+                      : (overall.mode === 'match' ? t('onlyMatchRating', 'Solo Partidos') : t('baseRating', 'Valoración Base')))}
+              </span>
             </div>
-          </div>
-        </div>
-
-        <!-- Radar -->
-        <div class="card" style="margin-bottom: 12px; border: 1px solid var(--border);" id="dlg-radar-box">
-          ${renderRadarSVG(radar)}
-        </div>
-
-        <!-- Cifras -->
-        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; text-align: center; margin-bottom: 14px;">
-          <div style="background: var(--surface2); padding: 8px 4px; border-radius: 10px; border: 1px solid var(--border);">
-            <div style="font-size: 10px; font-weight: 800; color: var(--match);">${t('matchesAttended')}</div>
-            <div style="font-size: 18px; font-weight: 900; color: #fff;">${stats.matchesAttended}</div>
-          </div>
-          <div style="background: var(--surface2); padding: 8px 4px; border-radius: 10px; border: 1px solid var(--border);">
-            <div style="font-size: 10px; font-weight: 800; color: var(--train);">${t('trainingsAttended')}</div>
-            <div style="font-size: 18px; font-weight: 900; color: #fff;">${stats.trainingsAttended}</div>
-          </div>
-          <div style="background: var(--surface2); padding: 8px 4px; border-radius: 10px; border: 1px solid var(--border);">
-            <div style="font-size: 10px; font-weight: 800; color: #86efac;">${t('goalsScored')}</div>
-            <div style="font-size: 18px; font-weight: 900; color: #86efac;">${stats.goals}</div>
-          </div>
-          <div style="background: var(--surface2); padding: 8px 4px; border-radius: 10px; border: 1px solid var(--border);">
-            <div style="font-size: 10px; font-weight: 800; color: var(--cyan);">${t('passAccuracy')}</div>
-            <div style="font-size: 18px; font-weight: 900; color: var(--cyan);">${stats.passAcc}%</div>
-          </div>
-          <div style="background: var(--surface2); padding: 8px 4px; border-radius: 10px; border: 1px solid var(--border);">
-            <div style="font-size: 10px; font-weight: 800; color: #facc15;">${t('shotAccuracy')}</div>
-            <div style="font-size: 18px; font-weight: 900; color: #facc15;">${stats.shotAcc}%</div>
-          </div>
-          <div style="background: var(--surface2); padding: 8px 4px; border-radius: 10px; border: 1px solid var(--border);">
-            <div style="font-size: 10px; font-weight: 800; color: #c084fc;">${t('ballTouches')}</div>
-            <div style="font-size: 18px; font-weight: 900; color: #c084fc;">${stats.touches}</div>
           </div>
         </div>
 
@@ -5991,7 +6215,7 @@
         <button type="button" class="btn block" id="btn-open-player-fut-card-${pid}" style="height: 44px; font-weight: 900; font-size: 13.5px; margin-bottom: 10px; border-radius: 12px; background: linear-gradient(135deg, #18181b 0%, #27272a 50%, #18181b 100%); color: #facc15; border: 1.5px solid #eab308; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer;">
           <span style="font-size: 18px;">🃏</span>
           <span>${t('viewFutCard', 'Ver Carta FUT')}</span>
-          <span class="badge" style="background: rgba(250, 204, 21, 0.2); color: #fef08a; border: 1px solid #facc15; font-size: 11px;">OVR ${window.FutCard && FutCard.computeOvr ? FutCard.computeOvr(radar) : Math.min(99, Math.max(45, Math.round(stats.aggregatedRating * 10)))}</span>
+          <span class="badge" style="background: rgba(250, 204, 21, 0.2); color: #fef08a; border: 1px solid #facc15; font-size: 11px;">OVR ${window.FutCard && FutCard.computeOvr ? FutCard.computeOvr(globalRadar) : Math.min(99, Math.max(45, Math.round(overall.rating * 10)))}</span>
         </button>
 
         <!-- Botón Chatear con este jugador (Punto 8) -->
@@ -6001,16 +6225,18 @@
           </button>
         ` : ''}
 
-        <!-- Mapa Táctico de Goles y Acciones por Zonas -->
-        ${renderPlayerGoalsPitchHtml(pid)}
+        <!-- Selector de Sub-Pestañas: Entrenamientos vs Partidos -->
+        <div class="segmented profile-view-tabs dlg-profile-view-tabs" style="margin-bottom: 12px;">
+          <button type="button" class="${activeProfileTab === 'training' ? 'active t-training' : ''}" data-ptab="training">
+            ⚽ ${t('trainingsTab', 'Entrenamientos')} (${aggTraining.count})
+          </button>
+          <button type="button" class="${activeProfileTab === 'match' ? 'active t-match' : ''}" data-ptab="match">
+            🏆 ${t('matchesTab', 'Partidos')} (${aggMatch.count})
+          </button>
+        </div>
 
-        <!-- Historial Completo de Acciones en la Carrera -->
-        ${renderPlayerCareerActionsListHtml(pid)}
-
-        <!-- Partidos Recientes -->
-        <div style="font-size: 13px; font-weight: 800; margin-bottom: 6px;">${t('recentMatchesTitle')}</div>
-        <div style="display: flex; flex-direction: column; gap: 8px;">
-          ${renderPlayerMatchHistory(pid)}
+        <div id="dlg-pfull-tab-content">
+          ${renderModalTabContent(activeProfileTab)}
         </div>
       </div>
     `;
@@ -6020,14 +6246,40 @@
     if (closeBtn) closeBtn.onclick = close;
     overlay.onclick = (e) => { if (e.target === overlay) close(); };
 
+    function bindModalTabInteractions() {
+      overlay.querySelectorAll('.radar-click-label').forEach(el => {
+        el.onclick = () => {
+          const skill = el.getAttribute('data-skill');
+          showSkillExplanationModal(skill);
+        };
+      });
+    }
+
+    bindModalTabInteractions();
+
+    overlay.querySelectorAll('.dlg-profile-view-tabs button').forEach(b => {
+      b.onclick = () => {
+        const newTab = b.getAttribute('data-ptab');
+        activeProfileTab = newTab;
+        overlay.querySelectorAll('.dlg-profile-view-tabs button').forEach(x => {
+          x.className = (x.getAttribute('data-ptab') === newTab ? `active t-${newTab}` : '');
+        });
+        const contentEl = overlay.querySelector('#dlg-pfull-tab-content');
+        if (contentEl) {
+          contentEl.innerHTML = renderModalTabContent(newTab);
+          bindModalTabInteractions();
+        }
+      };
+    });
+
     const btnPlayerFut = overlay.querySelector(`#btn-open-player-fut-card-${pid}`);
     if (btnPlayerFut) {
       btnPlayerFut.onclick = () => {
         if (window.FutCard && FutCard.showModal) {
-          const ovr = FutCard.computeOvr ? FutCard.computeOvr(radar) : Math.min(99, Math.max(45, Math.round(stats.aggregatedRating * 10)));
+          const ovr = FutCard.computeOvr ? FutCard.computeOvr(globalRadar) : Math.min(99, Math.max(45, Math.round(overall.rating * 10)));
           FutCard.showModal({
             player: p,
-            radar: radar,
+            radar: globalRadar,
             ovr: ovr,
             team: team,
             streak: streak,
@@ -6053,13 +6305,6 @@
         }
       };
     }
-
-    overlay.querySelectorAll('.radar-click-label').forEach(el => {
-      el.onclick = () => {
-        const skill = el.getAttribute('data-skill');
-        showSkillExplanationModal(skill);
-      };
-    });
 
     document.body.appendChild(overlay);
   }

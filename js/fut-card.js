@@ -1,16 +1,15 @@
 /* =========================================================
    FUT Card Generator (Carta Coleccionable estilo EA FC / FIFA)
-   - Renderizado Canvas HD en el cliente (0 coste Firebase)
-   - Diseños oficiales EA FC: Black Edition & White Edition + Oro Clásico
+   - Renderizado Canvas HD Procedural Vectorial (Mismo estilo Gold)
+   - Diseños Vectoriales: Oro Clásico, TOTW Black & Diamante Cyan
+   - Cifras centrales y logos ampliados para ocupar armónicamente el espacio
    - Insignias oficiales en pie: Bandera de Estonia, EJL y JK Noova
-   - Descarga en PNG de alta resolución y compartir en redes
+   - Descarga en PNG de alta resolución (600x880) y compartir en redes
    ========================================================= */
 (function (global) {
   'use strict';
 
   const ASSETS = {
-    card_black: 'assets/fut/card_black.png',
-    card_white: 'assets/fut/card_white.png',
     flag_estonia: 'assets/fut/flag_estonia.png',
     logo_ejl: 'assets/fut/logo_ejl.png',
     logo_noova: 'assets/fut/logo_noova.png'
@@ -37,37 +36,11 @@
   }
 
   const THEMES = {
-    black: {
-      id: 'black',
-      name: { es: 'Black Edition (EA FC)', en: 'Black Edition (EA FC)', ee: 'Must EA FC' },
-      bgAsset: ASSETS.card_black,
-      cardBorder: '#facc15',
-      glow: 'rgba(250, 204, 21, 0.45)',
-      numColor: '#ffffff',
-      posColor: '#facc15',
-      nameColor: '#ffffff',
-      statLabelColor: '#94a3b8',
-      statValColor: '#ffffff',
-      avatarBorder: '#facc15'
-    },
-    white: {
-      id: 'white',
-      name: { es: 'White Edition (EA FC)', en: 'White Edition (EA FC)', ee: 'Valge EA FC' },
-      bgAsset: ASSETS.card_white,
-      cardBorder: '#0284c7',
-      glow: 'rgba(2, 132, 199, 0.45)',
-      numColor: '#0f172a',
-      posColor: '#0284c7',
-      nameColor: '#0f172a',
-      statLabelColor: '#64748b',
-      statValColor: '#0f172a',
-      avatarBorder: '#0284c7'
-    },
     gold: {
       id: 'gold',
       name: { es: 'Oro Clásico', en: 'Gold Classic', ee: 'Kuldne Klassika' },
-      bgAsset: null,
       bgGrad: ['#3b2d13', '#61481c', '#9e7930', '#fef08a', '#9e7930', '#3b2d13'],
+      innerGrad: ['#2b210a', '#453511', '#241a06', '#120d03'],
       cardBorder: '#facc15',
       glow: 'rgba(250, 204, 21, 0.45)',
       numColor: '#fef08a',
@@ -75,7 +48,41 @@
       nameColor: '#ffffff',
       statLabelColor: '#cbd5e1',
       statValColor: '#fef08a',
-      avatarBorder: '#eab308'
+      avatarBorder: '#eab308',
+      dividerColor: 'rgba(250, 204, 21, 0.45)',
+      rayColor: 'rgba(250, 204, 21, 0.08)'
+    },
+    black: {
+      id: 'black',
+      name: { es: 'TOTW / Black', en: 'TOTW / Black', ee: 'Must TOTW' },
+      bgGrad: ['#18181b', '#27272a', '#52525b', '#facc15', '#27272a', '#09090b'],
+      innerGrad: ['#18181b', '#0f172a', '#09090b', '#000000'],
+      cardBorder: '#facc15',
+      glow: 'rgba(250, 204, 21, 0.45)',
+      numColor: '#facc15',
+      posColor: '#ffffff',
+      nameColor: '#ffffff',
+      statLabelColor: '#94a3b8',
+      statValColor: '#ffffff',
+      avatarBorder: '#facc15',
+      dividerColor: 'rgba(250, 204, 21, 0.4)',
+      rayColor: 'rgba(250, 204, 21, 0.06)'
+    },
+    diamond: {
+      id: 'diamond',
+      name: { es: 'Diamante Cyan', en: 'Diamond Cyan', ee: 'Teemant Tsüaan' },
+      bgGrad: ['#082f49', '#0369a1', '#38bdf8', '#e0f2fe', '#0284c7', '#082f49'],
+      innerGrad: ['#0c4a6e', '#075985', '#082f49', '#020617'],
+      cardBorder: '#38bdf8',
+      glow: 'rgba(56, 189, 248, 0.45)',
+      numColor: '#38bdf8',
+      posColor: '#ffffff',
+      nameColor: '#ffffff',
+      statLabelColor: '#93c5fd',
+      statValColor: '#ffffff',
+      avatarBorder: '#38bdf8',
+      dividerColor: 'rgba(56, 189, 248, 0.45)',
+      rayColor: 'rgba(56, 189, 248, 0.08)'
     }
   };
 
@@ -99,8 +106,10 @@
         shareText: '¡Mira mi Carta Oficial de Player Stats con media general de {ovr}!',
         close: 'Cerrar',
         selectTheme: 'Elige el diseño de tu carta:',
-        statPas: 'PAS', statTir: 'TIR', statReg: 'REG', statFis: 'FIS', statDef: 'DEF', statDis: 'DIS',
-        streakBadge: '🔥 RACHA DE ASISTENCIA: {streak}'
+        themeGold: '🟡 Oro Clásico',
+        themeBlack: '⚫ TOTW Black',
+        themeDiamond: '🔷 Diamante Cyan',
+        statPas: 'PAS', statTir: 'TIR', statReg: 'REG', statFis: 'FIS', statDef: 'DEF', statDis: 'DIS'
       },
       en: {
         futCardTitle: 'FUT Collectible Card',
@@ -112,8 +121,10 @@
         shareText: 'Check out my official Player Stats card with an overall rating of {ovr}!',
         close: 'Close',
         selectTheme: 'Choose your card theme:',
-        statPas: 'PAS', statTir: 'SHO', statReg: 'DRI', statFis: 'PHY', statDef: 'DEF', statDis: 'DIS',
-        streakBadge: '🔥 ATTENDANCE STREAK: {streak}'
+        themeGold: '🟡 Gold Classic',
+        themeBlack: '⚫ TOTW Black',
+        themeDiamond: '🔷 Diamond Cyan',
+        statPas: 'PAS', statTir: 'SHO', statReg: 'DRI', statFis: 'PHY', statDef: 'DEF', statDis: 'DIS'
       },
       ee: {
         futCardTitle: 'Kogutav FUT Kaart',
@@ -125,8 +136,10 @@
         shareText: 'Vaata minu ametlikku Player Stats kaarti üldhinnanguga {ovr}!',
         close: 'Sulge',
         selectTheme: 'Vali kaardi stiil:',
-        statPas: 'SÖÖ', statTir: 'LÖÖ', statReg: 'TRI', statFis: 'FÜÜ', statDef: 'KAI', statDis: 'DIT',
-        streakBadge: '🔥 TREENINGUTE SEERIA: {streak}'
+        themeGold: '🟡 Kuldne Klassika',
+        themeBlack: '⚫ Must TOTW',
+        themeDiamond: '🔷 Teemant Tsüaan',
+        statPas: 'SÖÖ', statTir: 'LÖÖ', statReg: 'TRI', statFis: 'FÜÜ', statDef: 'KAI', statDis: 'DIS'
       }
     };
     return (dict[lang] && dict[lang][key]) || (dict.en && dict.en[key]) || fallback || key;
@@ -146,176 +159,14 @@
 
   function drawFutCardCanvas(canvas, data, themeId) {
     const ctx = canvas.getContext('2d');
-    const theme = THEMES[themeId] || THEMES.black;
+    const theme = THEMES[themeId] || THEMES.gold;
 
-    // Badges compartidos de pie de carta
+    // Badges compartidos de pie de carta y escudo del club
     const flagImg = imageCache[ASSETS.flag_estonia];
     const ejlImg = imageCache[ASSETS.logo_ejl];
     const noovaImg = imageCache[ASSETS.logo_noova];
 
-    // =========================================================
-    // DISEÑO EA FC (BLACK / WHITE) CON PLANTILLA HD
-    // =========================================================
-    if (themeId === 'black' || themeId === 'white') {
-      const W = 475;
-      const H = 677;
-      canvas.width = W;
-      canvas.height = H;
-      ctx.clearRect(0, 0, W, H);
-
-      const bgImg = imageCache[theme.bgAsset];
-      if (bgImg && bgImg.complete && bgImg.naturalWidth > 0) {
-        ctx.drawImage(bgImg, 0, 0, W, H);
-      } else {
-        // Fallback gradiente si la imagen aún no está disponible
-        ctx.fillStyle = (themeId === 'black' ? '#09090b' : '#f8fafc');
-        ctx.fillRect(0, 0, W, H);
-      }
-
-      const ovr = data.ovr || computeOvr(data.radar);
-      const pos = (data.player && data.player.mainPosition) ? data.player.mainPosition.toUpperCase() : 'MC';
-
-      // 1. OVR (Media General)
-      ctx.save();
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'alphabetic';
-      ctx.font = '900 68px "Arial Black", Impact, sans-serif';
-      ctx.fillStyle = theme.numColor;
-      ctx.shadowColor = (themeId === 'black' ? 'rgba(0,0,0,0.85)' : 'rgba(0,0,0,0.15)');
-      ctx.shadowBlur = 8;
-      ctx.fillText(String(ovr), 100, 115);
-      ctx.restore();
-
-      // 2. Posición Oficial
-      ctx.save();
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'alphabetic';
-      ctx.font = '900 28px "Arial Black", sans-serif';
-      ctx.fillStyle = theme.posColor;
-      ctx.fillText(pos, 100, 155);
-      ctx.restore();
-
-      // 3. Foto o Avatar del Jugador (Círculo con marco premium)
-      const avatarX = 295;
-      const avatarY = 250;
-      const avatarR = 95;
-
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(avatarX, avatarY, avatarR, 0, Math.PI * 2);
-      ctx.clip();
-
-      if (data._avatarImage && data._avatarImage.complete && data._avatarImage.naturalWidth > 0) {
-        ctx.drawImage(data._avatarImage, avatarX - avatarR, avatarY - avatarR, avatarR * 2, avatarR * 2);
-      } else {
-        ctx.fillStyle = (themeId === 'black' ? '#18181b' : '#e2e8f0');
-        ctx.fillRect(avatarX - avatarR, avatarY - avatarR, avatarR * 2, avatarR * 2);
-
-        const initial = ((data.player && data.player.name) ? data.player.name[0] : 'P').toUpperCase();
-        ctx.font = '900 84px sans-serif';
-        ctx.fillStyle = (themeId === 'black' ? '#facc15' : '#0284c7');
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(initial, avatarX, avatarY);
-      }
-      ctx.restore();
-
-      // Borde circular alrededor del avatar
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(avatarX, avatarY, avatarR, 0, Math.PI * 2);
-      ctx.lineWidth = 3.5;
-      ctx.strokeStyle = theme.avatarBorder;
-      ctx.stroke();
-      ctx.restore();
-
-      // 4. Nombre del Jugador
-      const fullName = (data.player ? `${data.player.name || ''} ${data.player.lastName || ''}` : 'PLAYER').trim();
-      const displayName = fullName.length > 18 ? (data.player.name ? data.player.name[0] + '. ' + (data.player.lastName || data.player.name) : fullName) : fullName;
-
-      ctx.save();
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      let nameFontSize = 32;
-      if (displayName.length > 14) nameFontSize = 26;
-      if (displayName.length > 20) nameFontSize = 22;
-      ctx.font = `900 ${nameFontSize}px "Arial Black", sans-serif`;
-      ctx.fillStyle = theme.nameColor;
-      ctx.shadowColor = (themeId === 'black' ? 'rgba(0,0,0,0.9)' : 'rgba(255,255,255,0.7)');
-      ctx.shadowBlur = 6;
-      ctx.fillText(displayName.toUpperCase(), 237, 498);
-      ctx.restore();
-
-      // 5. Atributos (6 Stats en barra horizontal EA FC)
-      const r = data.radar || { pas: 70, tir: 70, reg: 70, fis: 70, def: 70, dis: 70 };
-      const statsList = [
-        { label: getI18nText('statTir', 'TIR'), val: r.tir },
-        { label: getI18nText('statPas', 'PAS'), val: r.pas },
-        { label: getI18nText('statReg', 'REG'), val: r.reg },
-        { label: getI18nText('statDef', 'DEF'), val: r.def },
-        { label: getI18nText('statFis', 'FIS'), val: r.fis },
-        { label: getI18nText('statDis', 'DIS'), val: r.dis }
-      ];
-
-      const xCols = [73, 138, 206, 275, 340, 405];
-      statsList.forEach((st, idx) => {
-        const cx = xCols[idx];
-
-        // Etiqueta (TIR, PAS, etc.)
-        ctx.save();
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'alphabetic';
-        ctx.font = '800 15px sans-serif';
-        ctx.fillStyle = theme.statLabelColor;
-        ctx.fillText(st.label, cx, 549);
-
-        // Valor numérico
-        ctx.font = '900 25px "Arial Black", sans-serif';
-        ctx.fillStyle = theme.statValColor;
-        ctx.fillText(String(Math.round(st.val)), cx, 594);
-        ctx.restore();
-      });
-
-      // 6. Pie de Carta: 3 Insignias (Bandera Estonia, Logo EJL, Logo JK Noova)
-      // Sin texto inferior como solicitó el usuario
-      const badgeY = 638;
-
-      // Bandera de Estonia
-      if (flagImg && flagImg.complete && flagImg.naturalWidth > 0) {
-        ctx.drawImage(flagImg, 175 - 18, badgeY - 12, 36, 24);
-      } else {
-        ctx.font = '22px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('🇪🇪', 175, badgeY);
-      }
-
-      // Logo EJL
-      if (ejlImg && ejlImg.complete && ejlImg.naturalWidth > 0) {
-        ctx.drawImage(ejlImg, 240 - 14, badgeY - 14, 28, 28);
-      } else {
-        ctx.font = '20px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('⚽', 240, badgeY);
-      }
-
-      // Logo JK Noova
-      if (noovaImg && noovaImg.complete && noovaImg.naturalWidth > 0) {
-        ctx.drawImage(noovaImg, 305 - 15, badgeY - 15, 30, 30);
-      } else {
-        ctx.font = '20px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('🛡️', 305, badgeY);
-      }
-
-      return;
-    }
-
-    // =========================================================
-    // DISEÑO ORO CLÁSICO (VECTORIAL) CON LAS 3 INSIGNIAS
-    // =========================================================
+    // Dimensiones HD de carta tipo escudo FIFA
     const W = 600;
     const H = 880;
     canvas.width = W;
@@ -327,14 +178,14 @@
       const y = inset;
       const w = W - inset * 2;
       const h = H - inset * 2;
-      const r = 28;
+      const r = 30;
 
       ctx.moveTo(x + r, y);
       ctx.lineTo(x + w - r, y);
       ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-      ctx.lineTo(x + w, y + h * 0.78);
+      ctx.lineTo(x + w, y + h * 0.77);
       ctx.lineTo(x + w * 0.5, y + h);
-      ctx.lineTo(x, y + h * 0.78);
+      ctx.lineTo(x, y + h * 0.77);
       ctx.lineTo(x, y + r);
       ctx.quadraticCurveTo(x, y, x + r, y);
       ctx.closePath();
@@ -342,18 +193,18 @@
 
     ctx.clearRect(0, 0, W, H);
 
-    // Sombra
+    // Sombra exterior
     ctx.save();
     ctx.shadowColor = theme.glow;
-    ctx.shadowBlur = 35;
+    ctx.shadowBlur = 36;
     ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 10;
+    ctx.shadowOffsetY = 12;
     makeCardPath(12);
     ctx.fillStyle = '#060a13';
     ctx.fill();
     ctx.restore();
 
-    // Borde exterior
+    // Borde exterior degradado
     ctx.save();
     makeCardPath(12);
     ctx.clip();
@@ -364,20 +215,20 @@
     ctx.fillStyle = borderGrad;
     ctx.fill();
 
-    // Fondo interior
+    // Fondo interior degradado
     ctx.beginPath();
     makeCardPath(20);
     ctx.clip();
     const bgInner = ctx.createLinearGradient(0, 0, 0, H);
-    bgInner.addColorStop(0, '#2b210a');
-    bgInner.addColorStop(0.35, '#453511');
-    bgInner.addColorStop(0.7, '#241a06');
-    bgInner.addColorStop(1, '#120d03');
+    const inGrad = theme.innerGrad || ['#2b210a', '#453511', '#241a06', '#120d03'];
+    inGrad.forEach((col, idx) => {
+      bgInner.addColorStop(idx / (inGrad.length - 1), col);
+    });
     ctx.fillStyle = bgInner;
     ctx.fill();
 
-    // Rayos sutiles
-    ctx.strokeStyle = 'rgba(250, 204, 21, 0.08)';
+    // Rayos sutiles de fondo
+    ctx.strokeStyle = theme.rayColor || 'rgba(250, 204, 21, 0.08)';
     ctx.lineWidth = 1.5;
     for (let i = -W; i < W * 2; i += 38) {
       ctx.beginPath();
@@ -393,32 +244,35 @@
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
 
-    // OVR
-    ctx.font = '900 68px "Arial Black", Impact, sans-serif';
+    // 1. OVR (Media General en esquina superior izquierda)
+    ctx.font = '900 70px "Arial Black", Impact, sans-serif';
     ctx.fillStyle = theme.numColor;
-    ctx.fillText(String(ovr), 110, 140);
+    ctx.shadowColor = 'rgba(0,0,0,0.85)';
+    ctx.shadowBlur = 8;
+    ctx.fillText(String(ovr), 110, 138);
 
-    // Posición
+    // 2. Posición Oficial
     ctx.font = '900 30px "Arial Black", sans-serif';
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText(pos, 110, 185);
+    ctx.fillStyle = theme.posColor;
+    ctx.fillText(pos, 110, 182);
 
-    // Dorsal
+    // 3. Dorsal
     if (dorsal) {
       ctx.font = '800 20px sans-serif';
       ctx.fillStyle = theme.cardBorder;
-      ctx.fillText(dorsal, 110, 216);
+      ctx.fillText(dorsal, 110, 214);
     }
 
-    // Logo del Club en panel lateral (reemplazando emoji del escudo por logo oficial)
+    // 4. Escudo del Club en panel lateral izquierdo (AMPLIADO a 64x64)
+    const crestY = 265;
     if (noovaImg && noovaImg.complete && noovaImg.naturalWidth > 0) {
-      ctx.drawImage(noovaImg, 110 - 20, 240, 40, 40);
+      ctx.drawImage(noovaImg, 110 - 32, crestY - 32, 64, 64);
     } else {
-      ctx.font = '36px sans-serif';
-      ctx.fillText('🛡️', 110, 270);
+      ctx.font = '48px sans-serif';
+      ctx.fillText('🛡️', 110, crestY + 16);
     }
 
-    // Avatar
+    // 5. Avatar / Foto del Jugador (Círculo en panel derecho)
     const avatarX = 360;
     const avatarY = 200;
     const avatarR = 115;
@@ -427,11 +281,11 @@
     ctx.beginPath();
     ctx.arc(avatarX, avatarY, avatarR, 0, Math.PI * 2);
     ctx.clip();
-    if (data._avatarImage) {
+    if (data._avatarImage && data._avatarImage.complete && data._avatarImage.naturalWidth > 0) {
       ctx.drawImage(data._avatarImage, avatarX - avatarR, avatarY - avatarR, avatarR * 2, avatarR * 2);
     } else {
-      ctx.fillStyle = '#785718';
-      ctx.fill();
+      ctx.fillStyle = (themeId === 'black' ? '#27272a' : (themeId === 'diamond' ? '#0369a1' : '#785718'));
+      ctx.fillRect(avatarX - avatarR, avatarY - avatarR, avatarR * 2, avatarR * 2);
       const initial = ((data.player && data.player.name) ? data.player.name[0] : 'P').toUpperCase();
       ctx.font = '900 100px sans-serif';
       ctx.fillStyle = '#ffffff';
@@ -441,15 +295,16 @@
     }
     ctx.restore();
 
+    // Marco exterior del avatar
     ctx.save();
     ctx.beginPath();
     ctx.arc(avatarX, avatarY, avatarR, 0, Math.PI * 2);
-    ctx.lineWidth = 4;
-    ctx.strokeStyle = theme.cardBorder;
+    ctx.lineWidth = 4.5;
+    ctx.strokeStyle = theme.avatarBorder;
     ctx.stroke();
     ctx.restore();
 
-    // Nombre
+    // 6. Nombre del Jugador en cinta transversal
     const nameY = 385;
     const fullName = (data.player ? `${data.player.name || ''} ${data.player.lastName || ''}` : 'PLAYER').trim();
     const displayName = fullName.length > 20 ? (data.player.name ? data.player.name[0] + '. ' + (data.player.lastName || data.player.name) : fullName) : fullName;
@@ -457,28 +312,28 @@
     ctx.save();
     const ribbonGrad = ctx.createLinearGradient(60, nameY, W - 60, nameY);
     ribbonGrad.addColorStop(0, 'rgba(0,0,0,0)');
-    ribbonGrad.addColorStop(0.2, 'rgba(250, 204, 21, 0.2)');
-    ribbonGrad.addColorStop(0.8, 'rgba(250, 204, 21, 0.2)');
+    ribbonGrad.addColorStop(0.2, (themeId === 'diamond' ? 'rgba(56, 189, 248, 0.25)' : 'rgba(250, 204, 21, 0.25)'));
+    ribbonGrad.addColorStop(0.8, (themeId === 'diamond' ? 'rgba(56, 189, 248, 0.25)' : 'rgba(250, 204, 21, 0.25)'));
     ribbonGrad.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = ribbonGrad;
-    ctx.fillRect(40, nameY - 32, W - 80, 52);
+    ctx.fillRect(40, nameY - 32, W - 80, 54);
 
     ctx.strokeStyle = theme.cardBorder;
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(70, nameY + 20);
-    ctx.lineTo(W - 70, nameY + 20);
+    ctx.moveTo(65, nameY + 22);
+    ctx.lineTo(W - 65, nameY + 22);
     ctx.stroke();
 
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.font = '900 32px "Arial Black", sans-serif';
-    ctx.fillStyle = '#ffffff';
+    ctx.font = '900 34px "Arial Black", sans-serif';
+    ctx.fillStyle = theme.nameColor;
     ctx.fillText(displayName.toUpperCase(), W / 2, nameY - 5);
     ctx.restore();
 
-    // Atributos 6 Stats en dos columnas
-    const statsY = 470;
+    // 7. Atributos: 6 Stats en dos columnas (AMPLIADAS para rellenar armónicamente el espacio)
+    const statsY = 460;
     const r = data.radar || { pas: 70, tir: 70, reg: 70, fis: 70, def: 70, dis: 70 };
     const leftStats = [
       { label: getI18nText('statPas', 'PAS'), val: r.pas },
@@ -491,63 +346,76 @@
       { label: getI18nText('statDis', 'DIS'), val: r.dis }
     ];
 
+    // Línea divisoria central
     ctx.save();
-    ctx.strokeStyle = 'rgba(250, 204, 21, 0.4)';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = theme.dividerColor;
+    ctx.lineWidth = 2.5;
     ctx.beginPath();
     ctx.moveTo(W / 2, statsY - 30);
-    ctx.lineTo(W / 2, statsY + 160);
+    ctx.lineTo(W / 2, statsY + 185);
     ctx.stroke();
     ctx.restore();
 
-    leftStats.forEach((st, idx) => {
-      const y = statsY + idx * 56;
-      ctx.textAlign = 'right';
-      ctx.font = '900 34px "Arial Black", sans-serif';
-      ctx.fillStyle = theme.numColor;
-      ctx.fillText(String(Math.round(st.val)), W / 2 - 80, y);
+    const rowStep = 68; // Paso vertical amplio para llenar el espacio vacío
 
+    leftStats.forEach((st, idx) => {
+      const y = statsY + idx * rowStep;
+
+      // Cifra numérica grande
+      ctx.textAlign = 'right';
+      ctx.font = '900 48px "Arial Black", Impact, sans-serif';
+      ctx.fillStyle = theme.statValColor;
+      ctx.fillText(String(Math.round(st.val)), W / 2 - 95, y);
+
+      // Etiqueta del atributo
       ctx.textAlign = 'left';
-      ctx.font = '900 24px sans-serif';
+      ctx.font = '900 26px sans-serif';
       ctx.fillStyle = theme.statLabelColor;
-      ctx.fillText(st.label, W / 2 - 68, y - 2);
+      ctx.fillText(st.label, W / 2 - 82, y - 4);
     });
 
     rightStats.forEach((st, idx) => {
-      const y = statsY + idx * 56;
-      ctx.textAlign = 'right';
-      ctx.font = '900 34px "Arial Black", sans-serif';
-      ctx.fillStyle = theme.numColor;
-      ctx.fillText(String(Math.round(st.val)), W / 2 + 50, y);
+      const y = statsY + idx * rowStep;
 
+      // Cifra numérica grande
+      ctx.textAlign = 'right';
+      ctx.font = '900 48px "Arial Black", Impact, sans-serif';
+      ctx.fillStyle = theme.statValColor;
+      ctx.fillText(String(Math.round(st.val)), W / 2 + 55, y);
+
+      // Etiqueta del atributo
       ctx.textAlign = 'left';
-      ctx.font = '900 24px sans-serif';
+      ctx.font = '900 26px sans-serif';
       ctx.fillStyle = theme.statLabelColor;
-      ctx.fillText(st.label, W / 2 + 62, y - 2);
+      ctx.fillText(st.label, W / 2 + 68, y - 4);
     });
 
-    // Insignias en el pie de la carta (Bandera Estonia, Logo EJL, Logo JK Noova)
+    // 8. Insignias en el pie de la carta (Bandera Estonia, Logo EJL, Logo JK Noova) AMPLIADAS
     // Sin texto inferior innecesario
-    const goldBadgeY = 740;
+    const badgeY = 735;
+
+    // Bandera de Estonia (ampliada a 66x44)
     if (flagImg && flagImg.complete && flagImg.naturalWidth > 0) {
-      ctx.drawImage(flagImg, 210 - 22, goldBadgeY - 15, 44, 30);
+      ctx.drawImage(flagImg, W / 2 - 100 - 33, badgeY - 22, 66, 44);
     } else {
-      ctx.font = '28px sans-serif';
-      ctx.fillText('🇪🇪', 210, goldBadgeY);
+      ctx.font = '36px sans-serif';
+      ctx.fillText('🇪🇪', W / 2 - 100, badgeY + 12);
     }
 
+    // Logo EJL (ampliado a 58x58)
     if (ejlImg && ejlImg.complete && ejlImg.naturalWidth > 0) {
-      ctx.drawImage(ejlImg, 300 - 18, goldBadgeY - 18, 36, 36);
+      ctx.drawImage(ejlImg, W / 2 - 29, badgeY - 29, 58, 58);
     } else {
-      ctx.font = '26px sans-serif';
-      ctx.fillText('⚽', 300, goldBadgeY);
+      ctx.font = '34px sans-serif';
+      ctx.fillText('⚽', W / 2, badgeY + 12);
     }
 
+    // Logo JK Noova (ampliado a 62x62)
     if (noovaImg && noovaImg.complete && noovaImg.naturalWidth > 0) {
-      ctx.drawImage(noovaImg, 390 - 20, goldBadgeY - 20, 40, 40);
+      ctx.drawImage(noovaImg, W / 2 + 100 - 31, badgeY - 31, 62, 62);
     } else {
-      ctx.font = '26px sans-serif';
-      ctx.fillText('🛡️', 390, goldBadgeY);
+      ctx.font = '34px sans-serif';
+      ctx.fillText('🛡️', W / 2 + 100, badgeY + 12);
     }
 
     ctx.restore();
@@ -557,7 +425,7 @@
     const player = opts.player;
     if (!player) return;
 
-    let currentTheme = 'black';
+    let currentTheme = 'gold';
     const radar = opts.radar || { pas: 72, tir: 65, reg: 70, fis: 75, def: 60, dis: 80 };
     const ovr = opts.ovr || computeOvr(radar);
     const team = opts.team || null;
@@ -589,21 +457,21 @@
             ${getI18nText('selectTheme', 'Elige el diseño:')}
           </label>
           <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px;" id="fut-theme-selector">
-            <button type="button" class="btn sm" data-theme="black" style="font-size: 11px; font-weight: 900; padding: 6px 4px; border-radius: 10px; background: rgba(24, 24, 27, 0.8); color: #facc15; border: 2px solid #facc15;">
-              ⚫ Black
+            <button type="button" class="btn sm" data-theme="gold" style="font-size: 11px; font-weight: 900; padding: 6px 4px; border-radius: 10px; background: rgba(250, 204, 21, 0.15); color: #fde047; border: 2px solid #facc15;">
+              ${getI18nText('themeGold', '🟡 Oro Clásico')}
             </button>
-            <button type="button" class="btn sm ghost" data-theme="white" style="font-size: 11px; font-weight: 800; padding: 6px 4px; border-radius: 10px; background: rgba(248, 250, 252, 0.12); color: #38bdf8; border: 1.5px solid var(--border);">
-              ⚪ White
+            <button type="button" class="btn sm ghost" data-theme="black" style="font-size: 11px; font-weight: 800; padding: 6px 4px; border-radius: 10px; background: rgba(24, 24, 27, 0.8); color: #facc15; border: 1.5px solid var(--border);">
+              ${getI18nText('themeBlack', '⚫ Black')}
             </button>
-            <button type="button" class="btn sm ghost" data-theme="gold" style="font-size: 11px; font-weight: 800; padding: 6px 4px; border-radius: 10px; background: rgba(250, 204, 21, 0.12); color: #fde047; border: 1.5px solid var(--border);">
-              🟡 Gold
+            <button type="button" class="btn sm ghost" data-theme="diamond" style="font-size: 11px; font-weight: 800; padding: 6px 4px; border-radius: 10px; background: rgba(3, 105, 161, 0.2); color: #38bdf8; border: 1.5px solid var(--border);">
+              ${getI18nText('themeDiamond', '🔷 Diamante')}
             </button>
           </div>
         </div>
 
         <!-- Vista Previa de la Carta -->
         <div style="position: relative; margin-bottom: 16px; display: flex; justify-content: center;">
-          <canvas id="fut-card-canvas" width="475" height="677" style="display: none;"></canvas>
+          <canvas id="fut-card-canvas" width="600" height="880" style="display: none;"></canvas>
           <div id="fut-card-loading" style="padding: 40px; color: var(--muted); font-size: 13px;">⏳ ${getI18nText('downloading', 'Generando imagen...')}</div>
           <img id="fut-card-img-preview" alt="FUT Card Preview" style="display: none; width: 100%; max-width: 320px; border-radius: 16px; box-shadow: 0 16px 40px rgba(0,0,0,0.7); cursor: pointer;" title="Toca para guardar" />
         </div>
@@ -661,10 +529,8 @@
       }
     }
 
-    // Pre-cargar assets base en paralelo
+    // Pre-cargar badges en paralelo
     const assetPromises = [
-      loadImage(ASSETS.card_black),
-      loadImage(ASSETS.card_white),
       loadImage(ASSETS.flag_estonia),
       loadImage(ASSETS.logo_ejl),
       loadImage(ASSETS.logo_noova)

@@ -2247,10 +2247,26 @@
       `;
     }
 
+    let trainingTeams = [];
+    if (Array.isArray(s.teamIds) && s.teamIds.length > 0) {
+      trainingTeams = s.teamIds.map(tid => Store.team(tid)).filter(Boolean);
+    } else if (s.teamId) {
+      const tm = Store.team(s.teamId);
+      if (tm) trainingTeams.push(tm);
+    }
+    if (trainingTeams.length === 0 && pids.length > 0) {
+      const tIdSet = new Set();
+      pids.forEach(pid => {
+        const pl = Store.player(pid);
+        if (pl && pl.teamId) tIdSet.add(pl.teamId);
+      });
+      trainingTeams = Array.from(tIdSet).map(tid => Store.team(tid)).filter(Boolean);
+    }
+
     return `
       <div class="session-item training ${isLive ? 'live' : ''} ${isToday ? 'conv-card-today' : ''}" data-id="${s.id}">
         <div class="s-ic">${emoji}</div>
-        <div class="grow">
+        <div class="grow" style="min-width: 0;">
           <div class="row" style="justify-content: space-between; align-items: center; margin-bottom: 2px;">
             <div style="display: flex; align-items: center; gap: 4px; overflow: hidden; min-width: 0;">
               <h4 class="ellipsis" style="margin: 0;">${escapeHtml(Store.sessionTitle(s))}</h4>
@@ -2260,6 +2276,15 @@
               ${isLive ? `<span class="badge live">${t('live')}</span>` : `<span class="badge training">${typeLabel}</span>`}
             </div>
           </div>
+          ${trainingTeams.length > 0 ? `
+            <div style="display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 4px;">
+              ${trainingTeams.map(tm => `
+                <span class="badge" style="font-size: 9.5px; font-weight: 800; background: ${tm.color || '#22c55e'}22; color: ${tm.color || '#22c55e'}; border: 1px solid ${tm.color || '#22c55e'}50; padding: 1px 5px; border-radius: 5px;">
+                  🛡️ ${escapeHtml(tm.name)}
+                </span>
+              `).join('')}
+            </div>
+          ` : ''}
           <div class="meta" style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
             <span>📅 ${formatDateDDMMAAAA(s.date)}</span>
             <span>•</span>
@@ -3099,7 +3124,9 @@
           <button class="icon-btn ghost" id="tracker-btn-back" title="Volver">${icon('back', 18)}</button>
           <div class="t-title">
             <b>${escapeHtml(Store.sessionTitle(s))}</b>
-            <span class="badge ${s.type}">${s.type === 'match' ? t('match').toUpperCase() : t('training').toUpperCase()}</span>
+            <button type="button" class="badge ${s.type}" id="tracker-btn-toggle-type" style="cursor: pointer; border: 1.5px solid var(--border); font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;" title="Toca para alternar entre Entrenamiento y Partido">
+              ${s.type === 'match' ? '🏆 ' + t('match').toUpperCase() : '⚽ ' + t('training').toUpperCase()} ▾
+            </button>
           </div>
 
           <!-- Pasar Lista / Asistencia -->
@@ -3257,6 +3284,17 @@
     container.querySelector('#tracker-btn-back').onclick = () => {
       closeTracker();
     };
+
+    const btnToggleType = container.querySelector('#tracker-btn-toggle-type');
+    if (btnToggleType) {
+      btnToggleType.onclick = () => {
+        session.type = session.type === 'match' ? 'training' : 'match';
+        Store.save();
+        haptic(35);
+        renderTracker();
+        toast(session.type === 'match' ? '🏆 Cambiado a Partido' : '⚽ Cambiado a Entrenamiento', 'info');
+      };
+    }
 
     container.querySelector('#tracker-btn-swap').onclick = () => {
       const slots = session.slots || [null, null];
@@ -4603,8 +4641,8 @@
   /* =========================================================
      MAPA DE CALOR DE ZONAS EN EL PERFIL DEL JUGADOR
      ========================================================= */
-  function renderPlayerPitchHeatmapHtml(playerId) {
-    const sessions = Store.state.sessions || [];
+  function renderPlayerPitchHeatmapHtml(playerId, customSessions) {
+    const sessions = customSessions || Store.state.sessions || [];
     const playerZones = [];
     sessions.forEach(s => {
       (s.zones || []).forEach(z => {
@@ -5493,14 +5531,39 @@
           <button class="${filter === 'match' ? 'active t-match' : ''}" data-f="match">${t('match')}</button>
         </div>
 
-        <div id="history-list">
+        <div id="history-list" style="display: flex; flex-direction: column; gap: 10px;">
           ${list.length === 0 ? `
             <div class="empty">
               <div class="big">📂</div>
               <h3>${t('noSessionsYet')}</h3>
               <p>${t('noSessionsDesc')}</p>
             </div>
-          ` : list.map(s => renderSessionItemHtml(s)).join('')}
+          ` : `
+            ${todaySessions.length > 0 ? `
+              <div style="font-size: 12.5px; font-weight: 800; color: var(--cyan); margin-bottom: 2px; display: flex; align-items: center; gap: 6px;">
+                <span>⚡</span> ${t('todaySessions', 'Sesiones de Hoy')} (${todaySessions.length})
+              </div>
+              ${todaySessions.map(s => renderSessionItemHtml(s)).join('')}
+            ` : `
+              <div class="card" style="padding: 14px; text-align: center; color: var(--muted); font-size: 12.5px; margin-bottom: 4px; border: 1px dashed var(--border);">
+                📅 ${t('noSessionsToday', 'No hay sesiones programadas para hoy')}
+              </div>
+            `}
+
+            ${pastSessions.length > 0 ? `
+              <details class="card past-convs-details" id="sessions-history-past-accordion" style="margin-top: 6px; padding: 0; border-radius: 14px; overflow: hidden; background: rgba(15, 23, 42, 0.5);" ${todaySessions.length === 0 ? 'open' : ''}>
+                <summary style="cursor: pointer; padding: 12px 14px; font-size: 13px; font-weight: 800; display: flex; justify-content: space-between; align-items: center; user-select: none; list-style: none;">
+                  <span style="display: flex; align-items: center; gap: 6px; color: #cbd5e1;">
+                    📁 ${t('pastSessionsTitle', 'Sesiones de días anteriores')} (${pastSessions.length})
+                  </span>
+                  <span style="font-size: 11px; color: var(--muted); font-weight: 700;">▼</span>
+                </summary>
+                <div style="display: flex; flex-direction: column; gap: 8px; padding: 10px 12px 14px; border-top: 1px solid rgba(255, 255, 255, 0.08);">
+                  ${pastSessions.map(s => renderSessionItemHtml(s)).join('')}
+                </div>
+              </details>
+            ` : ''}
+          `}
         </div>
       `;
 
@@ -5830,6 +5893,22 @@
 
     let selectedTeamFilter = defaultTeamFilter;
 
+    let participatingTeams = [];
+    if (sessionTeams.length > 0) {
+      participatingTeams = sessionTeams.map(tid => Store.team(tid)).filter(Boolean);
+    }
+    if (participatingTeams.length === 0 && trackedPlayerIds.size > 0) {
+      const seen = new Set();
+      trackedPlayerIds.forEach(pid => {
+        const pl = Store.player(pid);
+        if (pl && pl.teamId && !seen.has(pl.teamId)) {
+          seen.add(pl.teamId);
+          const tm = Store.team(pl.teamId);
+          if (tm) participatingTeams.push(tm);
+        }
+      });
+    }
+
     openSheet(Store.sessionTitle(s), (body) => {
       function renderSquadContent() {
         const teams = Store.state.teams || [];
@@ -5949,6 +6028,16 @@
                 <div>⏱️ Tiempo de entrenamiento: <b>${Store.fmtTime(Store.elapsed(s))}</b></div>
                 ${s.venue ? `<div>📍 Lugar: <b>${escapeHtml(s.venue)}</b></div>` : ''}
               </div>
+              ${participatingTeams.length > 0 ? `
+                <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.08); display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                  <span style="font-size: 11px; font-weight: 800; color: var(--muted);">${t('participatingTeams', 'Equipos participantes')}:</span>
+                  ${participatingTeams.map(tm => `
+                    <span class="badge" style="font-size: 10.5px; font-weight: 800; background: ${tm.color || '#22c55e'}22; color: ${tm.color || '#22c55e'}; border: 1px solid ${tm.color || '#22c55e'}60; padding: 2px 7px; border-radius: 6px;">
+                      🛡️ ${escapeHtml(tm.name)}
+                    </span>
+                  `).join('')}
+                </div>
+              ` : ''}
             </div>
           `}
 
@@ -6368,6 +6457,8 @@
         }
       });
     }
+  }
+
   // 👑 Modal para Nombrar el MVP Oficial del Partido
   function showSetOfficialMvpModal(session, onUpdated) {
     if (!session) return;
@@ -6900,27 +6991,12 @@
     if (!p) return;
     const team = Store.team(p.teamId);
 
-    const aggAll = Store.playerAggregate(p.id, Store.state.sessions);
-    const aggTraining = Store.playerAggregate(p.id, Store.filterSessions('training', 'all'));
-    const aggMatch = Store.playerAggregate(p.id, Store.filterSessions('match', 'all'));
-
-    const matchRating = Store.calculateMatchRating(aggAll.totals, p.mainPosition);
-    const playerRadar = Store.calculatePlayerRadar(p.id);
-    const playerTimeline = Store.playerTimeline(p.id, 'rating');
-
-    // Estadísticas porcentuales clave
-    const passOk = aggAll.totals.passOk || 0;
-    const passKo = aggAll.totals.passKo || 0;
-    const totalPass = passOk + passKo;
-    const passPct = totalPass > 0 ? Math.round((passOk / totalPass) * 100) : 0;
-
-    const shotOn = aggAll.totals.shotOn || 0;
-    const shotOff = aggAll.totals.shotOff || 0;
-    const totalShots = shotOn + shotOff;
-    const shotPct = totalShots > 0 ? Math.round((shotOn / totalShots) * 100) : 0;
-
-    const totalGoals = aggAll.totals.goal || 0;
-    const convPct = totalShots > 0 ? Math.round((totalGoals / totalShots) * 100) : (totalGoals > 0 ? 100 : 0);
+    const overall = Store.calculatePlayerOverallRating ? Store.calculatePlayerOverallRating(p.id, p.mainPosition) : { rating: 6.0, mode: 'none' };
+    const trainingSessions = Store.filterSessions('training', 'all');
+    const matchSessions = Store.filterSessions('match', 'all');
+    const aggTraining = Store.playerAggregate(p.id, trainingSessions);
+    const aggMatch = Store.playerAggregate(p.id, matchSessions);
+    let activeProfileTab = (aggTraining.count === 0 && aggMatch.count > 0) ? 'match' : 'training';
 
     const isEn = (Store.state.settings && Store.state.settings.lang === 'en');
     const footText = getPlayerFootLabel(p.foot);
@@ -6988,7 +7064,18 @@
               </button>
             </div>
             <div style="margin-top: 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-              <span class="rating-pill">⭐ ${matchRating.toFixed(1)} ${t('matchRating')}</span>
+              <div style="display: flex; flex-direction: column; gap: 2px;">
+                <span class="rating-pill" style="font-size: 13px; font-weight: 900; background: linear-gradient(135deg, rgba(234, 179, 8, 0.25), rgba(202, 138, 4, 0.4)); color: #fef08a; border: 1.5px solid #facc15; padding: 4px 10px; border-radius: 999px; display: inline-flex; align-items: center; gap: 5px;">
+                  ⭐ ${overall.rating.toFixed(1)} ${t('overallRating', 'Rating General')}
+                </span>
+                <span style="font-size: 10px; font-weight: 800; color: ${overall.mode === 'combined' ? '#38bdf8' : (overall.mode === 'training' ? '#4ade80' : '#facc15')}; margin-left: 6px;">
+                  ${overall.mode === 'combined' 
+                    ? t('combinedRating', 'Valoración Combinada') 
+                    : (overall.mode === 'training' 
+                        ? t('onlyTrainingRating', 'Solo Entrenamientos') 
+                        : (overall.mode === 'match' ? t('onlyMatchRating', 'Solo Partidos') : t('baseRating', 'Valoración Base')))}
+                </span>
+              </div>
               ${(() => {
                 const mvpCount = Store.calculatePlayerMvpCount ? Store.calculatePlayerMvpCount(p.id) : 0;
                 return mvpCount > 0 ? `<span class="badge" style="background: rgba(250, 204, 21, 0.2); color: #fde047; border: 1px solid rgba(250, 204, 21, 0.5); font-weight: 800; font-size: 11px;">⭐ ${mvpCount}x MVP</span>` : '';
@@ -7141,136 +7228,208 @@
           `}
         </div>
 
-        <!-- Estadísticas clave en porcentaje: % Pase, % Puntería, % Conversión -->
-        <div class="rings" style="margin-bottom: 12px;">
-          <div class="ring-card">
-            <div class="ring">
-              ${renderProgressRing(passPct, '#22c55e')}
-              <span class="r-val" style="color: #22c55e;">${passPct}%</span>
-            </div>
-            <span>${t('passAccuracy')}</span>
-            <small>${passOk}/${totalPass}</small>
-          </div>
-
-          <div class="ring-card">
-            <div class="ring">
-              ${renderProgressRing(shotPct, '#06b6d4')}
-              <span class="r-val" style="color: #06b6d4;">${shotPct}%</span>
-            </div>
-            <span>${t('shotAccuracy')}</span>
-            <small>${shotOn}/${totalShots}</small>
-          </div>
-
-          <div class="ring-card">
-            <div class="ring">
-              ${renderProgressRing(Math.min(100, convPct), '#facc15')}
-              <span class="r-val" style="color: #facc15;">${convPct}%</span>
-            </div>
-            <span>${t('goalConversion')}</span>
-            <small>${totalGoals} ${t('stat_goal')}</small>
-          </div>
+        <!-- Selector de Sub-Pestañas: Entrenamientos vs Partidos -->
+        <div class="segmented profile-view-tabs" style="margin-bottom: 14px; margin-top: 6px;">
+          <button type="button" class="${activeProfileTab === 'training' ? 'active t-training' : ''}" data-ptab="training">
+            ⚽ ${t('trainingsTab', 'Entrenamientos')} (${aggTraining.count})
+          </button>
+          <button type="button" class="${activeProfileTab === 'match' ? 'active t-match' : ''}" data-ptab="match">
+            🏆 ${t('matchesTab', 'Partidos')} (${aggMatch.count})
+          </button>
         </div>
 
-        <!-- Radar de Habilidades (Spider Chart de 5 cualidades deportivas) -->
-        <div class="section-title"><span>${t('skillRadar')}</span></div>
-        <div class="radar-container card" style="margin-bottom: 12px;">
-          ${renderRadarSVG(playerRadar)}
+        <div id="player-profile-tab-content">
+          ${renderProfileTabContent(activeProfileTab)}
         </div>
-
-        <!-- Cuadro de Información Aparte para Disciplina y Fair Play -->
-        <div class="discipline-card" id="btn-profile-discipline" style="cursor: pointer;" title="${t('adjustDiscipline')}">
-          <div class="discipline-score">${playerRadar.dis || 100}</div>
-          <div class="grow" style="text-align: left;">
-            <div style="font-size: 13.5px; font-weight: 800; color: var(--text);">
-              🧠 ${t('disciplineFairPlay')} (${playerRadar.dis || 100} / 99)
-            </div>
-            <div style="font-size: 11.5px; color: var(--muted); margin-top: 2px;">
-              ${(aggAll.totals.yellow || 0) === 0 && (aggAll.totals.red || 0) === 0 
-                ? (isEn ? 'Exemplary conduct • No cards accumulated' : 'Conducta ejemplar • Sin tarjetas acumuladas') 
-                : (isEn ? `Accumulated cards: 🟨 ${aggAll.totals.yellow || 0} • 🟥 ${aggAll.totals.red || 0}` : `Tarjetas acumuladas: 🟨 ${aggAll.totals.yellow || 0} • 🟥 ${aggAll.totals.red || 0}`)}
-            </div>
-          </div>
-          <div class="chev" style="opacity: 0.8; color: #22c55e;">${icon('edit', 16)}</div>
-        </div>
-
-        <div class="kpis" style="margin-bottom: 14px;">
-          <div class="kpi">
-            <span class="k-emoji">⚽</span>
-            <b class="num">${aggAll.totals.touches || 0}</b>
-            <span>${t('stat_touches')}</span>
-          </div>
-          <div class="kpi">
-            <span class="k-emoji">🅰️</span>
-            <b class="num" style="color: #a855f7;">${aggAll.totals.assist || 0}</b>
-            <span>${t('stat_assist')}</span>
-          </div>
-          <div class="kpi">
-            <span class="k-emoji">🛡️</span>
-            <b class="num" style="color: #3b82f6;">${aggAll.totals.recovery || 0}</b>
-            <span>${t('stat_recovery')}</span>
-          </div>
-        </div>
-
-        <!-- Zonas del campo táctico (Heatmap) -->
-        <div class="section-title"><span>${t('pitchZones')} (Puntos Calientes)</span></div>
-        <div class="card" style="margin-bottom: 14px; text-align: center;">
-          ${renderPlayerPitchHeatmapHtml(p.id)}
-        </div>
-
-        <!-- Evolución Temporal / Curva de Progreso -->
-        <div class="section-title"><span>${t('evolution')} (Nota de Rendimiento)</span></div>
-        <div class="card" style="margin-bottom: 14px; text-align: center;">
-          ${renderTimelineSVG(playerTimeline)}
-        </div>
-
-        <div class="section-title"><span>Desglose por tipo</span></div>
-
-        <table class="stat-table card">
-          <thead>
-            <tr>
-              <th>Acción</th>
-              <th class="tr">${t('training')}</th>
-              <th class="mt">${t('match')}</th>
-              <th>Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${Store.STATS.map(x => {
-              const tr = aggTraining.totals[x.key] || 0;
-              const mt = aggMatch.totals[x.key] || 0;
-              const tot = aggAll.totals[x.key] || 0;
-              if (tot === 0) return '';
-              return `
-                <tr>
-                  <td><span class="e">${x.emoji}</span>${x.short}</td>
-                  <td class="tr">${tr}</td>
-                  <td class="mt">${mt}</td>
-                  <td><b>${tot}</b></td>
-                </tr>
-              `;
-            }).join('')}
-          </tbody>
-        </table>
-
-        <div class="section-title" style="margin-top: 18px;">
-          <span>Sesiones con registro (${aggAll.count})</span>
-        </div>
-
-        ${aggAll.sessions.slice(-5).reverse().map(item => `
-          <div class="session-line">
-            <div class="sl-head">
-              <span class="badge ${item.session.type}">${item.session.type === 'match' ? t('match') : t('training')}</span>
-              <b>${escapeHtml(Store.sessionTitle(item.session))}</b>
-              <span class="muted" style="font-size: 11px;">${item.session.date}</span>
-            </div>
-            <div class="mini-stats">
-              ${Store.STATS.filter(x => (item.stats[x.key] || 0) > 0).map(x => `
-                <span>${x.emoji} ${x.short}: <b>${item.stats[x.key]}</b></span>
-              `).join('')}
-            </div>
-          </div>
-        `).join('')}
       `;
+
+      function renderProfileTabContent(tabName) {
+        const isMatch = (tabName === 'match');
+        const sessList = isMatch ? matchSessions : trainingSessions;
+        const agg = isMatch ? aggMatch : aggTraining;
+
+        if (agg.count === 0) {
+          if (isMatch) {
+            return `
+              <div class="card" style="padding: 28px 16px; text-align: center; border: 1.5px dashed var(--border); margin: 12px 0; background: rgba(15, 23, 42, 0.4); border-radius: 16px;">
+                <div style="font-size: 38px; margin-bottom: 8px;">🏟️</div>
+                <h3 style="font-size: 15px; font-weight: 800; color: #fff; margin: 0 0 4px;">${t('noMatchesRecordedYet', 'Sin partidos registrados todavía')}</h3>
+                <p style="font-size: 12px; color: var(--muted); margin: 0 auto; max-width: 280px; line-height: 1.4;">
+                  ${t('noMatchesRecordedDesc', 'Este jugador aún no tiene minutos ni estadísticas registradas en partidos de competición.')}
+                </p>
+              </div>
+            `;
+          } else {
+            return `
+              <div class="card" style="padding: 24px 16px; text-align: center; border: 1.5px dashed var(--border); margin: 12px 0; background: rgba(15, 23, 42, 0.4); border-radius: 16px;">
+                <div style="font-size: 36px; margin-bottom: 8px;">⚽</div>
+                <h3 style="font-size: 15px; font-weight: 800; color: #fff; margin: 0 0 4px;">${t('noTrainingsRecordedYet', 'Sin entrenamientos registrados todavía')}</h3>
+                <p style="font-size: 12px; color: var(--muted); margin: 0 auto; max-width: 280px; line-height: 1.4;">
+                  Este jugador aún no tiene datos registrados en sesiones de entrenamiento.
+                </p>
+              </div>
+            `;
+          }
+        }
+
+        const tPassOk = agg.totals.passOk || 0;
+        const tPassKo = agg.totals.passKo || 0;
+        const tTotalPass = tPassOk + tPassKo;
+        const tPassPct = tTotalPass > 0 ? Math.round((tPassOk / tTotalPass) * 100) : 0;
+
+        const tShotOn = agg.totals.shotOn || 0;
+        const tShotOff = agg.totals.shotOff || 0;
+        const tTotalShots = tShotOn + tShotOff;
+        const tShotPct = tTotalShots > 0 ? Math.round((tShotOn / tTotalShots) * 100) : 0;
+
+        const tTotalGoals = agg.totals.goal || 0;
+        const tConvPct = tTotalShots > 0 ? Math.round((tTotalGoals / tTotalShots) * 100) : (tTotalGoals > 0 ? 100 : 0);
+
+        const tabRadar = Store.calculatePlayerRadar(p.id, sessList);
+        const tabRating = Store.calculateMatchRating(agg.totals, p.mainPosition);
+        const tabTimeline = Store.playerTimeline(p.id, 'rating', sessList);
+
+        return `
+          <!-- Tarjeta de Valoración del Contexto -->
+          <div class="card" style="padding: 12px 14px; margin-bottom: 12px; border: 1px solid ${isMatch ? 'rgba(250, 204, 21, 0.35)' : 'rgba(34, 211, 238, 0.35)'}; background: ${isMatch ? 'linear-gradient(135deg, rgba(250, 204, 21, 0.12), rgba(15, 23, 42, 0.8))' : 'linear-gradient(135deg, rgba(34, 211, 238, 0.12), rgba(15, 23, 42, 0.8))'}; border-radius: 14px; display: flex; align-items: center; justify-content: space-between;">
+            <div>
+              <div style="font-size: 11px; font-weight: 800; color: ${isMatch ? '#fde047' : '#38bdf8'}; text-transform: uppercase;">
+                ${isMatch ? '🏆 ' + t('match') : '⚽ ' + t('training')} • ${t('performanceRating', 'Nota de Rendimiento')}
+              </div>
+              <div style="font-size: 26px; font-weight: 900; color: #fff; margin-top: 2px;">
+                ${tabRating.toFixed(1)} <span style="font-size: 14px; color: var(--muted); font-weight: 700;">/ 10</span>
+              </div>
+            </div>
+            <span class="badge ${isMatch ? 'match' : 'training'}" style="font-size: 11px; font-weight: 900; padding: 4px 10px;">
+              ${agg.count} ${isMatch ? t('matchesTab', 'Partidos') : t('trainingsTab', 'Entrenamientos')}
+            </span>
+          </div>
+
+          <!-- Estadísticas clave en porcentaje: % Pase, % Puntería, % Conversión -->
+          <div class="rings" style="margin-bottom: 12px;">
+            <div class="ring-card">
+              <div class="ring">
+                ${renderProgressRing(tPassPct, '#22c55e')}
+                <span class="r-val" style="color: #22c55e;">${tPassPct}%</span>
+              </div>
+              <span>${t('passAccuracy')}</span>
+              <small>${tPassOk}/${tTotalPass}</small>
+            </div>
+
+            <div class="ring-card">
+              <div class="ring">
+                ${renderProgressRing(tShotPct, '#06b6d4')}
+                <span class="r-val" style="color: #06b6d4;">${tShotPct}%</span>
+              </div>
+              <span>${t('shotAccuracy')}</span>
+              <small>${tShotOn}/${tTotalShots}</small>
+            </div>
+
+            <div class="ring-card">
+              <div class="ring">
+                ${renderProgressRing(Math.min(100, tConvPct), '#facc15')}
+                <span class="r-val" style="color: #facc15;">${tConvPct}%</span>
+              </div>
+              <span>${t('goalConversion')}</span>
+              <small>${tTotalGoals} ${t('stat_goal')}</small>
+            </div>
+          </div>
+
+          <!-- Radar de Habilidades -->
+          <div class="section-title"><span>${t('skillRadar')} (${isMatch ? t('matchesTab') : t('trainingsTab')})</span></div>
+          <div class="radar-container card" style="margin-bottom: 12px;">
+            ${renderRadarSVG(tabRadar)}
+          </div>
+
+          <!-- Cuadro de Información Disciplina y Fair Play -->
+          <div class="discipline-card btn-profile-discipline-action" style="cursor: pointer;" title="${t('adjustDiscipline')}">
+            <div class="discipline-score">${tabRadar.dis || 100}</div>
+            <div class="grow" style="text-align: left;">
+              <div style="font-size: 13.5px; font-weight: 800; color: var(--text);">
+                🧠 ${t('disciplineFairPlay')} (${tabRadar.dis || 100} / 99)
+              </div>
+              <div style="font-size: 11.5px; color: var(--muted); margin-top: 2px;">
+                ${(agg.totals.yellow || 0) === 0 && (agg.totals.red || 0) === 0 
+                  ? (isEn ? 'Exemplary conduct • No cards accumulated' : 'Conducta ejemplar • Sin tarjetas acumuladas') 
+                  : (isEn ? `Accumulated cards: 🟨 ${agg.totals.yellow || 0} • 🟥 ${agg.totals.red || 0}` : `Tarjetas acumuladas: 🟨 ${agg.totals.yellow || 0} • 🟥 ${agg.totals.red || 0}`)}
+              </div>
+            </div>
+            <div class="chev" style="opacity: 0.8; color: #22c55e;">${icon('edit', 16)}</div>
+          </div>
+
+          <div class="kpis" style="margin-bottom: 14px;">
+            <div class="kpi">
+              <span class="k-emoji">⚽</span>
+              <b class="num">${agg.totals.touches || 0}</b>
+              <span>${t('stat_touches')}</span>
+            </div>
+            <div class="kpi">
+              <span class="k-emoji">🅰️</span>
+              <b class="num" style="color: #a855f7;">${agg.totals.assist || 0}</b>
+              <span>${t('stat_assist')}</span>
+            </div>
+            <div class="kpi">
+              <span class="k-emoji">🛡️</span>
+              <b class="num" style="color: #3b82f6;">${agg.totals.recovery || 0}</b>
+              <span>${t('stat_recovery')}</span>
+            </div>
+          </div>
+
+          <!-- Zonas del campo táctico (Heatmap) -->
+          <div class="section-title"><span>${t('pitchZones')} (Puntos Calientes - ${isMatch ? t('matchesTab') : t('trainingsTab')})</span></div>
+          <div class="card" style="margin-bottom: 14px; text-align: center;">
+            ${renderPlayerPitchHeatmapHtml(p.id, sessList)}
+          </div>
+
+          <!-- Evolución Temporal / Curva de Progreso -->
+          <div class="section-title"><span>${t('evolution')} (${isMatch ? t('matchesTab') : t('trainingsTab')})</span></div>
+          <div class="card" style="margin-bottom: 14px; text-align: center;">
+            ${renderTimelineSVG(tabTimeline)}
+          </div>
+
+          <!-- Desglose de Acciones del Contexto -->
+          <div class="section-title"><span>Desglose de estadísticas (${isMatch ? t('matchesTab') : t('trainingsTab')})</span></div>
+          <table class="stat-table card">
+            <thead>
+              <tr>
+                <th>Acción</th>
+                <th class="${isMatch ? 'mt' : 'tr'}">${isMatch ? t('match') : t('training')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${Store.STATS.map(x => {
+                const count = agg.totals[x.key] || 0;
+                if (count === 0) return '';
+                return `
+                  <tr>
+                    <td><span class="e">${x.emoji}</span>${x.short}</td>
+                    <td class="${isMatch ? 'mt' : 'tr'}"><b>${count}</b></td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+
+          <div class="section-title" style="margin-top: 18px;">
+            <span>Sesiones registradas (${agg.count})</span>
+          </div>
+
+          ${agg.sessions.slice(-5).reverse().map(item => `
+            <div class="session-line">
+              <div class="sl-head">
+                <span class="badge ${item.session.type}">${item.session.type === 'match' ? t('match') : t('training')}</span>
+                <b>${escapeHtml(Store.sessionTitle(item.session))}</b>
+                <span class="muted" style="font-size: 11px;">${item.session.date}</span>
+              </div>
+              <div class="mini-stats">
+                ${Store.STATS.filter(x => (item.stats[x.key] || 0) > 0).map(x => `
+                  <span>${x.emoji} ${x.short}: <b>${item.stats[x.key]}</b></span>
+                `).join('')}
+              </div>
+            </div>
+          `).join('')}
+        `;
+      }
 
       // Desplegable de contacto de padres
       const cardParent = body.querySelector('#card-parent-contact');
@@ -7413,23 +7572,38 @@
         };
       }
 
-      // Clic en la tarjeta de Disciplina -> Abrir modal para ajustar puntuación base
-      const btnDisProfile = body.querySelector('#btn-profile-discipline');
-      if (btnDisProfile) {
-        btnDisProfile.onclick = () => {
-          showEditDisciplineModal(p, () => {
-            closeSheet();
-            showPlayerProfileModal(p.id);
-          });
-        };
+      function bindTabInteractions() {
+        body.querySelectorAll('.btn-profile-discipline-action').forEach(el => {
+          el.onclick = () => {
+            showEditDisciplineModal(p, () => {
+              closeSheet();
+              showPlayerProfileModal(p.id);
+            });
+          };
+        });
+        body.querySelectorAll('[data-skill]').forEach(el => {
+          el.onclick = () => {
+            const sk = el.getAttribute('data-skill');
+            const val = el.getAttribute('data-val');
+            showSkillDetailModal(sk, val);
+          };
+        });
       }
 
-      // Clic interactivo en cualquier habilidad del radar
-      body.querySelectorAll('[data-skill]').forEach(el => {
-        el.onclick = () => {
-          const sk = el.getAttribute('data-skill');
-          const val = el.getAttribute('data-val');
-          showSkillDetailModal(sk, val);
+      bindTabInteractions();
+
+      body.querySelectorAll('.profile-view-tabs button').forEach(b => {
+        b.onclick = () => {
+          const newTab = b.getAttribute('data-ptab');
+          activeProfileTab = newTab;
+          body.querySelectorAll('.profile-view-tabs button').forEach(x => {
+            x.className = (x.getAttribute('data-ptab') === newTab ? `active t-${newTab}` : '');
+          });
+          const contentEl = body.querySelector('#player-profile-tab-content');
+          if (contentEl) {
+            contentEl.innerHTML = renderProfileTabContent(newTab);
+            bindTabInteractions();
+          }
         };
       });
 
