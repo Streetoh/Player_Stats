@@ -43,6 +43,9 @@
     sessions: {}
   };
   let lastPresenceSendTimes = {};
+  let cachedLinkedPlayersMap = null;
+  let lastLinkedPlayersFetchTime = 0;
+  const LINKED_PLAYERS_CACHE_TTL = 20 * 60 * 1000; // 20 minutos de caché estricto para proteger la cuota Spark
 
   function loadPersistedSyncState() {
     try {
@@ -73,6 +76,13 @@
             knownRemoteSessionIds = new Set(parsedIds.sessions);
           }
         }
+      }
+      const rawLinked = localStorage.getItem('cached_linked_players_map');
+      if (rawLinked) {
+        try {
+          cachedLinkedPlayersMap = JSON.parse(rawLinked);
+          lastLinkedPlayersFetchTime = parseInt(localStorage.getItem('cached_linked_players_time') || '0', 10);
+        } catch (e) {}
       }
     } catch (e) {
       console.warn('[Cloud] Error cargando hashes persistidos:', e);
@@ -981,8 +991,83 @@
     },
 
     /* =========================================================
-       PRESENCIA EN LÍNEA (DESACTIVADA PARA PROTEGER LA CUOTA SPARK)
+       ESTADO DE VINCULACIÓN DE DISPOSITIVOS (CACHÉ 20 MINUTOS)
+       - 📱: Perfil vinculado a la app en el teléfono
+       - ⚫: Perfil no vinculado todavía
+       - 0 escrituras recurrentes / 0 listeners en tiempo real
        ========================================================= */
+    getLinkedPlayersMap: async function (force = false) {
+      const now = Date.now();
+      if (!force && cachedLinkedPlayersMap && (now - lastLinkedPlayersFetchTime < LINKED_PLAYERS_CACHE_TTL)) {
+        return cachedLinkedPlayersMap;
+      }
+      if (!this.init()) {
+        return this.getCachedLinkedPlayersMap();
+      }
+      try {
+        const snap = await db.collection('clubs').doc(CLUB_ID).collection('presence').get();
+        const map = {};
+        snap.forEach(doc => {
+          map[doc.id] = doc.data() || { hasApp: true };
+        });
+        cachedLinkedPlayersMap = map;
+        lastLinkedPlayersFetchTime = now;
+        try {
+          if (typeof localStorage !== 'undefined') {
+            localStorage.setItem('cached_linked_players_map', JSON.stringify(map));
+            localStorage.setItem('cached_linked_players_time', String(now));
+          }
+        } catch (e) {}
+        return map;
+      } catch (err) {
+        console.warn('[Cloud] Error obteniendo perfiles vinculados:', err);
+        return this.getCachedLinkedPlayersMap();
+      }
+    },
+
+    getCachedLinkedPlayersMap: function () {
+      if (cachedLinkedPlayersMap) return cachedLinkedPlayersMap;
+      try {
+        if (typeof localStorage !== 'undefined') {
+          const raw = localStorage.getItem('cached_linked_players_map');
+          if (raw) {
+            cachedLinkedPlayersMap = JSON.parse(raw);
+            lastLinkedPlayersFetchTime = parseInt(localStorage.getItem('cached_linked_players_time') || '0', 10);
+            return cachedLinkedPlayersMap;
+          }
+        }
+      } catch (e) {}
+      return {};
+    },
+
+    registerPlayerDeviceLink: async function (playerId, playerName) {
+      if (!this.init() || !playerId) return false;
+      try {
+        await db.collection('clubs')
+          .doc(CLUB_ID)
+          .collection('presence')
+          .doc(playerId)
+          .set({
+            userId: playerId,
+            userName: playerName || '',
+            hasApp: true,
+            linkedAt: Date.now()
+          }, { merge: true });
+        if (cachedLinkedPlayersMap) {
+          cachedLinkedPlayersMap[playerId] = { hasApp: true, linkedAt: Date.now() };
+          try {
+            if (typeof localStorage !== 'undefined') {
+              localStorage.setItem('cached_linked_players_map', JSON.stringify(cachedLinkedPlayersMap));
+            }
+          } catch (e) {}
+        }
+        return true;
+      } catch (err) {
+        console.warn('[Cloud] Error registrando vinculación de dispositivo:', err);
+        return false;
+      }
+    },
+
     updatePresence: async function () {
       // Desactivada: 0 escrituras en Firestore
       return;
@@ -1315,6 +1400,7 @@
           });
         if (status === 'approved' && targetPlayerId) {
           await this.clearPlayerUnlink(targetPlayerId);
+          await this.registerPlayerDeviceLink(targetPlayerId, '');
         }
         // Dejar margen de 15 minutos para que el jugador vuelva de Viber/SMS y complete enlace
         setTimeout(async () => {
@@ -1409,6 +1495,16 @@
             .delete();
         } catch (e) {
           console.warn('[Cloud] Error borrando presencia al desvincular:', e);
+        }
+
+        // Actualizar caché de vinculaciones inmediatamente
+        if (cachedLinkedPlayersMap && cachedLinkedPlayersMap[playerId]) {
+          delete cachedLinkedPlayersMap[playerId];
+          try {
+            if (typeof localStorage !== 'undefined') {
+              localStorage.setItem('cached_linked_players_map', JSON.stringify(cachedLinkedPlayersMap));
+            }
+          } catch (e) {}
         }
 
         // 3. Eliminar solicitudes de reclamo pendientes de este jugador

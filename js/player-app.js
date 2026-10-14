@@ -22,7 +22,6 @@
       myPlayerId = backupId;
       try {
         localStorage.setItem('portal_player_id', backupId);
-        localStorage.setItem('portal_player_locked', 'true');
       } catch (e) {}
     }
   }
@@ -1364,7 +1363,7 @@
   }
 
   function isProfileLocked() {
-    return localStorage.getItem('portal_player_locked') === 'true' && Boolean(myPlayerId);
+    return localStorage.getItem('portal_player_locked') === 'true' && Boolean(myPlayerId) && hasApprovedProfile();
   }
 
   function renderAvatar(player, sizeClass = '') {
@@ -1837,6 +1836,7 @@
         lockIndicatorEl.style.color = locked ? '#facc15' : 'var(--cyan)';
         lockIndicatorEl.style.background = locked ? 'rgba(250, 204, 21, 0.15)' : 'rgba(6, 182, 212, 0.15)';
         lockIndicatorEl.style.border = locked ? '1px solid rgba(250, 204, 21, 0.35)' : '1px solid rgba(6, 182, 212, 0.3)';
+      }
       if (!window._chatUnreadInitialized && window.ChatUI && ChatUI.initGlobalUnreadListener) {
         window._chatUnreadInitialized = true;
         ChatUI.initGlobalUnreadListener(myPlayerId, myP.teamId || null);
@@ -2481,6 +2481,9 @@
      SOLICITUD DE CAMBIO DE PERFIL (PUNTO 6)
      ------------------------------------------------------------- */
   async function showSelectIdentityModal() {
+    const existing = document.getElementById('dialog-select-identity-overlay');
+    if (existing) return;
+
     // Si hay una solicitud de acceso pendiente activa en localStorage, mostrar esa directamente
     const savedClaimJson = localStorage.getItem('portal_pending_claim');
     if (savedClaimJson) {
@@ -2503,6 +2506,9 @@
       return;
     }
 
+    const loadingModal = document.getElementById('dialog-id-loading-overlay');
+    if (loadingModal) loadingModal.remove();
+
     // Si ya tiene perfil bloqueado, debe tramitar solicitud al entrenador
     if (isProfileLocked()) {
       showRequestProfileChangeModal();
@@ -2513,6 +2519,7 @@
     const players = clubData.players.slice().sort((a,b) => (a.name||'').localeCompare(b.name||''));
     const overlay = document.createElement('div');
     overlay.className = 'dialog-overlay';
+    overlay.id = 'dialog-select-identity-overlay';
     overlay.innerHTML = `
       <div class="dialog-box" style="max-height: 85vh; width: 92%; max-width: 440px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 8px;">
@@ -2637,18 +2644,19 @@
   function showConfirmIdentitySecurityCodeModal(player, savedClaim) {
     if (!player && !savedClaim) return;
 
+    const existing = document.getElementById('dialog-confirm-claim-overlay');
+    if (existing) return;
+
     const isResuming = Boolean(savedClaim);
     const pId = player ? player.id : (savedClaim ? savedClaim.targetPlayerId : null);
     if (!pId) return;
 
-    // Cooldown de 60 segundos si es una NUEVA solicitud (evita spam de solicitudes consecutivas)
+    // Evitar doble pulsación accidental rápida (2s) sobre el mismo jugador
     if (!isResuming) {
       const lastClaimTime = parseInt(localStorage.getItem('portal_last_claim_timestamp') || '0', 10);
+      const lastClaimPid = localStorage.getItem('portal_last_claim_pid');
       const elapsed = Date.now() - lastClaimTime;
-      if (elapsed < 60000) {
-        const waitSec = Math.ceil((60000 - elapsed) / 1000);
-        toast(t('claimCooldownWait', 'Por favor, espera {sec}s antes de solicitar otro código.').replace('{sec}', waitSec), 'warning');
-        haptic(30);
+      if (lastClaimPid === pId && elapsed < 2000) {
         return;
       }
     }
@@ -2693,11 +2701,13 @@
       localStorage.setItem('portal_pending_claim', JSON.stringify(pendingClaimData));
       if (!isResuming) {
         localStorage.setItem('portal_last_claim_timestamp', String(Date.now()));
+        localStorage.setItem('portal_last_claim_pid', pId);
       }
     } catch (e) {}
 
     const overlay = document.createElement('div');
     overlay.className = 'dialog-overlay';
+    overlay.id = 'dialog-confirm-claim-overlay';
 
     overlay.innerHTML = `
       <div class="dialog-box" style="max-height: 88vh; width: 92%; max-width: 440px; padding: 22px 18px; text-align: center;">
@@ -2854,9 +2864,13 @@
             localStorage.setItem('portal_player_id_backup', pId);
             localStorage.setItem('portal_player_locked', 'true');
             localStorage.setItem('portal_player_linked_at', String(Date.now()));
+            localStorage.setItem('portal_device_link_registered_' + pId, 'true');
           } catch (e) {}
           if (window.Cloud && window.Cloud.clearPlayerUnlink) {
             window.Cloud.clearPlayerUnlink(pId);
+          }
+          if (window.Cloud && window.Cloud.registerPlayerDeviceLink) {
+            window.Cloud.registerPlayerDeviceLink(pId, pName);
           }
           if (window.Cloud && window.Cloud.deleteProfileClaimRequest) {
             window.Cloud.deleteProfileClaimRequest(claimReqId);
@@ -3306,6 +3320,32 @@
           <div>${t('reqSentBanner').replace('{name}', 'tu nuevo perfil')}</div>
         </div>
       `;
+    }
+
+    if (!hasApprovedProfile()) {
+      view.innerHTML = `
+        <div style="padding: 16px 0;">
+          ${bannerHtml}
+          <div class="card" style="padding: 24px 16px; text-align: center; background: linear-gradient(135deg, rgba(6, 182, 212, 0.12) 0%, rgba(14, 165, 233, 0.16) 100%); border: 2px dashed #06b6d4; border-radius: 16px; margin-bottom: 16px; box-shadow: 0 0 20px rgba(6, 182, 212, 0.15);">
+            <div style="font-size: 40px; margin-bottom: 10px;">👋</div>
+            <h3 style="margin: 0 0 6px; font-size: 17px; font-weight: 900; color: #fff;">${t('selectIdentity', 'Select who you are...')}</h3>
+            <p style="font-size: 13px; color: #94a3b8; margin: 0 0 16px; line-height: 1.45;">
+              ${t('chooseIdentityDesc', 'Elige tu nombre en la plantilla para ver tus convocatorias, votar asistencia y acceder a tus estadísticas.')}
+            </p>
+            <button type="button" class="btn primary" id="btn-select-id-from-convs" style="font-weight: 900; font-size: 13.5px; padding: 10px 22px; border-radius: 12px; box-shadow: 0 0 15px rgba(6, 182, 212, 0.4);">
+              ⚽ ${t('selectIdentity', 'Seleccionar mi perfil')}
+            </button>
+          </div>
+          <div class="empty-state card">
+            <div class="e-ic">📋</div>
+            <h3>${t('emptyConvs')}</h3>
+            <p>${t('emptyConvsDesc')}</p>
+          </div>
+        </div>
+      `;
+      const btnSel = view.querySelector('#btn-select-id-from-convs');
+      if (btnSel) btnSel.onclick = showSelectIdentityModal;
+      return;
     }
 
     if (convs.length === 0) {
@@ -5657,7 +5697,9 @@
     if (myInfoBtn) {
       myInfoBtn.onclick = (e) => {
         e.stopPropagation();
-        if (isProfileLocked()) {
+        if (!hasApprovedProfile()) {
+          showSelectIdentityModal();
+        } else if (isProfileLocked()) {
           const tabBtn = document.querySelector('#portal-tabbar [data-tab="stats"]');
           if (tabBtn) tabBtn.click();
         } else {
@@ -5670,7 +5712,9 @@
     if (lblChange) {
       lblChange.onclick = (e) => {
         e.stopPropagation();
-        if (isProfileLocked()) {
+        if (!hasApprovedProfile()) {
+          showSelectIdentityModal();
+        } else if (isProfileLocked()) {
           showRequestProfileChangeModal();
         } else {
           showSelectIdentityModal();
@@ -5681,8 +5725,12 @@
     const idContainer = document.getElementById('portal-identity-container');
     if (idContainer) {
       idContainer.onclick = () => {
-        if (!isProfileLocked()) {
+        if (!hasApprovedProfile()) {
           showSelectIdentityModal();
+        } else if (!isProfileLocked()) {
+          showSelectIdentityModal();
+        } else {
+          showRequestProfileChangeModal();
         }
       };
     }
@@ -5942,11 +5990,25 @@
         updateHeaderIdentity();
         renderCurrentTab();
 
-        // Si el modal de carga estaba esperando jugadores y acaban de llegar, abrir selector
-        const loadingModal = document.getElementById('dialog-id-loading-overlay');
-        if (loadingModal && clubData && clubData.players && clubData.players.length > 0) {
-          loadingModal.remove();
-          showSelectIdentityModal();
+        // Si el modal de carga o no hay perfil aprobado, gestionar selector de identidad
+        if (!hasApprovedProfile() && !localStorage.getItem('portal_pending_claim')) {
+          const loadingModal = document.getElementById('dialog-id-loading-overlay');
+          const existingSelectionModal = document.getElementById('dialog-select-identity-overlay');
+          if (loadingModal) {
+            loadingModal.remove();
+            showSelectIdentityModal();
+          } else if (!existingSelectionModal) {
+            showSelectIdentityModal();
+          }
+        } else if (myPlayerId && hasApprovedProfile()) {
+          const regKey = 'portal_device_link_registered_' + myPlayerId;
+          if (!localStorage.getItem(regKey)) {
+            try { localStorage.setItem(regKey, 'true'); } catch (e) {}
+            if (window.Cloud && window.Cloud.registerPlayerDeviceLink) {
+              const curP = getMyPlayer();
+              window.Cloud.registerPlayerDeviceLink(myPlayerId, curP ? curP.name : '');
+            }
+          }
         }
       });
 
@@ -5985,7 +6047,7 @@
 
     // 3. Cargar datos locales de respaldo y pedir identidad si aún no la tiene
     loadInitialClubData().then(() => {
-      if (!myPlayerId) {
+      if (!hasApprovedProfile()) {
         const savedClaimJson = localStorage.getItem('portal_pending_claim');
         let activeClaim = null;
         if (savedClaimJson) {
@@ -6003,16 +6065,31 @@
         if (activeClaim) {
           const pObj = (clubData && clubData.players) ? clubData.players.find(p => p.id === activeClaim.targetPlayerId) : null;
           setTimeout(() => {
-            if (!myPlayerId) {
+            if (!hasApprovedProfile()) {
               showConfirmIdentitySecurityCodeModal(pObj || { id: activeClaim.targetPlayerId, name: activeClaim.targetPlayerName, mainDorsal: activeClaim.targetPlayerDorsal }, activeClaim);
             }
           }, 150);
         } else if (clubData && clubData.players && clubData.players.length > 0) {
           setTimeout(() => {
-            if (!myPlayerId && !localStorage.getItem('portal_pending_claim')) {
+            if (!hasApprovedProfile() && !localStorage.getItem('portal_pending_claim')) {
               showSelectIdentityModal();
             }
-          }, 300);
+          }, 250);
+        } else {
+          setTimeout(() => {
+            if (!hasApprovedProfile() && !localStorage.getItem('portal_pending_claim')) {
+              showIdentityLoadingModal();
+            }
+          }, 250);
+        }
+      } else if (myPlayerId) {
+        const regKey = 'portal_device_link_registered_' + myPlayerId;
+        if (!localStorage.getItem(regKey)) {
+          try { localStorage.setItem(regKey, 'true'); } catch (e) {}
+          if (window.Cloud && window.Cloud.registerPlayerDeviceLink) {
+            const curP = getMyPlayer();
+            window.Cloud.registerPlayerDeviceLink(myPlayerId, curP ? curP.name : '');
+          }
         }
       }
     });

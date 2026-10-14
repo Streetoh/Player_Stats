@@ -6067,12 +6067,32 @@
      VISTA 3: JUGADORES & EQUIPOS
      ========================================================= */
   function renderPlayersView(view) {
-    function getPlayerBadgeHtml() {
-      // Presencia desactivada para proteger la cuota de Firestore
-      return '';
+    let linkedPlayersMap = window.Cloud ? window.Cloud.getCachedLinkedPlayersMap() : {};
+
+    function getPlayerBadgeHtml(pid) {
+      const isLinked = !!(linkedPlayersMap && linkedPlayersMap[pid]);
+      if (isLinked) {
+        return `<span title="${t('playerLinkedToDevice', 'Perfil vinculado al teléfono')}" style="font-size: 13px; margin-left: 6px; vertical-align: middle; cursor: help;">📱</span>`;
+      } else {
+        return `<span title="${t('playerNotLinkedToDevice', 'Perfil no vinculado todavía')}" style="font-size: 11px; margin-left: 6px; vertical-align: middle; opacity: 0.75; cursor: help;">⚫</span>`;
+      }
     }
 
-    function refreshPresenceBadges() {}
+    function refreshPresenceBadges() {
+      const items = view.querySelectorAll('.player-item');
+      items.forEach(item => {
+        const pid = item.getAttribute('data-id');
+        const slot = item.querySelector('.pres-badge-slot');
+        if (slot && pid) {
+          slot.innerHTML = getPlayerBadgeHtml(pid);
+        }
+      });
+    }
+
+    window._refreshPlayersPresenceList = () => {
+      linkedPlayersMap = window.Cloud ? window.Cloud.getCachedLinkedPlayersMap() : {};
+      refreshPresenceBadges();
+    };
 
     function build() {
       let players = Store.sortedPlayers(playerListTeam);
@@ -6200,6 +6220,15 @@
     }
 
     build();
+
+    if (window.Cloud && window.Cloud.getLinkedPlayersMap) {
+      window.Cloud.getLinkedPlayersMap().then(map => {
+        if (map) {
+          linkedPlayersMap = map;
+          refreshPresenceBadges();
+        }
+      });
+    }
   }
 
   function showPlayerProfileModal(playerId) {
@@ -6270,6 +6299,9 @@
       );
     }
 
+    const linkedMap = window.Cloud ? window.Cloud.getCachedLinkedPlayersMap() : {};
+    const isLinked = !!(linkedMap && linkedMap[p.id]);
+
     openSheet(Store.playerName(p), (body) => {
       body.innerHTML = `
         <div class="p-hero">
@@ -6304,19 +6336,21 @@
         <!-- Tarjeta de Estado de Vinculación de Perfil y botón de Desvincular -->
         <div class="card" id="card-player-app-link" style="padding: 12px 14px; margin-bottom: 10px; border-radius: 14px; background: var(--surface2); border: 1.5px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 10px;">
           <div style="display: flex; align-items: center; gap: 10px; overflow: hidden;">
-            <span style="font-size: 22px; flex-shrink: 0;">👤</span>
+            <span style="font-size: 20px; flex-shrink: 0;">${isLinked ? '📱' : '⚫'}</span>
             <div style="overflow: hidden;">
-              <b style="font-size: 13px; color: #38bdf8; display: block; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">
-                ${t('playerProfile', 'Perfil de Jugador')}
+              <b style="font-size: 13px; color: ${isLinked ? '#38bdf8' : 'var(--muted)'}; display: block; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">
+                ${isLinked ? t('playerLinkedToDevice', 'Perfil vinculado al teléfono') : t('playerNotLinkedToDevice', 'Perfil no vinculado todavía')}
               </b>
               <span style="font-size: 11px; color: var(--muted); display: block; line-height: 1.3;">
-                ${t('profileLinkedDesc', 'Perfil registrado en el club')}
+                ${isLinked ? t('profileLinkedActiveDesc', 'El jugador tiene la app activa en su teléfono') : t('profileNotLinkedDesc', 'El jugador aún no ha reclamado su perfil en la app')}
               </span>
             </div>
           </div>
-          <button type="button" class="btn sm" id="btn-unlink-player-profile" style="flex-shrink: 0; font-size: 11.5px; font-weight: 800; padding: 6px 12px; border-radius: 8px; background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); cursor: pointer;" title="${t('unlinkProfile', 'Desvincular Perfil')}">
-            🔗 ${t('unlink', 'Desvincular')}
-          </button>
+          ${isLinked ? `
+            <button type="button" class="btn sm" id="btn-unlink-player-profile" style="flex-shrink: 0; font-size: 11.5px; font-weight: 800; padding: 6px 12px; border-radius: 8px; background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); cursor: pointer;" title="${t('unlinkProfile', 'Desvincular Perfil')}">
+              🔗 ${t('unlink', 'Desvincular')}
+            </button>
+          ` : ''}
         </div>
 
         ${hasParentContact ? `
@@ -6617,7 +6651,7 @@
       foot.innerHTML = `
         <div class="btn-row">
           <button class="btn" id="btn-edit-p-profile">${icon('edit', 16)} ${t('editPlayer')}</button>
-          <button class="btn warning" id="btn-foot-unlink-p-profile" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);" title="${t('unlinkProfile', 'Desvincular perfil')}">🔗 ${t('unlink', 'Desvincular')}</button>
+          ${isLinked ? `<button class="btn warning" id="btn-foot-unlink-p-profile" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);" title="${t('unlinkProfile', 'Desvincular perfil')}">🔗 ${t('unlink', 'Desvincular')}</button>` : ''}
           <button class="btn danger" id="btn-del-p-profile" title="${t('deletePlayer')}">${icon('trash', 16)}</button>
         </div>
       `;
