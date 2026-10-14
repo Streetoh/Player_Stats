@@ -561,10 +561,18 @@
       playerResponsesApplied: 'Votos de la PWA cargados',
       attendanceSummary: '{present} presentes, {absent} ausentes de {total}',
       rollCallPending: 'Asistencia pendiente de hoy',
-      rollCallPrompt: 'Pasa lista a los jugadores de la sesión de hoy',
       attendanceStreak: 'Racha de asistencia',
       attendanceStreakCount: '🔥 {count} seguidos',
-      notePlaceholder: 'Nota opcional (ej. motivo, hora...)'
+      notePlaceholder: 'Nota opcional (ej. motivo, hora...)',
+      futCardTitle: 'Carta FUT',
+      viewFutCard: 'Ver Carta FUT',
+      viewMyFutCard: 'Ver mi Carta FUT Coleccionable',
+      streakMilestoneBronze: 'Medalla de Bronce',
+      streakMilestoneSilver: 'Medalla de Plata',
+      streakMilestoneGold: 'Medalla de Oro',
+      streakMilestoneDiamond: 'Insignia Diamante',
+      streakNextMilestone: '{current}/{target} hacia {nextMilestone}',
+      streakMaster: '👑 ¡Racha Legendaria Imparable!'
     },
     en: {
       appName: 'Player stats (Coach)',
@@ -1122,10 +1130,18 @@
       playerResponsesApplied: 'PWA RSVPs loaded',
       attendanceSummary: '{present} present, {absent} absent of {total}',
       rollCallPending: "Today's attendance pending",
-      rollCallPrompt: "Take roll call for today's session",
       attendanceStreak: 'Attendance streak',
       attendanceStreakCount: '🔥 {count} in a row',
-      notePlaceholder: 'Optional note (e.g. reason, arrival time...)'
+      notePlaceholder: 'Optional note (e.g. reason, arrival time...)',
+      futCardTitle: 'FUT Card',
+      viewFutCard: 'View FUT Card',
+      viewMyFutCard: 'View my FUT Collectible Card',
+      streakMilestoneBronze: 'Bronze Medal',
+      streakMilestoneSilver: 'Silver Medal',
+      streakMilestoneGold: 'Gold Medal',
+      streakMilestoneDiamond: 'Diamond Badge',
+      streakNextMilestone: '{current}/{target} towards {nextMilestone}',
+      streakMaster: '👑 Unstoppable Legendary Streak!'
     }
   };
 

@@ -348,6 +348,15 @@
       streakSessions: 'sessions in a row',
       streakSessionSingle: 'session',
       streakOnFire: '🔥 On Fire',
+      futCardTitle: 'FUT Collectible Card',
+      viewFutCard: 'View FUT Card',
+      viewMyFutCard: 'View my FUT Collectible Card',
+      streakMilestoneBronze: 'Bronze Medal',
+      streakMilestoneSilver: 'Silver Medal',
+      streakMilestoneGold: 'Gold Medal',
+      streakMilestoneDiamond: 'Diamond Badge',
+      streakNextMilestone: '{current}/{target} towards {nextMilestone}',
+      streakMaster: '👑 Unstoppable Legendary Streak!',
       goalsScored: 'Goals Scored',
       passAccuracy: 'Pass Accuracy',
       passesAccurate: 'accurate passes',
@@ -610,6 +619,15 @@
       streakSessions: 'korda järjest',
       streakSessionSingle: 'kord',
       streakOnFire: '🔥 Hoog sees',
+      futCardTitle: 'Kogutav FUT Kaart',
+      viewFutCard: 'Vaata FUT Kaarti',
+      viewMyFutCard: '🃏 Vaata minu FUT Kaarti',
+      streakMilestoneBronze: 'Pronksmedal',
+      streakMilestoneSilver: 'Hõbemedal',
+      streakMilestoneGold: 'Kuldmedal',
+      streakMilestoneDiamond: 'Teemantmärk',
+      streakNextMilestone: '{current}/{target} sihtmärgini {nextMilestone}',
+      streakMaster: '👑 Peatamatu Legendaarne Seeria!',
       goalsScored: 'Löödud Väravaid',
       passAccuracy: 'Söödutäpsus',
       passesAccurate: 'täpset söötu',
@@ -872,6 +890,15 @@
       streakSessions: 'sesiones seguidas',
       streakSessionSingle: 'sesión',
       streakOnFire: '🔥 En racha',
+      futCardTitle: 'Carta FUT Coleccionable',
+      viewFutCard: 'Ver Carta FUT',
+      viewMyFutCard: '🃏 Ver mi Carta FUT Coleccionable',
+      streakMilestoneBronze: 'Medalla de Bronce',
+      streakMilestoneSilver: 'Medalla de Plata',
+      streakMilestoneGold: 'Medalla de Oro',
+      streakMilestoneDiamond: 'Insignia Diamante',
+      streakNextMilestone: '{current}/{target} hacia {nextMilestone}',
+      streakMaster: '👑 ¡Racha Legendaria Imparable!',
       goalsScored: 'Goles Marcados',
       passAccuracy: 'Precisión de Pase',
       passesAccurate: 'pases acertados',
@@ -1593,14 +1620,20 @@
   function calculatePlayerAttendanceStreak(pid) {
     if (!pid || !clubData || !Array.isArray(clubData.sessions)) return 0;
     const allSessions = clubData.sessions
-      .filter(s => s && s.attendance && s.attendance[pid])
+      .slice()
+      .filter(s => {
+        if (!s) return false;
+        return (s.attendance && s.attendance[pid] != null) || (s.stats && s.stats[pid] && Object.values(s.stats[pid]).some(v => v > 0));
+      })
       .sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.createdAt || 0) - (a.createdAt || 0));
 
     let streak = 0;
     for (const s of allSessions) {
-      const att = s.attendance[pid];
+      const att = s.attendance ? s.attendance[pid] : null;
       const st = (typeof att === 'object' && att !== null) ? att.status : att;
-      if (st === 'present' || st === 'late') {
+      const hasAction = s.stats && s.stats[pid] && Object.values(s.stats[pid]).some(v => v > 0);
+
+      if (st === 'present' || st === 'late' || (st == null && hasAction)) {
         streak++;
       } else if (st === 'justified') {
         continue;
@@ -1609,6 +1642,66 @@
       }
     }
     return streak;
+  }
+
+  function getPlayerStreakMilestone(streak) {
+    const s = Math.max(0, streak || 0);
+    if (s >= 30) {
+      return {
+        currentBadge: '💎 ' + t('streakMilestoneDiamond', 'Insignia Diamante'),
+        nextBadge: null,
+        target: 30,
+        progressPct: 100,
+        remaining: 0,
+        isMaster: true
+      };
+    }
+    if (s >= 15) {
+      const target = 30;
+      const pct = Math.round((s / target) * 100);
+      return {
+        currentBadge: '🥇 ' + t('streakMilestoneGold', 'Medalla de Oro'),
+        nextBadge: '💎 ' + t('streakMilestoneDiamond', 'Insignia Diamante'),
+        target,
+        progressPct: pct,
+        remaining: target - s,
+        isMaster: false
+      };
+    }
+    if (s >= 7) {
+      const target = 15;
+      const pct = Math.round((s / target) * 100);
+      return {
+        currentBadge: '🥈 ' + t('streakMilestoneSilver', 'Medalla de Plata'),
+        nextBadge: '🥇 ' + t('streakMilestoneGold', 'Medalla de Oro'),
+        target,
+        progressPct: pct,
+        remaining: target - s,
+        isMaster: false
+      };
+    }
+    if (s >= 3) {
+      const target = 7;
+      const pct = Math.round((s / target) * 100);
+      return {
+        currentBadge: '🥉 ' + t('streakMilestoneBronze', 'Medalla de Bronce'),
+        nextBadge: '🥈 ' + t('streakMilestoneSilver', 'Medalla de Plata'),
+        target,
+        progressPct: pct,
+        remaining: target - s,
+        isMaster: false
+      };
+    }
+    const target = 3;
+    const pct = Math.round((s / target) * 100);
+    return {
+      currentBadge: null,
+      nextBadge: '🥉 ' + t('streakMilestoneBronze', 'Medalla de Bronce'),
+      target,
+      progressPct: pct,
+      remaining: target - s,
+      isMaster: false
+    };
   }
 
   // Contexto de plantilla (priors bayesianos) cacheado por versión de datos del club
@@ -4798,6 +4891,7 @@
     const stats = calculatePlayerStats(myP.id);
     const radar = calculatePlayerRadar(myP.id);
     const streak = calculatePlayerAttendanceStreak(myP.id);
+    const streakMilestone = getPlayerStreakMilestone(streak);
     const secPositions = myP.secondaryPositions && myP.secondaryPositions.length ? myP.secondaryPositions : (myP.secondaryPosition ? [myP.secondaryPosition] : []);
     const ageStr = myP.birthDate ? calculateAgeYearsMonths(myP.birthDate, currentLang) : '';
 
@@ -4835,24 +4929,45 @@
           </div>
         </div>
 
-        <!-- RACHA DE ASISTENCIA -->
-        ${streak > 0 ? `
-          <div class="card" style="margin-bottom: 14px; border: 1.5px solid rgba(249, 115, 22, 0.45); background: linear-gradient(135deg, rgba(249, 115, 22, 0.16) 0%, rgba(19, 31, 56, 0.8) 100%);">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <div>
-                <div style="font-size: 11px; font-weight: 800; color: #fb923c; text-transform: uppercase; letter-spacing: 0.6px; display: flex; align-items: center; gap: 4px;">
-                  <span>🔥</span> <span>${t('attendanceStreak')}</span>
-                </div>
-                <div style="font-size: 28px; font-weight: 900; color: #fff; margin-top: 3px; display: flex; align-items: baseline; gap: 6px;">
-                  <span>${streak}</span>
-                  <span style="font-size: 14px; color: #fdba74; font-weight: 700;">${streak === 1 ? t('streakSessionSingle') : t('streakSessions')}</span>
-                </div>
-                <small style="font-size: 11px; color: var(--muted);">${t('attendanceStreakDesc')}</small>
+        <!-- RACHA DE ASISTENCIA Y MEDALLAS -->
+        <div class="card" style="margin-bottom: 14px; border: 1.5px solid rgba(249, 115, 22, 0.45); background: linear-gradient(135deg, rgba(249, 115, 22, 0.16) 0%, rgba(19, 31, 56, 0.8) 100%);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <div>
+              <div style="font-size: 11px; font-weight: 800; color: #fb923c; text-transform: uppercase; letter-spacing: 0.6px; display: flex; align-items: center; gap: 4px; flex-wrap: wrap;">
+                <span>🔥</span> <span>${t('attendanceStreak')}</span>
+                ${streakMilestone.currentBadge ? `<span class="badge" style="background: rgba(251, 146, 60, 0.25); color: #fed7aa; border: 1px solid rgba(251, 146, 60, 0.5); font-size: 10px; margin-left: 4px;">${streakMilestone.currentBadge}</span>` : ''}
               </div>
-              <div style="font-size: 38px; padding-right: 6px; filter: drop-shadow(0 0 10px rgba(249, 115, 22, 0.4));">🔥</div>
+              <div style="font-size: 28px; font-weight: 900; color: #fff; margin-top: 3px; display: flex; align-items: baseline; gap: 6px;">
+                <span>${streak}</span>
+                <span style="font-size: 14px; color: #fdba74; font-weight: 700;">${streak === 1 ? t('streakSessionSingle') : t('streakSessions')}</span>
+              </div>
+              <small style="font-size: 11px; color: var(--muted);">${t('attendanceStreakDesc')}</small>
+            </div>
+            <div style="font-size: 38px; padding-right: 6px; filter: drop-shadow(0 0 10px rgba(249, 115, 22, 0.4));">🔥</div>
+          </div>
+
+          <!-- Barra de Progreso hacia el siguiente Hito / Medalla -->
+          <div style="background: rgba(0,0,0,0.3); border-radius: 10px; padding: 8px 10px; border: 1px solid rgba(249, 115, 22, 0.25);">
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; font-weight: 800; margin-bottom: 5px;">
+              <span style="color: #fdba74;">
+                ${streakMilestone.isMaster ? t('streakMaster', '👑 ¡Racha Legendaria Imparable!') : (streakMilestone.nextBadge ? `${t('streakNextMilestone', '{current}/{target} hacia {nextMilestone}').replace('{current}', streak).replace('{target}', streakMilestone.target).replace('{nextMilestone}', streakMilestone.nextBadge)}` : '')}
+              </span>
+              <span style="color: #fff; font-weight: 900;">${streakMilestone.progressPct}%</span>
+            </div>
+            <div style="height: 6px; background: rgba(255,255,255,0.1); border-radius: 999px; overflow: hidden;">
+              <div style="height: 100%; width: ${Math.min(100, Math.max(4, streakMilestone.progressPct))}%; background: linear-gradient(90deg, #f97316, #facc15); border-radius: 999px; transition: width 0.3s ease;"></div>
             </div>
           </div>
-        ` : ''}
+        </div>
+
+        <!-- BOTÓN CARTA FUT COLECCIONABLE -->
+        <div style="margin-bottom: 14px;">
+          <button type="button" class="btn block" id="btn-open-my-fut-card" style="width: 100%; height: 50px; font-size: 14px; font-weight: 900; border-radius: 14px; background: linear-gradient(135deg, #18181b 0%, #27272a 50%, #18181b 100%); color: #facc15; border: 2px solid #eab308; box-shadow: 0 4px 20px rgba(234, 179, 8, 0.25); display: flex; align-items: center; justify-content: center; gap: 10px; cursor: pointer;">
+            <span style="font-size: 22px;">🃏</span>
+            <span>${t('viewMyFutCard', 'Ver mi Carta FUT Coleccionable')}</span>
+            <span class="badge" style="background: rgba(250, 204, 21, 0.2); color: #fef08a; border: 1px solid #facc15; font-size: 11px; margin-left: 4px;">OVR ${window.FutCard && FutCard.computeOvr ? FutCard.computeOvr(radar) : Math.min(99, Math.max(45, Math.round(stats.aggregatedRating * 10)))}</span>
+          </button>
+        </div>
 
         <!-- NOTA DE RENDIMIENTO (MATCH RATING) DESTACADA -->
         <div class="card" style="margin-bottom: 14px; border: 1px solid rgba(34, 211, 238, 0.35); background: linear-gradient(135deg, rgba(34, 211, 238, 0.12) 0%, rgba(19, 31, 56, 0.7) 100%); cursor: pointer;" id="card-rating-explain">
@@ -4924,6 +5039,24 @@
     // Conectar popup de explicación de rating
     const ratingCard = view.querySelector('#card-rating-explain');
     if (ratingCard) ratingCard.onclick = () => showSkillExplanationModal('rating');
+
+    // Conectar botón Ver Carta FUT
+    const btnOpenMyFut = view.querySelector('#btn-open-my-fut-card');
+    if (btnOpenMyFut) {
+      btnOpenMyFut.onclick = () => {
+        if (window.FutCard && FutCard.showModal) {
+          const ovr = FutCard.computeOvr ? FutCard.computeOvr(radar) : Math.min(99, Math.max(45, Math.round(stats.aggregatedRating * 10)));
+          FutCard.showModal({
+            player: myP,
+            radar: radar,
+            ovr: ovr,
+            team: team,
+            streak: streak,
+            lang: currentLang
+          });
+        }
+      };
+    }
 
     // Conectar clic en etiquetas del radar
     view.querySelectorAll('.radar-click-label').forEach(el => {
@@ -5417,6 +5550,13 @@
           </div>
         </div>
 
+        <!-- Botón Ver Carta FUT Coleccionable de este compañero -->
+        <button type="button" class="btn block" id="btn-open-player-fut-card-${pid}" style="height: 44px; font-weight: 900; font-size: 13.5px; margin-bottom: 10px; border-radius: 12px; background: linear-gradient(135deg, #18181b 0%, #27272a 50%, #18181b 100%); color: #facc15; border: 1.5px solid #eab308; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer;">
+          <span style="font-size: 18px;">🃏</span>
+          <span>${t('viewFutCard', 'Ver Carta FUT')}</span>
+          <span class="badge" style="background: rgba(250, 204, 21, 0.2); color: #fef08a; border: 1px solid #facc15; font-size: 11px;">OVR ${window.FutCard && FutCard.computeOvr ? FutCard.computeOvr(radar) : Math.min(99, Math.max(45, Math.round(stats.aggregatedRating * 10)))}</span>
+        </button>
+
         <!-- Botón Chatear con este jugador (Punto 8) -->
         ${pid !== myPlayerId ? `
           <button type="button" class="btn block primary" id="btn-chat-with-player-${pid}" style="height: 42px; font-weight: 800; font-size: 13.5px; margin-bottom: 12px; display: flex; align-items: center; justify-content: center; gap: 8px;">
@@ -5439,8 +5579,26 @@
     `;
 
     function close() { overlay.remove(); }
-    overlay.querySelector('#dlg-pfull-x').onclick = close;
+    const closeBtn = overlay.querySelector('#dlg-pfull-x');
+    if (closeBtn) closeBtn.onclick = close;
     overlay.onclick = (e) => { if (e.target === overlay) close(); };
+
+    const btnPlayerFut = overlay.querySelector(`#btn-open-player-fut-card-${pid}`);
+    if (btnPlayerFut) {
+      btnPlayerFut.onclick = () => {
+        if (window.FutCard && FutCard.showModal) {
+          const ovr = FutCard.computeOvr ? FutCard.computeOvr(radar) : Math.min(99, Math.max(45, Math.round(stats.aggregatedRating * 10)));
+          FutCard.showModal({
+            player: p,
+            radar: radar,
+            ovr: ovr,
+            team: team,
+            streak: streak,
+            lang: currentLang
+          });
+        }
+      };
+    }
 
     const btnChat = overlay.querySelector(`#btn-chat-with-player-${pid}`);
     if (btnChat) {
@@ -5971,6 +6129,9 @@
         }
         if (remoteState.convocations) {
           clubData.convocations = remoteState.convocations;
+        }
+        if (remoteState.sessions) {
+          clubData.sessions = remoteState.sessions;
         }
         window.clubData = clubData;
         updateConvocationsBadge();

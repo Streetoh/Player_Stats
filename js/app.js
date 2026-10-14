@@ -2494,6 +2494,10 @@
         closeSheet();
         toast(t('attendanceSaved', 'Asistencia guardada con éxito'), 'success');
 
+        if (window.Cloud && window.Cloud.pushCoachState) {
+          window.Cloud.pushCoachState(Store.state, true);
+        }
+
         if (activeSessionId === sessionId) {
           renderTracker();
         }
@@ -6346,11 +6350,9 @@
               </span>
             </div>
           </div>
-          ${isLinked ? `
-            <button type="button" class="btn sm" id="btn-unlink-player-profile" style="flex-shrink: 0; font-size: 11.5px; font-weight: 800; padding: 6px 12px; border-radius: 8px; background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); cursor: pointer;" title="${t('unlinkProfile', 'Desvincular Perfil')}">
-              🔗 ${t('unlink', 'Desvincular')}
-            </button>
-          ` : ''}
+          <button type="button" class="btn sm" id="btn-unlink-player-profile" style="flex-shrink: 0; font-size: 11.5px; font-weight: 800; padding: 6px 12px; border-radius: 8px; background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); cursor: pointer;" title="${t('unlinkProfile', 'Desvincular Perfil')}">
+            🔗 ${t('unlink', 'Desvincular')}
+          </button>
         </div>
 
         ${hasParentContact ? `
@@ -6420,13 +6422,16 @@
           </button>
         </div>
 
-        <!-- Accesos directos a Comparador H2H y Ficha de Partido -->
+        <!-- Accesos directos a Comparador H2H, Ficha de Partido y Carta FUT -->
         <div class="btn-row" style="margin-bottom: 14px;">
           <button class="btn sm ghost grow" id="btn-player-h2h">
             ${icon('compare', 16)} ${t('headToHead')}
           </button>
           <button class="btn sm ghost grow" id="btn-player-match-card">
             ${icon('medal', 16)} ${t('playerCard')}
+          </button>
+          <button class="btn sm grow" id="btn-player-fut-card" style="background: linear-gradient(135deg, rgba(234, 179, 8, 0.2), rgba(202, 138, 4, 0.3)); color: #facc15; border: 1.5px solid #eab308; font-weight: 800;">
+            🃏 ${t('futCardTitle', 'Carta FUT')}
           </button>
         </div>
 
@@ -6625,6 +6630,25 @@
         showPlayerCardModal(p, aggAll.sessions.length ? aggAll.sessions[aggAll.sessions.length - 1].session : null);
       };
 
+      // Carta FUT Coleccionable
+      const btnFut = body.querySelector('#btn-player-fut-card');
+      if (btnFut) {
+        btnFut.onclick = () => {
+          if (window.FutCard && FutCard.showModal) {
+            const streak = Store.calculateAttendanceStreak ? Store.calculateAttendanceStreak(p.id) : 0;
+            const ovr = FutCard.computeOvr ? FutCard.computeOvr(playerRadar) : Math.min(99, Math.max(45, Math.round(matchRating * 10)));
+            FutCard.showModal({
+              player: p,
+              radar: playerRadar,
+              ovr: ovr,
+              team: team,
+              streak: streak,
+              lang: (Store.state.settings && Store.state.settings.lang) || 'es'
+            });
+          }
+        };
+      }
+
       // Clic en la tarjeta de Disciplina -> Abrir modal para ajustar puntuación base
       const btnDisProfile = body.querySelector('#btn-profile-discipline');
       if (btnDisProfile) {
@@ -6651,7 +6675,7 @@
       foot.innerHTML = `
         <div class="btn-row">
           <button class="btn" id="btn-edit-p-profile">${icon('edit', 16)} ${t('editPlayer')}</button>
-          ${isLinked ? `<button class="btn warning" id="btn-foot-unlink-p-profile" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);" title="${t('unlinkProfile', 'Desvincular perfil')}">🔗 ${t('unlink', 'Desvincular')}</button>` : ''}
+          <button class="btn warning" id="btn-foot-unlink-p-profile" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);" title="${t('unlinkProfile', 'Desvincular perfil')}">🔗 ${t('unlink', 'Desvincular')}</button>
           <button class="btn danger" id="btn-del-p-profile" title="${t('deletePlayer')}">${icon('trash', 16)}</button>
         </div>
       `;
