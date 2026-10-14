@@ -538,7 +538,29 @@
       notConvoked: 'No convocado',
       deleteAllPlans: 'Borrar todos los planes',
       deleteAllPlansConfirm: '¿Estás seguro de que deseas eliminar TODOS los planes y convocatorias? Esta acción no se puede deshacer.',
-      allPlansDeleted: 'Todos los planes han sido eliminados'
+      allPlansDeleted: 'Todos los planes han sido eliminados',
+
+      // Asistencia / Pasar Lista
+      rollCallTitle: 'Pasar Lista / Asistencia',
+      rollCallSub: 'Control de asistencia a la sesión',
+      rollCallBtn: 'Pasar Lista',
+      attendance: 'Asistencia',
+      markAllPresent: 'Marcar todos presentes',
+      present: 'Presente',
+      absent: 'Ausente',
+      justified: 'Justificado',
+      late: 'Tarde',
+      unmarked: 'Sin marcar',
+      saveAttendance: 'Guardar Asistencia',
+      attendanceSaved: 'Asistencia guardada con éxito',
+      applyPlayerResponses: 'Cargar votos de la PWA',
+      playerResponsesApplied: 'Votos de la PWA cargados',
+      attendanceSummary: '{present} presentes, {absent} ausentes de {total}',
+      rollCallPending: 'Asistencia pendiente de hoy',
+      rollCallPrompt: 'Pasa lista a los jugadores de la sesión de hoy',
+      attendanceStreak: 'Racha de asistencia',
+      attendanceStreakCount: '🔥 {count} seguidos',
+      notePlaceholder: 'Nota opcional (ej. motivo, hora...)'
     },
     en: {
       appName: 'Player stats (Coach)',
@@ -1073,7 +1095,29 @@
       notConvoked: 'Not called up',
       deleteAllPlans: 'Delete all plans',
       deleteAllPlansConfirm: 'Are you sure you want to delete ALL plans and convocation events? This action cannot be undone.',
-      allPlansDeleted: 'All plans have been deleted'
+      allPlansDeleted: 'All plans have been deleted',
+
+      // Attendance / Roll Call
+      rollCallTitle: 'Roll Call / Attendance',
+      rollCallSub: 'Session attendance tracking',
+      rollCallBtn: 'Take Attendance',
+      attendance: 'Attendance',
+      markAllPresent: 'Mark all present',
+      present: 'Present',
+      absent: 'Absent',
+      justified: 'Excused',
+      late: 'Late',
+      unmarked: 'Unmarked',
+      saveAttendance: 'Save Attendance',
+      attendanceSaved: 'Attendance successfully saved',
+      applyPlayerResponses: 'Load PWA player RSVPs',
+      playerResponsesApplied: 'PWA RSVPs loaded',
+      attendanceSummary: '{present} present, {absent} absent of {total}',
+      rollCallPending: "Today's attendance pending",
+      rollCallPrompt: "Take roll call for today's session",
+      attendanceStreak: 'Attendance streak',
+      attendanceStreakCount: '🔥 {count} in a row',
+      notePlaceholder: 'Optional note (e.g. reason, arrival time...)'
     }
   };
 

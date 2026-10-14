@@ -2033,6 +2033,19 @@
         openTracker(id);
       };
     });
+
+    view.querySelectorAll('.btn-quick-att').forEach(btn => {
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        const sid = btn.getAttribute('data-att-sid');
+        showSessionAttendanceModal(sid);
+      };
+    });
+  }
+
+  function getTodayIso() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
 
   function formatDateDDMMAAAA(dateStr) {
@@ -2098,6 +2111,31 @@
       </div>
     ` : '';
 
+    const attMap = s.attendance || {};
+    const attKeys = Object.keys(attMap);
+    let attPresent = 0;
+    attKeys.forEach(k => {
+      const rec = attMap[k];
+      const st = (typeof rec === 'object' && rec !== null) ? rec.status : rec;
+      if (st === 'present' || st === 'late') attPresent++;
+    });
+    const hasAtt = attKeys.length > 0;
+    const isToday = s.date === getTodayIso();
+
+    const attChipHtml = hasAtt ? `
+      <span class="btn-quick-att" data-att-sid="${s.id}" title="${t('rollCallTitle', 'Pasar Lista')}" style="cursor: pointer; display: inline-flex; align-items: center; gap: 3px; background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.35); font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 6px;">
+        📋 ${attPresent} ${t('present', 'Presentes')}
+      </span>
+    ` : (isToday ? `
+      <span class="btn-quick-att pulse-att" data-att-sid="${s.id}" title="${t('rollCallTitle', 'Pasar Lista')}" style="cursor: pointer; display: inline-flex; align-items: center; gap: 3px; background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.5); font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 6px;">
+        📋 ${t('rollCallBtn', 'Pasar Lista')}
+      </span>
+    ` : `
+      <span class="btn-quick-att" data-att-sid="${s.id}" title="${t('rollCallTitle', 'Pasar Lista')}" style="cursor: pointer; display: inline-flex; align-items: center; gap: 3px; background: var(--surface2); color: var(--muted); border: 1px solid var(--border); font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 6px;">
+        📋 ${t('attendance', 'Asistencia')}
+      </span>
+    `);
+
     if (s.type === 'match') {
       let teamObj = s.teamId ? Store.team(s.teamId) : null;
       if (!teamObj && pids.length > 0) {
@@ -2131,11 +2169,13 @@
                 ⚔️ ${escapeHtml(rivalName)}
               </span>
             </div>
-            <div class="meta" style="margin-top: 4px; display: flex; align-items: center; gap: 6px;">
+            <div class="meta" style="margin-top: 4px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
               <span>📅 ${formatDateDDMMAAAA(s.date)}</span>
               <span>•</span>
               <span>⏱️ ${Store.fmtTime(Store.elapsed(s), s)}</span>
               ${isLive ? `<span class="badge live">${t('live')}</span>` : `<span class="badge match" style="font-size: 10px; padding: 2px 6px;">${typeLabel}</span>`}
+              <span>•</span>
+              ${attChipHtml}
             </div>
           </div>
           ${mvpHtml || (players.length > 0 ? `
@@ -2157,12 +2197,14 @@
             </div>
             ${isLive ? `<span class="badge live">${t('live')}</span>` : `<span class="badge training">${typeLabel}</span>`}
           </div>
-          <div class="meta">
+          <div class="meta" style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
             <span>📅 ${formatDateDDMMAAAA(s.date)}</span>
             <span>•</span>
             <span>${totalActions} ${t('actions')}</span>
             <span>•</span>
             <span>⏱️ ${Store.fmtTime(Store.elapsed(s), s)}</span>
+            <span>•</span>
+            ${attChipHtml}
           </div>
         </div>
         ${players.length > 0 ? `
@@ -2173,6 +2215,311 @@
       </div>
     `;
   }
+
+  /* =========================================================
+     MODAL DE CONTROL DE ASISTENCIA (PASAR LISTA)
+     ========================================================= */
+  function showSessionAttendanceModal(sessionId) {
+    const s = Store.session(sessionId);
+    if (!s) return;
+
+    const players = Store.getSessionPlayersForAttendance(sessionId);
+    const existingAtt = Store.getSessionAttendance(sessionId) || {};
+
+    const workingAtt = {};
+    players.forEach(p => {
+      const rec = existingAtt[p.id];
+      if (rec) {
+        workingAtt[p.id] = typeof rec === 'object'
+          ? { status: rec.status, note: rec.note || '', updatedAt: rec.updatedAt || Date.now() }
+          : { status: rec, note: '', updatedAt: Date.now() };
+      }
+    });
+
+    const conv = s.convocationId ? Store.convocation(s.convocationId) : null;
+    let searchQuery = '';
+
+    openSheet(t('rollCallTitle', 'Pasar Lista / Asistencia'), (body) => {
+      const hasConvResponses = conv && conv.responses && Object.keys(conv.responses).length > 0;
+
+      body.innerHTML = `
+        <!-- Resumen de Sesión -->
+        <div style="background: rgba(34, 211, 238, 0.07); border: 1px solid rgba(34, 211, 238, 0.25); border-radius: 14px; padding: 10px 14px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+          <div style="min-width: 0; flex: 1;">
+            <h4 style="margin: 0; font-size: 15px; font-weight: 900; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+              ${escapeHtml(Store.sessionTitle(s))}
+            </h4>
+            <div style="font-size: 11.5px; color: var(--muted); margin-top: 3px; display: flex; align-items: center; gap: 6px;">
+              <span>📅 ${formatDateDDMMAAAA(s.date)}</span>
+              <span>•</span>
+              <span class="badge ${s.type}" style="font-size: 10px; padding: 1px 6px;">${s.type === 'match' ? t('match') : t('training')}</span>
+            </div>
+          </div>
+          <div id="att-summary-mini" style="text-align: right; margin-left: 10px; flex-shrink: 0;"></div>
+        </div>
+
+        <!-- Acciones Rápidas -->
+        <div style="display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap;">
+          <button type="button" class="btn sm" id="btn-att-mark-all" style="flex: 1; min-width: 140px; background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4); font-weight: 800; border-radius: 10px; padding: 8px 12px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+            <span>✅</span> <span>${t('markAllPresent', 'Marcar todos presentes')}</span>
+          </button>
+          ${hasConvResponses ? `
+            <button type="button" class="btn sm" id="btn-att-load-pwa" style="flex: 1; min-width: 140px; background: rgba(6, 182, 212, 0.15); color: #22d3ee; border: 1px solid rgba(6, 182, 212, 0.4); font-weight: 800; border-radius: 10px; padding: 8px 12px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+              <span>📥</span> <span>${t('applyPlayerResponses', 'Cargar votos de la PWA')}</span>
+            </button>
+          ` : ''}
+        </div>
+
+        <!-- Búsqueda -->
+        <div class="search" style="margin-bottom: 10px;">
+          <input type="text" id="att-filter-search" placeholder="${t('searchPlayerPlaceholder', 'Buscar jugador...')}" style="width: 100%; border-radius: 10px; padding: 8px 12px; font-size: 13px; background: var(--surface2); color: #fff; border: 1px solid var(--border);" />
+        </div>
+
+        <!-- Píldoras de Estado -->
+        <div id="att-counters-ribbon" style="display: flex; gap: 6px; overflow-x: auto; margin-bottom: 12px; padding-bottom: 2px;"></div>
+
+        <!-- Lista de Jugadores -->
+        <div id="att-players-list" style="display: flex; flex-direction: column; gap: 8px;"></div>
+      `;
+
+      function updateCounters() {
+        let presentCount = 0;
+        let absentCount = 0;
+        let justifiedCount = 0;
+        let lateCount = 0;
+        let unmarkedCount = 0;
+
+        players.forEach(p => {
+          const rec = workingAtt[p.id];
+          const st = rec ? rec.status : null;
+          if (st === 'present') presentCount++;
+          else if (st === 'absent') absentCount++;
+          else if (st === 'justified') justifiedCount++;
+          else if (st === 'late') lateCount++;
+          else unmarkedCount++;
+        });
+
+        const total = players.length;
+        const miniEl = body.querySelector('#att-summary-mini');
+        if (miniEl) {
+          miniEl.innerHTML = `
+            <div style="font-size: 17px; font-weight: 900; color: #4ade80;">
+              ${presentCount + lateCount} <span style="font-size: 12px; color: var(--muted); font-weight: 700;">/ ${total}</span>
+            </div>
+            <small style="font-size: 10px; color: var(--muted); text-transform: uppercase;">${t('present', 'Presentes')}</small>
+          `;
+        }
+
+        const ribbonEl = body.querySelector('#att-counters-ribbon');
+        if (ribbonEl) {
+          ribbonEl.innerHTML = `
+            <div style="flex-shrink: 0; background: rgba(34, 197, 94, 0.12); border: 1px solid rgba(34, 197, 94, 0.35); padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 800; color: #4ade80;">
+              🟢 ${presentCount} ${t('present', 'Presentes')}
+            </div>
+            <div style="flex-shrink: 0; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.35); padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 800; color: #f87171;">
+              ❌ ${absentCount} ${t('absent', 'Ausentes')}
+            </div>
+            <div style="flex-shrink: 0; background: rgba(234, 179, 8, 0.12); border: 1px solid rgba(234, 179, 8, 0.35); padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 800; color: #facc15;">
+              🟡 ${justifiedCount} ${t('justified', 'Justificados')}
+            </div>
+            <div style="flex-shrink: 0; background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.35); padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 800; color: #38bdf8;">
+              ⏰ ${lateCount} ${t('late', 'Retraso')}
+            </div>
+            ${unmarkedCount > 0 ? `
+              <div style="flex-shrink: 0; background: rgba(148, 163, 184, 0.12); border: 1px solid rgba(148, 163, 184, 0.35); padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 800; color: #94a3b8;">
+                ⚪ ${unmarkedCount} ${t('unmarked', 'Sin marcar')}
+              </div>
+            ` : ''}
+          `;
+        }
+      }
+
+      function renderList() {
+        const q = searchQuery.trim().toLowerCase();
+        const filtered = players.filter(p => {
+          if (!q) return true;
+          const name = (Store.playerName(p) || '').toLowerCase();
+          const dorsal = String(p.mainDorsal != null ? p.mainDorsal : (p.jersey != null ? p.jersey : ''));
+          return name.includes(q) || dorsal.includes(q);
+        });
+
+        const listEl = body.querySelector('#att-players-list');
+        if (!listEl) return;
+
+        if (filtered.length === 0) {
+          listEl.innerHTML = `
+            <div class="empty-state card" style="padding: 24px; text-align: center;">
+              <p style="margin: 0; color: var(--muted);">${t('noPlayersFound', 'No se encontraron jugadores.')}</p>
+            </div>
+          `;
+          return;
+        }
+
+        listEl.innerHTML = filtered.map(p => {
+          const rec = workingAtt[p.id];
+          const curStatus = rec ? rec.status : null;
+          const curNote = (rec && rec.note) || '';
+          const pwaVote = (conv && conv.responses && conv.responses[p.id]) ? conv.responses[p.id] : null;
+
+          return `
+            <div class="card att-player-card" data-pid="${p.id}" style="padding: 10px 12px; border: 1px solid ${curStatus ? 'rgba(34, 211, 238, 0.25)' : 'var(--border)'}; background: ${curStatus ? 'rgba(15, 23, 42, 0.7)' : 'var(--surface2)'}; border-radius: 12px; margin-bottom: 0;">
+              <div style="display: flex; align-items: center; gap: 10px;">
+                ${renderAvatar(p, 'sm')}
+                <div style="flex: 1; min-width: 0;">
+                  <b style="font-size: 13.5px; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block;">
+                    #${p.mainDorsal != null ? p.mainDorsal : (p.jersey != null ? p.jersey : '-')} ${escapeHtml(Store.playerName(p))}
+                  </b>
+                  <div style="font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 6px; margin-top: 1px;">
+                    <span>${p.mainPosition || 'Jugador'}</span>
+                    ${pwaVote ? (pwaVote === 'yes' || pwaVote === 'attending'
+                      ? `<span style="color: #4ade80; font-weight: 800;">🟢 PWA: ${t('attendanceConfirmed', 'Asistirá')}</span>`
+                      : `<span style="color: #f87171; font-weight: 800;">❌ PWA: ${t('absenceReported', 'No asistirá')}</span>`)
+                      : ''}
+                  </div>
+                </div>
+              </div>
+
+              <!-- Botones de Estado -->
+              <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 8px;">
+                <button type="button" class="att-status-btn ${curStatus === 'present' ? 'active-present' : ''}" data-status="present" style="padding: 6px 2px; font-size: 11px; font-weight: 800; border-radius: 8px; border: 1px solid ${curStatus === 'present' ? '#22c55e' : 'rgba(34, 197, 94, 0.3)'}; background: ${curStatus === 'present' ? '#22c55e' : 'rgba(34, 197, 94, 0.08)'}; color: ${curStatus === 'present' ? '#fff' : '#4ade80'}; cursor: pointer;">
+                  🟢 ${t('present', 'Presente')}
+                </button>
+                <button type="button" class="att-status-btn ${curStatus === 'absent' ? 'active-absent' : ''}" data-status="absent" style="padding: 6px 2px; font-size: 11px; font-weight: 800; border-radius: 8px; border: 1px solid ${curStatus === 'absent' ? '#ef4444' : 'rgba(239, 68, 68, 0.3)'}; background: ${curStatus === 'absent' ? '#ef4444' : 'rgba(239, 68, 68, 0.08)'}; color: ${curStatus === 'absent' ? '#fff' : '#f87171'}; cursor: pointer;">
+                  ❌ ${t('absent', 'Ausente')}
+                </button>
+                <button type="button" class="att-status-btn ${curStatus === 'justified' ? 'active-justified' : ''}" data-status="justified" style="padding: 6px 2px; font-size: 11px; font-weight: 800; border-radius: 8px; border: 1px solid ${curStatus === 'justified' ? '#eab308' : 'rgba(234, 179, 8, 0.3)'}; background: ${curStatus === 'justified' ? '#eab308' : 'rgba(234, 179, 8, 0.08)'}; color: ${curStatus === 'justified' ? '#000' : '#facc15'}; cursor: pointer;">
+                  🟡 ${t('justified', 'Justif.')}
+                </button>
+                <button type="button" class="att-status-btn ${curStatus === 'late' ? 'active-late' : ''}" data-status="late" style="padding: 6px 2px; font-size: 11px; font-weight: 800; border-radius: 8px; border: 1px solid ${curStatus === 'late' ? '#0284c7' : 'rgba(56, 189, 248, 0.3)'}; background: ${curStatus === 'late' ? '#0284c7' : 'rgba(56, 189, 248, 0.08)'}; color: ${curStatus === 'late' ? '#fff' : '#38bdf8'}; cursor: pointer;">
+                  ⏰ ${t('late', 'Retraso')}
+                </button>
+              </div>
+
+              <!-- Nota opcional -->
+              <div style="margin-top: 6px;">
+                <input type="text" class="att-note-input" data-note-pid="${p.id}" value="${escapeHtml(curNote)}" placeholder="${t('notePlaceholder', 'Nota opcional (ej. motivo, hora...)')}" style="width: 100%; font-size: 11px; padding: 4px 8px; border-radius: 6px; background: rgba(0,0,0,0.25); border: 1px solid var(--border); color: #cbd5e1;" />
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        // Bind status buttons in list
+        listEl.querySelectorAll('.att-status-btn').forEach(btn => {
+          btn.onclick = () => {
+            const card = btn.closest('.att-player-card');
+            const pid = card.getAttribute('data-pid');
+            const st = btn.getAttribute('data-status');
+            const prev = workingAtt[pid];
+            const noteInput = card.querySelector('.att-note-input');
+            const curNote = noteInput ? noteInput.value.trim() : ((prev && prev.note) || '');
+
+            if (prev && prev.status === st) {
+              delete workingAtt[pid];
+            } else {
+              workingAtt[pid] = { status: st, note: curNote, updatedAt: Date.now() };
+            }
+            haptic(20);
+            updateCounters();
+            renderList();
+          };
+        });
+
+        // Bind note input
+        listEl.querySelectorAll('.att-note-input').forEach(inp => {
+          inp.onchange = () => {
+            const pid = inp.getAttribute('data-note-pid');
+            if (workingAtt[pid]) {
+              workingAtt[pid].note = inp.value.trim();
+            } else if (inp.value.trim()) {
+              workingAtt[pid] = { status: 'present', note: inp.value.trim(), updatedAt: Date.now() };
+              updateCounters();
+            }
+          };
+        });
+      }
+
+      // Bind search input
+      const searchInp = body.querySelector('#att-filter-search');
+      if (searchInp) {
+        searchInp.oninput = (e) => {
+          searchQuery = e.target.value;
+          renderList();
+        };
+      }
+
+      // Marcar todos presentes
+      const btnAll = body.querySelector('#btn-att-mark-all');
+      if (btnAll) {
+        btnAll.onclick = () => {
+          players.forEach(p => {
+            const prev = workingAtt[p.id];
+            workingAtt[p.id] = {
+              status: 'present',
+              note: (prev && prev.note) || '',
+              updatedAt: Date.now()
+            };
+          });
+          haptic(30);
+          updateCounters();
+          renderList();
+        };
+      }
+
+      // Cargar respuestas PWA
+      const btnLoadPwa = body.querySelector('#btn-att-load-pwa');
+      if (btnLoadPwa && conv && conv.responses) {
+        btnLoadPwa.onclick = () => {
+          players.forEach(p => {
+            const resp = conv.responses[p.id];
+            if (resp) {
+              const isYes = (resp === 'yes' || resp === 'attending');
+              const isNo = (resp === 'no' || resp === 'absent');
+              if (isYes) {
+                workingAtt[p.id] = { status: 'present', note: (workingAtt[p.id] && workingAtt[p.id].note) || '', updatedAt: Date.now() };
+              } else if (isNo) {
+                workingAtt[p.id] = { status: 'absent', note: (workingAtt[p.id] && workingAtt[p.id].note) || '', updatedAt: Date.now() };
+              }
+            }
+          });
+          haptic(35);
+          toast(t('playerResponsesApplied', 'Votos de la PWA cargados'), 'info');
+          updateCounters();
+          renderList();
+        };
+      }
+
+      updateCounters();
+      renderList();
+    }, (foot) => {
+      foot.innerHTML = `
+        <div style="display: flex; gap: 8px;">
+          <button type="button" class="btn" id="btn-att-cancel" style="flex: 1;">${t('cancel', 'Cancelar')}</button>
+          <button type="button" class="btn primary" id="btn-att-save" style="flex: 2; font-weight: 800; font-size: 15px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+            <span>💾</span> <span>${t('saveAttendance', 'Guardar Asistencia')}</span>
+          </button>
+        </div>
+      `;
+
+      foot.querySelector('#btn-att-cancel').onclick = closeSheet;
+      foot.querySelector('#btn-att-save').onclick = () => {
+        Store.setSessionAttendance(sessionId, workingAtt, true);
+        closeSheet();
+        toast(t('attendanceSaved', 'Asistencia guardada con éxito'), 'success');
+
+        if (activeSessionId === sessionId) {
+          renderTracker();
+        }
+        if (currentTab === 'sessions' || currentTab === 'history') {
+          if (typeof renderSessionsView === 'function') renderSessionsView();
+          else if (typeof renderHistoryView === 'function') renderHistoryView();
+        } else if (currentTab === 'home') {
+          renderHomeView();
+        }
+      };
+    });
+  }
+
+  window.openAttendanceModal = showSessionAttendanceModal;
 
   /* =========================================================
      MODAL NUEVA SESIÓN (CON PRESET DE BOTONES)
@@ -2590,6 +2937,15 @@
 
     startTimerTicker();
     renderTracker();
+
+    // Si es sesión de hoy y aún no tiene lista pasada, abrir pasar lista
+    const todayStr = getTodayIso();
+    if (session.date === todayStr && (!session.attendance || Object.keys(session.attendance).length === 0) && !session._attendancePromptShown) {
+      session._attendancePromptShown = true;
+      setTimeout(() => {
+        showSessionAttendanceModal(sessionId);
+      }, 300);
+    }
   }
 
   function closeTracker() {
@@ -2637,6 +2993,17 @@
     const playerB = slots[1] ? Store.player(slots[1]) : null;
     const singleMode = !playerB && playerA;
 
+    const attMap = s.attendance || {};
+    const attKeys = Object.keys(attMap);
+    let attPresentCount = 0;
+    attKeys.forEach(k => {
+      const rec = attMap[k];
+      const st = (typeof rec === 'object' && rec !== null) ? rec.status : rec;
+      if (st === 'present' || st === 'late') attPresentCount++;
+    });
+    const hasAttendance = attKeys.length > 0;
+    const isTodaySession = s.date === getTodayIso();
+
     trackerEl.className = 'tracker ' + (singleMode ? 'single' : '');
 
     trackerEl.innerHTML = `
@@ -2645,12 +3012,26 @@
 
       <!-- BARRA CENTRAL DE CONTROL (2 FILAS ORDENADAS) -->
       <div class="t-bar">
+        ${(!hasAttendance && isTodaySession) ? `
+          <div style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.25), rgba(217, 119, 6, 0.2)); border-bottom: 1px solid rgba(245, 158, 11, 0.4); padding: 5px 12px; display: flex; align-items: center; justify-content: space-between; font-size: 11.5px;">
+            <span style="font-weight: 700; color: #fde047;">📋 ${t('rollCallPending', 'Asistencia pendiente de hoy')}</span>
+            <button type="button" class="btn sm" id="tracker-banner-btn-att" style="background: #f59e0b; color: #000; font-weight: 800; padding: 2px 8px; border-radius: 6px; font-size: 11px;">
+              ${t('rollCallBtn', 'Pasar Lista')}
+            </button>
+          </div>
+        ` : ''}
+
         <div class="t-bar-top">
           <button class="icon-btn ghost" id="tracker-btn-back" title="Volver">${icon('back', 18)}</button>
           <div class="t-title">
             <b>${escapeHtml(Store.sessionTitle(s))}</b>
             <span class="badge ${s.type}">${s.type === 'match' ? t('match').toUpperCase() : t('training').toUpperCase()}</span>
           </div>
+
+          <!-- Pasar Lista / Asistencia -->
+          <button class="icon-btn ${hasAttendance ? 'accent' : ''}" id="tracker-btn-attendance" title="${t('rollCallTitle', 'Pasar Lista')}">
+            📋${hasAttendance ? `<span style="font-size: 10px; font-weight: 900; margin-left: 1px;">${attPresentCount}</span>` : ''}
+          </button>
 
           <!-- Sincronización en vivo Dual QR -->
           <button class="icon-btn ${window.SyncEngine && SyncEngine.isLive() ? 'accent' : ''}" id="tracker-btn-sync-qr" title="${t('liveSync')}">
@@ -2810,6 +3191,12 @@
       haptic(40);
       renderTracker();
     };
+
+    const btnAtt = container.querySelector('#tracker-btn-attendance');
+    if (btnAtt) btnAtt.onclick = () => showSessionAttendanceModal(session.id);
+
+    const bannerBtnAtt = container.querySelector('#tracker-banner-btn-att');
+    if (bannerBtnAtt) bannerBtnAtt.onclick = () => showSessionAttendanceModal(session.id);
 
     // Marcador: Botones de puntuación local y visitante
     const updateScoreUI = () => {
@@ -5063,6 +5450,14 @@
         };
       });
 
+      view.querySelectorAll('.btn-quick-att').forEach(btn => {
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          const sid = btn.getAttribute('data-att-sid');
+          showSessionAttendanceModal(sid);
+        };
+      });
+
       view.querySelector('#btn-history-export-json').onclick = () => IO.exportBackup();
       view.querySelector('#btn-history-export-csv').onclick = () => IO.exportStatsCSV(list);
     }
@@ -5479,6 +5874,31 @@
             </button>
           </div>
 
+          <!-- Resumen y Gestión de Asistencia -->
+          <div class="card" style="margin-bottom: 12px; background: rgba(34, 211, 238, 0.06); border: 1px solid rgba(34, 211, 238, 0.25); padding: 12px 14px;">
+            <div class="row" style="justify-content: space-between; align-items: center;">
+              <div>
+                <b style="font-size: 13.5px; color: #fff;">📋 ${t('attendance', 'Asistencia')}</b>
+                <div style="font-size: 11.5px; color: var(--muted); margin-top: 2px;">
+                  ${(() => {
+                    const attMap = s.attendance || {};
+                    let pCnt = 0, aCnt = 0;
+                    Object.keys(attMap).forEach(k => {
+                      const rec = attMap[k];
+                      const st = (typeof rec === 'object' && rec !== null) ? rec.status : rec;
+                      if (st === 'present' || st === 'late') pCnt++;
+                      else if (st === 'absent') aCnt++;
+                    });
+                    return `${pCnt} ${t('present', 'presentes')}, ${aCnt} ${t('absent', 'ausentes')}`;
+                  })()}
+                </div>
+              </div>
+              <button type="button" class="btn sm" id="btn-detail-rollcall" style="background: var(--surface2); color: var(--cyan); border: 1.5px solid var(--border); font-size: 11.5px; font-weight: 800; border-radius: 8px;">
+                📋 ${t('rollCallBtn', 'Pasar Lista')}
+              </button>
+            </div>
+          </div>
+
           <div class="section-title">
             <span>Plantilla de Jugadores (${trackedCount} seguidos / ${filteredPlayers.length} total)</span>
           </div>
@@ -5539,6 +5959,13 @@
         body.querySelector('#btn-export-single-session-json').onclick = () => {
           IO.exportSessionJSON(s.id);
         };
+
+        const btnDetailAtt = body.querySelector('#btn-detail-rollcall');
+        if (btnDetailAtt) {
+          btnDetailAtt.onclick = () => {
+            showSessionAttendanceModal(s.id);
+          };
+        }
 
         body.querySelectorAll('.player-match-row').forEach(row => {
           row.onclick = () => {

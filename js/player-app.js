@@ -344,6 +344,11 @@
       matchesAttended: 'Matches Attended',
       trainingsAttended: 'Trainings Attended',
       totalSessions: 'Total Sessions',
+      attendanceStreak: 'Attendance Streak',
+      attendanceStreakDesc: 'Consecutive sessions attended',
+      streakSessions: 'sessions in a row',
+      streakSessionSingle: 'session',
+      streakOnFire: '🔥 On Fire',
       goalsScored: 'Goals Scored',
       passAccuracy: 'Pass Accuracy',
       passesAccurate: 'accurate passes',
@@ -601,6 +606,11 @@
       matchesAttended: 'Mängitud Mänge',
       trainingsAttended: 'Osaletud Treeninguid',
       totalSessions: 'Sessioone Kokku',
+      attendanceStreak: 'Osalemise seeria',
+      attendanceStreakDesc: 'Järjestikust treeningut ja mängu',
+      streakSessions: 'korda järjest',
+      streakSessionSingle: 'kord',
+      streakOnFire: '🔥 Hoog sees',
       goalsScored: 'Löödud Väravaid',
       passAccuracy: 'Söödutäpsus',
       passesAccurate: 'täpset söötu',
@@ -858,6 +868,11 @@
       matchesAttended: 'Partidos Jugados',
       trainingsAttended: 'Entrenamientos Asistidos',
       totalSessions: 'Sesiones Totales',
+      attendanceStreak: 'Racha de Asistencia',
+      attendanceStreakDesc: 'Sesiones consecutivas asistidas',
+      streakSessions: 'sesiones seguidas',
+      streakSessionSingle: 'sesión',
+      streakOnFire: '🔥 En racha',
       goalsScored: 'Goles Marcados',
       passAccuracy: 'Precisión de Pase',
       passesAccurate: 'pases acertados',
@@ -1516,7 +1531,13 @@
       clubData.sessions.forEach(s => {
         const pStats = s.stats && s.stats[pid];
         const hasActions = pStats && Object.values(pStats).some(v => v > 0);
-        const wasPresent = hasActions || (s.list && s.list[pid] === 'called');
+        let wasPresent = hasActions || (s.list && s.list[pid] === 'called');
+        if (s.attendance && s.attendance[pid]) {
+          const att = s.attendance[pid];
+          const st = (typeof att === 'object' && att !== null) ? att.status : att;
+          if (st === 'present' || st === 'late') wasPresent = true;
+          else if (st === 'absent') wasPresent = false;
+        }
 
         if (wasPresent) {
           if (s.type === 'match') res.matchesAttended++;
@@ -1568,6 +1589,27 @@
       : '6.0';
 
     return res;
+  }
+
+  function calculatePlayerAttendanceStreak(pid) {
+    if (!pid || !clubData || !Array.isArray(clubData.sessions)) return 0;
+    const allSessions = clubData.sessions
+      .filter(s => s && s.attendance && s.attendance[pid])
+      .sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.createdAt || 0) - (a.createdAt || 0));
+
+    let streak = 0;
+    for (const s of allSessions) {
+      const att = s.attendance[pid];
+      const st = (typeof att === 'object' && att !== null) ? att.status : att;
+      if (st === 'present' || st === 'late') {
+        streak++;
+      } else if (st === 'justified') {
+        continue;
+      } else {
+        break;
+      }
+    }
+    return streak;
   }
 
   // Contexto de plantilla (priors bayesianos) cacheado por versión de datos del club
@@ -4758,6 +4800,7 @@
     const team = clubData.teams ? clubData.teams.find(t => t.id === myP.teamId) : null;
     const stats = calculatePlayerStats(myP.id);
     const radar = calculatePlayerRadar(myP.id);
+    const streak = calculatePlayerAttendanceStreak(myP.id);
     const secPositions = myP.secondaryPositions && myP.secondaryPositions.length ? myP.secondaryPositions : (myP.secondaryPosition ? [myP.secondaryPosition] : []);
     const ageStr = myP.birthDate ? calculateAgeYearsMonths(myP.birthDate, currentLang) : '';
 
@@ -4794,6 +4837,25 @@
             ` : ''}
           </div>
         </div>
+
+        <!-- RACHA DE ASISTENCIA -->
+        ${streak > 0 ? `
+          <div class="card" style="margin-bottom: 14px; border: 1.5px solid rgba(249, 115, 22, 0.45); background: linear-gradient(135deg, rgba(249, 115, 22, 0.16) 0%, rgba(19, 31, 56, 0.8) 100%);">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <div style="font-size: 11px; font-weight: 800; color: #fb923c; text-transform: uppercase; letter-spacing: 0.6px; display: flex; align-items: center; gap: 4px;">
+                  <span>🔥</span> <span>${t('attendanceStreak')}</span>
+                </div>
+                <div style="font-size: 28px; font-weight: 900; color: #fff; margin-top: 3px; display: flex; align-items: baseline; gap: 6px;">
+                  <span>${streak}</span>
+                  <span style="font-size: 14px; color: #fdba74; font-weight: 700;">${streak === 1 ? t('streakSessionSingle') : t('streakSessions')}</span>
+                </div>
+                <small style="font-size: 11px; color: var(--muted);">${t('attendanceStreakDesc')}</small>
+              </div>
+              <div style="font-size: 38px; padding-right: 6px; filter: drop-shadow(0 0 10px rgba(249, 115, 22, 0.4));">🔥</div>
+            </div>
+          </div>
+        ` : ''}
 
         <!-- NOTA DE RENDIMIENTO (MATCH RATING) DESTACADA -->
         <div class="card" style="margin-bottom: 14px; border: 1px solid rgba(34, 211, 238, 0.35); background: linear-gradient(135deg, rgba(34, 211, 238, 0.12) 0%, rgba(19, 31, 56, 0.7) 100%); cursor: pointer;" id="card-rating-explain">
@@ -5102,6 +5164,7 @@
           ${players.map(p => {
             const team = teams.find(t => t.id === p.teamId);
             const pStats = calculatePlayerStats(p.id);
+            const pStreak = calculatePlayerAttendanceStreak(p.id);
 
             return `
               <div class="card squad-item-card" data-pid="${p.id}" style="display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--border); cursor: pointer;">
@@ -5118,8 +5181,11 @@
                   </div>
                 </div>
                 <div style="text-align: right; flex-shrink: 0;">
-                  <div style="font-size: 13px; font-weight: 900; color: #22d3ee;">⭐ ${pStats.aggregatedRating}</div>
-                  <small style="font-size: 10.5px; color: var(--muted);">⚽ ${pStats.goals} ${currentLang === 'en' ? 'goals' : 'goles'}</small>
+                  <div style="display: flex; align-items: center; justify-content: flex-end; gap: 4px;">
+                    ${pStreak >= 2 ? `<span style="font-size: 11px; font-weight: 800; color: #fb923c; background: rgba(249, 115, 22, 0.15); border: 1px solid rgba(249, 115, 22, 0.35); padding: 1px 5px; border-radius: 6px;" title="${t('attendanceStreak')}">🔥 ${pStreak}</span>` : ''}
+                    <div style="font-size: 13px; font-weight: 900; color: #22d3ee;">⭐ ${pStats.aggregatedRating}</div>
+                  </div>
+                  <small style="font-size: 10.5px; color: var(--muted);">⚽ ${pStats.goals} ${currentLang === 'en' ? 'goals' : (currentLang === 'ee' ? 'väravat' : 'goles')}</small>
                 </div>
               </div>
             `;
@@ -5283,6 +5349,7 @@
     const team = clubData.teams ? clubData.teams.find(t => t.id === p.teamId) : null;
     const stats = calculatePlayerStats(pid);
     const radar = calculatePlayerRadar(pid);
+    const streak = calculatePlayerAttendanceStreak(pid);
 
     const overlay = document.createElement('div');
     overlay.className = 'dialog-overlay';
@@ -5313,8 +5380,9 @@
                 <span style="color: var(--cyan); font-weight: 800;">(${calculateAgeYearsMonths(p.birthDate, currentLang)})</span>
               </div>
             ` : ''}
-            <div style="margin-top: 6px; font-size: 13.5px; font-weight: 900; color: #22d3ee;">
-              ⭐ ${t('performanceRating')}: ${stats.aggregatedRating} / 10
+            <div style="margin-top: 6px; font-size: 13.5px; font-weight: 900; color: #22d3ee; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px;">
+              <span>⭐ ${t('performanceRating')}: ${stats.aggregatedRating} / 10</span>
+              ${streak > 0 ? `<span class="badge" style="background: rgba(249, 115, 22, 0.2); color: #fb923c; border: 1px solid rgba(249, 115, 22, 0.5); font-size: 11px;">🔥 ${streak} ${streak === 1 ? t('streakSessionSingle') : t('streakSessions')}</span>` : ''}
             </div>
           </div>
         </div>

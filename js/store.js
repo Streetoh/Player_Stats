@@ -351,6 +351,7 @@
         timerStartedAt: null,
         slots: opts.slots || [null, null],
         enabledStats: opts.enabledStats || null, // Configuración específica de botones de esta sesión
+        attendance: opts.attendance || {},
         score: opts.score || { home: 0, away: 0 },
         period: opts.period || (opts.type === 'match' ? '1T' : 'B1'),
         zones: opts.zones || [],
@@ -384,6 +385,7 @@
         timerStartedAt: null,
         slots: [playerId, null],
         enabledStats: null,
+        attendance: sessionOpts.attendance || {},
         stats: statsObj,
         log: []
       };
@@ -395,6 +397,94 @@
     deleteSession(id) {
       this.state.sessions = this.state.sessions.filter(s => s.id !== id);
       this.save();
+    },
+
+    /* Gestión de Asistencia (Pasar Lista) */
+    setSessionAttendance(sessionId, attendanceMap, replace = false) {
+      const s = this.session(sessionId);
+      if (!s) return null;
+      s.attendance = replace ? Object.assign({}, attendanceMap) : Object.assign({}, s.attendance || {}, attendanceMap);
+      s.updatedAt = Date.now();
+      this.save();
+      return s.attendance;
+    },
+
+    getSessionAttendance(sessionId) {
+      const s = this.session(sessionId);
+      return (s && s.attendance) || {};
+    },
+
+    getSessionPlayersForAttendance(sessionId) {
+      const s = this.session(sessionId);
+      if (!s) return [];
+      const playerIds = new Set();
+
+      // 1. Si la sesión está vinculada a una convocatoria, usar convocados
+      if (s.convocationId) {
+        const c = this.convocation(s.convocationId);
+        if (c && c.list) {
+          Object.keys(c.list).forEach(pid => {
+            const st = c.list[pid];
+            if (st && st !== 'uncalled' && st !== 'absent') playerIds.add(pid);
+          });
+        }
+      }
+
+      // 2. Si no hay jugadores por convocatoria, usar los del equipo de la sesión
+      if (playerIds.size === 0) {
+        const teamIds = (Array.isArray(s.teamIds) && s.teamIds.length) ? s.teamIds : (s.teamId ? [s.teamId] : []);
+        if (teamIds.length > 0) {
+          (this.state.players || []).forEach(p => {
+            if (p.teamId && teamIds.includes(p.teamId) && p.active !== false) {
+              playerIds.add(p.id);
+            }
+          });
+        }
+      }
+
+      // 3. Fallback: Todos los jugadores activos
+      if (playerIds.size === 0) {
+        (this.state.players || []).forEach(p => {
+          if (p.active !== false) playerIds.add(p.id);
+        });
+      }
+
+      // 4. Si ya existen registros previos de asistencia en esta sesión, asegurar que aparezcan
+      if (s.attendance && typeof s.attendance === 'object') {
+        Object.keys(s.attendance).forEach(pid => {
+          if (this.player(pid)) playerIds.add(pid);
+        });
+      }
+
+      const players = Array.from(playerIds).map(id => this.player(id)).filter(Boolean);
+      players.sort((a, b) => {
+        const numA = (a.jersey != null && a.jersey !== '') ? Number(a.jersey) : 999;
+        const numB = (b.jersey != null && b.jersey !== '') ? Number(b.jersey) : 999;
+        if (numA !== numB) return numA - numB;
+        return (a.name || '').localeCompare(b.name || '');
+      });
+      return players;
+    },
+
+    calculateAttendanceStreak(playerId, sessions) {
+      if (!playerId) return 0;
+      const allSessions = (sessions || this.state.sessions || [])
+        .filter(s => s && s.attendance && s.attendance[playerId])
+        .sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.createdAt || 0) - (a.createdAt || 0));
+
+      let streak = 0;
+      for (const s of allSessions) {
+        const att = s.attendance[playerId];
+        const st = (typeof att === 'object' && att !== null) ? att.status : att;
+        if (st === 'present' || st === 'late') {
+          streak++;
+        } else if (st === 'justified') {
+          continue; // Justificado no rompe la racha
+        } else {
+          break; // Ausente rompe la racha
+        }
+      }
+      return streak;
     },
 
     sessionTitle(s) {
@@ -1169,6 +1259,7 @@
             timerStartedAt: null,
             slots: [null, null],
             enabledStats: null,
+            attendance: {},
             score: { home: 0, away: 0 },
             period: 'B1',
             zones: [],
