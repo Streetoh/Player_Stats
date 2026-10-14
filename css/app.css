@@ -1333,17 +1333,84 @@ button { font-family: inherit; color: inherit; border: 0; background: none; curs
 }
 
 .conv-card-today {
-  animation: todayCardGlow 2.5s infinite ease-in-out !important;
-  background: linear-gradient(180deg, rgba(34, 211, 238, 0.08) 0%, rgba(15, 23, 42, 0.7) 100%), var(--surface) !important;
+  animation: todayCardGlow 2.2s infinite ease-in-out !important;
+  background: linear-gradient(180deg, rgba(34, 211, 238, 0.12) 0%, rgba(15, 23, 42, 0.85) 100%), var(--surface) !important;
+  border: 2px solid rgba(34, 211, 238, 0.95) !important;
+  position: relative;
 }
 
 @keyframes todayBadgePulse {
   0% { transform: scale(1); filter: brightness(1); }
-  50% { transform: scale(1.05); filter: brightness(1.2); }
+  50% { transform: scale(1.05); filter: brightness(1.25); }
   100% { transform: scale(1); filter: brightness(1); }
+}
+
+@keyframes pulseGlowDot {
+  0% { transform: scale(0.85); opacity: 0.7; box-shadow: 0 0 4px #22d3ee; }
+  50% { transform: scale(1.25); opacity: 1; box-shadow: 0 0 12px #22d3ee; }
+  100% { transform: scale(0.85); opacity: 0.7; box-shadow: 0 0 4px #22d3ee; }
 }
 
 .badge-today-glow {
   animation: todayBadgePulse 2s infinite ease-in-out;
+}
+
+.today-glow-banner {
+  animation: todayBadgePulse 3s infinite ease-in-out;
+}
+
+/* Desplegable de entrenamientos y convocatorias anteriores */
+.past-convs-details {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(15, 23, 42, 0.45);
+  border-radius: 14px;
+  overflow: hidden;
+  margin-top: 14px;
+  transition: all 0.25s ease;
+}
+
+.past-convs-details[open] {
+  border-color: rgba(56, 189, 248, 0.35);
+  background: rgba(15, 23, 42, 0.65);
+}
+
+.past-convs-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 13px 16px;
+  cursor: pointer;
+  user-select: none;
+  background: rgba(30, 41, 59, 0.35);
+  font-size: 13px;
+  font-weight: 800;
+  color: #94a3b8;
+  list-style: none;
+  outline: none;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.past-convs-summary:hover {
+  background: rgba(30, 41, 59, 0.6);
+  color: #e2e8f0;
+}
+
+.past-convs-summary::-webkit-details-marker {
+  display: none;
+}
+
+.past-convs-details[open] .past-convs-chevron {
+  transform: rotate(180deg);
+  color: var(--cyan);
+}
+
+.past-conv-card {
+  opacity: 0.92;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: rgba(15, 23, 42, 0.55) !important;
+}
+
+.past-conv-card:hover {
+  opacity: 1;
 }
 

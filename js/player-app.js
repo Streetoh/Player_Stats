@@ -32,6 +32,7 @@
   let activeTeamFilter = 'all';
   let myPendingReqUnsub = null;
   let convFilterType = 'all'; // 'all' | 'match' | 'training'
+  let isPastConvsExpanded = false;
 
   function formatDisplayDate(isoStr) {
     if (!isoStr) return '';
@@ -318,6 +319,15 @@
       allAnswered: 'All called players have responded',
       emptyConvs: 'No active call-ups',
       emptyConvsDesc: 'The coach has not published any call-ups for upcoming matches or trainings yet.',
+      todayTrainingBadge: "✨ TODAY'S TRAINING",
+      todayMatchBadge: "✨ TODAY'S MATCH",
+      upcomingThisWeek: 'Upcoming this week',
+      noUpcomingThisWeek: 'No more trainings scheduled for this week',
+      noUpcomingThisWeekDesc: 'Check past trainings & sessions in the dropdown below.',
+      pastConvocations: 'Past trainings',
+      pastConvocationsMatches: 'Past matches',
+      pastConvocationsAll: 'Past trainings & call-ups',
+      pastSessionBadge: 'Completed',
       chooseIdentityTitle: 'Who are you in the team?',
       chooseIdentityDesc: 'Select your name to link your player profile to this device. Once chosen, it will be locked.',
       confirmIdentityBtn: 'Link My Profile',
@@ -566,6 +576,15 @@
       allAnswered: 'Kõik kutsutud mängijad on vastanud',
       emptyConvs: 'Aktiivseid kutseid pole',
       emptyConvsDesc: 'Treener pole veel avaldanud kutseid eelseisvateks mängudeks või treeninguteks.',
+      todayTrainingBadge: '✨ TÄNANE TREENING',
+      todayMatchBadge: '✨ TÄNANE MÄNG',
+      upcomingThisWeek: 'Järgmised sel nädalal',
+      noUpcomingThisWeek: 'Sel nädalal pole rohkem treeninguid planeeritud',
+      noUpcomingThisWeekDesc: 'Vaata varasemate treeningute ajalugu allolevast rippmenüüst.',
+      pastConvocations: 'Varasemad treeningud',
+      pastConvocationsMatches: 'Varasemad mängud',
+      pastConvocationsAll: 'Varasemad treeningud ja kutsed',
+      pastSessionBadge: 'Lõppenud',
       chooseIdentityTitle: 'Kes sa oled meeskonnas?',
       chooseIdentityDesc: 'Vali oma nimi, et siduda oma profiil selle seadmega. Pärast valimist see lukustatakse.',
       confirmIdentityBtn: 'Seo minu profiil',
@@ -814,6 +833,15 @@
       allAnswered: 'Todos los convocados han respondido',
       emptyConvs: 'Sin convocatorias activas',
       emptyConvsDesc: 'El entrenador aún no ha publicado ninguna convocatoria para los próximos partidos o entrenamientos.',
+      todayTrainingBadge: '✨ ENTRENAMIENTO DE HOY',
+      todayMatchBadge: '✨ PARTIDO DE HOY',
+      upcomingThisWeek: 'Próximos esta semana',
+      noUpcomingThisWeek: 'No hay más entrenamientos programados para esta semana',
+      noUpcomingThisWeekDesc: 'Consulta el historial de entrenamientos anteriores en el desplegable inferior.',
+      pastConvocations: 'Entrenamientos anteriores',
+      pastConvocationsMatches: 'Partidos anteriores',
+      pastConvocationsAll: 'Entrenamientos y convocatorias anteriores',
+      pastSessionBadge: 'Finalizado',
       chooseIdentityTitle: '¿Quién eres en el equipo?',
       chooseIdentityDesc: 'Selecciona tu nombre para vincular tu ficha a este dispositivo. Una vez elegido, quedará fijado.',
       confirmIdentityBtn: 'Vincular mi perfil',
@@ -3230,6 +3258,9 @@
 
   function isConvUnopened(c, pid) {
     if (!c || !pid) return false;
+    const nowD = new Date();
+    const todayIso = `${nowD.getFullYear()}-${String(nowD.getMonth() + 1).padStart(2, '0')}-${String(nowD.getDate()).padStart(2, '0')}`;
+    if (c.date && c.date < todayIso) return false;
     const isRecurring = !!(c.isRecurring || c.scheduleId || (c.id && c.id.startsWith('rec_')));
     if (isRecurring && !isDateInCurrentWeek(c.date)) return false;
     if (!isPlayerCalledUpInConv(c, pid)) return false;
@@ -3318,10 +3349,268 @@
       if (!isCalled) return false;
 
       return true;
-    }).sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.time || '').localeCompare(b.time || ''));
+    });
 
-    const allPlayersMap = {};
-    (clubData.players || []).forEach(p => { allPlayersMap[p.id] = p; });
+    const nowD = new Date();
+    const todayIso = `${nowD.getFullYear()}-${String(nowD.getMonth() + 1).padStart(2, '0')}-${String(nowD.getDate()).padStart(2, '0')}`;
+
+    // Separar en:
+    // 1. Convocatorias de HOY (destacadas con iluminación)
+    // 2. Convocatorias siguientes en la semana actual (y futuros partidos)
+    // 3. Convocatorias / Entrenamientos pasados (para el desplegable)
+    const todayConvs = [];
+    const upcomingThisWeekConvs = [];
+    const pastConvs = [];
+
+    filteredConvs.forEach(c => {
+      const cDate = (c.date || '').trim();
+      if (cDate === todayIso) {
+        todayConvs.push(c);
+      } else if (cDate < todayIso) {
+        pastConvs.push(c);
+      } else {
+        // cDate > todayIso
+        if (c.type === 'training') {
+          if (isDateInCurrentWeek(cDate)) {
+            upcomingThisWeekConvs.push(c);
+          }
+        } else {
+          upcomingThisWeekConvs.push(c);
+        }
+      }
+    });
+
+    todayConvs.sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+    upcomingThisWeekConvs.sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.time || '').localeCompare(b.time || ''));
+    pastConvs.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.time || '').localeCompare(a.time || ''));
+
+    function renderSingleConvCard(c, isToday, isPast) {
+      const team = clubData.teams ? clubData.teams.find(t => t.id === c.teamId) : null;
+      const list = c.list || {};
+      const responses = liveVotes[c.id] || {};
+
+      // SÓLO jugadores efectivamente convocados (st !== 'uncalled' y st !== 'absent')
+      const calledPlayerIds = Object.keys(list).filter(pid => {
+        const st = list[pid];
+        return st && st !== 'uncalled' && st !== 'absent';
+      });
+
+      const isCalled = true;
+
+      // Recuentos reales entre los convocados
+      let nAttending = 0;
+      let nAbsent = 0;
+      let nPending = 0;
+
+      calledPlayerIds.forEach(pid => {
+        const r = responses[pid] || (c.responses && c.responses[pid]);
+        const st = r ? r.status : null;
+        if (st === 'called' || st === 'attending' || st === 'yes') nAttending++;
+        else if (st === 'absent' || st === 'no') nAbsent++;
+        else nPending++;
+      });
+
+      // Voto del usuario actual
+      const myVoteObj = myPlayerId ? (responses[myPlayerId] || (c.responses && c.responses[myPlayerId])) : null;
+      const mySt = myVoteObj ? myVoteObj.status : null;
+      const isAttending = mySt && (mySt === 'called' || mySt === 'attending' || mySt === 'yes');
+      const isAbsent = mySt && (mySt === 'absent' || mySt === 'no');
+
+      const isMatch = c.type === 'match';
+      const isUnopened = isConvUnopened(c, myPlayerId);
+
+      return `
+        <div class="card conv-card-clickable ${isToday ? 'conv-card-today' : ''} ${isPast ? 'past-conv-card' : ''}" style="${isToday ? 'border: 2px solid rgba(34, 211, 238, 0.95); box-shadow: 0 0 25px rgba(34, 211, 238, 0.65), 0 0 50px rgba(34, 211, 238, 0.35);' : 'border: 1px solid var(--border);'} padding: 16px; position: relative;" data-cid="${c.id}">
+          ${isToday ? `
+            <div class="today-glow-banner" style="display: flex; align-items: center; justify-content: space-between; background: linear-gradient(90deg, rgba(6, 182, 212, 0.3), rgba(59, 130, 246, 0.3)); border: 1px solid rgba(34, 211, 238, 0.65); border-radius: 9px; padding: 7px 12px; margin-bottom: 12px; box-shadow: 0 0 14px rgba(6, 182, 212, 0.5);">
+              <span style="font-size: 11.5px; font-weight: 900; color: #a5f3fc; letter-spacing: 0.6px; text-transform: uppercase; display: flex; align-items: center; gap: 7px;">
+                <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #22d3ee; box-shadow: 0 0 10px #22d3ee;"></span>
+                ${isMatch ? t('todayMatchBadge') : t('todayTrainingBadge')}
+              </span>
+              <span style="font-size: 10.5px; font-weight: 900; color: #fff; background: linear-gradient(135deg, #06b6d4, #3b82f6); padding: 2px 8px; border-radius: 6px; box-shadow: 0 0 8px rgba(6, 182, 212, 0.6);">
+                ${currentLang === 'ee' ? 'TÄNA' : (currentLang === 'es' ? 'HOY' : 'TODAY')}
+              </span>
+            </div>
+          ` : ''}
+
+          <!-- Encabezado clickeable para abrir detalles -->
+          <div class="conv-card-header-tap" data-open-conv-id="${c.id}" style="cursor: pointer;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+              <div style="flex: 1;">
+                <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px; flex-wrap: wrap;">
+                  <span class="badge ${c.type}">
+                    ${isMatch ? '🏆 ' + t('match') : '⚽ ' + t('training')}
+                  </span>
+                  ${isPast ? `
+                    <span class="badge" style="background: rgba(148, 163, 184, 0.15); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.3); font-size: 10.5px; font-weight: 800; padding: 2px 7px; border-radius: 8px;">
+                      ✓ ${t('pastSessionBadge')}
+                    </span>
+                  ` : ''}
+                  ${isToday && !isPast ? `
+                    <span class="badge-today-glow" style="display: inline-flex; align-items: center; gap: 4px; background: linear-gradient(135deg, #06b6d4, #3b82f6); color: #fff; border: 1px solid rgba(255,255,255,0.4); font-size: 11px; font-weight: 900; padding: 2px 9px; border-radius: 8px; box-shadow: 0 0 14px rgba(6, 182, 212, 0.8); letter-spacing: 0.3px;">
+                      ✨ ${currentLang === 'ee' ? 'TÄNA' : (currentLang === 'es' ? 'HOY' : 'TODAY')}
+                    </span>
+                  ` : ''}
+                  ${isUnopened ? `
+                    <span class="badge-conv-new" id="conv-new-dot-${c.id}" style="display: inline-flex; align-items: center; gap: 4px; background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.5); font-size: 10px; font-weight: 900; padding: 2px 7px; border-radius: 12px; letter-spacing: 0.3px;">
+                      <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 6px #ef4444;"></span>
+                      ${t('newBadge', 'NEW')}
+                    </span>
+                  ` : ''}
+                </div>
+                <h3 style="margin: 0; font-size: 17px; font-weight: 900; color: #fff;">
+                  ${escapeHtml(c.title || (c.rival ? 'vs ' + c.rival : t('callUpOfficial')))}
+                </h3>
+                <div style="font-size: 12.5px; color: var(--muted); margin-top: 4px; line-height: 1.4;">
+                  📅 <b>${formatDisplayDate(c.date)}</b> • ⏰ ${c.time || '10:00'}${c.endTime ? ' - ' + c.endTime : ''}${c.duration ? ' (' + c.duration + ' min)' : ''}<br />
+                  ${c.venue ? `📍 <b>${t('venue')}:</b> ${escapeHtml(c.venue)}<br />` : ''}
+                  ${c.address ? `
+                    🗺️ <b>${t('address')}:</b> ${escapeHtml(c.address)}
+                    <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(c.address)}" target="_blank" onclick="event.stopPropagation(); window.openLocationInMaps('${escapeHtml(c.address)}'); return false;" style="color: var(--cyan); font-weight: 800; text-decoration: underline; margin-left: 4px;">
+                      ${t('openInMaps')}
+                    </a><br />
+                  ` : ''}
+                  ${team ? `<span style="color: ${team.color || 'var(--cyan)'}; font-weight: 800;">🛡️ ${escapeHtml(team.name)}</span>` : ''}
+                </div>
+              </div>
+              <div style="font-size: 16px; color: var(--muted); padding-top: 4px; opacity: 0.7;">➔</div>
+            </div>
+          </div>
+
+          ${c.notes ? `
+            <div style="background: rgba(0,0,0,0.25); border-left: 3px solid var(--cyan); padding: 8px 10px; border-radius: 6px; font-size: 12px; margin-top: 10px; color: #bae6fd;">
+              📝 <b>${t('coachNote')}:</b> ${escapeHtml(c.notes)}
+            </div>
+          ` : ''}
+
+          <!-- Botón interactivo para abrir los detalles completos -->
+          <div style="margin-top: 10px;">
+            <button type="button" class="btn block ghost btn-open-conv-details" data-open-conv-id="${c.id}" style="height: 38px; font-size: 12.5px; font-weight: 800; border-radius: 10px; border: 1px dashed ${isMatch ? 'rgba(56, 189, 248, 0.45)' : 'rgba(34, 197, 94, 0.45)'}; background: ${isMatch ? 'rgba(56, 189, 248, 0.08)' : 'rgba(34, 197, 94, 0.08)'}; color: ${isMatch ? '#38bdf8' : '#86efac'}; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; cursor: pointer; width: 100%;">
+              <div style="display: flex; align-items: center; gap: 7px;">
+                <span>${isMatch ? '🏆' : '⚽'}</span>
+                <span>${isMatch ? t('tapMatchDetails', 'Tap for Match Details & Squad') : t('tapTrainingDetails', 'Tap for Training Details & Squad')}</span>
+              </div>
+              <span style="font-size: 14px; font-weight: 900;">➔</span>
+            </button>
+          </div>
+
+          <!-- CAJA DE ASISTENCIA -->
+          <div class="portal-vote-box" style="margin-top: 10px;">
+            ${isCalled ? `
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 12px; font-weight: 800; color: #fff;">${t('willYouAttend')}</span>
+                <span id="vote-badge-${c.id}" class="badge" style="${isAttending ? 'background: rgba(34,197,94,0.2); color: #86efac;' : (isAbsent ? 'background: rgba(239,68,68,0.2); color: #fca5a5;' : 'background: var(--surface); color: var(--muted);')}">
+                  ${isAttending ? t('attendanceConfirmed') : (isAbsent ? t('absenceReported') : t('pendingResponse'))}
+                </span>
+              </div>
+
+              <div class="portal-vote-btns">
+                <button class="btn-vote yes ${isAttending ? 'active' : ''}" data-cid="${c.id}" data-vote="called">
+                  ${t('iWillAttend')}
+                </button>
+                <button class="btn-vote no ${isAbsent ? 'active' : ''}" data-cid="${c.id}" data-vote="absent">
+                  ${t('iCannotAttend')}
+                </button>
+              </div>
+            ` : `
+              <div style="text-align: center; padding: 6px 0; color: var(--muted); font-size: 12.5px;">
+                ${t('notCalledUp')}
+              </div>
+            `}
+
+            <!-- RECUENTO EN VIVO Y MODAL DE COMPAÑEROS QUE ASISTEN -->
+            <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; font-size: 12px;">
+              <div style="display: flex; gap: 8px;">
+                <span style="color: #86efac; font-weight: 800;">🟢 ${nAttending}</span>
+                <span style="color: #fca5a5; font-weight: 800;">❌ ${nAbsent}</span>
+                <span style="color: #fde047; font-weight: 800;">⏳ ${nPending}</span>
+              </div>
+              <button type="button" class="btn sm ghost" data-open-squad-status="${c.id}" style="color: var(--cyan); font-weight: 800; font-size: 11.5px; padding: 4px 8px;">
+                ${t('viewAttendees')}
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    const hasActiveConvs = todayConvs.length > 0 || upcomingThisWeekConvs.length > 0;
+    let listContentHtml = '';
+
+    if (!hasActiveConvs && pastConvs.length === 0) {
+      listContentHtml = `
+        <div class="empty-state card">
+          <div class="e-ic">📋</div>
+          <h3>${t('emptyConvs')}</h3>
+          <p>${t('emptyConvsDesc')}</p>
+        </div>
+      `;
+    } else {
+      let sectionsHtml = '';
+
+      if (!hasActiveConvs && pastConvs.length > 0) {
+        sectionsHtml += `
+          <div class="card" style="padding: 16px; text-align: center; background: rgba(30, 41, 59, 0.4); border: 1px dashed var(--border); margin-bottom: 12px; border-radius: 12px;">
+            <div style="font-size: 24px; margin-bottom: 6px;">⚽</div>
+            <div style="font-size: 13.5px; font-weight: 800; color: #fff;">${t('noUpcomingThisWeek')}</div>
+            <div style="font-size: 12px; color: var(--muted); margin-top: 4px;">${t('noUpcomingThisWeekDesc')}</div>
+          </div>
+        `;
+      }
+
+      // 1. Convocatorias de HOY (iluminadas para que destaquen)
+      if (todayConvs.length > 0) {
+        sectionsHtml += `
+          <div style="display: flex; flex-direction: column; gap: 14px; margin-bottom: 14px;">
+            ${todayConvs.map(c => renderSingleConvCard(c, true, false)).join('')}
+          </div>
+        `;
+      }
+
+      // 2. Convocatorias siguientes en la semana actual
+      if (upcomingThisWeekConvs.length > 0) {
+        if (todayConvs.length > 0) {
+          sectionsHtml += `
+            <div style="display: flex; align-items: center; gap: 8px; margin: 16px 0 10px 4px;">
+              <span style="font-size: 14px;">📅</span>
+              <h4 style="margin: 0; font-size: 12.5px; font-weight: 900; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.6px;">
+                ${t('upcomingThisWeek')}
+              </h4>
+            </div>
+          `;
+        }
+        sectionsHtml += `
+          <div style="display: flex; flex-direction: column; gap: 14px; margin-bottom: 14px;">
+            ${upcomingThisWeekConvs.map(c => renderSingleConvCard(c, false, false)).join('')}
+          </div>
+        `;
+      }
+
+      // 3. Desplegable de entrenamientos y convocatorias anteriores
+      if (pastConvs.length > 0) {
+        const pastLabel = convFilterType === 'training' 
+          ? t('pastConvocations') 
+          : (convFilterType === 'match' ? t('pastConvocationsMatches') : t('pastConvocationsAll'));
+
+        sectionsHtml += `
+          <details class="past-convs-details" id="past-convs-accordion" ${isPastConvsExpanded ? 'open' : ''}>
+            <summary class="past-convs-summary">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 15px;">📁</span>
+                <span>${pastLabel}</span>
+                <span class="badge" style="background: rgba(148, 163, 184, 0.18); color: #cbd5e1; font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 900;">${pastConvs.length}</span>
+              </div>
+              <span class="past-convs-chevron" style="font-size: 11px; color: var(--muted); transition: transform 0.25s ease;">${isPastConvsExpanded ? '▲' : '▼'}</span>
+            </summary>
+            <div class="past-convs-body" style="padding: 12px; display: flex; flex-direction: column; gap: 12px; border-top: 1px solid rgba(255,255,255,0.06); background: rgba(11, 17, 32, 0.35);">
+              ${pastConvs.map(c => renderSingleConvCard(c, false, true)).join('')}
+            </div>
+          </details>
+        `;
+      }
+
+      listContentHtml = sectionsHtml;
+    }
 
     view.innerHTML = `
       <div style="padding: 10px 0;">
@@ -3334,153 +3623,21 @@
           <button type="button" class="btn sm ${convFilterType === 'training' ? 'primary' : 'ghost'}" data-conv-filter="training" style="flex: 1; height: 34px; font-size: 12px; font-weight: 800; border-radius: 8px;">${t('filterTrainings', '⚽ Entrenamientos')}</button>
         </div>
 
-        ${filteredConvs.length === 0 ? `
-          <div class="empty-state card">
-            <div class="e-ic">📋</div>
-            <h3>${t('emptyConvs')}</h3>
-            <p>${t('emptyConvsDesc')}</p>
-          </div>
-        ` : `
-          <div style="display: flex; flex-direction: column; gap: 14px;">
-            ${filteredConvs.map(c => {
-              const team = clubData.teams ? clubData.teams.find(t => t.id === c.teamId) : null;
-              const list = c.list || {};
-              const responses = liveVotes[c.id] || {};
-
-              // SÓLO jugadores efectivamente convocados (st !== 'uncalled' y st !== 'absent')
-              const calledPlayerIds = Object.keys(list).filter(pid => {
-                const st = list[pid];
-                return st && st !== 'uncalled' && st !== 'absent';
-              });
-
-              const isCalled = true;
-
-              // Recuentos reales entre los convocados
-              let nAttending = 0;
-              let nAbsent = 0;
-              let nPending = 0;
-
-              calledPlayerIds.forEach(pid => {
-                const r = responses[pid] || (c.responses && c.responses[pid]);
-                const st = r ? r.status : null;
-                if (st === 'called' || st === 'attending' || st === 'yes') nAttending++;
-                else if (st === 'absent' || st === 'no') nAbsent++;
-                else nPending++;
-              });
-
-              // Voto del usuario actual
-              const myVoteObj = myPlayerId ? (responses[myPlayerId] || (c.responses && c.responses[myPlayerId])) : null;
-              const mySt = myVoteObj ? myVoteObj.status : null;
-              const isAttending = mySt && (mySt === 'called' || mySt === 'attending' || mySt === 'yes');
-              const isAbsent = mySt && (mySt === 'absent' || mySt === 'no');
-
-              const isMatch = c.type === 'match';
-              const isUnopened = isConvUnopened(c, myPlayerId);
-              const nowD = new Date();
-              const todayIso = `${nowD.getFullYear()}-${String(nowD.getMonth() + 1).padStart(2, '0')}-${String(nowD.getDate()).padStart(2, '0')}`;
-              const isToday = (c.date === todayIso);
-
-              return `
-                <div class="card conv-card-clickable ${isToday ? 'conv-card-today' : ''}" style="${isToday ? 'border: 2px solid rgba(34, 211, 238, 0.95); box-shadow: 0 0 22px rgba(34, 211, 238, 0.55), 0 0 45px rgba(34, 211, 238, 0.25);' : 'border: 1px solid var(--border);'} padding: 16px; position: relative;" data-cid="${c.id}">
-                  <!-- Encabezado clickeable para abrir detalles -->
-                  <div class="conv-card-header-tap" data-open-conv-id="${c.id}" style="cursor: pointer;">
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
-                      <div style="flex: 1;">
-                        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px; flex-wrap: wrap;">
-                          <span class="badge ${c.type}">
-                            ${isMatch ? '🏆 ' + t('match') : '⚽ ' + t('training')}
-                          </span>
-                          ${isToday ? `
-                            <span class="badge-today-glow" style="display: inline-flex; align-items: center; gap: 4px; background: linear-gradient(135deg, #06b6d4, #3b82f6); color: #fff; border: 1px solid rgba(255,255,255,0.4); font-size: 11px; font-weight: 900; padding: 2px 9px; border-radius: 8px; box-shadow: 0 0 14px rgba(6, 182, 212, 0.8); letter-spacing: 0.3px;">
-                              ✨ ${currentLang === 'ee' ? 'TÄNA' : (currentLang === 'es' ? 'HOY' : 'TODAY')}
-                            </span>
-                          ` : ''}
-                          ${isUnopened ? `
-                            <span class="badge-conv-new" id="conv-new-dot-${c.id}" style="display: inline-flex; align-items: center; gap: 4px; background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.5); font-size: 10px; font-weight: 900; padding: 2px 7px; border-radius: 12px; letter-spacing: 0.3px;">
-                              <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 6px #ef4444;"></span>
-                              ${t('newBadge', 'NEW')}
-                            </span>
-                          ` : ''}
-                        </div>
-                        <h3 style="margin: 0; font-size: 17px; font-weight: 900; color: #fff;">
-                          ${escapeHtml(c.title || (c.rival ? 'vs ' + c.rival : t('callUpOfficial')))}
-                        </h3>
-                        <div style="font-size: 12.5px; color: var(--muted); margin-top: 4px; line-height: 1.4;">
-                          📅 <b>${formatDisplayDate(c.date)}</b> • ⏰ ${c.time || '10:00'}${c.endTime ? ' - ' + c.endTime : ''}${c.duration ? ' (' + c.duration + ' min)' : ''}<br />
-                          ${c.venue ? `📍 <b>${t('venue')}:</b> ${escapeHtml(c.venue)}<br />` : ''}
-                          ${c.address ? `
-                            🗺️ <b>${t('address')}:</b> ${escapeHtml(c.address)}
-                            <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(c.address)}" target="_blank" onclick="event.stopPropagation(); window.openLocationInMaps('${escapeHtml(c.address)}'); return false;" style="color: var(--cyan); font-weight: 800; text-decoration: underline; margin-left: 4px;">
-                              ${t('openInMaps')}
-                            </a><br />
-                          ` : ''}
-                          ${team ? `<span style="color: ${team.color || 'var(--cyan)'}; font-weight: 800;">🛡️ ${escapeHtml(team.name)}</span>` : ''}
-                        </div>
-                      </div>
-                      <div style="font-size: 16px; color: var(--muted); padding-top: 4px; opacity: 0.7;">➔</div>
-                    </div>
-                  </div>
-
-                  ${c.notes ? `
-                    <div style="background: rgba(0,0,0,0.25); border-left: 3px solid var(--cyan); padding: 8px 10px; border-radius: 6px; font-size: 12px; margin-top: 10px; color: #bae6fd;">
-                      📝 <b>${t('coachNote')}:</b> ${escapeHtml(c.notes)}
-                    </div>
-                  ` : ''}
-
-                  <!-- Botón interactivo para abrir los detalles completos -->
-                  <div style="margin-top: 10px;">
-                    <button type="button" class="btn block ghost btn-open-conv-details" data-open-conv-id="${c.id}" style="height: 38px; font-size: 12.5px; font-weight: 800; border-radius: 10px; border: 1px dashed ${isMatch ? 'rgba(56, 189, 248, 0.45)' : 'rgba(34, 197, 94, 0.45)'}; background: ${isMatch ? 'rgba(56, 189, 248, 0.08)' : 'rgba(34, 197, 94, 0.08)'}; color: ${isMatch ? '#38bdf8' : '#86efac'}; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; cursor: pointer; width: 100%;">
-                      <div style="display: flex; align-items: center; gap: 7px;">
-                        <span>${isMatch ? '🏆' : '⚽'}</span>
-                        <span>${isMatch ? t('tapMatchDetails', 'Tap for Match Details & Squad') : t('tapTrainingDetails', 'Tap for Training Details & Squad')}</span>
-                      </div>
-                      <span style="font-size: 14px; font-weight: 900;">➔</span>
-                    </button>
-                  </div>
-
-                  <!-- CAJA DE ASISTENCIA -->
-                  <div class="portal-vote-box" style="margin-top: 10px;">
-                    ${isCalled ? `
-                      <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span style="font-size: 12px; font-weight: 800; color: #fff;">${t('willYouAttend')}</span>
-                        <span id="vote-badge-${c.id}" class="badge" style="${isAttending ? 'background: rgba(34,197,94,0.2); color: #86efac;' : (isAbsent ? 'background: rgba(239,68,68,0.2); color: #fca5a5;' : 'background: var(--surface); color: var(--muted);')}">
-                          ${isAttending ? t('attendanceConfirmed') : (isAbsent ? t('absenceReported') : t('pendingResponse'))}
-                        </span>
-                      </div>
-
-                      <div class="portal-vote-btns">
-                        <button class="btn-vote yes ${isAttending ? 'active' : ''}" data-cid="${c.id}" data-vote="called">
-                          ${t('iWillAttend')}
-                        </button>
-                        <button class="btn-vote no ${isAbsent ? 'active' : ''}" data-cid="${c.id}" data-vote="absent">
-                          ${t('iCannotAttend')}
-                        </button>
-                      </div>
-                    ` : `
-                      <div style="text-align: center; padding: 6px 0; color: var(--muted); font-size: 12.5px;">
-                        ${t('notCalledUp')}
-                      </div>
-                    `}
-
-                    <!-- RECUENTO EN VIVO Y MODAL DE COMPAÑEROS QUE ASISTEN -->
-                    <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; font-size: 12px;">
-                      <div style="display: flex; gap: 8px;">
-                        <span style="color: #86efac; font-weight: 800;">🟢 ${nAttending}</span>
-                        <span style="color: #fca5a5; font-weight: 800;">❌ ${nAbsent}</span>
-                        <span style="color: #fde047; font-weight: 800;">⏳ ${nPending}</span>
-                      </div>
-                      <button type="button" class="btn sm ghost" data-open-squad-status="${c.id}" style="color: var(--cyan); font-weight: 800; font-size: 11.5px; padding: 4px 8px;">
-                        ${t('viewAttendees')}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              `;
-            }).join('')}
-          </div>
-        `}
+        ${listContentHtml}
       </div>
     `;
+
+    // Listener para guardar estado del desplegable de convocatorias pasadas
+    const pastAccordion = view.querySelector('#past-convs-accordion');
+    if (pastAccordion) {
+      pastAccordion.ontoggle = () => {
+        isPastConvsExpanded = pastAccordion.open;
+        const chev = pastAccordion.querySelector('.past-convs-chevron');
+        if (chev) {
+          chev.textContent = pastAccordion.open ? '▲' : '▼';
+        }
+      };
+    }
 
     // Filtros de convocatorias
     view.querySelectorAll('[data-conv-filter]').forEach(b => {
