@@ -724,6 +724,60 @@
       }
     },
 
+    // Registra el voto de MVP de un jugador para un partido determinado
+    voteMatchMvp: async function (sessionId, voterPlayerId, targetPlayerId) {
+      if (!this.init() || !sessionId || !voterPlayerId || !targetPlayerId) return false;
+      try {
+        const docRef = db.collection('clubs').doc(CLUB_ID).collection('mvp_votes').doc(sessionId);
+        await docRef.set({
+          sessionId: sessionId,
+          votes: {
+            [voterPlayerId]: targetPlayerId
+          },
+          updatedAt: Date.now()
+        }, { merge: true });
+        return true;
+      } catch (e) {
+        console.error('[Cloud] Error registrando voto MVP:', e);
+        return false;
+      }
+    },
+
+    // Establece el MVP Oficial del partido por parte del entrenador
+    setOfficialMatchMvp: async function (sessionId, officialMvpId) {
+      if (!this.init() || !sessionId) return false;
+      try {
+        const docRef = db.collection('clubs').doc(CLUB_ID).collection('mvp_votes').doc(sessionId);
+        await docRef.set({
+          sessionId: sessionId,
+          officialMvpId: officialMvpId || null,
+          closed: true,
+          updatedAt: Date.now()
+        }, { merge: true });
+        return true;
+      } catch (e) {
+        console.error('[Cloud] Error asignando MVP Oficial:', e);
+        return false;
+      }
+    },
+
+    // Escucha votos de MVP de un partido
+    listenToMatchMvp: function (sessionId, callback) {
+      if (!this.init() || !sessionId) return null;
+      try {
+        return db.collection('clubs').doc(CLUB_ID).collection('mvp_votes').doc(sessionId).onSnapshot(doc => {
+          if (doc && doc.exists) {
+            callback(doc.data());
+          } else {
+            callback(null);
+          }
+        }, err => console.warn('[Cloud] listenToMatchMvp error:', err));
+      } catch (err) {
+        console.warn('[Cloud] listenToMatchMvp setup error:', err);
+        return null;
+      }
+    },
+
     // Envía una solicitud de cambio de perfil (jugador -> entrenador)
     submitProfileRequest: async function (reqData) {
       if (!this.init()) throw new Error('No hay conexión con la nube.');
@@ -1564,6 +1618,65 @@
         }
       } catch (e) {
         console.warn('[Cloud] Error clearing player unlink:', e);
+      }
+    },
+
+    // 👑 Votación del MVP de un Partido
+    voteMatchMvp: async function (sessionId, voterId, targetPlayerId) {
+      if (!this.init() || !sessionId || !voterId || !targetPlayerId) {
+        throw new Error('Datos incompletos para registrar voto de MVP');
+      }
+      try {
+        const voteRef = db.collection('clubs').doc(CLUB_ID).collection('mvp_votes').doc(sessionId);
+        await voteRef.set({
+          votes: {
+            [voterId]: targetPlayerId
+          },
+          lastVoteAt: Date.now()
+        }, { merge: true });
+        return true;
+      } catch (err) {
+        console.error('[Cloud] Error al votar MVP:', err);
+        return false;
+      }
+    },
+
+    setOfficialMatchMvp: async function (sessionId, targetPlayerId) {
+      if (!this.init() || !sessionId) return false;
+      try {
+        const voteRef = db.collection('clubs').doc(CLUB_ID).collection('mvp_votes').doc(sessionId);
+        await voteRef.set({
+          officialMvpId: targetPlayerId || null,
+          officialMvpSetAt: Date.now()
+        }, { merge: true });
+
+        // Actualizar también en la sesión si está en Firestore
+        try {
+          await db.collection('clubs').doc(CLUB_ID).collection('sessions').doc(sessionId).set({
+            officialMvpId: targetPlayerId || null
+          }, { merge: true });
+        } catch (e) {}
+
+        return true;
+      } catch (err) {
+        console.error('[Cloud] Error fijando MVP oficial:', err);
+        return false;
+      }
+    },
+
+    listenToMatchMvp: function (sessionId, callback) {
+      if (!this.init() || !sessionId) return null;
+      try {
+        return db.collection('clubs').doc(CLUB_ID).collection('mvp_votes').doc(sessionId)
+          .onSnapshot((doc) => {
+            if (typeof callback === 'function') {
+              callback(doc.exists ? doc.data() : null);
+            }
+          }, (err) => {
+            console.warn('[Cloud] Error escuchando votos MVP:', err);
+          });
+      } catch (err) {
+        return null;
       }
     }
   };

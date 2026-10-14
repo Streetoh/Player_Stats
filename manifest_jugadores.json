@@ -3,6 +3,7 @@
   "short_name": "Player stats",
   "start_url": "jugadores.html",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#060a13",
   "theme_color": "#060a13",
   "description": "Estadísticas individuales, convocatorias, asistencia en vivo y Face to Face",

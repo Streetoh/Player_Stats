@@ -323,6 +323,56 @@
       return p;
     },
 
+    setPlayerWeeklyMission(id, missionData) {
+      const p = this.player(id);
+      if (!p) return null;
+      if (!missionData || !missionData.text) {
+        delete p.weeklyMission;
+      } else {
+        p.weeklyMission = {
+          text: missionData.text,
+          presetKey: missionData.presetKey || '',
+          status: missionData.status || 'pending',
+          assignedAt: missionData.assignedAt || Date.now(),
+          completedAt: missionData.status === 'completed' ? (missionData.completedAt || Date.now()) : null
+        };
+      }
+      this.save();
+      return p;
+    },
+
+    setPlayerMissionStatus(id, status) {
+      const p = this.player(id);
+      if (!p || !p.weeklyMission) return null;
+      p.weeklyMission.status = status;
+      if (status === 'completed') {
+        p.weeklyMission.completedAt = Date.now();
+      } else {
+        p.weeklyMission.completedAt = null;
+      }
+      this.save();
+      return p;
+    },
+
+    clearPlayerWeeklyMission(id) {
+      const p = this.player(id);
+      if (!p) return null;
+      delete p.weeklyMission;
+      this.save();
+      return p;
+    },
+
+    setOfficialMatchMvp(sessionId, playerId) {
+      const s = this.session(sessionId);
+      if (!s) return null;
+      s.mvpOfficialId = playerId || null;
+      this.save();
+      if (window.Cloud && window.Cloud.setOfficialMatchMvp) {
+        window.Cloud.setOfficialMatchMvp(sessionId, playerId);
+      }
+      return s;
+    },
+
     deletePlayer(id) {
       this.state.players = this.state.players.filter(p => p.id !== id);
       this.state.sessions.forEach(s => { s.slots = s.slots.map(x => (x === id ? null : x)); });
@@ -606,6 +656,22 @@
       const st = s.stats[playerId] = s.stats[playerId] || {};
       st[key] = Math.max(0, parseInt(value, 10) || 0);
       this.save();
+    },
+
+    calculatePlayerMvpCount(playerId) {
+      if (!playerId) return 0;
+      const sPid = String(playerId);
+      let count = 0;
+      (this.state.sessions || []).forEach(s => {
+        if (s.type === 'match') {
+          if (s.mvpOfficialId && String(s.mvpOfficialId) === sPid) {
+            count++;
+          } else if (s.mvpWinnerId && String(s.mvpWinnerId) === sPid) {
+            count++;
+          }
+        }
+      });
+      return count;
     },
 
     /* Cronómetro y Cuenta Atrás */

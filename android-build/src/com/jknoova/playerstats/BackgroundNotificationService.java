@@ -433,6 +433,16 @@ public class BackgroundNotificationService extends Service {
 
                 if (msgTime <= 0L || "coach".equalsIgnoreCase(senderId)) continue;
 
+                // El míster solo recibe notificaciones de chats donde participa (general, equipos, grupos, o con coach)
+                // Ignorar chats directos privados entre dos jugadores
+                if (chatId.startsWith("direct_") && !chatId.contains("coach")) {
+                    continue;
+                }
+                String chatType = getFieldString(fields, "type");
+                if ("direct".equalsIgnoreCase(chatType) && !chatId.contains("coach")) {
+                    continue;
+                }
+
                 String sig = chatId + "_" + msgTime;
                 long chatReadTime = prefs.getLong("read_time_" + chatId, 0L);
 

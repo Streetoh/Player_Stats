@@ -10,6 +10,12 @@
 (function () {
   'use strict';
 
+  try {
+    if (window.screen && window.screen.orientation && window.screen.orientation.lock) {
+      window.screen.orientation.lock('portrait').catch(() => {});
+    }
+  } catch (e) {}
+
   let currentTab = 'home';
   let activeSessionId = null;
   let timerInterval = null;
@@ -52,6 +58,24 @@
 
   window.UI = { toast, haptic };
   window.getActiveSessionId = () => activeSessionId;
+
+  function formatRequestTime(ts) {
+    if (!ts) return '';
+    try {
+      let d;
+      if (typeof ts === 'number') d = new Date(ts);
+      else if (ts && typeof ts.toMillis === 'function') d = new Date(ts.toMillis());
+      else if (ts && typeof ts.toDate === 'function') d = ts.toDate();
+      else if (ts && ts.seconds) d = new Date(ts.seconds * 1000);
+      else d = new Date(ts);
+      if (isNaN(d.getTime())) return '';
+      const hh = String(d.getHours()).padStart(2, '0');
+      const mm = String(d.getMinutes()).padStart(2, '0');
+      return `${hh}:${mm}`;
+    } catch (e) {
+      return '';
+    }
+  }
   window.setActiveSessionId = (id) => { activeSessionId = id; };
 
   /* ---------- Modales / Bottom Sheets ---------- */
@@ -999,13 +1023,17 @@
     NotifManager.save(stored);
 
     dedupedRequests.forEach(cl => {
+      const timeMs = (cl.createdAt && typeof cl.createdAt.toMillis === 'function')
+        ? cl.createdAt.toMillis()
+        : (cl.createdAt && cl.createdAt.seconds ? cl.createdAt.seconds * 1000 : (Number(cl.createdAt) || Date.now()));
+      const timeDisplay = formatRequestTime(timeMs);
       NotifManager.add({
         id: 'claim_' + cl.id,
         type: 'claim_req',
         title: t('profileClaimRequestTitle', '🔐 Solicitud de acceso a perfil'),
-        body: `${cl.targetPlayerName || 'Jugador'} • ${t('securityCodeTitle', 'Código')}: ${cl.securityCode}`,
+        body: `${cl.targetPlayerName || 'Jugador'} • ${t('securityCodeTitle', 'Código')}: ${cl.securityCode}${timeDisplay ? ` • 🕒 ${timeDisplay}` : ''}`,
         targetId: cl.id,
-        time: cl.createdAt || Date.now()
+        time: timeMs
       });
     });
 
@@ -1015,12 +1043,13 @@
       dedupedRequests.forEach(r => {
         if (!knownProfileClaimRequestIds.has(r.id)) {
           const reqPlayerName = r.targetPlayerName || 'Jugador';
-          toast(`🔐 Acceso: ${reqPlayerName} (Código ${r.securityCode})`, 'info', () => showNotificationsCenterModal());
+          const rTime = formatRequestTime(r.createdAt || Date.now());
+          toast(`🔐 Acceso: ${reqPlayerName} (Código ${r.securityCode})${rTime ? ` [${rTime}]` : ''}`, 'info', () => showNotificationsCenterModal());
           haptic(50);
           if (window.AndroidBridge && window.AndroidBridge.showSystemNotification) {
-            try { window.AndroidBridge.showSystemNotification('Player Stats', `Solicitud de acceso: ${reqPlayerName} (Código ${r.securityCode})`); } catch (e) {}
+            try { window.AndroidBridge.showSystemNotification('Player Stats', `Solicitud de acceso: ${reqPlayerName} (Código ${r.securityCode})${rTime ? ` a las ${rTime}` : ''}`); } catch (e) {}
           } else if ('Notification' in window && Notification.permission === 'granted') {
-            try { new Notification('Player Stats', { body: `Solicitud de acceso: ${reqPlayerName} (Código ${r.securityCode})`, icon: 'icons/icon-192.png' }); } catch (e) {}
+            try { new Notification('Player Stats', { body: `Solicitud de acceso: ${reqPlayerName} (Código ${r.securityCode})${rTime ? ` a las ${rTime}` : ''}`, icon: 'icons/icon-192.png' }); } catch (e) {}
           }
         }
       });
@@ -1094,15 +1123,20 @@
               🔐 ${t('profileClaimRequestTitle', 'Solicitudes de Acceso a Perfil')} (${curClaims.length})
             </div>
             <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px;">
-              ${curClaims.map(cl => `
+              ${curClaims.map(cl => {
+                const claimTimeStr = formatRequestTime(cl.createdAt || cl.serverTime || cl.time);
+                return `
                 <div class="card" style="padding: 14px; border: 1.5px solid rgba(250, 204, 21, 0.5); border-radius: 14px; background: rgba(250, 204, 21, 0.08);">
                   <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">
                     <b style="font-size: 14.5px; color: #fff;">👤 ${escapeHtml(cl.targetPlayerName || 'Jugador')}</b>
                     <span class="badge" style="background: rgba(250, 204, 21, 0.25); color: #fde047; font-size: 11px; font-weight: 900;">ACCESO</span>
                   </div>
-                  <div style="font-size: 12px; color: var(--muted); margin-bottom: 8px;">
-                    ${cl.targetPlayerDorsal != null ? `<span>#${escapeHtml(cl.targetPlayerDorsal)}</span> • ` : ''}
-                    <span>${t('confirmPlayerIdentity', 'Confirmar identidad del jugador')}</span>
+                  <div style="font-size: 12px; color: var(--muted); margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 4px;">
+                    <div>
+                      ${cl.targetPlayerDorsal != null ? `<span>#${escapeHtml(cl.targetPlayerDorsal)}</span> • ` : ''}
+                      <span>${t('confirmPlayerIdentity', 'Confirmar identidad del jugador')}</span>
+                    </div>
+                    ${claimTimeStr ? `<span style="color: #fde047; font-weight: 800; font-size: 11.5px; background: rgba(250, 204, 21, 0.15); padding: 2px 7px; border-radius: 6px;">🕒 ${claimTimeStr}</span>` : ''}
                   </div>
                   <div style="background: var(--bg2); border: 2px dashed #facc15; border-radius: 10px; padding: 10px; text-align: center; margin-bottom: 12px;">
                     <span style="font-size: 11px; color: var(--muted); text-transform: uppercase; font-weight: 800; display: block; margin-bottom: 2px;">${t('securityCodeTitle', 'Código de Seguridad')}</span>
@@ -1117,7 +1151,8 @@
                     </button>
                   </div>
                 </div>
-              `).join('')}
+              `;
+              }).join('')}
             </div>
           `;
         }
@@ -1133,6 +1168,7 @@
                 const displayName = cr.fullName || [cr.name, cr.lastName].filter(Boolean).join(' ') || cr.name || 'Nuevo Jugador';
                 const matchedTeam = (cr.suggestedTeamId && Store.team(cr.suggestedTeamId)) || matchTeamByText(cr.teamText || cr.notes || '', Store.state.teams);
                 const teamBadge = matchedTeam ? `<span class="badge" style="background: rgba(34, 197, 94, 0.2); color: #86efac; font-size: 11px; font-weight: 800;">🏷️ ${escapeHtml(matchedTeam.name)}</span>` : '';
+                const crTimeStr = formatRequestTime(cr.createdAt || cr.serverTime || cr.time);
                 return `
                 <div class="card" style="padding: 12px; border: 1.5px solid rgba(34, 211, 238, 0.4); border-radius: 14px; background: rgba(34, 211, 238, 0.06);">
                   <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">
@@ -1140,7 +1176,7 @@
                       <b style="font-size: 14px; color: #fff;">👤 ${escapeHtml(displayName)}</b>
                       ${cr.name && cr.lastName ? `<div style="font-size: 11px; color: var(--muted);">${escapeHtml(cr.name)} / ${escapeHtml(cr.lastName)}</div>` : ''}
                     </div>
-                    <span class="badge" style="background: rgba(34, 211, 238, 0.2); color: #38bdf8; font-size: 10px; font-weight: 800;">ALTA</span>
+                    <span class="badge" style="background: rgba(34, 211, 238, 0.2); color: #38bdf8; font-size: 10px; font-weight: 800;">ALTA ${crTimeStr ? '• 🕒 ' + crTimeStr : ''}</span>
                   </div>
                   <div style="font-size: 12px; color: var(--muted); margin-bottom: 8px;">
                     ${cr.dorsal ? `<span>#${escapeHtml(cr.dorsal)}</span> • ` : ''}
@@ -1942,7 +1978,10 @@
     const totalPlayers = Store.state.players.length;
     const totalTrainings = Store.state.sessions.filter(s => s.type === 'training').length;
     const totalMatches = Store.state.sessions.filter(s => s.type === 'match').length;
-    const recent = Store.state.sessions.slice(0, 4);
+    const todayIso = getTodayIso();
+    const allSessions = Store.state.sessions || [];
+    const todaySessions = allSessions.filter(s => s.date === todayIso);
+    const pastSessions = allSessions.filter(s => s.date !== todayIso);
 
     let html = `
       <div class="topbar">
@@ -1992,14 +2031,44 @@
         <button class="link" id="btn-see-all-sessions">${t('seeAll')}</button>
       </div>
 
-      <div id="recent-sessions-list">
-        ${recent.length === 0 ? `
+      <div id="recent-sessions-list" style="display: flex; flex-direction: column; gap: 10px;">
+        ${allSessions.length === 0 ? `
           <div class="empty">
             <div class="big">📋</div>
             <h3>${t('noSessionsYet')}</h3>
             <p>${t('noSessionsDesc')}</p>
           </div>
-        ` : recent.map(s => renderSessionItemHtml(s)).join('')}
+        ` : `
+          ${todaySessions.length > 0 ? `
+            <div style="font-size: 12.5px; font-weight: 800; color: var(--cyan); margin-bottom: 2px; display: flex; align-items: center; gap: 6px;">
+              <span>⚡</span> ${t('todaySessions', 'Sesiones de Hoy')} (${todaySessions.length})
+            </div>
+            ${todaySessions.map(s => renderSessionItemHtml(s)).join('')}
+          ` : `
+            <div class="card" style="padding: 14px; text-align: center; color: var(--muted); font-size: 12.5px; margin-bottom: 4px; border: 1px dashed var(--border);">
+              📅 ${t('noSessionsToday', 'No hay sesiones programadas para hoy')}
+            </div>
+          `}
+
+          ${pastSessions.length > 0 ? `
+            <details class="card past-convs-details" style="margin-top: 6px; padding: 0; border-radius: 14px; overflow: hidden; background: rgba(15, 23, 42, 0.5);">
+              <summary style="cursor: pointer; padding: 12px 14px; font-size: 13px; font-weight: 800; display: flex; justify-content: space-between; align-items: center; user-select: none; list-style: none;">
+                <span style="display: flex; align-items: center; gap: 6px; color: #cbd5e1;">
+                  📁 ${t('pastSessionsTitle', 'Sesiones de días anteriores')} (${pastSessions.length})
+                </span>
+                <span style="font-size: 11px; color: var(--muted); font-weight: 700;">▼</span>
+              </summary>
+              <div style="display: flex; flex-direction: column; gap: 8px; padding: 10px 12px 14px; border-top: 1px solid rgba(255, 255, 255, 0.08);">
+                ${pastSessions.slice(0, 8).map(s => renderSessionItemHtml(s)).join('')}
+                ${pastSessions.length > 8 ? `
+                  <button type="button" class="btn sm ghost" id="btn-home-see-all-past" style="margin-top: 6px; font-size: 12px; font-weight: 800;">
+                    ${t('seeAllSessions', 'Ver todas las sesiones en Historial')} (${pastSessions.length}) ➔
+                  </button>
+                ` : ''}
+              </div>
+            </details>
+          ` : ''}
+        `}
       </div>
     `;
 
@@ -2009,6 +2078,8 @@
     if (btnLang) btnLang.onclick = toggleLanguage;
 
     view.querySelector('#btn-see-all-sessions').onclick = () => navigate('history');
+    const btnPast = view.querySelector('#btn-home-see-all-past');
+    if (btnPast) btnPast.onclick = () => navigate('history');
 
     bindHomeNotificationsEvents(view.querySelector('#home-notifications-container'));
 
@@ -2142,7 +2213,7 @@
       const awayScore = (s.score && s.score.away != null) ? s.score.away : 0;
 
       return `
-        <div class="session-item match ${isLive ? 'live' : ''}" data-id="${s.id}">
+        <div class="session-item match ${isLive ? 'live' : ''} ${isToday ? 'conv-card-today' : ''}" data-id="${s.id}">
           <div class="grow" style="min-width: 0;">
             <div class="match-teams-bar">
               <span class="team-bubble-pill" style="border-color: ${myTeamColor}; background: ${myTeamColor}24; color: ${myTeamColor};" title="${escapeHtml(myTeamName)}">
@@ -2159,6 +2230,7 @@
             </div>
             <div class="meta" style="margin-top: 4px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
               <span>📅 ${formatDateDDMMAAAA(s.date)}</span>
+              ${isToday ? `<span class="badge badge-today-glow" style="background: rgba(34, 211, 238, 0.25); color: #22d3ee; border: 1px solid rgba(34, 211, 238, 0.6); font-weight: 900; font-size: 10px;">🌟 ${t('today', 'HOY')}</span>` : ''}
               <span>•</span>
               <span>⏱️ ${Store.fmtTime(Store.elapsed(s), s)}</span>
               ${isLive ? `<span class="badge live">${t('live')}</span>` : `<span class="badge match" style="font-size: 10px; padding: 2px 6px;">${typeLabel}</span>`}
@@ -2176,14 +2248,17 @@
     }
 
     return `
-      <div class="session-item training ${isLive ? 'live' : ''}" data-id="${s.id}">
+      <div class="session-item training ${isLive ? 'live' : ''} ${isToday ? 'conv-card-today' : ''}" data-id="${s.id}">
         <div class="s-ic">${emoji}</div>
         <div class="grow">
           <div class="row" style="justify-content: space-between; align-items: center; margin-bottom: 2px;">
             <div style="display: flex; align-items: center; gap: 4px; overflow: hidden; min-width: 0;">
               <h4 class="ellipsis" style="margin: 0;">${escapeHtml(Store.sessionTitle(s))}</h4>
             </div>
-            ${isLive ? `<span class="badge live">${t('live')}</span>` : `<span class="badge training">${typeLabel}</span>`}
+            <div style="display: flex; align-items: center; gap: 4px;">
+              ${isToday ? `<span class="badge badge-today-glow" style="background: rgba(34, 211, 238, 0.25); color: #22d3ee; border: 1px solid rgba(34, 211, 238, 0.6); font-weight: 900; font-size: 10px;">🌟 ${t('today', 'HOY')}</span>` : ''}
+              ${isLive ? `<span class="badge live">${t('live')}</span>` : `<span class="badge training">${typeLabel}</span>`}
+            </div>
           </div>
           <div class="meta" style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
             <span>📅 ${formatDateDDMMAAAA(s.date)}</span>
@@ -2346,8 +2421,14 @@
         listEl.innerHTML = filtered.map(p => {
           const rec = workingAtt[p.id];
           const curStatus = rec ? rec.status : null;
-          const curNote = (rec && rec.note) || '';
           const pwaVote = (conv && conv.responses && conv.responses[p.id]) ? conv.responses[p.id] : null;
+          const pwaStatus = (typeof pwaVote === 'object' && pwaVote !== null) ? pwaVote.status : pwaVote;
+          const pwaNotes = (typeof pwaVote === 'object' && pwaVote !== null) ? (pwaVote.notes || pwaVote.reason || '') : '';
+          let curNote = (rec && rec.note) || '';
+          if (!curNote && pwaNotes) {
+            curNote = pwaNotes;
+            if (rec) rec.note = pwaNotes;
+          }
 
           return `
             <div class="card att-player-card" data-pid="${p.id}" style="padding: 10px 12px; border: 1px solid ${curStatus ? 'rgba(34, 211, 238, 0.25)' : 'var(--border)'}; background: ${curStatus ? 'rgba(15, 23, 42, 0.7)' : 'var(--surface2)'}; border-radius: 12px; margin-bottom: 0;">
@@ -2357,12 +2438,13 @@
                   <b style="font-size: 13.5px; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block;">
                     #${p.mainDorsal != null ? p.mainDorsal : (p.jersey != null ? p.jersey : '-')} ${escapeHtml(Store.playerName(p))}
                   </b>
-                  <div style="font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 6px; margin-top: 1px;">
+                  <div style="font-size: 11px; color: var(--muted); display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 1px;">
                     <span>${p.mainPosition || 'Jugador'}</span>
-                    ${pwaVote ? (pwaVote === 'yes' || pwaVote === 'attending'
+                    ${pwaVote ? (pwaStatus === 'yes' || pwaStatus === 'attending' || pwaStatus === 'called'
                       ? `<span style="color: #4ade80; font-weight: 800;">🟢 PWA: ${t('attendanceConfirmed', 'Asistirá')}</span>`
                       : `<span style="color: #f87171; font-weight: 800;">❌ PWA: ${t('absenceReported', 'No asistirá')}</span>`)
                       : ''}
+                    ${pwaNotes ? `<span style="color: #fca5a5; font-style: italic; background: rgba(239, 68, 68, 0.15); padding: 1px 6px; border-radius: 4px; border: 1px solid rgba(239, 68, 68, 0.3);">💬 ${escapeHtml(pwaNotes)}</span>` : ''}
                   </div>
                 </div>
               </div>
@@ -5766,10 +5848,17 @@
         });
         const trackedCount = sortedSquad.filter(p => trackedPlayerIds.has(p.id)).length;
 
-        // Calcular MVP del partido con volumen de juego
+        // Calcular MVP del partido con volumen de juego o MVP Oficial fijado
         let mvpMatchPlayer = null;
         let mvpMatchRating = 0;
-        if (s.type === 'match' && trackedPlayerIds.size > 0) {
+        if (s.mvpOfficialId) {
+          mvpMatchPlayer = Store.player(s.mvpOfficialId);
+          if (mvpMatchPlayer) {
+            const st = (s.stats && s.stats[mvpMatchPlayer.id]) || {};
+            mvpMatchRating = Store.calculateMatchRating(st, mvpMatchPlayer.mainPosition);
+          }
+        }
+        if (!mvpMatchPlayer && s.type === 'match' && trackedPlayerIds.size > 0) {
           allPlayers.forEach(p => {
             if (trackedPlayerIds.has(p.id)) {
               const st = (s.stats && s.stats[p.id]) || {};
@@ -5816,12 +5905,32 @@
               </div>
             </div>
 
-            ${(mvpMatchPlayer && mvpMatchRating >= 5.5) ? `
+            <!-- Panel de Gestión y Votación de MVP de Partido -->
+            <div class="card" id="card-match-mvp-action" style="margin-bottom: 12px; background: rgba(250, 204, 21, 0.08); border: 1.5px solid rgba(250, 204, 21, 0.35); padding: 12px 14px; border-radius: 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer;">
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 22px;">👑</span>
+                <div>
+                  <b style="font-size: 13px; color: #fde047; display: block;">
+                    ${s.mvpOfficialId ? '⭐ MVP Oficial Confirmado' : 'Votación del MVP del Partido'}
+                  </b>
+                  <span id="label-mvp-votes-tally" style="font-size: 11.5px; color: var(--muted); display: block;">
+                    ${s.mvpOfficialId && Store.player(s.mvpOfficialId) ? `${escapeHtml(Store.playerName(Store.player(s.mvpOfficialId)))} (#${Store.player(s.mvpOfficialId).mainDorsal || ''})` : 'Toca para nombrar el MVP oficial o consultar votos'}
+                  </span>
+                </div>
+              </div>
+              <button type="button" class="btn sm" id="btn-manage-match-mvp" style="background: rgba(250, 204, 21, 0.2); color: #fde047; border: 1px solid rgba(250, 204, 21, 0.5); font-weight: 800; font-size: 11.5px; white-space: nowrap;">
+                ⭐ ${s.mvpOfficialId ? 'Cambiar MVP' : 'Nombrar MVP'}
+              </button>
+            </div>
+
+            ${(mvpMatchPlayer && (mvpMatchRating >= 5.5 || s.mvpOfficialId)) ? `
               <div class="mvp-match-banner" id="banner-match-mvp" style="cursor: pointer;" title="Toca para ver ficha de ${escapeHtml(Store.playerName(mvpMatchPlayer))}">
                 <div style="font-size: 26px;">⭐</div>
                 ${renderAvatar(mvpMatchPlayer, 'md')}
                 <div class="grow" style="line-height: 1.2;">
-                  <div style="font-size: 10px; font-weight: 800; color: #facc15; text-transform: uppercase; letter-spacing: 0.5px;">MEJOR JUGADOR DEL PARTIDO • MVP</div>
+                  <div style="font-size: 10px; font-weight: 800; color: #facc15; text-transform: uppercase; letter-spacing: 0.5px;">
+                    ${s.mvpOfficialId ? 'MVP OFICIAL DEL CUERPO TÉCNICO' : 'MEJOR JUGADOR DEL PARTIDO • MVP'}
+                  </div>
                   <div style="font-size: 15px; font-weight: 900; color: #fff;">${escapeHtml(Store.playerName(mvpMatchPlayer))} #${mvpMatchPlayer.mainDorsal || ''}</div>
                   <div style="font-size: 11.5px; color: var(--muted); margin-top: 2px;">
                     ${mvpMatchPlayer.mainPosition || 'Jugador'} • Nota: <b style="color: #22c55e;">${mvpMatchRating.toFixed(1)} / 10</b>
@@ -5946,6 +6055,32 @@
           bannerMvp.onclick = () => {
             showPlayerMatchDetailModal(s, mvpMatchPlayer);
           };
+        }
+
+        const btnManageMvp = body.querySelector('#btn-manage-match-mvp');
+        const cardManageMvp = body.querySelector('#card-match-mvp-action');
+        function openMvpManager() {
+          showSetOfficialMvpModal(s, () => {
+            renderSquadContent();
+          });
+        }
+        if (btnManageMvp) btnManageMvp.onclick = (e) => { e.stopPropagation(); openMvpManager(); };
+        if (cardManageMvp) cardManageMvp.onclick = openMvpManager;
+
+        // Escucha en tiempo real de votos MVP de compañeros
+        if (s.type === 'match' && window.Cloud && window.Cloud.listenToMatchMvp) {
+          window.Cloud.listenToMatchMvp(s.id, (voteData) => {
+            const labelEl = body.querySelector('#label-mvp-votes-tally');
+            if (!labelEl) return;
+            if (voteData && voteData.votes) {
+              const voteCount = Object.keys(voteData.votes).length;
+              if (s.mvpOfficialId && Store.player(s.mvpOfficialId)) {
+                labelEl.textContent = `${escapeHtml(Store.playerName(Store.player(s.mvpOfficialId)))} • ${voteCount} voto${voteCount > 1 ? 's' : ''} de compañeros`;
+              } else {
+                labelEl.textContent = `${voteCount} voto${voteCount > 1 ? 's' : ''} de compañeros registrados`;
+              }
+            }
+          });
         }
 
         body.querySelector('#btn-export-single-session-json').onclick = () => {
@@ -6233,6 +6368,527 @@
         }
       });
     }
+  // 👑 Modal para Nombrar el MVP Oficial del Partido
+  function showSetOfficialMvpModal(session, onUpdated) {
+    if (!session) return;
+    const trackedPlayerIds = new Set([
+      ...Object.keys(session.stats || {}),
+      ...(session.slots || []).filter(Boolean)
+    ]);
+    const players = (Store.state.players || []).filter(p => trackedPlayerIds.has(p.id));
+    if (players.length === 0) {
+      toast('No hay jugadores registrados en este partido para nombrar MVP', 'warning');
+      return;
+    }
+
+    const modal = document.createElement('div');
+    modal.className = 'dialog-overlay';
+    modal.id = 'dialog-set-mvp';
+    modal.style.zIndex = '999999';
+
+    modal.innerHTML = `
+      <div class="card dialog-box" style="max-width: 440px; width: 92%; padding: 20px; border-radius: 16px; border: 1.5px solid rgba(250, 204, 21, 0.4); max-height: 90vh; display: flex; flex-direction: column;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h3 style="margin: 0; font-size: 16px; font-weight: 900; color: #fff;">
+            👑 ${t('setOfficialMvp', 'Nombrar MVP Oficial del Partido')}
+          </h3>
+          <button type="button" class="btn sm ghost" id="btn-close-set-mvp" style="padding: 4px 8px;">✕</button>
+        </div>
+        <div style="font-size: 12px; color: var(--muted); margin-bottom: 12px;">
+          Elige al jugador más destacado del partido vs <b style="color: #fff;">${escapeHtml(session.rival || session.title || 'Rival')}</b>:
+        </div>
+
+        <div id="mvp-player-options-list" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; padding-right: 4px;">
+          ${players.map(p => {
+            const isCurrent = session.mvpOfficialId && String(session.mvpOfficialId) === String(p.id);
+            const st = (session.stats && session.stats[p.id]) || {};
+            const rating = Store.calculateMatchRating(st, p.mainPosition);
+            return `
+              <div class="card player-mvp-choice" data-pid="${p.id}" style="padding: 10px 12px; border-radius: 12px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; border: 1.5px solid ${isCurrent ? '#facc15' : 'var(--border)'}; background: ${isCurrent ? 'rgba(250, 204, 21, 0.15)' : 'var(--surface2)'};">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  ${renderAvatar(p, 'sm')}
+                  <div>
+                    <b style="font-size: 13.5px; color: #fff;">${escapeHtml(Store.playerName(p))} #${p.mainDorsal || ''}</b>
+                    <div style="font-size: 11px; color: var(--muted);">
+                      ${p.mainPosition || 'Jugador'} • Nota: <span style="color: #22c55e; font-weight: 700;">${rating.toFixed(1)}</span>
+                    </div>
+                  </div>
+                </div>
+                <div style="text-align: right; display: flex; align-items: center; gap: 8px;">
+                  <span class="mvp-community-tally" data-pid="${p.id}" style="font-size: 11px; color: #fde047; font-weight: 800;"></span>
+                  <div style="font-size: 18px;">${isCurrent ? '⭐' : '⚪'}</div>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+
+        <div style="display: flex; gap: 8px; justify-content: flex-end;">
+          <button type="button" class="btn ghost" id="btn-cancel-set-mvp">${t('cancel')}</button>
+          <button type="button" class="btn primary" id="btn-confirm-set-mvp" style="font-weight: 800; background: #eab308; color: #000;">
+            ⭐ Confirmar MVP Oficial
+          </button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    let selectedPlayerId = session.mvpOfficialId || (players[0] ? players[0].id : null);
+
+    function updateSelection() {
+      modal.querySelectorAll('.player-mvp-choice').forEach(el => {
+        const pid = el.getAttribute('data-pid');
+        const isSel = String(pid) === String(selectedPlayerId);
+        el.style.borderColor = isSel ? '#facc15' : 'var(--border)';
+        el.style.background = isSel ? 'rgba(250, 204, 21, 0.15)' : 'var(--surface2)';
+        const star = el.querySelector('div:last-child > div:last-child');
+        if (star) star.textContent = isSel ? '⭐' : '⚪';
+      });
+    }
+
+    modal.querySelectorAll('.player-mvp-choice').forEach(el => {
+      el.onclick = () => {
+        selectedPlayerId = el.getAttribute('data-pid');
+        updateSelection();
+      };
+    });
+
+    let unsubMvp = null;
+    if (window.Cloud && window.Cloud.listenToMatchMvp) {
+      unsubMvp = window.Cloud.listenToMatchMvp(session.id, (voteData) => {
+        if (!voteData || !voteData.votes) return;
+        const counts = {};
+        Object.values(voteData.votes).forEach(targetId => {
+          counts[targetId] = (counts[targetId] || 0) + 1;
+        });
+        modal.querySelectorAll('.mvp-community-tally').forEach(el => {
+          const pid = el.getAttribute('data-pid');
+          const count = counts[pid] || 0;
+          el.textContent = count > 0 ? `🗳️ ${count} voto${count > 1 ? 's' : ''}` : '';
+        });
+      });
+    }
+
+    function closeModal() {
+      if (unsubMvp) { try { unsubMvp(); } catch (e) {} }
+      modal.remove();
+    }
+    modal.querySelector('#btn-close-set-mvp').onclick = closeModal;
+    modal.querySelector('#btn-cancel-set-mvp').onclick = closeModal;
+
+    modal.querySelector('#btn-confirm-set-mvp').onclick = () => {
+      if (!selectedPlayerId) {
+        toast('Selecciona un jugador para nombrar MVP', 'warning');
+        return;
+      }
+      Store.setOfficialMatchMvp(session.id, selectedPlayerId);
+      const chosenPlayer = Store.player(selectedPlayerId);
+      toast(`⭐ ¡${Store.playerName(chosenPlayer)} nombrado MVP Oficial del Partido!`, 'success');
+      closeModal();
+      if (typeof onUpdated === 'function') onUpdated();
+    };
+  }
+
+  // 🎯 Modal para Asignar Misión Semanal ("Misión del Míster")
+  function showAssignMissionModal(player, onSaved) {
+    if (!player) return;
+    const presets = [
+      { key: 'preset_pass', text: '🎯 Completar al menos el 75% de pases en el próximo partido' },
+      { key: 'preset_foot', text: '👟 Disparar al menos una vez a portería con la pierna menos hábil' },
+      { key: 'preset_recov', text: '🛡️ Realizar 3 recuperaciones limpias de balón' },
+      { key: 'preset_streak', text: '⚡ Asistir al 100% de los entrenamientos de la semana' },
+      { key: 'preset_assist', text: '⚽ Dar al menos 1 asistencia de gol o pase clave' },
+      { key: 'preset_duels', text: '⚔️ Ganar al menos el 60% de los duelos 1vs1' }
+    ];
+
+    const currentText = (player.weeklyMission && player.weeklyMission.text) || '';
+
+    const modal = document.createElement('div');
+    modal.className = 'dialog-overlay';
+    modal.id = 'dialog-assign-mission';
+    modal.style.zIndex = '999999';
+
+    modal.innerHTML = `
+      <div class="card dialog-box" style="max-width: 440px; width: 92%; padding: 20px; border-radius: 16px; border: 1.5px solid rgba(168, 85, 247, 0.4);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h3 style="margin: 0; font-size: 16px; font-weight: 900; color: #fff;">
+            🎯 ${t('weeklyMissionTitle', 'Misión Semanal del Míster')}
+          </h3>
+          <button type="button" class="btn sm ghost" id="btn-close-assign-mission" style="padding: 4px 8px;">✕</button>
+        </div>
+        <div style="font-size: 12.5px; color: var(--muted); margin-bottom: 12px;">
+          Objetivo para <b style="color: #fff;">${escapeHtml(Store.playerName(player))}</b>:
+        </div>
+
+        <div style="margin-bottom: 12px;">
+          <label style="font-size: 11.5px; font-weight: 700; color: #c084fc; display: block; margin-bottom: 5px;">
+            ${t('selectMissionPreset', 'Elegir objetivo recomendado:')}
+          </label>
+          <select id="mission-preset-select" style="width: 100%; font-size: 12.5px; padding: 9px 10px; border-radius: 10px; font-weight: 700;">
+            <option value="">-- Elige un objetivo rápido o escribe abajo --</option>
+            ${presets.map(pr => `<option value="${escapeHtml(pr.text)}" data-key="${pr.key}">${pr.text}</option>`).join('')}
+          </select>
+        </div>
+
+        <div style="margin-bottom: 16px;">
+          <label style="font-size: 11.5px; font-weight: 700; color: var(--muted); display: block; margin-bottom: 5px;">
+            Texto de la Misión (el jugador lo verá en su app):
+          </label>
+          <textarea id="mission-text-input" rows="3" style="width: 100%; font-size: 13.5px; padding: 10px; border-radius: 10px; resize: vertical;" placeholder="Ej. Intentar 2 centros al área, asegurar pases en corto...">${escapeHtml(currentText)}</textarea>
+        </div>
+
+        <div style="display: flex; gap: 8px; justify-content: flex-end;">
+          <button type="button" class="btn ghost" id="btn-cancel-mission">${t('cancel')}</button>
+          <button type="button" class="btn primary" id="btn-save-mission" style="font-weight: 800;">
+            🚀 ${t('assignMission', 'Asignar Misión')}
+          </button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    const txtInput = modal.querySelector('#mission-text-input');
+    const selPreset = modal.querySelector('#mission-preset-select');
+    selPreset.onchange = () => {
+      if (selPreset.value) {
+        txtInput.value = selPreset.value;
+      }
+    };
+
+    function closeModal() {
+      modal.remove();
+    }
+    modal.querySelector('#btn-close-assign-mission').onclick = closeModal;
+    modal.querySelector('#btn-cancel-mission').onclick = closeModal;
+
+    modal.querySelector('#btn-save-mission').onclick = () => {
+      const val = txtInput.value.trim();
+      if (!val) {
+        toast('Por favor escribe o selecciona un objetivo para la misión', 'warning');
+        return;
+      }
+      const selectedOpt = selPreset.options[selPreset.selectedIndex];
+      const presetKey = selectedOpt ? selectedOpt.getAttribute('data-key') || '' : '';
+
+      Store.setPlayerWeeklyMission(player.id, {
+        text: val,
+        presetKey: presetKey,
+        status: 'pending'
+      });
+
+      if (window.Cloud && window.Cloud.pushCoachState) {
+        window.Cloud.pushCoachState(Store.state, true);
+      }
+
+      toast('🎯 ¡Misión semanal asignada con éxito!', 'success');
+      closeModal();
+      if (typeof onSaved === 'function') onSaved();
+    };
+  }
+
+  // 📄 Modal Generador de Informe Mensual de Progreso (PDF / Ficha para Padres)
+  function showMonthlyProgressReportModal(player) {
+    if (!player) return;
+    const allSessions = Store.state.sessions || [];
+    const team = Store.team(player.teamId);
+
+    const monthSet = new Set();
+    const now = new Date();
+    for (let i = 0; i < 6; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      monthSet.add(ym);
+    }
+    allSessions.forEach(s => {
+      if (s.date && s.date.length >= 7) monthSet.add(s.date.slice(0, 7));
+    });
+    const months = Array.from(monthSet).sort().reverse();
+
+    let selectedMonth = months[0];
+
+    const monthNamesEs = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    const monthNamesEn = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const isEn = (Store.state.settings && Store.state.settings.lang === 'en');
+
+    function formatMonthLabel(ym) {
+      const parts = ym.split('-');
+      const y = parts[0];
+      const mIdx = parseInt(parts[1], 10) - 1;
+      const mName = isEn ? monthNamesEn[mIdx] : monthNamesEs[mIdx];
+      return `${mName} ${y}`;
+    }
+
+    openSheet(t('monthlyReport', 'Informe Mensual de Progreso'), (body) => {
+      function renderReportContent() {
+        const monthSessions = allSessions.filter(s => s.date && s.date.startsWith(selectedMonth));
+        const monthTrainings = monthSessions.filter(s => s.type === 'training');
+        const monthMatches = monthSessions.filter(s => s.type === 'match');
+
+        let trainAtt = 0;
+        monthTrainings.forEach(s => {
+          const att = s.attendance ? s.attendance[player.id] : null;
+          const st = (typeof att === 'object' && att !== null) ? att.status : att;
+          if (st === 'present' || st === 'late' || (s.stats && s.stats[player.id] && Object.values(s.stats[player.id]).some(v => v > 0))) {
+            trainAtt++;
+          }
+        });
+        const trainPct = monthTrainings.length > 0 ? Math.round((trainAtt / monthTrainings.length) * 100) : 100;
+
+        let matchAtt = 0;
+        monthMatches.forEach(s => {
+          const att = s.attendance ? s.attendance[player.id] : null;
+          const st = (typeof att === 'object' && att !== null) ? att.status : att;
+          if (st === 'present' || st === 'late' || (s.stats && s.stats[player.id] && Object.values(s.stats[player.id]).some(v => v > 0))) {
+            matchAtt++;
+          }
+        });
+        const matchPct = monthMatches.length > 0 ? Math.round((matchAtt / monthMatches.length) * 100) : 100;
+
+        let monthGoals = 0, monthAssists = 0, monthPassOk = 0, monthPassKo = 0, monthShotsOn = 0, monthShotsOff = 0;
+        let ratingsSum = 0, ratingsCount = 0;
+
+        monthSessions.forEach(s => {
+          const st = (s.stats && s.stats[player.id]) || {};
+          monthGoals += (st.goal || 0);
+          monthAssists += (st.assist || 0);
+          monthPassOk += (st.passOk || 0);
+          monthPassKo += (st.passKo || 0);
+          monthShotsOn += (st.shotOn || 0);
+          monthShotsOff += (st.shotOff || 0);
+
+          if (s.type === 'match' && Object.values(st).some(v => v > 0)) {
+            const r = Store.calculateMatchRating(st, player.mainPosition);
+            if (r > 0) {
+              ratingsSum += r;
+              ratingsCount++;
+            }
+          }
+        });
+
+        const totalPasses = monthPassOk + monthPassKo;
+        const passAccuracy = totalPasses > 0 ? Math.round((monthPassOk / totalPasses) * 100) : 0;
+        const avgRating = ratingsCount > 0 ? (ratingsSum / ratingsCount).toFixed(1) : '—';
+
+        const monthRadar = Store.calculatePlayerRadar(player.id, monthSessions);
+
+        player.monthlyReports = player.monthlyReports || {};
+        const savedNotes = (player.monthlyReports[selectedMonth] && player.monthlyReports[selectedMonth].notes) || '';
+
+        body.innerHTML = `
+          <!-- Selector de Mes -->
+          <div style="margin-bottom: 14px; background: var(--surface2); padding: 10px 14px; border-radius: 12px; display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+            <label style="font-size: 12.5px; font-weight: 800; color: #fff; white-space: nowrap;">📅 ${t('reportMonth', 'Mes del Informe')}:</label>
+            <select id="select-report-month" style="font-weight: 800; font-size: 13.5px; padding: 6px 10px; border-radius: 8px;">
+              ${months.map(m => `<option value="${m}" ${m === selectedMonth ? 'selected' : ''}>${formatMonthLabel(m)}</option>`).join('')}
+            </select>
+          </div>
+
+          <!-- FICHA DEL INFORME (ESTILO OFICIAL JK NOOVA) -->
+          <div id="printable-monthly-report" class="card" style="padding: 18px; border-radius: 16px; background: linear-gradient(145deg, #0b1329 0%, #0f172a 100%); border: 2px solid #0284c7; box-shadow: 0 10px 30px rgba(0,0,0,0.5); margin-bottom: 14px;">
+            <!-- Cabecera del Club -->
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1.5px solid rgba(14, 165, 233, 0.3); padding-bottom: 12px; margin-bottom: 14px;">
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <img src="assets/fut/logo_noova.png" style="width: 38px; height: 38px; object-fit: contain;" />
+                <div>
+                  <div style="font-size: 15px; font-weight: 900; color: #38bdf8; letter-spacing: 1px; text-transform: uppercase;">JK NOOVA</div>
+                  <div style="font-size: 10.5px; color: #94a3b8; font-weight: 700;">INFORME MENSUAL DE DESARROLLO Y RENDIMIENTO</div>
+                </div>
+              </div>
+              <div style="text-align: right;">
+                <span class="badge" style="background: rgba(14, 165, 233, 0.2); color: #38bdf8; border: 1px solid rgba(14, 165, 233, 0.4); font-size: 11.5px; font-weight: 900;">
+                  ${formatMonthLabel(selectedMonth).toUpperCase()}
+                </span>
+              </div>
+            </div>
+
+            <!-- Datos del Jugador -->
+            <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 16px;">
+              ${renderAvatar(player, 'lg')}
+              <div style="line-height: 1.3;">
+                <div style="font-size: 18px; font-weight: 900; color: #fff;">
+                  ${escapeHtml(Store.playerName(player))} <span style="color: #38bdf8;">#${player.mainDorsal || ''}</span>
+                </div>
+                <div style="font-size: 12.5px; color: #cbd5e1; margin-top: 3px;">
+                  ${player.mainPosition || 'Jugador'} ${team ? `• 🛡️ ${escapeHtml(team.name)}` : ''}
+                </div>
+                ${player.birthDate ? `<div style="font-size: 11px; color: #94a3b8; margin-top: 2px;">🎂 ${player.birthDate}</div>` : ''}
+              </div>
+            </div>
+
+            <!-- Asistencia y Compromiso -->
+            <div style="font-size: 11.5px; font-weight: 800; color: #38bdf8; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px;">
+              📊 ${t('attendance', 'Asistencia y Compromiso en el Mes')}
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px;">
+              <div style="background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 12px; padding: 10px; text-align: center;">
+                <div style="font-size: 11px; color: #94a3b8; font-weight: 700;">${t('training', 'Entrenamientos')}</div>
+                <div style="font-size: 20px; font-weight: 900; color: #22c55e; margin: 4px 0;">
+                  ${trainPct}%
+                </div>
+                <div style="font-size: 10.5px; color: #cbd5e1;">${trainAtt} de ${monthTrainings.length} asistidos</div>
+              </div>
+              <div style="background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 12px; padding: 10px; text-align: center;">
+                <div style="font-size: 11px; color: #94a3b8; font-weight: 700;">${t('match', 'Partidos')}</div>
+                <div style="font-size: 20px; font-weight: 900; color: #38bdf8; margin: 4px 0;">
+                  ${matchPct}%
+                </div>
+                <div style="font-size: 10.5px; color: #cbd5e1;">${matchAtt} de ${monthMatches.length} disputados</div>
+              </div>
+            </div>
+
+            <!-- Métricas Clave del Mes -->
+            <div style="font-size: 11.5px; font-weight: 800; color: #38bdf8; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px;">
+              ⚡ Resumen Técnico del Mes
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; text-align: center; margin-bottom: 14px;">
+              <div style="background: rgba(0,0,0,0.3); border-radius: 10px; padding: 8px 4px;">
+                <div style="font-size: 10px; color: #94a3b8;">GOLES</div>
+                <div style="font-size: 16px; font-weight: 900; color: #facc15;">${monthGoals}</div>
+              </div>
+              <div style="background: rgba(0,0,0,0.3); border-radius: 10px; padding: 8px 4px;">
+                <div style="font-size: 10px; color: #94a3b8;">ASIST.</div>
+                <div style="font-size: 16px; font-weight: 900; color: #c084fc;">${monthAssists}</div>
+              </div>
+              <div style="background: rgba(0,0,0,0.3); border-radius: 10px; padding: 8px 4px;">
+                <div style="font-size: 10px; color: #94a3b8;">% PASE</div>
+                <div style="font-size: 16px; font-weight: 900; color: #22c55e;">${totalPasses > 0 ? passAccuracy + '%' : '—'}</div>
+              </div>
+              <div style="background: rgba(0,0,0,0.3); border-radius: 10px; padding: 8px 4px;">
+                <div style="font-size: 10px; color: #94a3b8;">NOTA MED.</div>
+                <div style="font-size: 16px; font-weight: 900; color: #38bdf8;">${avgRating}</div>
+              </div>
+            </div>
+
+            <!-- Radar / Atributos del Mes -->
+            <div style="font-size: 11.5px; font-weight: 800; color: #38bdf8; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px;">
+              🎯 Cualidades Deportivas Evaluadas
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; text-align: center; margin-bottom: 14px;">
+              <div style="background: rgba(255,255,255,0.04); padding: 6px; border-radius: 8px;">
+                <span style="font-size: 10px; color: #94a3b8;">PAS (Pase)</span>
+                <div style="font-size: 14px; font-weight: 800; color: #fff;">${monthRadar.pas}</div>
+              </div>
+              <div style="background: rgba(255,255,255,0.04); padding: 6px; border-radius: 8px;">
+                <span style="font-size: 10px; color: #94a3b8;">TIR (Tiro)</span>
+                <div style="font-size: 14px; font-weight: 800; color: #fff;">${monthRadar.tir}</div>
+              </div>
+              <div style="background: rgba(255,255,255,0.04); padding: 6px; border-radius: 8px;">
+                <span style="font-size: 10px; color: #94a3b8;">REG (Regate)</span>
+                <div style="font-size: 14px; font-weight: 800; color: #fff;">${monthRadar.reg}</div>
+              </div>
+              <div style="background: rgba(255,255,255,0.04); padding: 6px; border-radius: 8px;">
+                <span style="font-size: 10px; color: #94a3b8;">DEF (Defensa)</span>
+                <div style="font-size: 14px; font-weight: 800; color: #fff;">${monthRadar.def}</div>
+              </div>
+              <div style="background: rgba(255,255,255,0.04); padding: 6px; border-radius: 8px;">
+                <span style="font-size: 10px; color: #94a3b8;">FIS (Físico)</span>
+                <div style="font-size: 14px; font-weight: 800; color: #fff;">${monthRadar.fis}</div>
+              </div>
+              <div style="background: rgba(255,255,255,0.04); padding: 6px; border-radius: 8px;">
+                <span style="font-size: 10px; color: #94a3b8;">DIS (Disciplina)</span>
+                <div style="font-size: 14px; font-weight: 800; color: #22c55e;">${monthRadar.dis}</div>
+              </div>
+            </div>
+
+            <!-- Evaluación Cualitativa del Entrenador -->
+            <div style="font-size: 11.5px; font-weight: 800; color: #38bdf8; text-transform: uppercase; margin-bottom: 6px; letter-spacing: 0.5px;">
+              📝 Observaciones del Cuerpo Técnico
+            </div>
+            <textarea id="report-coach-notes-input" rows="3" style="width: 100%; font-size: 12.5px; padding: 10px; border-radius: 10px; resize: vertical; background: rgba(0,0,0,0.4); border: 1px solid rgba(56, 189, 248, 0.3); color: #fff;" placeholder="Escribe aquí las observaciones para la familia (ej. Excelente compromiso, gran mejora en la toma de decisiones, continuar practicando pierna hábil...)...">${escapeHtml(savedNotes)}</textarea>
+            <div style="text-align: right; margin-top: 4px;">
+              <button type="button" class="btn sm ghost" id="btn-save-report-notes" style="font-size: 11px; padding: 4px 10px;">
+                💾 Guardar Observaciones
+              </button>
+            </div>
+          </div>
+
+          <!-- Botones de Acción: Imprimir, WhatsApp, Viber -->
+          <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px;">
+            <button class="btn primary block" id="btn-print-report" style="font-weight: 800; font-size: 13.5px; padding: 10px;">
+              🖨️ ${t('printPdf', 'Imprimir / Guardar en PDF')}
+            </button>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+              <button class="btn btn-social" id="btn-report-share-wa" style="background: #16a34a; color: #fff; border-color: #22c55e; font-weight: 800; font-size: 12.5px;">
+                ${icon('whatsapp', 16)} WhatsApp
+              </button>
+              <button class="btn btn-social" id="btn-report-share-viber" style="background: #7c3aed; color: #fff; border-color: #a855f7; font-weight: 800; font-size: 12.5px;">
+                💜 Viber
+              </button>
+            </div>
+          </div>
+        `;
+
+        const selMonth = body.querySelector('#select-report-month');
+        if (selMonth) {
+          selMonth.onchange = () => {
+            selectedMonth = selMonth.value;
+            renderReportContent();
+          };
+        }
+
+        const notesInput = body.querySelector('#report-coach-notes-input');
+        const btnSaveNotes = body.querySelector('#btn-save-report-notes');
+        function saveNotes() {
+          const val = notesInput ? notesInput.value.trim() : '';
+          player.monthlyReports = player.monthlyReports || {};
+          player.monthlyReports[selectedMonth] = {
+            notes: val,
+            updatedAt: Date.now()
+          };
+          Store.save();
+          if (window.Cloud && window.Cloud.pushCoachState) {
+            window.Cloud.pushCoachState(Store.state, true);
+          }
+          toast('✅ Observaciones guardadas con éxito', 'success');
+        }
+        if (btnSaveNotes) btnSaveNotes.onclick = saveNotes;
+
+        body.querySelector('#btn-print-report').onclick = () => {
+          saveNotes();
+          window.print();
+        };
+
+        function buildShareText() {
+          const notes = notesInput ? notesInput.value.trim() : '';
+          return `📄 *INFORME MENSUAL DE RENDIMIENTO - JK NOOVA*\n` +
+            `👤 *Jugador:* ${Store.playerName(player)} (#${player.mainDorsal || '—'})\n` +
+            `📅 *Mes:* ${formatMonthLabel(selectedMonth)}\n\n` +
+            `📊 *ASISTENCIA Y COMPROMISO:*\n` +
+            `• Entrenamientos: ${trainPct}% (${trainAtt}/${monthTrainings.length})\n` +
+            `• Partidos: ${matchPct}% (${matchAtt}/${monthMatches.length})\n\n` +
+            `⚽ *ESTADÍSTICAS TÉCNICAS:*\n` +
+            `• Goles: ${monthGoals} | Asistencias: ${monthAssists}\n` +
+            `• Precisión de pase: ${totalPasses > 0 ? passAccuracy + '%' : '—'}\n` +
+            `• Nota media de partido: ${avgRating}\n\n` +
+            (notes ? `📝 *Observaciones del Entrenador:*\n"${notes}"\n\n` : '') +
+            `_JK Noova Player Stats System_`;
+        }
+
+        body.querySelector('#btn-report-share-wa').onclick = () => {
+          saveNotes();
+          const text = encodeURIComponent(buildShareText());
+          if (hasNative() && window.AndroidBridge && window.AndroidBridge.shareText) {
+            window.AndroidBridge.shareText(buildShareText());
+          } else {
+            window.open(`https://wa.me/?text=${text}`, '_blank');
+          }
+        };
+
+        body.querySelector('#btn-report-share-viber').onclick = () => {
+          saveNotes();
+          const text = encodeURIComponent(buildShareText());
+          if (hasNative() && window.AndroidBridge && window.AndroidBridge.shareText) {
+            window.AndroidBridge.shareText(buildShareText());
+          } else {
+            window.open(`viber://forward?text=${text}`, '_blank');
+          }
+        };
+      }
+
+      renderReportContent();
+    });
   }
 
   function showPlayerProfileModal(playerId) {
@@ -6331,8 +6987,12 @@
                 ${icon('edit', 12)} ${t('reassignTeam')}
               </button>
             </div>
-            <div style="margin-top: 6px;">
+            <div style="margin-top: 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
               <span class="rating-pill">⭐ ${matchRating.toFixed(1)} ${t('matchRating')}</span>
+              ${(() => {
+                const mvpCount = Store.calculatePlayerMvpCount ? Store.calculatePlayerMvpCount(p.id) : 0;
+                return mvpCount > 0 ? `<span class="badge" style="background: rgba(250, 204, 21, 0.2); color: #fde047; border: 1px solid rgba(250, 204, 21, 0.5); font-weight: 800; font-size: 11px;">⭐ ${mvpCount}x MVP</span>` : '';
+              })()}
             </div>
           </div>
         </div>
@@ -6422,8 +7082,8 @@
           </button>
         </div>
 
-        <!-- Accesos directos a Comparador H2H, Ficha de Partido y Carta FUT -->
-        <div class="btn-row" style="margin-bottom: 14px;">
+        <!-- Accesos directos a Comparador H2H, Ficha de Partido, Carta FUT e Informe Mensual -->
+        <div class="btn-row" style="margin-bottom: 8px;">
           <button class="btn sm ghost grow" id="btn-player-h2h">
             ${icon('compare', 16)} ${t('headToHead')}
           </button>
@@ -6433,6 +7093,52 @@
           <button class="btn sm grow" id="btn-player-fut-card" style="background: linear-gradient(135deg, rgba(234, 179, 8, 0.2), rgba(202, 138, 4, 0.3)); color: #facc15; border: 1.5px solid #eab308; font-weight: 800;">
             🃏 ${t('futCardTitle', 'Carta FUT')}
           </button>
+        </div>
+        <div class="btn-row" style="margin-bottom: 12px;">
+          <button class="btn sm grow" id="btn-player-monthly-report" style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(37, 99, 235, 0.3)); color: #60a5fa; border: 1.5px solid #3b82f6; font-weight: 800; width: 100%;">
+            📄 ${t('monthlyReport', 'Informe Mensual de Progreso (PDF)')}
+          </button>
+        </div>
+
+        <!-- Misión Semanal del Míster -->
+        <div class="card" id="card-player-weekly-mission" style="padding: 12px 14px; margin-bottom: 14px; border-radius: 14px; background: ${p.weeklyMission ? (p.weeklyMission.status === 'completed' ? 'rgba(34, 197, 94, 0.12)' : 'rgba(168, 85, 247, 0.12)') : 'var(--surface2)'}; border: 1.5px solid ${p.weeklyMission ? (p.weeklyMission.status === 'completed' ? 'rgba(34, 197, 94, 0.45)' : 'rgba(168, 85, 247, 0.45)') : 'var(--border)'};">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 20px;">🎯</span>
+              <b style="font-size: 13px; color: ${p.weeklyMission ? (p.weeklyMission.status === 'completed' ? '#4ade80' : '#c084fc') : 'var(--text)'};">
+                ${t('weeklyMissionTitle', 'Misión Semanal del Míster')}
+              </b>
+            </div>
+            ${p.weeklyMission ? `
+              <span class="badge" style="font-size: 11px; font-weight: 800; background: ${p.weeklyMission.status === 'completed' ? '#16a34a' : 'rgba(250, 204, 21, 0.2)'}; color: ${p.weeklyMission.status === 'completed' ? '#fff' : '#fde047'};">
+                ${p.weeklyMission.status === 'completed' ? t('challengeCompleted', '¡Misión Cumplida! 🎉') : t('challengePending', 'En curso ⏳')}
+              </span>
+            ` : ''}
+          </div>
+
+          ${p.weeklyMission ? `
+            <div style="font-size: 13px; font-weight: 700; color: #fff; margin: 6px 0 10px; line-height: 1.4; background: rgba(0,0,0,0.25); padding: 8px 12px; border-radius: 10px;">
+              "${escapeHtml(p.weeklyMission.text)}"
+            </div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+              <button type="button" class="btn sm" id="btn-toggle-mission-status" style="font-size: 11.5px; font-weight: 800; background: ${p.weeklyMission.status === 'completed' ? 'var(--surface2)' : '#16a34a'}; color: #fff;">
+                ${p.weeklyMission.status === 'completed' ? '🔄 Reabrir Misión' : '✅ ' + t('markCompleted', 'Marcar como Cumplida')}
+              </button>
+              <button type="button" class="btn sm ghost" id="btn-edit-mission" style="font-size: 11.5px;">
+                ✏️ ${t('assignMission', 'Cambiar')}
+              </button>
+              <button type="button" class="btn sm ghost danger" id="btn-delete-mission" style="font-size: 11.5px;">
+                🗑️
+              </button>
+            </div>
+          ` : `
+            <p style="font-size: 12px; color: var(--muted); margin: 4px 0 10px;">
+              ${t('weeklyMissionDesc', 'Asigna un objetivo táctico o técnico individual para motivar al jugador esta semana.')}
+            </p>
+            <button type="button" class="btn sm primary" id="btn-assign-new-mission" style="font-size: 12px; font-weight: 800;">
+              🎯 ${t('assignMission', 'Asignar Misión Semanal')}
+            </button>
+          `}
         </div>
 
         <!-- Estadísticas clave en porcentaje: % Pase, % Puntería, % Conversión -->
@@ -6646,6 +7352,64 @@
               lang: (Store.state.settings && Store.state.settings.lang) || 'es'
             });
           }
+        };
+      }
+
+      // Informe Mensual de Progreso (PDF)
+      const btnReport = body.querySelector('#btn-player-monthly-report');
+      if (btnReport) {
+        btnReport.onclick = () => {
+          showMonthlyProgressReportModal(p);
+        };
+      }
+
+      // Misión Semanal: Marcar completada o reabrir
+      const btnToggleMiss = body.querySelector('#btn-toggle-mission-status');
+      if (btnToggleMiss && p.weeklyMission) {
+        btnToggleMiss.onclick = () => {
+          const nextStatus = p.weeklyMission.status === 'completed' ? 'pending' : 'completed';
+          Store.setPlayerMissionStatus(p.id, nextStatus);
+          if (window.Cloud && window.Cloud.pushCoachState) {
+            window.Cloud.pushCoachState(Store.state, true);
+          }
+          toast(nextStatus === 'completed' ? t('challengeCompleted', '¡Misión Cumplida! 🎉') : t('challengePending', 'En curso ⏳'), 'success');
+          closeSheet();
+          showPlayerProfileModal(p.id);
+        };
+      }
+
+      // Misión Semanal: Asignar nueva o cambiar
+      const btnAssignMiss = body.querySelector('#btn-assign-new-mission');
+      if (btnAssignMiss) {
+        btnAssignMiss.onclick = () => {
+          showAssignMissionModal(p, () => {
+            closeSheet();
+            showPlayerProfileModal(p.id);
+          });
+        };
+      }
+
+      const btnEditMiss = body.querySelector('#btn-edit-mission');
+      if (btnEditMiss) {
+        btnEditMiss.onclick = () => {
+          showAssignMissionModal(p, () => {
+            closeSheet();
+            showPlayerProfileModal(p.id);
+          });
+        };
+      }
+
+      // Misión Semanal: Eliminar
+      const btnDelMiss = body.querySelector('#btn-delete-mission');
+      if (btnDelMiss) {
+        btnDelMiss.onclick = () => {
+          Store.clearPlayerWeeklyMission(p.id);
+          if (window.Cloud && window.Cloud.pushCoachState) {
+            window.Cloud.pushCoachState(Store.state, true);
+          }
+          toast(t('savedSuccess', 'Guardado con éxito'), 'info');
+          closeSheet();
+          showPlayerProfileModal(p.id);
         };
       }
 
@@ -7980,16 +8744,22 @@
                   }).join('')}
                   ${respondedNo.map(item => {
                     const p = item.player;
+                    const reason = (item.resp && (item.resp.notes || item.resp.reason)) ? (item.resp.notes || item.resp.reason) : '';
                     return `
                       <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(239, 68, 68, 0.1); border: 1.5px solid rgba(239, 68, 68, 0.4); border-radius: 10px;">
-                        <div style="display: flex; align-items: center; gap: 8px;">
+                        <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;">
                           ${renderAvatar(p, 'sm')}
-                          <div>
+                          <div style="flex: 1; min-width: 0;">
                             <b style="font-size: 13px; color: #fff;">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(Store.playerName(p))}</b>
                             <small style="display: block; color: var(--muted); font-size: 11px;">${p.mainPosition || 'Jugador'}</small>
+                            ${reason ? `
+                              <div style="font-size: 11px; color: #fca5a5; margin-top: 3px; font-style: italic; background: rgba(239, 68, 68, 0.15); padding: 2px 6px; border-radius: 6px; border-left: 2px solid #ef4444; word-break: break-word;">
+                                💬 <b>${t('reason', 'Motivo')}:</b> "${escapeHtml(reason)}"
+                              </div>
+                            ` : ''}
                           </div>
                         </div>
-                        <div style="display: flex; align-items: center; gap: 6px;">
+                        <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0; margin-left: 8px;">
                           <span class="badge" style="background: rgba(239, 68, 68, 0.25); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.6); font-size: 11px; font-weight: 800;">❌ BAJA</span>
                           <button type="button" class="btn sm ghost" data-toggle-resp="${p.id}" style="padding: 3px 6px; font-size: 11px;">Cambiar</button>
                         </div>

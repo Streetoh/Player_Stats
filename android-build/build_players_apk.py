@@ -55,7 +55,7 @@ def main():
         # 0. Sincronizar assets web desde la raíz del proyecto hacia android-build/assets
         print("\n[0/6] Sincronizando recursos web hacia android-build/assets...")
         ASSETS_DIR.mkdir(parents=True, exist_ok=True)
-        for folder in ["css", "icons", "js", "data"]:
+        for folder in ["css", "icons", "js", "data", "assets"]:
             src = PROJECT_DIR / folder
             dst = ASSETS_DIR / folder
             if dst.exists():

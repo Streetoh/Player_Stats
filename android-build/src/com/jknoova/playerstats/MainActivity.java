@@ -583,6 +583,10 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
 
         try {
+            setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+        } catch (Exception ignored) {}
+
+        try {
             Window window = getWindow();
             window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
             window.setStatusBarColor(0xFF060A13);

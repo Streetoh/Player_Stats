@@ -623,11 +623,31 @@
         if (!chats) return;
         let unreadCount = 0;
         chats.forEach(c => {
-          const isParticipant = (curUserId === 'coach') ||
-            (c.id === 'coach_' + sCurUserId) ||
-            (c.id.startsWith('direct_') && c.id.split('_').slice(1).map(String).includes(sCurUserId)) ||
-            ((c.type === 'team' || c.id.startsWith('team_')) && (!c.teamId || !myTeamId || c.teamId === myTeamId || c.id === 'team_' + myTeamId)) ||
-            (Array.isArray(c.participants) && c.participants.some(p => String(p) === sCurUserId));
+          let isParticipant = false;
+          if (curUserId === 'coach') {
+            if (c.id === 'general') {
+              isParticipant = true;
+            } else if (c.type === 'coach' || c.id.startsWith('coach_')) {
+              isParticipant = true;
+            } else if (c.type === 'team' || c.id.startsWith('team_')) {
+              isParticipant = true;
+            } else if (c.type === 'direct' || c.id.startsWith('direct_')) {
+              // El míster NO es participante de chats privados directos entre dos jugadores
+              isParticipant = Array.isArray(c.participants)
+                ? c.participants.map(String).includes('coach')
+                : c.id.split('_').slice(1).map(String).includes('coach');
+            } else if (Array.isArray(c.participants)) {
+              isParticipant = c.participants.map(String).includes('coach');
+            } else {
+              isParticipant = true;
+            }
+          } else {
+            isParticipant =
+              (c.id === 'coach_' + sCurUserId) ||
+              (c.id.startsWith('direct_') && c.id.split('_').slice(1).map(String).includes(sCurUserId)) ||
+              ((c.type === 'team' || c.id.startsWith('team_')) && (!c.teamId || !myTeamId || c.teamId === myTeamId || c.id === 'team_' + myTeamId)) ||
+              (Array.isArray(c.participants) && c.participants.some(p => String(p) === sCurUserId));
+          }
 
           if (!isParticipant) return;
 
@@ -878,8 +898,15 @@
               return false;
             }
           }
-          // Filtrar por membresía: coach ve todo, jugador ve donde es participante o de su equipo
-          if (!isCoach) {
+          // Filtrar por membresía: coach ve general, equipos, grupos y chats directos donde participa (no chats privados entre jugadores)
+          if (isCoach) {
+            if (c.type === 'direct' || c.id.startsWith('direct_')) {
+              const parts = Array.isArray(c.participants)
+                ? c.participants.map(String)
+                : c.id.replace('direct_', '').split('_').map(String);
+              if (!parts.includes('coach')) return false;
+            }
+          } else {
             if (c.type === 'team') {
               if (c.teamId && myTeamId && c.teamId !== myTeamId) return false;
             } else if (c.participants && !c.participants.includes(curId)) {

@@ -1,5 +1,5 @@
 {
-  "version": "2026.10.14.4",
-  "buildTime": 1791983000000,
-  "description": "Restore device link icons (phone/black dot) with 20min cache and fix player identity selection"
+  "version": "2026.10.14.6",
+  "buildTime": 1791989000000,
+  "description": "Portrait lock, chat privacy fix, request timestamps, claim lock, home session glow, absence reason modal, EA FC Black and White FUT cards"
 }

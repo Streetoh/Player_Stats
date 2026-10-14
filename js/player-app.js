@@ -13,6 +13,12 @@
 (function () {
   'use strict';
 
+  try {
+    if (window.screen && window.screen.orientation && window.screen.orientation.lock) {
+      window.screen.orientation.lock('portrait').catch(() => {});
+    }
+  } catch (e) {}
+
   let currentTab = 'convocations';
   let clubData = null;
   let myPlayerId = localStorage.getItem('portal_player_id') || null;
@@ -357,6 +363,22 @@
       streakMilestoneDiamond: 'Diamond Badge',
       streakNextMilestone: '{current}/{target} towards {nextMilestone}',
       streakMaster: '👑 Unstoppable Legendary Streak!',
+      // MVP & Weekly Mission
+      mvpVotingActive: 'Match MVP Voting Open',
+      voteMatchMvp: 'Vote for Match MVP',
+      chooseBestTeammate: 'Select the teammate who performed best in this match:',
+      cannotVoteSelf: 'You cannot vote for yourself',
+      mvpVoteRegistered: 'MVP vote submitted for {name}!',
+      mvpAlreadyVoted: 'You voted for {name}',
+      mvpOfficialWinner: '⭐ Official MVP: {name}!',
+      seasonMvpsBadge: '⭐ {count}x Match MVP',
+      mvpBannerTitle: '👑 Match MVP Voting!',
+      mvpBannerSub: 'Vote for the best player vs {match}',
+      weeklyMissionTitle: "Coach's Weekly Mission",
+      noActiveMission: 'No active mission this week. Keep training hard!',
+      missionStatusPending: '⏳ In Progress',
+      missionStatusCompleted: '🎉 Mission Accomplished!',
+      missionMotivation: 'Focus on this tactical goal in your upcoming matches and training sessions.',
       goalsScored: 'Goals Scored',
       passAccuracy: 'Pass Accuracy',
       passesAccurate: 'accurate passes',
@@ -440,6 +462,7 @@
       codeCopied: '✅ Code copied to clipboard!',
       sendViaViber: '📱 Send via Viber',
       cancelSelectOther: '✕ Cancel and select another player',
+      claimLockedNotice: 'Active request locked to this profile. You cannot change profile or send a new code until your coach authorizes or denies the request.',
       viberShareMsg: 'Hi Coach, my verification security code is {code} to access my profile ({name}) on Player Stats app.',
       player: 'Player',
       allPlayers: 'All Players',
@@ -455,6 +478,10 @@
       callCoach: 'Call Coach',
       call: 'Call',
       voteReset: 'Attendance vote cancelled (pending)',
+      absenceReasonTitle: 'Reason for Absence',
+      absenceReasonPrompt: 'Please briefly explain to your coach why you will not be able to attend (e.g. injury, illness, exam, family):',
+      absenceReasonPlaceholder: 'Write your reason here...',
+      confirmAbsence: 'Confirm Absence',
       viberCoachContactMsg: 'Hi Coach!',
       messageViaViber: 'Message via Viber',
       contact: 'Contact',
@@ -628,6 +655,22 @@
       streakMilestoneDiamond: 'Teemantmärk',
       streakNextMilestone: '{current}/{target} sihtmärgini {nextMilestone}',
       streakMaster: '👑 Peatamatu Legendaarne Seeria!',
+      // MVP & Weekly Mission
+      mvpVotingActive: 'Mängu MVP hääletus avatud',
+      voteMatchMvp: 'Hääleta mängu MVP poolt',
+      chooseBestTeammate: 'Vali meeskonnakaaslane, kes mängis selles mängus kõige paremini:',
+      cannotVoteSelf: 'Sa ei saa hääletada iseenda poolt',
+      mvpVoteRegistered: 'MVP hääl antud mängijale {name}!',
+      mvpAlreadyVoted: 'Sa hääletasid mängija {name} poolt',
+      mvpOfficialWinner: '⭐ Ametlik MVP: {name}!',
+      seasonMvpsBadge: '⭐ {count}x Mängu MVP',
+      mvpBannerTitle: '👑 Mängu MVP Hääletus!',
+      mvpBannerSub: 'Hääleta parima mängija poolt vs {match}',
+      weeklyMissionTitle: 'Treeneri nädala missioon',
+      noActiveMission: 'Sel nädalal aktiivset missiooni pole. Treeni usinalt edasi!',
+      missionStatusPending: '⏳ Pooleli',
+      missionStatusCompleted: '🎉 Missioon täidetud!',
+      missionMotivation: 'Keskendu sellele taktikalisele eesmärgile eelseisvates mängudes ja treeningutel.',
       goalsScored: 'Löödud Väravaid',
       passAccuracy: 'Söödutäpsus',
       passesAccurate: 'täpset söötu',
@@ -711,6 +754,7 @@
       codeCopied: '✅ Kood kopeeritud lõikelauale!',
       sendViaViber: '📱 Saada Viberi kaudu',
       cancelSelectOther: '✕ Tühista ja vali teine mängija',
+      claimLockedNotice: 'Aktiivne taotlus on selle profiiliga lukustatud. Te ei saa profiili vahetada ega uut koodi saata enne, kui treener on taotluse kinnitanud või tagasi lükanud.',
       viberShareMsg: 'Tere treener, minu turvakood on {code}, et pääseda ligi profiilile ({name}) rakenduses Player Stats.',
       player: 'Mängija',
       allPlayers: 'Kõik Mängijad',
@@ -726,6 +770,10 @@
       callCoach: 'Helista Treenerile',
       call: 'Helista',
       voteReset: 'Osalemise vastus tühistatud (ootel)',
+      absenceReasonTitle: 'Puudumise põhjus',
+      absenceReasonPrompt: 'Palun selgita lühidalt treenerile, miks sa ei saa osaleda (nt vigastus, haigus, eksam, reis):',
+      absenceReasonPlaceholder: 'Kirjuta oma põhjus siia...',
+      confirmAbsence: 'Kinnita Puudumine',
       viberCoachContactMsg: 'Tere treener!',
       messageViaViber: 'Saada sõnum Viberis',
       contact: 'Kontakt',
@@ -899,6 +947,22 @@
       streakMilestoneDiamond: 'Insignia Diamante',
       streakNextMilestone: '{current}/{target} hacia {nextMilestone}',
       streakMaster: '👑 ¡Racha Legendaria Imparable!',
+      // MVP & Weekly Mission
+      mvpVotingActive: 'Votación del MVP Abierta',
+      voteMatchMvp: 'Votar al MVP del Partido',
+      chooseBestTeammate: 'Elige al compañero más destacado del partido:',
+      cannotVoteSelf: 'No puedes votarte a ti mismo',
+      mvpVoteRegistered: '¡Voto de MVP registrado para {name}!',
+      mvpAlreadyVoted: 'Has votado por {name}',
+      mvpOfficialWinner: '⭐ ¡MVP Oficial: {name}!',
+      seasonMvpsBadge: '⭐ {count}x MVP del Partido',
+      mvpBannerTitle: '👑 ¡Votación del MVP del Partido!',
+      mvpBannerSub: 'Vota al jugador más destacado vs {match}',
+      weeklyMissionTitle: 'Misión Semanal del Míster',
+      noActiveMission: 'Sin misión activa esta semana. ¡Sigue entrenando fuerte!',
+      missionStatusPending: '⏳ En curso',
+      missionStatusCompleted: '🎉 ¡Misión Cumplida!',
+      missionMotivation: 'Concéntrate en este objetivo táctico en tus próximos entrenos y partidos.',
       goalsScored: 'Goles Marcados',
       passAccuracy: 'Precisión de Pase',
       passesAccurate: 'pases acertados',
@@ -982,6 +1046,7 @@
       codeCopied: '✅ ¡Código copiado al portapapeles!',
       sendViaViber: '📱 Enviar por Viber',
       cancelSelectOther: '✕ Cancelar y elegir otro jugador',
+      claimLockedNotice: 'Solicitud activa vinculada a este perfil. No puedes cambiar de perfil ni solicitar otro código hasta que el entrenador responda.',
       viberShareMsg: 'Hola míster, mi código de seguridad es {code} para acceder a mi perfil ({name}) en la app Player Stats.',
       player: 'Jugador',
       allPlayers: 'Todos los jugadores',
@@ -997,6 +1062,10 @@
       callCoach: 'Llamar al Entrenador',
       call: 'Llamar',
       voteReset: 'Respuesta cancelada (pendiente)',
+      absenceReasonTitle: 'Motivo de la Ausencia',
+      absenceReasonPrompt: 'Por favor explica brevemente a tu entrenador el motivo por el que no podrás asistir (ej. lesión, enfermedad, examen, viaje):',
+      absenceReasonPlaceholder: 'Escribe aquí el motivo de tu ausencia...',
+      confirmAbsence: 'Confirmar Baja',
       viberCoachContactMsg: '¡Hola míster!',
       messageViaViber: 'Mensaje por Viber',
       contact: 'Contacto',
@@ -1642,6 +1711,188 @@
       }
     }
     return streak;
+  }
+
+  function calculatePlayerMvpCount(pid) {
+    if (!pid || !clubData || !Array.isArray(clubData.sessions)) return 0;
+    const sPid = String(pid);
+    let count = 0;
+    clubData.sessions.forEach(s => {
+      if (s && s.type === 'match') {
+        if (s.officialMvpId && String(s.officialMvpId) === sPid) {
+          count++;
+        } else if (s.mvpWinnerId && String(s.mvpWinnerId) === sPid) {
+          count++;
+        }
+      }
+    });
+    return count;
+  }
+
+  // 👑 Modal de Votación del MVP de Partido en la App de Jugadores
+  function showMatchMvpVoteModal(session) {
+    if (!session) return;
+    const myP = getMyPlayer();
+    if (!myP) return;
+
+    const trackedPlayerIds = new Set([
+      ...Object.keys(session.stats || {}),
+      ...(session.slots || []).filter(Boolean)
+    ]);
+    const players = (clubData && clubData.players ? clubData.players : []).filter(p => trackedPlayerIds.has(p.id));
+
+    const existing = document.getElementById('dialog-match-mvp-vote');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.className = 'dialog-overlay';
+    overlay.id = 'dialog-match-mvp-vote';
+    overlay.style.zIndex = '999999';
+
+    let currentVoteData = null;
+    let unsubMvp = null;
+
+    function renderModal() {
+      const myVotedTargetId = currentVoteData && currentVoteData.votes ? currentVoteData.votes[myP.id] : null;
+      const officialMvpId = session.mvpOfficialId || (currentVoteData ? currentVoteData.officialMvpId : null);
+      const officialMvpPlayer = officialMvpId ? players.find(p => p.id === officialMvpId) : null;
+
+      const voteCounts = {};
+      if (currentVoteData && currentVoteData.votes) {
+        Object.values(currentVoteData.votes).forEach(tId => {
+          voteCounts[tId] = (voteCounts[tId] || 0) + 1;
+        });
+      }
+
+      overlay.innerHTML = `
+        <div class="card dialog-box" style="max-width: 440px; width: 92%; padding: 20px; border-radius: 18px; border: 1.5px solid rgba(234, 179, 8, 0.5); max-height: 90vh; display: flex; flex-direction: column; background: #0f172a; box-shadow: 0 10px 40px rgba(0,0,0,0.7);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 24px;">👑</span>
+              <div>
+                <h3 style="margin: 0; font-size: 16px; font-weight: 900; color: #fff;">
+                  ${t('voteMatchMvp', 'Votar al MVP del Partido')}
+                </h3>
+                <div style="font-size: 11px; color: var(--muted);">
+                  ${session.rival ? `vs ${escapeHtml(session.rival)}` : escapeHtml(session.title || 'Partido')}
+                </div>
+              </div>
+            </div>
+            <button type="button" class="btn sm ghost" id="btn-close-mvp-vote" style="padding: 4px 8px;">✕</button>
+          </div>
+
+          ${officialMvpPlayer ? `
+            <div style="background: linear-gradient(135deg, rgba(234, 179, 8, 0.25) 0%, rgba(202, 138, 4, 0.35) 100%); border: 1.5px solid #eab308; border-radius: 12px; padding: 10px 12px; margin-bottom: 12px; display: flex; align-items: center; gap: 10px;">
+              ${renderAvatar(officialMvpPlayer, 'sm')}
+              <div>
+                <div style="font-size: 10.5px; font-weight: 800; color: #facc15; text-transform: uppercase;">
+                  ${t('mvpOfficial', 'MVP Oficial del Partido')}
+                </div>
+                <div style="font-size: 14px; font-weight: 900; color: #fff;">
+                  ${escapeHtml(officialMvpPlayer.name || '')} ${escapeHtml(officialMvpPlayer.lastName || '')} #${officialMvpPlayer.mainDorsal || ''}
+                </div>
+              </div>
+            </div>
+          ` : `
+            <p style="font-size: 12.5px; color: #cbd5e1; margin: 0 0 12px; line-height: 1.4;">
+              ${t('chooseBestTeammate', 'Elige al compañero que mejor ha jugado en este partido:')}
+            </p>
+          `}
+
+          <div style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; padding-right: 4px;">
+            ${players.length === 0 ? `
+              <div style="text-align: center; color: var(--muted); padding: 20px;">No hay jugadores registrados en este partido</div>
+            ` : players.map(p => {
+              const isSelf = (p.id === myP.id);
+              const isVotedByMe = (myVotedTargetId === p.id);
+              const count = voteCounts[p.id] || 0;
+
+              return `
+                <div class="card teammate-mvp-choice" data-pid="${p.id}" style="padding: 10px 12px; border-radius: 12px; display: flex; align-items: center; justify-content: space-between; border: 1.5px solid ${isVotedByMe ? '#eab308' : (isSelf ? 'rgba(255,255,255,0.06)' : 'var(--border)')}; background: ${isVotedByMe ? 'rgba(234, 179, 8, 0.15)' : (isSelf ? 'rgba(0,0,0,0.2)' : 'var(--surface2)')}; opacity: ${isSelf ? '0.6' : '1'}; cursor: ${isSelf ? 'not-allowed' : 'pointer'};">
+                  <div style="display: flex; align-items: center; gap: 10px;">
+                    ${renderAvatar(p, 'sm')}
+                    <div>
+                      <b style="font-size: 13.5px; color: #fff;">
+                        ${escapeHtml(p.name || '')} ${escapeHtml(p.lastName || '')} #${p.mainDorsal || ''}
+                      </b>
+                      <div style="font-size: 11px; color: var(--muted);">
+                        ${isSelf ? `(${t('cannotVoteSelf', 'No puedes votarte a ti mismo')})` : (formatPosition(p.mainPosition))}
+                      </div>
+                    </div>
+                  </div>
+                  <div style="text-align: right; display: flex; align-items: center; gap: 8px;">
+                    ${count > 0 ? `<span style="font-size: 11px; color: #facc15; font-weight: 800;">🗳️ ${count}</span>` : ''}
+                    <button type="button" class="btn sm btn-vote-player" data-pid="${p.id}" ${isSelf ? 'disabled' : ''} style="font-weight: 800; font-size: 11.5px; padding: 5px 10px; border-radius: 8px; background: ${isVotedByMe ? '#16a34a' : '#eab308'}; color: ${isVotedByMe ? '#fff' : '#000'}; border: none;">
+                      ${isVotedByMe ? '✓ Votado' : '⭐ Votar'}
+                    </button>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 11.5px; color: var(--muted);">
+              ${myVotedTargetId ? t('mvpAlreadyVoted').replace('{name}', (players.find(p => p.id === myVotedTargetId) || {}).name || '') : '1 voto por jugador'}
+            </span>
+            <button type="button" class="btn ghost" id="btn-close-mvp-modal">${t('close', 'Cerrar')}</button>
+          </div>
+        </div>
+      `;
+
+      function closeVoteModal() {
+        if (unsubMvp) { try { unsubMvp(); } catch (e) {} }
+        overlay.remove();
+      }
+      overlay.querySelector('#btn-close-mvp-vote').onclick = closeVoteModal;
+      overlay.querySelector('#btn-close-mvp-modal').onclick = closeVoteModal;
+
+      overlay.querySelectorAll('.btn-vote-player').forEach(btn => {
+        btn.onclick = async (e) => {
+          e.stopPropagation();
+          const targetId = btn.getAttribute('data-pid');
+          if (!targetId || targetId === myP.id) return;
+          const targetPlayer = players.find(p => p.id === targetId);
+          btn.disabled = true;
+          btn.textContent = '...';
+
+          try {
+            if (window.Cloud && window.Cloud.voteMatchMvp) {
+              await window.Cloud.voteMatchMvp(session.id, myP.id, targetId);
+            }
+            if (!currentVoteData) currentVoteData = { votes: {} };
+            if (!currentVoteData.votes) currentVoteData.votes = {};
+            currentVoteData.votes[myP.id] = targetId;
+
+            toast(t('mvpVoteRegistered', '¡Voto de MVP registrado para {name}!').replace('{name}', (targetPlayer ? targetPlayer.name : '')), 'success');
+            renderModal();
+          } catch (err) {
+            console.error('Error al registrar voto de MVP:', err);
+            toast('Error al votar: ' + err.message, 'error');
+            btn.disabled = false;
+            btn.textContent = '⭐ Votar';
+          }
+        };
+      });
+
+      overlay.querySelectorAll('.teammate-mvp-choice').forEach(card => {
+        card.onclick = () => {
+          const btn = card.querySelector('.btn-vote-player');
+          if (btn && !btn.disabled) btn.click();
+        };
+      });
+    }
+
+    if (window.Cloud && window.Cloud.listenToMatchMvp) {
+      unsubMvp = window.Cloud.listenToMatchMvp(session.id, (voteData) => {
+        currentVoteData = voteData;
+        renderModal();
+      });
+    } else {
+      renderModal();
+    }
+
+    document.body.appendChild(overlay);
   }
 
   function getPlayerStreakMilestone(streak) {
@@ -2582,7 +2833,7 @@
     if (savedClaimJson) {
       try {
         const parsed = JSON.parse(savedClaimJson);
-        if (parsed && parsed.targetPlayerId && (Date.now() - (parsed.createdAt || 0)) < 45 * 60 * 1000) {
+        if (parsed && parsed.targetPlayerId) {
           const pObj = (clubData && clubData.players) ? clubData.players.find(p => p.id === parsed.targetPlayerId) : null;
           showConfirmIdentitySecurityCodeModal(pObj || { id: parsed.targetPlayerId, name: parsed.targetPlayerName, mainDorsal: parsed.targetPlayerDorsal }, parsed);
           return;
@@ -2857,9 +3108,9 @@
           <span>${t('waitingCoachApproval', 'Waiting for your coach to authorize the code...')}</span>
         </div>
 
-        <button type="button" class="btn sm ghost block" id="btn-cancel-claim-req" style="height: 38px; font-weight: 800; font-size: 12.5px;">
-          ${t('cancelSelectOther', '✕ Cancel and select another player')}
-        </button>
+        <div style="margin-top: 8px; padding: 10px 14px; border-radius: 12px; background: rgba(148, 163, 184, 0.08); border: 1px dashed rgba(148, 163, 184, 0.25); font-size: 11.5px; color: #94a3b8; line-height: 1.45; text-align: center;">
+          🔒 ${t('claimLockedNotice', 'Active request locked to this profile. You cannot change profile or send a new code until your coach authorizes or denies the request.')}
+        </div>
       </div>
     `;
 
@@ -2923,17 +3174,6 @@
         }
       };
     }
-
-    overlay.querySelector('#btn-cancel-claim-req').onclick = () => {
-      try {
-        localStorage.removeItem('portal_pending_claim');
-      } catch (e) {}
-      if (window.Cloud && window.Cloud.deleteProfileClaimRequest) {
-        window.Cloud.deleteProfileClaimRequest(claimReqId);
-      }
-      close();
-      showSelectIdentityModal();
-    };
 
     document.body.appendChild(overlay);
 
@@ -3397,6 +3637,70 @@
     dotEl.style.display = hasUnopened ? 'inline-block' : 'none';
   }
 
+  function showAbsenceReasonModal(convTitle, onConfirm) {
+    const existing = document.getElementById('dialog-absence-reason-overlay');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.className = 'dialog-overlay';
+    overlay.id = 'dialog-absence-reason-overlay';
+    overlay.innerHTML = `
+      <div class="dialog-box" style="width: 92%; max-width: 420px; padding: 20px 18px; text-align: left;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 24px;">❌</span>
+            <div>
+              <h3 style="margin: 0; font-size: 16px; font-weight: 900; color: #fff;">
+                ${t('absenceReasonTitle', 'Motivo de la Ausencia')}
+              </h3>
+              <small style="color: var(--muted); font-size: 11.5px;">
+                ${escapeHtml(convTitle || t('convocation', 'Convocatoria'))}
+              </small>
+            </div>
+          </div>
+          <button type="button" class="icon-btn ghost" id="btn-close-absence-modal" style="width: 32px; height: 32px;">✕</button>
+        </div>
+
+        <p style="font-size: 12.5px; color: #cbd5e1; margin: 0 0 10px; line-height: 1.4;">
+          ${t('absenceReasonPrompt', 'Por favor explica brevemente a tu entrenador el motivo por el que no podrás asistir (ej. lesión, enfermedad, examen, viaje):')}
+        </p>
+
+        <textarea id="absence-reason-text" rows="3" placeholder="${t('absenceReasonPlaceholder', 'Escribe aquí el motivo de tu ausencia...')}" style="width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 12px; border: 1.5px solid rgba(239, 68, 68, 0.4); background: var(--bg2); color: #fff; font-size: 13.5px; font-family: inherit; resize: none; margin-bottom: 14px; outline: none;"></textarea>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+          <button type="button" class="btn ghost sm" id="btn-cancel-absence" style="font-weight: 800; font-size: 12.5px; height: 40px;">
+            ${t('cancel', 'Cancelar')}
+          </button>
+          <button type="button" class="btn danger sm" id="btn-submit-absence" style="font-weight: 900; font-size: 12.5px; height: 40px; background: #ef4444; border-color: #dc2626; color: #fff;">
+            ${t('confirmAbsence', 'Confirmar Baja')}
+          </button>
+        </div>
+      </div>
+    `;
+
+    function close() {
+      overlay.remove();
+    }
+
+    overlay.querySelector('#btn-close-absence-modal').onclick = close;
+    overlay.querySelector('#btn-cancel-absence').onclick = close;
+
+    overlay.querySelector('#btn-submit-absence').onclick = () => {
+      const textarea = overlay.querySelector('#absence-reason-text');
+      const reason = (textarea ? textarea.value : '').trim();
+      close();
+      if (typeof onConfirm === 'function') {
+        onConfirm(reason);
+      }
+    };
+
+    document.body.appendChild(overlay);
+    setTimeout(() => {
+      const ta = overlay.querySelector('#absence-reason-text');
+      if (ta) ta.focus();
+    }, 100);
+  }
+
   /* -------------------------------------------------------------
      PESTAÑA 1: CONVOCATORIAS (PUNTOS 2, 3, 4)
      ------------------------------------------------------------- */
@@ -3744,9 +4048,54 @@
       listContentHtml = sectionsHtml;
     }
 
+    // Buscar si hay un partido reciente (últimos 3 días) para votar MVP
+    let mvpBannerHtml = '';
+    let recentMatchForMvp = null;
+    if (clubData && Array.isArray(clubData.sessions) && myP) {
+      const nowTs = Date.now();
+      recentMatchForMvp = clubData.sessions.find(s => {
+        if (!s || s.type !== 'match' || !s.date) return false;
+        const sTime = new Date(s.date).getTime();
+        const isRecent = Math.abs(nowTs - sTime) < 72 * 3600 * 1000;
+        if (!isRecent) return false;
+        const participated = (s.stats && s.stats[myP.id] && Object.values(s.stats[myP.id]).some(v => v > 0)) ||
+                             (s.slots && s.slots.includes(myP.id));
+        return participated;
+      });
+
+      if (recentMatchForMvp) {
+        const isOfficialSet = !!recentMatchForMvp.officialMvpId;
+        const officialPlayer = isOfficialSet ? (clubData.players || []).find(p => p.id === recentMatchForMvp.officialMvpId) : null;
+        mvpBannerHtml = `
+          <div class="card" id="banner-vote-mvp" style="margin-bottom: 12px; background: linear-gradient(135deg, rgba(234, 179, 8, 0.18) 0%, rgba(202, 138, 4, 0.28) 100%); border: 1.5px solid #eab308; border-radius: 16px; padding: 12px 14px; box-shadow: 0 4px 20px rgba(234, 179, 8, 0.2); cursor: pointer;">
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 26px;">👑</span>
+                <div>
+                  <div style="font-size: 11px; font-weight: 800; color: #facc15; text-transform: uppercase; letter-spacing: 0.6px;">
+                    ${t('mvpBannerTitle', '👑 ¡Votación del MVP del Partido!')}
+                  </div>
+                  <div style="font-size: 14px; font-weight: 900; color: #fff; margin-top: 1px;">
+                    ${recentMatchForMvp.rival ? `vs ${escapeHtml(recentMatchForMvp.rival)}` : escapeHtml(recentMatchForMvp.title || 'Partido')}
+                  </div>
+                  <div style="font-size: 11px; color: #fde047; margin-top: 1px;">
+                    ${isOfficialSet && officialPlayer ? `⭐ ${t('mvpOfficialWinner', '⭐ MVP Oficial: {name}!').replace('{name}', officialPlayer.name || '')}` : t('chooseBestTeammate', 'Vota al mejor compañero del partido')}
+                  </div>
+                </div>
+              </div>
+              <button type="button" class="btn sm" style="background: #eab308; color: #000; font-weight: 900; font-size: 11.5px; border-radius: 10px; border: none; padding: 6px 12px; white-space: nowrap;">
+                ⭐ ${isOfficialSet ? 'Ver MVP' : t('voteMatchMvp', 'Votar')}
+              </button>
+            </div>
+          </div>
+        `;
+      }
+    }
+
     view.innerHTML = `
       <div style="padding: 10px 0;">
         ${bannerHtml}
+        ${mvpBannerHtml}
 
         <!-- FILTROS DE CONVOCATORIAS: TODOS, PARTIDOS, ENTRENAMIENTOS -->
         <div class="segmented" style="display: flex; gap: 4px; margin-bottom: 12px; background: var(--surface2); padding: 4px; border-radius: 12px; border: 1px solid var(--border);">
@@ -3758,6 +4107,13 @@
         ${listContentHtml}
       </div>
     `;
+
+    const btnMvpBanner = view.querySelector('#banner-vote-mvp');
+    if (btnMvpBanner && recentMatchForMvp) {
+      btnMvpBanner.onclick = () => {
+        showMatchMvpVoteModal(recentMatchForMvp);
+      };
+    }
 
     // Listener para guardar estado del desplegable de convocatorias pasadas
     const pastAccordion = view.querySelector('#past-convs-accordion');
@@ -3820,55 +4176,73 @@
         const isCurrentlyActive = btn.classList.contains('active');
         const nextVote = isCurrentlyActive ? 'pending' : vote;
 
-        // Actualizar caché de votos local al instante
-        liveVotes[cid] = liveVotes[cid] || {};
-        if (nextVote === 'pending') {
-          delete liveVotes[cid][myPlayerId];
-          const convObj = (clubData && clubData.convocations) ? clubData.convocations.find(x => x.id === cid) : null;
-          if (convObj && convObj.responses) delete convObj.responses[myPlayerId];
-        } else {
-          liveVotes[cid][myPlayerId] = { status: nextVote, playerName: pName, timestamp: Date.now() };
-        }
-
-        // Feedback visual inmediato
-        const box = btn.closest('.portal-vote-box');
-        if (box) {
-          box.querySelectorAll('.btn-vote').forEach(b => b.classList.remove('active'));
-          if (nextVote !== 'pending') {
-            btn.classList.add('active');
-          }
-          const badge = document.getElementById(`vote-badge-${cid}`);
-          if (badge) {
-            if (nextVote === 'called') {
-              badge.textContent = t('attendanceConfirmed');
-              badge.style.background = 'rgba(34,197,94,0.2)';
-              badge.style.color = '#86efac';
-            } else if (nextVote === 'absent') {
-              badge.textContent = t('absenceReported');
-              badge.style.background = 'rgba(239,68,68,0.2)';
-              badge.style.color = '#fca5a5';
-            } else {
-              badge.textContent = t('pendingResponse');
-              badge.style.background = 'var(--surface)';
-              badge.style.color = 'var(--muted)';
-            }
-          }
-        }
-
-        try {
-          if (window.Cloud && window.Cloud.voteAttendance) {
-            await window.Cloud.voteAttendance(cid, myPlayerId, nextVote, pName);
-            if (nextVote === 'pending') {
-              toast(t('voteReset', 'Respuesta cancelada (pendiente)'), 'info');
-            } else {
-              toast(nextVote === 'called' ? t('attendanceConfirmed') : t('absenceReported'), 'success');
-            }
+        const performVote = async (reasonText) => {
+          // Actualizar caché de votos local al instante
+          liveVotes[cid] = liveVotes[cid] || {};
+          if (nextVote === 'pending') {
+            delete liveVotes[cid][myPlayerId];
+            const convObj = (clubData && clubData.convocations) ? clubData.convocations.find(x => x.id === cid) : null;
+            if (convObj && convObj.responses) delete convObj.responses[myPlayerId];
           } else {
-            toast('Guardado localmente.', 'info');
+            liveVotes[cid][myPlayerId] = {
+              status: nextVote,
+              playerName: pName,
+              notes: reasonText || '',
+              timestamp: Date.now()
+            };
           }
-        } catch (err) {
-          console.error(err);
-          toast('Error: ' + err.message, 'error');
+
+          // Feedback visual inmediato
+          const box = btn.closest('.portal-vote-box');
+          if (box) {
+            box.querySelectorAll('.btn-vote').forEach(b => b.classList.remove('active'));
+            if (nextVote !== 'pending') {
+              btn.classList.add('active');
+            }
+            const badge = document.getElementById(`vote-badge-${cid}`);
+            if (badge) {
+              if (nextVote === 'called') {
+                badge.textContent = t('attendanceConfirmed');
+                badge.style.background = 'rgba(34,197,94,0.2)';
+                badge.style.color = '#86efac';
+              } else if (nextVote === 'absent') {
+                badge.textContent = t('absenceReported');
+                badge.style.background = 'rgba(239,68,68,0.2)';
+                badge.style.color = '#fca5a5';
+              } else {
+                badge.textContent = t('pendingResponse');
+                badge.style.background = 'var(--surface)';
+                badge.style.color = 'var(--muted)';
+              }
+            }
+          }
+
+          try {
+            if (window.Cloud && window.Cloud.voteAttendance) {
+              await window.Cloud.voteAttendance(cid, myPlayerId, nextVote, pName, reasonText || '');
+              if (nextVote === 'pending') {
+                toast(t('voteReset', 'Respuesta cancelada (pendiente)'), 'info');
+              } else {
+                toast(nextVote === 'called' ? t('attendanceConfirmed') : t('absenceReported'), 'success');
+              }
+            } else {
+              toast('Guardado localmente.', 'info');
+            }
+          } catch (err) {
+            console.error(err);
+            toast('Error: ' + err.message, 'error');
+          }
+          renderConvocationsView();
+        };
+
+        if (nextVote === 'absent') {
+          const convObj = (clubData && clubData.convocations) ? clubData.convocations.find(x => x.id === cid) : null;
+          const convTitle = convObj ? (convObj.title || (convObj.type === 'match' ? 'vs ' + (convObj.rival || 'Rival') : 'Entrenamiento')) : '';
+          showAbsenceReasonModal(convTitle, (reason) => {
+            performVote(reason);
+          });
+        } else {
+          performVote('');
         }
         renderConvocationsView();
       };
@@ -4112,51 +4486,66 @@
 
         haptic(35);
 
-        liveVotes[conv.id] = liveVotes[conv.id] || {};
-        if (nextVote === 'pending') {
-          delete liveVotes[conv.id][myPlayerId];
-          if (conv.responses) delete conv.responses[myPlayerId];
-        } else {
-          liveVotes[conv.id][myPlayerId] = { status: nextVote, playerName: pName, timestamp: Date.now() };
-          conv.responses = conv.responses || {};
-          conv.responses[myPlayerId] = liveVotes[conv.id][myPlayerId];
-        }
-
-        // Actualizar badges en modal
-        const badgeEl = overlay.querySelector('#match-modal-vote-badge');
-        if (badgeEl) {
-          if (nextVote === 'called') {
-            badgeEl.textContent = t('confirmedBadge');
-            badgeEl.style.background = 'rgba(34,197,94,0.2)';
-            badgeEl.style.color = '#86efac';
-          } else if (nextVote === 'absent') {
-            badgeEl.textContent = t('absentBadge');
-            badgeEl.style.background = 'rgba(239,68,68,0.2)';
-            badgeEl.style.color = '#fca5a5';
+        const executeMatchVote = async (reasonText) => {
+          liveVotes[conv.id] = liveVotes[conv.id] || {};
+          if (nextVote === 'pending') {
+            delete liveVotes[conv.id][myPlayerId];
+            if (conv.responses) delete conv.responses[myPlayerId];
           } else {
-            badgeEl.textContent = t('pendingBadge');
-            badgeEl.style.background = 'var(--surface)';
-            badgeEl.style.color = 'var(--muted)';
+            liveVotes[conv.id][myPlayerId] = {
+              status: nextVote,
+              playerName: pName,
+              notes: reasonText || '',
+              timestamp: Date.now()
+            };
+            conv.responses = conv.responses || {};
+            conv.responses[myPlayerId] = liveVotes[conv.id][myPlayerId];
           }
-        }
-        overlay.querySelectorAll('.match-modal-vote-btn').forEach(b => {
-          b.className = 'btn sm match-modal-vote-btn ghost';
-        });
-        if (nextVote === 'called') {
-          btn.className = 'btn sm match-modal-vote-btn primary';
-        } else if (nextVote === 'absent') {
-          btn.className = 'btn sm match-modal-vote-btn danger';
-        }
 
-        renderConvocationsView();
-
-        try {
-          if (window.Cloud && window.Cloud.voteAttendance) {
-            await window.Cloud.voteAttendance(conv.id, myPlayerId, nextVote, pName);
-            toast(nextVote === 'called' ? t('attendanceConfirmed') : (nextVote === 'absent' ? t('absenceReported') : t('voteReset')), 'success');
+          // Actualizar badges en modal
+          const badgeEl = overlay.querySelector('#match-modal-vote-badge');
+          if (badgeEl) {
+            if (nextVote === 'called') {
+              badgeEl.textContent = t('confirmedBadge');
+              badgeEl.style.background = 'rgba(34,197,94,0.2)';
+              badgeEl.style.color = '#86efac';
+            } else if (nextVote === 'absent') {
+              badgeEl.textContent = t('absentBadge');
+              badgeEl.style.background = 'rgba(239,68,68,0.2)';
+              badgeEl.style.color = '#fca5a5';
+            } else {
+              badgeEl.textContent = t('pendingBadge');
+              badgeEl.style.background = 'var(--surface)';
+              badgeEl.style.color = 'var(--muted)';
+            }
           }
-        } catch (e) {
-          console.error(e);
+          overlay.querySelectorAll('.match-modal-vote-btn').forEach(b => {
+            b.className = 'btn sm match-modal-vote-btn ghost';
+          });
+          if (nextVote === 'called') {
+            btn.className = 'btn sm match-modal-vote-btn primary';
+          } else if (nextVote === 'absent') {
+            btn.className = 'btn sm match-modal-vote-btn danger';
+          }
+
+          renderConvocationsView();
+
+          try {
+            if (window.Cloud && window.Cloud.voteAttendance) {
+              await window.Cloud.voteAttendance(conv.id, myPlayerId, nextVote, pName, reasonText || '');
+              toast(nextVote === 'called' ? t('attendanceConfirmed') : (nextVote === 'absent' ? t('absenceReported') : t('voteReset')), 'success');
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        };
+
+        if (nextVote === 'absent') {
+          showAbsenceReasonModal(conv.title || 'vs ' + (conv.rival || 'Rival'), (reason) => {
+            executeMatchVote(reason);
+          });
+        } else {
+          executeMatchVote('');
         }
       };
     });
@@ -4354,51 +4743,66 @@
 
         haptic(35);
 
-        liveVotes[conv.id] = liveVotes[conv.id] || {};
-        if (nextVote === 'pending') {
-          delete liveVotes[conv.id][myPlayerId];
-          if (conv.responses) delete conv.responses[myPlayerId];
-        } else {
-          liveVotes[conv.id][myPlayerId] = { status: nextVote, playerName: pName, timestamp: Date.now() };
-          conv.responses = conv.responses || {};
-          conv.responses[myPlayerId] = liveVotes[conv.id][myPlayerId];
-        }
-
-        // Actualizar badges en modal
-        const badgeEl = overlay.querySelector('#tr-modal-vote-badge');
-        if (badgeEl) {
-          if (nextVote === 'called') {
-            badgeEl.textContent = t('confirmedBadge');
-            badgeEl.style.background = 'rgba(34,197,94,0.2)';
-            badgeEl.style.color = '#86efac';
-          } else if (nextVote === 'absent') {
-            badgeEl.textContent = t('absentBadge');
-            badgeEl.style.background = 'rgba(239,68,68,0.2)';
-            badgeEl.style.color = '#fca5a5';
+        const executeTrainingVote = async (reasonText) => {
+          liveVotes[conv.id] = liveVotes[conv.id] || {};
+          if (nextVote === 'pending') {
+            delete liveVotes[conv.id][myPlayerId];
+            if (conv.responses) delete conv.responses[myPlayerId];
           } else {
-            badgeEl.textContent = t('pendingBadge');
-            badgeEl.style.background = 'var(--surface)';
-            badgeEl.style.color = 'var(--muted)';
+            liveVotes[conv.id][myPlayerId] = {
+              status: nextVote,
+              playerName: pName,
+              notes: reasonText || '',
+              timestamp: Date.now()
+            };
+            conv.responses = conv.responses || {};
+            conv.responses[myPlayerId] = liveVotes[conv.id][myPlayerId];
           }
-        }
-        overlay.querySelectorAll('.tr-modal-vote-btn').forEach(b => {
-          b.className = 'btn sm tr-modal-vote-btn ghost';
-        });
-        if (nextVote === 'called') {
-          btn.className = 'btn sm tr-modal-vote-btn primary';
-        } else if (nextVote === 'absent') {
-          btn.className = 'btn sm tr-modal-vote-btn danger';
-        }
 
-        renderConvocationsView();
-
-        try {
-          if (window.Cloud && window.Cloud.voteAttendance) {
-            await window.Cloud.voteAttendance(conv.id, myPlayerId, nextVote, pName);
-            toast(nextVote === 'called' ? t('attendanceConfirmed') : (nextVote === 'absent' ? t('absenceReported') : t('voteReset')), 'success');
+          // Actualizar badges en modal
+          const badgeEl = overlay.querySelector('#tr-modal-vote-badge');
+          if (badgeEl) {
+            if (nextVote === 'called') {
+              badgeEl.textContent = t('confirmedBadge');
+              badgeEl.style.background = 'rgba(34,197,94,0.2)';
+              badgeEl.style.color = '#86efac';
+            } else if (nextVote === 'absent') {
+              badgeEl.textContent = t('absentBadge');
+              badgeEl.style.background = 'rgba(239,68,68,0.2)';
+              badgeEl.style.color = '#fca5a5';
+            } else {
+              badgeEl.textContent = t('pendingBadge');
+              badgeEl.style.background = 'var(--surface)';
+              badgeEl.style.color = 'var(--muted)';
+            }
           }
-        } catch (e) {
-          console.error(e);
+          overlay.querySelectorAll('.tr-modal-vote-btn').forEach(b => {
+            b.className = 'btn sm tr-modal-vote-btn ghost';
+          });
+          if (nextVote === 'called') {
+            btn.className = 'btn sm tr-modal-vote-btn primary';
+          } else if (nextVote === 'absent') {
+            btn.className = 'btn sm tr-modal-vote-btn danger';
+          }
+
+          renderConvocationsView();
+
+          try {
+            if (window.Cloud && window.Cloud.voteAttendance) {
+              await window.Cloud.voteAttendance(conv.id, myPlayerId, nextVote, pName, reasonText || '');
+              toast(nextVote === 'called' ? t('attendanceConfirmed') : (nextVote === 'absent' ? t('absenceReported') : t('voteReset')), 'success');
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        };
+
+        if (nextVote === 'absent') {
+          showAbsenceReasonModal(conv.title || 'Entrenamiento', (reason) => {
+            executeTrainingVote(reason);
+          });
+        } else {
+          executeTrainingVote('');
         }
       };
     });
@@ -4894,6 +5298,7 @@
     const streakMilestone = getPlayerStreakMilestone(streak);
     const secPositions = myP.secondaryPositions && myP.secondaryPositions.length ? myP.secondaryPositions : (myP.secondaryPosition ? [myP.secondaryPosition] : []);
     const ageStr = myP.birthDate ? calculateAgeYearsMonths(myP.birthDate, currentLang) : '';
+    const mvpCount = calculatePlayerMvpCount(myP.id);
 
     view.innerHTML = `
       <div style="padding: 6px 0;">
@@ -4926,8 +5331,38 @@
                 </span>
               </div>
             ` : ''}
+            ${mvpCount > 0 ? `
+              <div style="margin-top: 6px;">
+                <span class="badge" style="background: rgba(250, 204, 21, 0.2); color: #fde047; border: 1px solid rgba(250, 204, 21, 0.5); font-weight: 800; font-size: 11px;">
+                  ${t('seasonMvpsBadge', '⭐ {count}x MVP del Partido').replace('{count}', mvpCount)}
+                </span>
+              </div>
+            ` : ''}
           </div>
         </div>
+
+        <!-- MISIÓN SEMANAL DEL MÍSTER -->
+        ${myP.weeklyMission ? `
+          <div class="card" style="margin-bottom: 14px; border: 1.5px solid ${myP.weeklyMission.status === 'completed' ? 'rgba(34, 197, 94, 0.6)' : 'rgba(168, 85, 247, 0.5)'}; background: ${myP.weeklyMission.status === 'completed' ? 'linear-gradient(135deg, rgba(34, 197, 94, 0.16) 0%, rgba(15, 23, 42, 0.8) 100%)' : 'linear-gradient(135deg, rgba(168, 85, 247, 0.16) 0%, rgba(15, 23, 42, 0.8) 100%)'}; border-radius: 16px; padding: 14px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 24px;">🎯</span>
+                <b style="font-size: 13.5px; color: ${myP.weeklyMission.status === 'completed' ? '#4ade80' : '#c084fc'}; text-transform: uppercase; letter-spacing: 0.5px;">
+                  ${t('weeklyMissionTitle', 'Misión Semanal del Míster')}
+                </b>
+              </div>
+              <span class="badge" style="background: ${myP.weeklyMission.status === 'completed' ? '#16a34a' : 'rgba(250, 204, 21, 0.2)'}; color: ${myP.weeklyMission.status === 'completed' ? '#fff' : '#fde047'}; font-weight: 900; font-size: 11px; padding: 4px 10px; border-radius: 999px;">
+                ${myP.weeklyMission.status === 'completed' ? t('missionStatusCompleted', '🎉 ¡Misión Cumplida!') : t('missionStatusPending', '⏳ En curso')}
+              </span>
+            </div>
+            <div style="font-size: 14px; font-weight: 800; color: #fff; margin: 8px 0; line-height: 1.45; background: rgba(0,0,0,0.3); padding: 10px 12px; border-radius: 10px;">
+              "${escapeHtml(myP.weeklyMission.text)}"
+            </div>
+            <div style="font-size: 11px; color: var(--muted); line-height: 1.35;">
+              ${t('missionMotivation', 'Concéntrate en este objetivo táctico en tus próximos entrenos y partidos.')}
+            </div>
+          </div>
+        ` : ''}
 
         <!-- RACHA DE ASISTENCIA Y MEDALLAS -->
         <div class="card" style="margin-bottom: 14px; border: 1.5px solid rgba(249, 115, 22, 0.45); background: linear-gradient(135deg, rgba(249, 115, 22, 0.16) 0%, rgba(19, 31, 56, 0.8) 100%);">
@@ -5295,6 +5730,7 @@
             const team = teams.find(t => t.id === p.teamId);
             const pStats = calculatePlayerStats(p.id);
             const pStreak = calculatePlayerAttendanceStreak(p.id);
+            const pMvp = calculatePlayerMvpCount(p.id);
 
             return `
               <div class="card squad-item-card" data-pid="${p.id}" style="display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--border); cursor: pointer;">
@@ -5312,6 +5748,7 @@
                 </div>
                 <div style="text-align: right; flex-shrink: 0;">
                   <div style="display: flex; align-items: center; justify-content: flex-end; gap: 4px;">
+                    ${pMvp > 0 ? `<span style="font-size: 11px; font-weight: 800; color: #fde047; background: rgba(250, 204, 21, 0.15); border: 1px solid rgba(250, 204, 21, 0.35); padding: 1px 5px; border-radius: 6px;" title="MVP">👑 ${pMvp}</span>` : ''}
                     ${pStreak >= 2 ? `<span style="font-size: 11px; font-weight: 800; color: #fb923c; background: rgba(249, 115, 22, 0.15); border: 1px solid rgba(249, 115, 22, 0.35); padding: 1px 5px; border-radius: 6px;" title="${t('attendanceStreak')}">🔥 ${pStreak}</span>` : ''}
                     <div style="font-size: 13px; font-weight: 900; color: #22d3ee;">⭐ ${pStats.aggregatedRating}</div>
                   </div>
@@ -5973,16 +6410,23 @@
       }
     };
 
-    overlay.querySelector('#btn-remind-no').onclick = async () => {
+    overlay.querySelector('#btn-remind-no').onclick = () => {
       close();
       if (convId) {
-        liveVotes[convId] = liveVotes[convId] || {};
-        liveVotes[convId][myPlayerId] = { status: 'absent', playerName: pName, timestamp: Date.now() };
-        if (window.Cloud && window.Cloud.voteAttendance) {
-          try { await window.Cloud.voteAttendance(convId, myPlayerId, 'absent', pName); } catch (e) {}
-        }
-        toast(t('absenceReported', '❌ Absence registered.'), 'info');
-        if (currentTab === 'convocations') renderConvocationsView();
+        showAbsenceReasonModal(title, async (reason) => {
+          liveVotes[convId] = liveVotes[convId] || {};
+          liveVotes[convId][myPlayerId] = {
+            status: 'absent',
+            playerName: pName,
+            notes: reason || '',
+            timestamp: Date.now()
+          };
+          if (window.Cloud && window.Cloud.voteAttendance) {
+            try { await window.Cloud.voteAttendance(convId, myPlayerId, 'absent', pName, reason || ''); } catch (e) {}
+          }
+          toast(t('absenceReported', '❌ Absence registered.'), 'info');
+          if (currentTab === 'convocations') renderConvocationsView();
+        });
       }
     };
 
@@ -6214,11 +6658,8 @@
         if (savedClaimJson) {
           try {
             const parsed = JSON.parse(savedClaimJson);
-            // Válido durante 45 minutos tras haber sido enviado
-            if (parsed && parsed.targetPlayerId && (Date.now() - (parsed.createdAt || 0)) < 45 * 60 * 1000) {
+            if (parsed && parsed.targetPlayerId) {
               activeClaim = parsed;
-            } else {
-              localStorage.removeItem('portal_pending_claim');
             }
           } catch (e) {}
         }
