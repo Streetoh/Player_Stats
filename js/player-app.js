@@ -1812,8 +1812,11 @@
   /* -------------------------------------------------------------
      REGISTRO Y LATIDO DE PRESENCIA EN VIVO (APK Y PWA)
      ------------------------------------------------------------- */
+  let _presenceStarted = false;
   function startPresenceHeartbeat() {
+    if (_presenceStarted) return;
     if (!myPlayerId || !hasApprovedProfile()) return;
+    _presenceStarted = true;
     const myP = getMyPlayer();
     const pName = myP ? `${myP.name || ''} ${myP.lastName || ''}`.trim() : 'Player';
     const isApk = !!(window.AndroidBridge);
@@ -1831,21 +1834,10 @@
     sendBeat(true);
 
     if (!window._portalPresenceInterval) {
+      // Latido cada 10 minutos (600.000 ms) para proteger la cuota gratuita Spark
       window._portalPresenceInterval = setInterval(() => {
         if (!document.hidden) sendBeat(true);
-      }, 180000);
-
-      document.addEventListener('visibilitychange', () => {
-        if (!document.hidden) sendBeat(true);
-      });
-
-      window.addEventListener('pagehide', () => {
-        sendBeat(false);
-      });
-
-      window.addEventListener('beforeunload', () => {
-        sendBeat(false);
-      });
+      }, 600000);
     }
   }
 
@@ -1874,7 +1866,8 @@
         lockIndicatorEl.style.border = locked ? '1px solid rgba(250, 204, 21, 0.35)' : '1px solid rgba(6, 182, 212, 0.3)';
       }
       startPresenceHeartbeat();
-      if (window.ChatUI && ChatUI.initGlobalUnreadListener) {
+      if (!window._chatUnreadInitialized && window.ChatUI && ChatUI.initGlobalUnreadListener) {
+        window._chatUnreadInitialized = true;
         ChatUI.initGlobalUnreadListener(myPlayerId, myP.teamId || null);
       }
     } else {

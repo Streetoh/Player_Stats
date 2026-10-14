@@ -28,12 +28,14 @@
   let stateUnsubscribe = null;
 
   const CLUB_ID = 'default_club';
+  const LS_SYNCED_HASHES_KEY = 'cloud_synced_hashes_v2';
+  const LS_KNOWN_REMOTE_IDS_KEY = 'cloud_known_remote_ids_v2';
 
   let knownRemotePlayerIds = null;
   let knownRemoteConvIds = null;
   let knownRemoteSessionIds = null;
 
-  // Cachés de hashes para sincronización delta incremental (ahorro del 95% de escrituras Firestore)
+  // Cachés de hashes persistentes para sincronización delta incremental (ahorro del 99% de escrituras Firestore)
   let syncedHashes = {
     root: '',
     players: {},
@@ -41,6 +43,58 @@
     sessions: {}
   };
   let lastPresenceSendTimes = {};
+
+  function loadPersistedSyncState() {
+    try {
+      if (typeof localStorage === 'undefined') return;
+      const rawHashes = localStorage.getItem(LS_SYNCED_HASHES_KEY);
+      if (rawHashes) {
+        const parsed = JSON.parse(rawHashes);
+        if (parsed && typeof parsed === 'object') {
+          syncedHashes = {
+            root: parsed.root || '',
+            players: parsed.players || {},
+            convocations: parsed.convocations || {},
+            sessions: parsed.sessions || {}
+          };
+        }
+      }
+      const rawIds = localStorage.getItem(LS_KNOWN_REMOTE_IDS_KEY);
+      if (rawIds) {
+        const parsedIds = JSON.parse(rawIds);
+        if (parsedIds && typeof parsedIds === 'object') {
+          if (Array.isArray(parsedIds.players) && parsedIds.players.length > 0) {
+            knownRemotePlayerIds = new Set(parsedIds.players);
+          }
+          if (Array.isArray(parsedIds.convocations) && parsedIds.convocations.length > 0) {
+            knownRemoteConvIds = new Set(parsedIds.convocations);
+          }
+          if (Array.isArray(parsedIds.sessions) && parsedIds.sessions.length > 0) {
+            knownRemoteSessionIds = new Set(parsedIds.sessions);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[Cloud] Error cargando hashes persistidos:', e);
+    }
+  }
+
+  function savePersistedSyncState() {
+    try {
+      if (typeof localStorage === 'undefined') return;
+      localStorage.setItem(LS_SYNCED_HASHES_KEY, JSON.stringify(syncedHashes));
+      localStorage.setItem(LS_KNOWN_REMOTE_IDS_KEY, JSON.stringify({
+        players: knownRemotePlayerIds ? Array.from(knownRemotePlayerIds) : [],
+        convocations: knownRemoteConvIds ? Array.from(knownRemoteConvIds) : [],
+        sessions: knownRemoteSessionIds ? Array.from(knownRemoteSessionIds) : []
+      }));
+    } catch (e) {
+      console.warn('[Cloud] Error guardando hashes persistidos:', e);
+    }
+  }
+
+  // Restaurar hashes del almacenamiento local inmediatamente
+  loadPersistedSyncState();
 
   async function commitBatchOperations(operations) {
     if (!operations || !operations.length) return;
@@ -261,9 +315,10 @@
         if (syncedHashes.root !== rootHash) {
           await clubRef.set(cleanUndefined(rootPayload), { merge: true });
           syncedHashes.root = rootHash;
+          savePersistedSyncState();
         }
 
-        // 2. Inicializar conjuntos de IDs remotos si es la primera sincronización de la sesión
+        // 2. Inicializar conjuntos de IDs remotos SOLO si no estaban guardados en localStorage
         if (knownRemotePlayerIds === null || knownRemoteConvIds === null || knownRemoteSessionIds === null) {
           try {
             const [pSnap, cSnap, sSnap] = await Promise.race([
@@ -277,11 +332,12 @@
             knownRemotePlayerIds = new Set(pSnap.docs.map(d => d.id));
             knownRemoteConvIds = new Set(cSnap.docs.map(d => d.id));
             knownRemoteSessionIds = new Set(sSnap.docs.map(d => d.id));
+            savePersistedSyncState();
           } catch (e) {
             console.warn('[Cloud] Error o timeout inicializando IDs remotos:', e);
-            knownRemotePlayerIds = new Set();
-            knownRemoteConvIds = new Set();
-            knownRemoteSessionIds = new Set();
+            knownRemotePlayerIds = knownRemotePlayerIds || new Set();
+            knownRemoteConvIds = knownRemoteConvIds || new Set();
+            knownRemoteSessionIds = knownRemoteSessionIds || new Set();
           }
         }
 
@@ -370,6 +426,7 @@
         if (batchOps.length > 0) {
           await commitBatchOperations(batchOps);
         }
+        savePersistedSyncState();
 
         isSyncing = false;
         this.lastError = null;
@@ -557,7 +614,7 @@
         });
 
         // 4. Listener de la Subcolección de Sesiones (Partidos y Entrenamientos)
-        const sessionsUnsub = clubRef.collection('sessions').onSnapshot((snapshot) => {
+        const sessionsUnsub = clubRef.collection('sessions').limit(25).onSnapshot((snapshot) => {
           const list = [];
           snapshot.forEach(doc => {
             const data = doc.data();
@@ -929,10 +986,16 @@
     updatePresence: async function (userId, userName, isOnline, metadata = {}) {
       if (!this.init() || !userId) return;
       const now = Date.now();
-      const last = lastPresenceSendTimes[userId] || 0;
-      // No reenviar latidos si ya se envió hace menos de 90s, salvo que pase a offline
-      if (isOnline !== false && (now - last < 90000)) return;
+      const lastKey = `presence_last_${userId}`;
+      const last = lastPresenceSendTimes[userId] ||
+        (typeof localStorage !== 'undefined' ? parseInt(localStorage.getItem(lastKey) || '0', 10) : 0);
+
+      // Throttle estricto de 8 minutos (480.000 ms) para proteger la cuota Spark
+      // NUNCA escribir en Firestore por simples cambios de foco, pestañas o bloqueos de pantalla
+      if (now - last < 480000) return;
       lastPresenceSendTimes[userId] = now;
+      try { if (typeof localStorage !== 'undefined') localStorage.setItem(lastKey, String(now)); } catch (e) {}
+
       try {
         const isApk = !!(global.AndroidBridge || (typeof window !== 'undefined' && window.AndroidBridge));
         const platformVal = (metadata && metadata.platform) || (isApk ? 'apk' : 'pwa');

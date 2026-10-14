@@ -669,21 +669,14 @@
       });
     },
 
-    // Inicia latido de presencia en línea
+    // Inicia latido de presencia en línea (protección de cuota Spark)
     initPresenceHeartbeat: function (userId, userName) {
       if (!userId || !global.Cloud || !global.Cloud.updatePresence) return;
+      if (window._presenceInterval) return;
       global.Cloud.updatePresence(userId, userName, true);
-      if (!window._presenceInterval) {
-        window._presenceInterval = setInterval(() => {
-          if (!document.hidden) global.Cloud.updatePresence(userId, userName, true);
-        }, 180000);
-        document.addEventListener('visibilitychange', () => {
-          if (!document.hidden) global.Cloud.updatePresence(userId, userName, true);
-        });
-        window.addEventListener('pagehide', () => {
-          global.Cloud.updatePresence(userId, userName, false);
-        });
-      }
+      window._presenceInterval = setInterval(() => {
+        if (!document.hidden) global.Cloud.updatePresence(userId, userName, true);
+      }, 600000); // 10 minutos
     },
 
     // Renderiza la lista general de chats

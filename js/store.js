@@ -137,6 +137,17 @@
     s.teams = Array.isArray(s.teams) ? s.teams : [];
     s.sessions = Array.isArray(s.sessions) ? s.sessions : [];
     s.convocations = Array.isArray(s.convocations) ? s.convocations : [];
+    // Limpieza de convocatorias recurrentes vacías generadas a más de 21 días en el futuro (cuota Spark)
+    const maxFutureLimit = new Date();
+    maxFutureLimit.setDate(maxFutureLimit.getDate() + 21);
+    const maxFutureStr = maxFutureLimit.toISOString().slice(0, 10);
+    s.convocations = s.convocations.filter(c => {
+      if (!c || !c.id) return false;
+      if (c.id.startsWith('rec_') && (!c.responses || Object.keys(c.responses).length === 0)) {
+        if (c.date && c.date > maxFutureStr) return false;
+      }
+      return true;
+    });
     s.recurringSchedules = Array.isArray(s.recurringSchedules) ? s.recurringSchedules : [];
     s.coachProfile = Object.assign({}, d.coachProfile, s.coachProfile || {});
     s.settings = Object.assign({}, d.settings, s.settings || {});
@@ -198,9 +209,14 @@
       }
       if (window.Cloud && window.Cloud.pushCoachState) {
         clearTimeout(this._cloudTimer);
+        // Si hay una sesión activa en progreso (partido o entrenamiento en vivo),
+        // ampliar el debounce a 15 segundos para no agotar la cuota Spark con cada pase/tiro individual.
+        // Los datos se guardan instantáneamente en localStorage y AndroidBridge sin riesgo.
+        const isLiveSession = !!(this.state.currentSessionId || (this.state.sessions && this.state.sessions.some(s => s && s.live)));
+        const debounceMs = isLiveSession ? 15000 : 3500;
         this._cloudTimer = setTimeout(() => {
           window.Cloud.pushCoachState(this.state);
-        }, 1200);
+        }, debounceMs);
       }
       this.listeners.forEach(fn => { try { fn(); } catch (e) { console.error(e); } });
     },
@@ -1100,10 +1116,12 @@
             curEndD = new Date(parts[0], parts[1] - 1, parts[2], 23, 59, 59);
           }
         }
-        if (!curEndD || isNaN(curEndD.getTime())) {
-          curEndD = new Date(startD);
-          curEndD.setDate(startD.getDate() + (daysAhead || 30));
-          curEndD.setHours(23, 59, 59, 999);
+        const maxAheadD = new Date(startD);
+        maxAheadD.setDate(startD.getDate() + (daysAhead || 21));
+        maxAheadD.setHours(23, 59, 59, 999);
+
+        if (!curEndD || isNaN(curEndD.getTime()) || curEndD > maxAheadD) {
+          curEndD = maxAheadD;
         }
 
         let curD = new Date(startD);
