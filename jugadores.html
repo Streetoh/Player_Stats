@@ -18,66 +18,32 @@
   <link rel="stylesheet" href="css/app.css?v=20261014_v2" />
   <script>
     (function () {
-      const APP_VERSION = '2026.10.14.2';
-      const storedVer = localStorage.getItem('player_pwa_version');
+      const APP_VERSION = '2026.10.14.3';
+      try { localStorage.setItem('player_pwa_version', APP_VERSION); } catch (e) {}
 
-      async function purgeBrowserCaches() {
-        if ('caches' in window) {
-          try {
-            const names = await caches.keys();
-            await Promise.all(names.map(name => caches.delete(name)));
-            console.log('[PWA] CacheStorage purged:', names);
-          } catch (e) {}
-        }
-        if ('serviceWorker' in navigator) {
-          try {
-            const regs = await navigator.serviceWorker.getRegistrations();
-            for (let reg of regs) {
-              await reg.unregister();
-              console.log('[PWA] ServiceWorker unregistered:', reg);
-            }
-          } catch (e) {}
-        }
-        try { localStorage.removeItem('cached_club_state'); } catch (e) {}
-      }
-
-      // Limpieza automática inmediata si la versión local es anterior
-      if (storedVer !== APP_VERSION) {
-        purgeBrowserCaches().then(() => {
-          localStorage.setItem('player_pwa_version', APP_VERSION);
-          if (storedVer) {
-            console.log('[PWA] New version detected. Reloading with fresh cache...');
-            window.location.replace(window.location.pathname + '?_v=' + Date.now());
-          }
-        });
-      }
-
-      // Comprobar periódicamente en segundo plano si hay nueva versión en el servidor
-      if (!window.AndroidBridge && 'fetch' in window) {
-        fetch('version.json?_t=' + Date.now(), { cache: 'no-store' })
-          .then(res => res.json())
-          .then(data => {
-            if (data && data.version && data.version !== APP_VERSION) {
-              console.log('[PWA] Newer version on server:', data.version);
-              purgeBrowserCaches().then(() => {
-                localStorage.setItem('player_pwa_version', data.version);
-                window.location.replace(window.location.pathname + '?_v=' + Date.now());
-              });
-            }
-          })
-          .catch(() => {});
-      }
-
+      // Limpieza manual y recarga solo si el usuario lo solicita explícitamente
       window.clearAppCacheAndReload = async function () {
         const toast = document.createElement('div');
         toast.style.cssText = 'position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:9999999;background:#0284c7;color:#fff;padding:12px 20px;border-radius:14px;font-weight:900;font-size:13.5px;box-shadow:0 8px 30px rgba(0,0,0,0.6);text-align:center;letter-spacing:0.3px;';
         toast.innerHTML = '🔄 Clearing cache and updating...';
         document.body.appendChild(toast);
 
-        await purgeBrowserCaches();
+        if ('caches' in window) {
+          try {
+            const names = await caches.keys();
+            await Promise.all(names.map(name => caches.delete(name)));
+          } catch (e) {}
+        }
+        if ('serviceWorker' in navigator) {
+          try {
+            const regs = await navigator.serviceWorker.getRegistrations();
+            for (let reg of regs) { await reg.unregister(); }
+          } catch (e) {}
+        }
+        try { localStorage.removeItem('cached_club_state'); } catch (e) {}
         setTimeout(() => {
-          window.location.replace(window.location.pathname + '?_v=' + Date.now());
-        }, 400);
+          window.location.href = window.location.pathname + '?_t=' + Date.now();
+        }, 300);
       };
     })();
   </script>

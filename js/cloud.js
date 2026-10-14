@@ -981,81 +981,21 @@
     },
 
     /* =========================================================
-       PRESENCIA EN LÍNEA (ONLINE / ÚLTIMA CONEXIÓN)
+       PRESENCIA EN LÍNEA (DESACTIVADA PARA PROTEGER LA CUOTA SPARK)
        ========================================================= */
-    updatePresence: async function (userId, userName, isOnline, metadata = {}) {
-      if (!this.init() || !userId) return;
-      const now = Date.now();
-      const lastKey = `presence_last_${userId}`;
-      const last = lastPresenceSendTimes[userId] ||
-        (typeof localStorage !== 'undefined' ? parseInt(localStorage.getItem(lastKey) || '0', 10) : 0);
-
-      // Throttle estricto de 8 minutos (480.000 ms) para proteger la cuota Spark
-      // NUNCA escribir en Firestore por simples cambios de foco, pestañas o bloqueos de pantalla
-      if (now - last < 480000) return;
-      lastPresenceSendTimes[userId] = now;
-      try { if (typeof localStorage !== 'undefined') localStorage.setItem(lastKey, String(now)); } catch (e) {}
-
-      try {
-        const isApk = !!(global.AndroidBridge || (typeof window !== 'undefined' && window.AndroidBridge));
-        const platformVal = (metadata && metadata.platform) || (isApk ? 'apk' : 'pwa');
-        const ref = db.collection('clubs').doc(CLUB_ID).collection('presence').doc(userId);
-        await ref.set({
-          userId: userId,
-          userName: userName || '',
-          isOnline: isOnline !== false,
-          hasApp: true,
-          platform: platformVal,
-          lastSeen: Date.now(),
-          serverTime: global.firebase.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
-      } catch (err) {
-        console.warn('[Cloud] Error actualizando presencia:', err);
-      }
+    updatePresence: async function () {
+      // Desactivada: 0 escrituras en Firestore
+      return;
     },
 
-    listenToUserPresence: function (userId, callback) {
-      if (!this.init() || !userId) return null;
-      try {
-        return db.collection('clubs')
-          .doc(CLUB_ID)
-          .collection('presence')
-          .doc(userId)
-          .onSnapshot((doc) => {
-            if (doc.exists && typeof callback === 'function') {
-              callback(doc.data());
-            } else if (typeof callback === 'function') {
-              callback({ userId: userId, isOnline: false, lastSeen: null });
-            }
-          }, (err) => {
-            console.warn('[Cloud] Error escuchando presencia:', err);
-          });
-      } catch (err) {
-        console.error('[Cloud] Error listener presencia:', err);
-        return null;
-      }
+    listenToUserPresence: function () {
+      // Desactivada: 0 lecturas en Firestore
+      return null;
     },
 
-    listenToAllPresence: function (callback) {
-      if (!this.init()) return null;
-      try {
-        return db.collection('clubs')
-          .doc(CLUB_ID)
-          .collection('presence')
-          .onSnapshot((snapshot) => {
-            const presenceMap = {};
-            snapshot.forEach(doc => {
-              const data = doc.data();
-              if (data && data.userId) presenceMap[data.userId] = data;
-            });
-            if (typeof callback === 'function') callback(presenceMap);
-          }, (err) => {
-            console.warn('[Cloud] Error escuchando presencia global:', err);
-          });
-      } catch (err) {
-        console.error('[Cloud] Error listener all presence:', err);
-        return null;
-      }
+    listenToAllPresence: function () {
+      // Desactivada: 0 lecturas en Firestore
+      return null;
     },
 
     /* =========================================================

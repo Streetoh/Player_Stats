@@ -1,5 +1,5 @@
 {
-  "version": "2026.10.14.1",
-  "buildTime": 1791961200000,
-  "description": "Enable Firestore IndexedDB persistence to slash reads and prevent quota limits"
+  "version": "2026.10.14.3",
+  "buildTime": 1791980000000,
+  "description": "Stable release: remove refresh loops and eliminate presence checks to protect Spark quota"
 }

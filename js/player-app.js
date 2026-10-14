@@ -1810,36 +1810,9 @@
      ACTUALIZAR CABECERA E IDENTIDAD (BLOQUEO DE PERFIL)
      ------------------------------------------------------------- */
   /* -------------------------------------------------------------
-     REGISTRO Y LATIDO DE PRESENCIA EN VIVO (APK Y PWA)
+     REGISTRO Y LATIDO DE PRESENCIA (DESACTIVADO PARA PROTEGER LA CUOTA SPARK)
      ------------------------------------------------------------- */
-  let _presenceStarted = false;
-  function startPresenceHeartbeat() {
-    if (_presenceStarted) return;
-    if (!myPlayerId || !hasApprovedProfile()) return;
-    _presenceStarted = true;
-    const myP = getMyPlayer();
-    const pName = myP ? `${myP.name || ''} ${myP.lastName || ''}`.trim() : 'Player';
-    const isApk = !!(window.AndroidBridge);
-    const platformType = isApk ? 'apk' : 'pwa';
-
-    function sendBeat(online) {
-      if (window.Cloud && window.Cloud.updatePresence && myPlayerId && hasApprovedProfile()) {
-        window.Cloud.updatePresence(myPlayerId, pName, online !== false, {
-          platform: platformType,
-          hasApp: true
-        });
-      }
-    }
-
-    sendBeat(true);
-
-    if (!window._portalPresenceInterval) {
-      // Latido cada 10 minutos (600.000 ms) para proteger la cuota gratuita Spark
-      window._portalPresenceInterval = setInterval(() => {
-        if (!document.hidden) sendBeat(true);
-      }, 600000);
-    }
-  }
+  function startPresenceHeartbeat() {}
 
   function updateHeaderIdentity() {
     const nameEl = document.getElementById('portal-my-name');
@@ -1864,8 +1837,6 @@
         lockIndicatorEl.style.color = locked ? '#facc15' : 'var(--cyan)';
         lockIndicatorEl.style.background = locked ? 'rgba(250, 204, 21, 0.15)' : 'rgba(6, 182, 212, 0.15)';
         lockIndicatorEl.style.border = locked ? '1px solid rgba(250, 204, 21, 0.35)' : '1px solid rgba(6, 182, 212, 0.3)';
-      }
-      startPresenceHeartbeat();
       if (!window._chatUnreadInitialized && window.ChatUI && ChatUI.initGlobalUnreadListener) {
         window._chatUnreadInitialized = true;
         ChatUI.initGlobalUnreadListener(myPlayerId, myP.teamId || null);
@@ -2044,16 +2015,9 @@
     } catch (e) {}
     myPlayerId = null;
 
-    if (window._portalPresenceInterval) {
-      clearInterval(window._portalPresenceInterval);
-      window._portalPresenceInterval = null;
-    }
     if (window._unlinkListenerUnsub) {
       try { window._unlinkListenerUnsub(); } catch (e) {}
       window._unlinkListenerUnsub = null;
-    }
-    if (oldPid && window.Cloud && window.Cloud.updatePresence) {
-      window.Cloud.updatePresence(oldPid, '', false, { hasApp: false });
     }
 
     // Cerrar cualquier diálogo, chat o modal abierto

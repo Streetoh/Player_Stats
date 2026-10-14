@@ -1648,20 +1648,8 @@
           handleIncomingProfileClaimRequests(requests);
         });
       }
-      if (window.ChatUI && window.ChatUI.initPresenceHeartbeat) {
-        window.ChatUI.initPresenceHeartbeat('coach', 'Entrenador');
-      }
       if (window.ChatUI && window.ChatUI.initGlobalUnreadListener) {
         window.ChatUI.initGlobalUnreadListener('coach');
-      }
-      if (window.Cloud.listenToAllPresence) {
-        window._presenceListenerRegistered = true;
-        window.Cloud.listenToAllPresence((map) => {
-          window._globalPresenceMap = map;
-          if (typeof window._refreshPlayersPresenceList === 'function') {
-            window._refreshPlayersPresenceList();
-          }
-        });
       }
       setTimeout(() => {
         if (Store.state.players.length > 0 || Store.state.convocations.length > 0) {
@@ -6079,61 +6067,12 @@
      VISTA 3: JUGADORES & EQUIPOS
      ========================================================= */
   function renderPlayersView(view) {
-    function getPlayerBadgeHtml(pid) {
-      const pres = (window._globalPresenceMap && window._globalPresenceMap[pid]);
-      const now = Date.now();
-      // En línea SÓLO si pres.isOnline es true Y el último latido fue hace menos de 75 segundos
-      const isOnlineNow = !!(pres && pres.isOnline && (now - (pres.lastSeen || 0) < 75000));
-      // Tiene la app vinculada (sea APK o PWA) si existe documento de presencia
-      const hasAppLinked = !!(pres && (pres.hasApp || pres.lastSeen || pres.userId));
-
-      if (isOnlineNow) {
-        return `<span title="${t('onlineInApp', 'En línea en la App/PWA de Jugadores')}" style="font-size: 13px; margin-left: 6px; display: inline-flex; align-items: center; gap: 2px; color: #4ade80;">📱🟢</span>`;
-      } else if (hasAppLinked) {
-        return `<span title="${t('syncedApp', 'App/PWA vinculada y sincronizada')}" style="font-size: 13px; margin-left: 6px; display: inline-flex; align-items: center; gap: 2px; color: #38bdf8;">📱</span>`;
-      } else {
-        return `<span title="${t('notSyncedApp', 'Sin app instalada / no vinculado')}" style="font-size: 13px; margin-left: 6px; display: inline-flex; align-items: center; gap: 2px; opacity: 0.35;">⚪</span>`;
-      }
+    function getPlayerBadgeHtml() {
+      // Presencia desactivada para proteger la cuota de Firestore
+      return '';
     }
 
-    function refreshPresenceBadges() {
-      if (currentTab !== 'players') return;
-      const listCont = view.querySelector('#players-list-container');
-      if (!listCont) {
-        build();
-        return;
-      }
-      const items = listCont.querySelectorAll('.player-item');
-      if (!items || items.length === 0) {
-        build();
-        return;
-      }
-      items.forEach(el => {
-        const pid = el.getAttribute('data-id');
-        const badgeSlot = el.querySelector('.pres-badge-slot');
-        if (badgeSlot && pid) {
-          badgeSlot.innerHTML = getPlayerBadgeHtml(pid);
-        }
-      });
-    }
-
-    window._refreshPlayersPresenceList = refreshPresenceBadges;
-
-    if (!window._presenceListenerRegistered && window.Cloud && window.Cloud.listenToAllPresence) {
-      window._presenceListenerRegistered = true;
-      window.Cloud.listenToAllPresence((map) => {
-        window._globalPresenceMap = map;
-        refreshPresenceBadges();
-      });
-    }
-
-    if (!window._presenceTickTimer) {
-      window._presenceTickTimer = setInterval(() => {
-        if (typeof window._refreshPlayersPresenceList === 'function') {
-          window._refreshPlayersPresenceList();
-        }
-      }, 15000);
-    }
+    function refreshPresenceBadges() {}
 
     function build() {
       let players = Store.sortedPlayers(playerListTeam);
@@ -6300,11 +6239,6 @@
     const hasParentContact = p.parentContact && (p.parentContact.name || p.parentContact.phone || p.parentContact.email);
     const secPositions = p.secondaryPositions && p.secondaryPositions.length ? p.secondaryPositions : (p.secondaryPosition ? [p.secondaryPosition] : []);
 
-    const pres = (window._globalPresenceMap && window._globalPresenceMap[p.id]);
-    const now = Date.now();
-    const isOnlineNow = !!(pres && pres.isOnline && (now - (pres.lastSeen || 0) < 75000));
-    const hasAppLinked = !!(pres && (pres.hasApp || pres.lastSeen || pres.userId));
-
     function handleUnlinkPlayerAction() {
       confirmDialog(
         t('unlinkProfile', 'Desvincular Perfil'),
@@ -6367,16 +6301,16 @@
           </div>
         </div>
 
-        <!-- Tarjeta de Estado de Vinculación de la App y botón de Desvincular -->
-        <div class="card" id="card-player-app-link" style="padding: 12px 14px; margin-bottom: 10px; border-radius: 14px; background: var(--surface2); border: 1.5px solid ${hasAppLinked ? 'rgba(56, 189, 248, 0.35)' : 'var(--border)'}; display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+        <!-- Tarjeta de Estado de Vinculación de Perfil y botón de Desvincular -->
+        <div class="card" id="card-player-app-link" style="padding: 12px 14px; margin-bottom: 10px; border-radius: 14px; background: var(--surface2); border: 1.5px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 10px;">
           <div style="display: flex; align-items: center; gap: 10px; overflow: hidden;">
-            <span style="font-size: 22px; flex-shrink: 0;">${isOnlineNow ? '📱🟢' : (hasAppLinked ? '📱' : '⚪')}</span>
+            <span style="font-size: 22px; flex-shrink: 0;">👤</span>
             <div style="overflow: hidden;">
-              <b style="font-size: 13px; color: ${isOnlineNow ? '#4ade80' : (hasAppLinked ? '#38bdf8' : '#94a3b8')}; display: block; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">
-                ${isOnlineNow ? t('appOnlineNow', 'En línea en la App') : (hasAppLinked ? t('appLinked', 'App Vinculada') : t('appNotLinked', 'Sin vincular'))}
+              <b style="font-size: 13px; color: #38bdf8; display: block; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">
+                ${t('playerProfile', 'Perfil de Jugador')}
               </b>
               <span style="font-size: 11px; color: var(--muted); display: block; line-height: 1.3;">
-                ${hasAppLinked ? t('appLinkedDesc', 'Perfil activo en el dispositivo del jugador') : t('appNotLinkedDesc', 'El jugador no tiene este perfil en su dispositivo')}
+                ${t('profileLinkedDesc', 'Perfil registrado en el club')}
               </span>
             </div>
           </div>

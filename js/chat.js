@@ -669,15 +669,8 @@
       });
     },
 
-    // Inicia latido de presencia en línea (protección de cuota Spark)
-    initPresenceHeartbeat: function (userId, userName) {
-      if (!userId || !global.Cloud || !global.Cloud.updatePresence) return;
-      if (window._presenceInterval) return;
-      global.Cloud.updatePresence(userId, userName, true);
-      window._presenceInterval = setInterval(() => {
-        if (!document.hidden) global.Cloud.updatePresence(userId, userName, true);
-      }, 600000); // 10 minutos
-    },
+    // Inicia latido de presencia (DESACTIVADO PARA PROTEGER LA CUOTA SPARK)
+    initPresenceHeartbeat: function () {},
 
     // Renderiza la lista general de chats
     renderChatList: function (container, options) {
@@ -2150,28 +2143,7 @@
         };
       }
 
-      // Presencia en directo si es chat 1 a 1
-      if (isDirectOrCoachChat && global.Cloud && global.Cloud.listenToUserPresence) {
-        const targetPresenceId = isCoachUser ? otherPlayerId : (otherPlayerId || 'coach');
-        if (targetPresenceId) {
-          const updatePresenceUI = (pr) => {
-            if (!presenceIndicator) return;
-            const isFresh = !!(pr && pr.isOnline && (pr.lastSeen ? (Date.now() - pr.lastSeen < 360000) : false));
-            if (isFresh) {
-              presenceIndicator.innerHTML = `🟢 <span style="color: #4ade80; font-weight: 700;">${t('online', 'En línea')}</span>`;
-            } else if (pr && pr.lastSeen) {
-              presenceIndicator.innerHTML = `⚪ <span style="color: var(--muted);">${t('lastSeen', 'Última vez')}: ${formatTime(pr.lastSeen)}</span>`;
-            } else {
-              presenceIndicator.innerHTML = `⚪ <span style="color: var(--muted);">${t('offline', 'Desconectado')}</span>`;
-            }
-          };
-
-          const cachedPr = (window._globalPresenceMap && window._globalPresenceMap[targetPresenceId]) || null;
-          updatePresenceUI(cachedPr);
-
-          presenceListenerUnsub = global.Cloud.listenToUserPresence(targetPresenceId, updatePresenceUI);
-        }
-      }
+      // Presencia en directo desactivada para proteger la cuota de Firebase
 
       // Desplegable de menú
       if (menuBtn && menuDropdown) {
