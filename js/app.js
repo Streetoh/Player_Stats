@@ -3532,15 +3532,15 @@
 
         <!-- PANEL EXCLUSIVO 1-TAP DUELOS 1v1 (SIN OTRAS ACCIONES) -->
         <div style="display: flex; flex-direction: column; gap: 10px; margin: 12px 0 6px; flex: 1; justify-content: space-evenly;">
-          <button type="button" class="duel-1tap-btn duel-btn-goal" data-duel-action="${isSlotA ? 'goal_A' : 'goal_B'}" data-p-win="${player.id}" data-p-loss="${opponentId || ''}" style="flex: 1; max-height: 115px; min-height: 72px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border-radius: 14px; font-size: 15px; font-weight: 900; background: linear-gradient(135deg, rgba(34, 197, 94, 0.28) 0%, rgba(22, 163, 74, 0.45) 100%); border: 2px solid #22c55e; color: #86efac; box-shadow: 0 4px 14px rgba(34, 197, 94, 0.22); cursor: pointer;">
+          <button type="button" class="duel-1tap-btn duel-btn-goal" data-duel-action="${isSlotA ? 'goal_A' : 'goal_B'}" data-p-a="${session.slots[0] || ''}" data-p-b="${session.slots[1] || ''}" style="flex: 1; max-height: 115px; min-height: 72px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border-radius: 14px; font-size: 15px; font-weight: 900; background: linear-gradient(135deg, rgba(34, 197, 94, 0.28) 0%, rgba(22, 163, 74, 0.45) 100%); border: 2px solid #22c55e; color: #86efac; box-shadow: 0 4px 14px rgba(34, 197, 94, 0.22); cursor: pointer;">
             <span style="font-size: 24px;">⚽</span>
             <span>1v1 Gol (+1)</span>
           </button>
-          <button type="button" class="duel-1tap-btn duel-btn-steal" data-duel-action="${isSlotA ? 'steal_goal_A' : 'steal_goal_B'}" data-p-win="${player.id}" data-p-loss="${opponentId || ''}" style="flex: 1; max-height: 115px; min-height: 72px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border-radius: 14px; font-size: 15px; font-weight: 900; background: linear-gradient(135deg, rgba(245, 158, 11, 0.25) 0%, rgba(217, 119, 6, 0.42) 100%); border: 2px solid #f59e0b; color: #fde047; box-shadow: 0 4px 14px rgba(245, 158, 11, 0.22); cursor: pointer;">
+          <button type="button" class="duel-1tap-btn duel-btn-steal" data-duel-action="${isSlotA ? 'steal_goal_A' : 'steal_goal_B'}" data-p-a="${session.slots[0] || ''}" data-p-b="${session.slots[1] || ''}" style="flex: 1; max-height: 115px; min-height: 72px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border-radius: 14px; font-size: 15px; font-weight: 900; background: linear-gradient(135deg, rgba(245, 158, 11, 0.25) 0%, rgba(217, 119, 6, 0.42) 100%); border: 2px solid #f59e0b; color: #fde047; box-shadow: 0 4px 14px rgba(245, 158, 11, 0.22); cursor: pointer;">
             <span style="font-size: 24px;">⚡</span>
             <span>Robo y Gol</span>
           </button>
-          <button type="button" class="duel-1tap-btn duel-btn-out" data-duel-action="${isSlotA ? 'out_loss_A' : 'out_loss_B'}" data-p-win="${player.id}" data-p-loss="${opponentId || ''}" style="flex: 1; max-height: 115px; min-height: 72px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border-radius: 14px; font-size: 15px; font-weight: 900; background: linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(220, 38, 38, 0.42) 100%); border: 2px solid #ef4444; color: #fca5a5; box-shadow: 0 4px 14px rgba(239, 68, 68, 0.22); cursor: pointer;">
+          <button type="button" class="duel-1tap-btn duel-btn-out" data-duel-action="${isSlotA ? 'out_loss_A' : 'out_loss_B'}" data-p-a="${session.slots[0] || ''}" data-p-b="${session.slots[1] || ''}" style="flex: 1; max-height: 115px; min-height: 72px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border-radius: 14px; font-size: 15px; font-weight: 900; background: linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(220, 38, 38, 0.42) 100%); border: 2px solid #ef4444; color: #fca5a5; box-shadow: 0 4px 14px rgba(239, 68, 68, 0.22); cursor: pointer;">
             <span style="font-size: 24px;">❌</span>
             <span>Fuera / Pérdida</span>
           </button>
@@ -3656,10 +3656,10 @@
       btn.onclick = (e) => {
         e.stopPropagation();
         const action = btn.getAttribute('data-duel-action');
-        const pWin = btn.getAttribute('data-p-win');
-        const pLoss = btn.getAttribute('data-p-loss');
+        const pA = btn.getAttribute('data-p-a');
+        const pB = btn.getAttribute('data-p-b');
 
-        if (!pWin || !pLoss) {
+        if (!pA || !pB) {
           toast('Se necesitan 2 jugadores para registrar el duelo 1v1', 'warning');
           return;
         }
@@ -3670,11 +3670,12 @@
           session.duels1v1._scrollLeft = ribbonEl.scrollLeft;
         }
 
-        const logEntry = Store.recordDuel1v1Outcome(session.id, action, pWin, pLoss);
+        const logEntry = Store.recordDuel1v1Outcome(session.id, action, pA, pB);
         haptic(35);
 
+        const pScored = (action === 'goal_A' || action === 'steal_goal_A' || action === 'out_loss_B') ? pA : pB;
         if (window.SyncEngine && SyncEngine.isLive() && logEntry) {
-          SyncEngine.sendAction(session.id, pWin, 'duel1v1', 0, logEntry);
+          SyncEngine.sendAction(session.id, pScored, 'duel1v1', 0, logEntry);
         }
 
         // Auto-rotar trío si la pareja actual es un trío (al terminar el turno)
@@ -5892,13 +5893,13 @@
             <!-- Radares comparativos 100% simétricos -->
             <div class="section-title" style="margin-top: 6px; margin-bottom: 8px;"><span>${t('comparativeRadars', 'Comparative Skill Radars')}</span></div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: stretch; margin-bottom: 14px;">
-              <div class="card" style="padding: 10px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; border: 1.5px solid rgba(34, 211, 238, 0.35); border-radius: 14px; height: 100%; box-sizing: border-box; background: var(--bg2);">
+              <div class="card" style="margin: 0 !important; margin-top: 0 !important; padding: 10px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; border: 1.5px solid rgba(34, 211, 238, 0.35); border-radius: 14px; height: 100%; box-sizing: border-box; background: var(--bg2);">
                 <b style="font-size: 12.5px; color: #22d3ee; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; text-align: center; height: 20px; line-height: 20px; display: block; margin-bottom: 4px;">
                   ${escapeHtml(Store.playerName(p1))}
                 </b>
                 ${renderH2HSymmetricalRadarSVG(r1, '#22d3ee')}
               </div>
-              <div class="card" style="padding: 10px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; border: 1.5px solid rgba(134, 239, 172, 0.35); border-radius: 14px; height: 100%; box-sizing: border-box; background: var(--bg2);">
+              <div class="card" style="margin: 0 !important; margin-top: 0 !important; padding: 10px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; border: 1.5px solid rgba(134, 239, 172, 0.35); border-radius: 14px; height: 100%; box-sizing: border-box; background: var(--bg2);">
                 <b style="font-size: 12.5px; color: #86efac; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; text-align: center; height: 20px; line-height: 20px; display: block; margin-bottom: 4px;">
                   ${escapeHtml(Store.playerName(p2))}
                 </b>
@@ -7689,12 +7690,15 @@
     ];
 
     const curLang = (Store.state.settings && Store.state.settings.lang) || 'es';
-    let selectedPreset = null;
     const currentMission = player.weeklyMission || null;
-    const currentText = currentMission ? (currentMission['text_' + curLang] || currentMission.text || '') : '';
+    let selectedPreset = null;
+    let currentComment = '';
 
-    if (currentMission && currentMission.presetKey) {
-      selectedPreset = presets.find(p => p.key === currentMission.presetKey) || null;
+    if (currentMission) {
+      if (currentMission.presetKey) {
+        selectedPreset = presets.find(p => p.key === currentMission.presetKey) || null;
+      }
+      currentComment = currentMission.comment || (!selectedPreset ? currentMission.text : '') || '';
     }
 
     const modal = document.createElement('div');
@@ -7703,6 +7707,10 @@
     modal.style.zIndex = '999999';
 
     function renderModalHtml() {
+      const curPresetText = selectedPreset
+        ? (curLang === 'ee' ? selectedPreset.text_ee : (curLang === 'en' ? selectedPreset.text_en : selectedPreset.text_es))
+        : '';
+
       return `
         <div class="card dialog-box" style="max-width: 480px; width: 92%; padding: 20px; border-radius: 18px; border: 1.5px solid rgba(168, 85, 247, 0.45); max-height: 90vh; overflow-y: auto;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
@@ -7725,12 +7733,15 @@
                 const isCur = selectedPreset && selectedPreset.key === pr.key;
                 const prText = (curLang === 'ee' ? pr.text_ee : (curLang === 'en' ? pr.text_en : pr.text_es));
                 return `
-                  <div class="quick-mission-card ${isCur ? 'active' : ''}" data-mkey="${pr.key}" style="background: var(--surface2); border: 1.5px solid ${isCur ? pr.color : 'rgba(255,255,255,0.08)'}; border-radius: 12px; padding: 10px; cursor: pointer; transition: all .15s ease; display: flex; flex-direction: column; gap: 4px; ${isCur ? `box-shadow: 0 0 12px ${pr.color}40; background: ${pr.color}15;` : ''}">
+                  <div class="quick-mission-card ${isCur ? 'active' : ''}" data-mkey="${pr.key}" style="background: ${isCur ? pr.color + '25' : 'var(--surface2)'}; border: ${isCur ? '2px solid ' + pr.color : '1.5px solid rgba(255,255,255,0.08)'}; border-radius: 12px; padding: 10px; cursor: pointer; transition: all .15s ease; display: flex; flex-direction: column; gap: 4px; ${isCur ? `box-shadow: 0 0 14px ${pr.color}60;` : ''}">
                     <div style="display: flex; align-items: center; justify-content: space-between;">
                       <span style="font-size: 18px;">${pr.icon}</span>
-                      <span class="badge" style="font-size: 9.5px; font-weight: 800; background: ${pr.color}22; color: ${pr.color}; border: 1px solid ${pr.color}44; padding: 1px 6px; border-radius: 6px;">
-                        ${pr.category}
-                      </span>
+                      <div style="display: flex; align-items: center; gap: 4px;">
+                        <span class="chk-preset" style="font-size: 11px; color: ${pr.color}; font-weight: 900; display: ${isCur ? 'inline-block' : 'none'};">✓</span>
+                        <span class="badge" style="font-size: 9.5px; font-weight: 800; background: ${pr.color}22; color: ${pr.color}; border: 1px solid ${pr.color}44; padding: 1px 6px; border-radius: 6px;">
+                          ${pr.category}
+                        </span>
+                      </div>
                     </div>
                     <div style="font-size: 11px; font-weight: 700; color: #fff; line-height: 1.35; margin-top: 2px;">
                       ${escapeHtml(prText)}
@@ -7741,18 +7752,33 @@
             </div>
           </div>
 
+          <!-- Vista previa de la misión seleccionada -->
+          <div id="mission-selected-preview" style="margin-bottom: 12px; ${selectedPreset ? '' : 'display: none;'}">
+            ${selectedPreset ? `
+              <div style="background: rgba(168, 85, 247, 0.15); border: 1.5px solid rgba(168, 85, 247, 0.45); border-radius: 12px; padding: 10px 12px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                  <span style="font-size: 11px; font-weight: 800; color: #c084fc; text-transform: uppercase;">
+                    🎯 ${t('missionSelected', 'Misión Seleccionada')}:
+                  </span>
+                  <span style="font-size: 9.5px; font-weight: 800; color: #86efac; background: rgba(34, 197, 94, 0.18); padding: 1px 6px; border-radius: 6px;">
+                    🌐 Auto-traducida (ES / EN / EE)
+                  </span>
+                </div>
+                <div style="font-size: 13px; font-weight: 800; color: #fff; line-height: 1.35;">
+                  ${selectedPreset.icon} "${escapeHtml(curPresetText)}"
+                </div>
+              </div>
+            ` : ''}
+          </div>
+
+          <!-- Caja de texto: comentario opcional o misión personalizada -->
           <div style="margin-bottom: 16px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-              <label style="font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase;">
-                Texto de la Misión (Editable):
+              <label id="mission-textarea-label" style="font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase;">
+                ${selectedPreset ? '💬 ' + t('coachCommentOptional', 'Comentario o Nota adicional (Opcional)') : '✏️ ' + t('customMissionText', 'Misión Personalizada')}
               </label>
-              ${selectedPreset ? `
-                <span style="font-size: 10px; font-weight: 800; color: #86efac; background: rgba(34, 197, 94, 0.15); padding: 1px 6px; border-radius: 6px;">
-                  🌐 Auto-traducido en ES/EN/EE
-                </span>
-              ` : ''}
             </div>
-            <textarea id="mission-text-input" rows="3" style="width: 100%; font-size: 13.5px; padding: 10px; border-radius: 10px; resize: vertical;" placeholder="Ej. Intentar 2 centros al área, asegurar pases en corto...">${escapeHtml(currentText)}</textarea>
+            <textarea id="mission-text-input" rows="3" style="width: 100%; font-size: 13.5px; padding: 10px; border-radius: 10px; resize: vertical;" placeholder="${selectedPreset ? 'Ej. Muy atento al perfil corporal antes de recibir el balón... (Opcional)' : 'Escribe un objetivo personalizado para esta semana...'}">${escapeHtml(currentComment)}</textarea>
           </div>
 
           <div style="display: flex; gap: 8px; justify-content: flex-end;">
@@ -7768,19 +7794,82 @@
     modal.innerHTML = renderModalHtml();
     document.body.appendChild(modal);
 
-    function bindEvents() {
+    function updateSelectionUI() {
+      modal.querySelectorAll('[data-mkey]').forEach(card => {
+        const k = card.getAttribute('data-mkey');
+        const isCur = selectedPreset && selectedPreset.key === k;
+        const pr = presets.find(p => p.key === k);
+        if (pr) {
+          if (isCur) {
+            card.style.border = `2px solid ${pr.color}`;
+            card.style.background = `${pr.color}25`;
+            card.style.boxShadow = `0 0 14px ${pr.color}60`;
+            const chk = card.querySelector('.chk-preset');
+            if (chk) chk.style.display = 'inline-block';
+          } else {
+            card.style.border = '1.5px solid rgba(255,255,255,0.08)';
+            card.style.background = 'var(--surface2)';
+            card.style.boxShadow = 'none';
+            const chk = card.querySelector('.chk-preset');
+            if (chk) chk.style.display = 'none';
+          }
+        }
+      });
+
+      const previewEl = modal.querySelector('#mission-selected-preview');
+      const txtLabel = modal.querySelector('#mission-textarea-label');
       const txtInput = modal.querySelector('#mission-text-input');
 
+      if (selectedPreset) {
+        const prText = (curLang === 'ee' ? selectedPreset.text_ee : (curLang === 'en' ? selectedPreset.text_en : selectedPreset.text_es));
+        if (previewEl) {
+          previewEl.style.display = 'block';
+          previewEl.innerHTML = `
+            <div style="background: rgba(168, 85, 247, 0.15); border: 1.5px solid rgba(168, 85, 247, 0.45); border-radius: 12px; padding: 10px 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                <span style="font-size: 11px; font-weight: 800; color: #c084fc; text-transform: uppercase;">
+                  🎯 ${t('missionSelected', 'Misión Seleccionada')}:
+                </span>
+                <span style="font-size: 9.5px; font-weight: 800; color: #86efac; background: rgba(34, 197, 94, 0.18); padding: 1px 6px; border-radius: 6px;">
+                  🌐 Auto-traducida (ES / EN / EE)
+                </span>
+              </div>
+              <div style="font-size: 13px; font-weight: 800; color: #fff; line-height: 1.35;">
+                ${selectedPreset.icon} "${escapeHtml(prText)}"
+              </div>
+            </div>
+          `;
+        }
+        if (txtLabel) {
+          txtLabel.innerHTML = '💬 ' + t('coachCommentOptional', 'Comentario o Nota adicional (Opcional)');
+        }
+        if (txtInput) {
+          txtInput.placeholder = 'Ej. Muy atento al perfil corporal antes de recibir el balón... (Opcional)';
+        }
+      } else {
+        if (previewEl) {
+          previewEl.style.display = 'none';
+          previewEl.innerHTML = '';
+        }
+        if (txtLabel) {
+          txtLabel.innerHTML = '✏️ ' + t('customMissionText', 'Misión Personalizada');
+        }
+        if (txtInput) {
+          txtInput.placeholder = 'Escribe un objetivo personalizado para esta semana...';
+        }
+      }
+    }
+
+    function bindEvents() {
       modal.querySelectorAll('[data-mkey]').forEach(card => {
         card.onclick = () => {
           const k = card.getAttribute('data-mkey');
-          selectedPreset = presets.find(p => p.key === k) || null;
-          if (selectedPreset) {
-            const prText = (curLang === 'ee' ? selectedPreset.text_ee : (curLang === 'en' ? selectedPreset.text_en : selectedPreset.text_es));
-            if (txtInput) txtInput.value = prText;
+          if (selectedPreset && selectedPreset.key === k) {
+            selectedPreset = null;
+          } else {
+            selectedPreset = presets.find(p => p.key === k) || null;
           }
-          modal.innerHTML = renderModalHtml();
-          bindEvents();
+          updateSelectionUI();
           haptic(25);
         };
       });
@@ -7793,33 +7882,46 @@
 
       modal.querySelector('#btn-save-mission').onclick = () => {
         const inp = modal.querySelector('#mission-text-input');
-        const val = inp ? inp.value.trim() : '';
-        if (!val) {
-          toast('Por favor escribe o selecciona un objetivo para la misión', 'warning');
+        const typedVal = inp ? inp.value.trim() : '';
+
+        if (!selectedPreset && !typedVal) {
+          toast('Por favor selecciona un objetivo rápido o escribe una misión personalizada', 'warning');
           return;
         }
 
-        const isCustomText = selectedPreset
-          ? (val !== (curLang === 'ee' ? selectedPreset.text_ee : (curLang === 'en' ? selectedPreset.text_en : selectedPreset.text_es)))
-          : true;
-
-        Store.setPlayerWeeklyMission(player.id, {
-          text: val,
-          text_es: (selectedPreset && !isCustomText) ? selectedPreset.text_es : val,
-          text_en: (selectedPreset && !isCustomText) ? selectedPreset.text_en : val,
-          text_ee: (selectedPreset && !isCustomText) ? selectedPreset.text_ee : val,
-          presetKey: (selectedPreset && !isCustomText) ? selectedPreset.key : '',
-          category: selectedPreset ? selectedPreset.category : 'General',
-          icon: selectedPreset ? selectedPreset.icon : '🎯',
-          status: 'pending',
-          updatedAt: Date.now()
-        });
+        if (selectedPreset) {
+          Store.setPlayerWeeklyMission(player.id, {
+            text: (curLang === 'ee' ? selectedPreset.text_ee : (curLang === 'en' ? selectedPreset.text_en : selectedPreset.text_es)),
+            text_es: selectedPreset.text_es,
+            text_en: selectedPreset.text_en,
+            text_ee: selectedPreset.text_ee,
+            presetKey: selectedPreset.key,
+            category: selectedPreset.category,
+            icon: selectedPreset.icon,
+            comment: typedVal,
+            status: 'pending',
+            assignedAt: Date.now()
+          });
+        } else {
+          Store.setPlayerWeeklyMission(player.id, {
+            text: typedVal,
+            text_es: typedVal,
+            text_en: typedVal,
+            text_ee: typedVal,
+            presetKey: '',
+            category: 'General',
+            icon: '🎯',
+            comment: '',
+            status: 'pending',
+            assignedAt: Date.now()
+          });
+        }
 
         if (window.Cloud && window.Cloud.pushCoachState) {
           window.Cloud.pushCoachState(Store.state, true);
         }
 
-        toast('🎯 ¡Misión semanal asignada y traducida!', 'success');
+        toast('🎯 ¡Misión semanal asignada!', 'success');
         closeModal();
         if (typeof onSaved === 'function') onSaved();
       };
@@ -8151,9 +8253,10 @@
     const playerRadar = Store.calculatePlayerRadar ? Store.calculatePlayerRadar(p.id) : { pas: 50, tir: 50, reg: 50, def: 50, fis: 50, dis: 50 };
     const matchRating = overall.rating;
 
-    const isEn = (Store.state.settings && Store.state.settings.lang === 'en');
+    const curLang = (Store.state.settings && Store.state.settings.lang) || 'es';
+    const isEn = (curLang === 'en');
     const footText = getPlayerFootLabel(p.foot);
-    const ageStr = p.birthDate ? calculateAgeYearsMonths(p.birthDate, isEn ? 'en' : 'es') : '';
+    const ageStr = p.birthDate ? calculateAgeYearsMonths(p.birthDate, curLang) : '';
     const hasParentContact = p.parentContact && (p.parentContact.name || p.parentContact.phone || p.parentContact.email);
     const secPositions = p.secondaryPositions && p.secondaryPositions.length ? p.secondaryPositions : (p.secondaryPosition ? [p.secondaryPosition] : []);
 
@@ -8360,6 +8463,11 @@
             <div style="font-size: 13px; font-weight: 700; color: #fff; margin: 6px 0 10px; line-height: 1.4; background: rgba(0,0,0,0.25); padding: 8px 12px; border-radius: 10px;">
               "${escapeHtml((p.weeklyMission['text_' + ((Store.state.settings && Store.state.settings.lang) || 'es')]) || p.weeklyMission.text)}"
             </div>
+            ${p.weeklyMission.comment ? `
+              <div style="font-size: 11.5px; color: #cbd5e1; margin: -4px 0 10px; background: rgba(255,255,255,0.05); padding: 6px 10px; border-radius: 8px; border-left: 3px solid #c084fc;">
+                <span style="font-weight: 800; color: #e9d5ff;">💬 ${t('coachNote', 'Nota del Míster')}:</span> "${escapeHtml(p.weeklyMission.comment)}"
+              </div>
+            ` : ''}
             <div style="display: flex; gap: 8px; flex-wrap: wrap;">
               <button type="button" class="btn sm" id="btn-toggle-mission-status" style="font-size: 11.5px; font-weight: 800; background: ${p.weeklyMission.status === 'completed' ? 'var(--surface2)' : '#16a34a'}; color: #fff;">
                 ${p.weeklyMission.status === 'completed' ? '🔄 Reabrir Misión' : '✅ ' + t('markCompleted', 'Marcar como Cumplida')}
@@ -8998,8 +9106,12 @@
       months += 12;
     }
     if (years < 0) return '';
-    const isEn = (lang || (window.I18N && window.I18N.getLang()) || 'es') === 'en';
-    if (isEn) {
+    const curL = (lang || (window.I18N && window.I18N.getLang()) || (Store.state.settings && Store.state.settings.lang) || 'es');
+    if (curL === 'ee') {
+      const yStr = years === 1 ? '1 aasta' : `${years} aastat`;
+      const mStr = months === 1 ? '1 kuu' : `${months} kuud`;
+      return `${yStr}, ${mStr}`;
+    } else if (curL === 'en') {
       const yStr = years === 1 ? '1 year' : `${years} years`;
       const mStr = months === 1 ? '1 month' : `${months} months`;
       return `${yStr}, ${mStr}`;
@@ -9149,8 +9261,9 @@
       ? [...player.secondaryPositions] 
       : (player && player.secondaryPosition ? [player.secondaryPosition] : []);
 
-    const isEn = (Store.state.settings && Store.state.settings.lang === 'en');
-    const initialAge = player && player.birthDate ? calculateAgeYearsMonths(player.birthDate, isEn ? 'en' : 'es') : '';
+    const curLang = (Store.state.settings && Store.state.settings.lang) || 'es';
+    const isEn = (curLang === 'en');
+    const initialAge = player && player.birthDate ? calculateAgeYearsMonths(player.birthDate, curLang) : '';
 
     openSheet(isEdit ? t('editPlayer') : t('newPlayer'), (body) => {
       body.innerHTML = `
@@ -9287,7 +9400,7 @@
       if (birthInput && ageDisplay) {
         const updateAge = () => {
           const val = birthInput.value;
-          const age = calculateAgeYearsMonths(val, isEn ? 'en' : 'es');
+          const age = calculateAgeYearsMonths(val, curLang);
           ageDisplay.innerHTML = age 
             ? `🎂 ${age}` 
             : `<span style="color: var(--muted); font-size: 11.5px;">${t('calcAgeHint', 'Introduce fecha')}</span>`;

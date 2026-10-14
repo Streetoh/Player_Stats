@@ -332,12 +332,18 @@
     setPlayerWeeklyMission(id, missionData) {
       const p = this.player(id);
       if (!p) return null;
-      if (!missionData || !missionData.text) {
+      if (!missionData || (!missionData.text && !missionData.text_es)) {
         delete p.weeklyMission;
       } else {
         p.weeklyMission = {
-          text: missionData.text,
+          text: missionData.text || missionData.text_es || '',
+          text_es: missionData.text_es || missionData.text || '',
+          text_en: missionData.text_en || missionData.text || '',
+          text_ee: missionData.text_ee || missionData.text || '',
           presetKey: missionData.presetKey || '',
+          category: missionData.category || 'General',
+          icon: missionData.icon || '🎯',
+          comment: (missionData.comment || '').trim(),
           status: missionData.status || 'pending',
           assignedAt: missionData.assignedAt || Date.now(),
           completedAt: missionData.status === 'completed' ? (missionData.completedAt || Date.now()) : null

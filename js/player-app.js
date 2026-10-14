@@ -431,6 +431,25 @@
       dribblesLabel: 'DRIBBLES',
       recoveriesLabel: 'RECOV.',
       touchesLabel: 'TOUCHES',
+      prob1v1Title: '1v1 Win Probability',
+      favoriteBadge: 'Favorite',
+      veryBalanced: 'Very Balanced',
+      bayesAgeModel: 'Bayes + 1v1 + Age Model',
+      sameBioAge: 'Same biological age',
+      reasonDribble: 'Higher dribbling / agility',
+      reasonPhysical: 'Physical dominance',
+      reasonDefense: 'Defensive solidity',
+      reasonWinRate: 'Better 1v1 record',
+      reasonAge: 'Physical maturity advantage',
+      duels1v1Historical: '1v1 Duels (History)',
+      duels1v1: '1v1 Duels',
+      duels1v1WinRate: '1v1 Win Rate %',
+      duels1v1Won: '1v1 Duels Won',
+      duels1v1Lost: '1v1 Duels Lost',
+      duel1v1Goals: '1v1 Goals',
+      duel1v1Stops: 'Steals / Stops',
+      performanceMetrics: 'Performance Metrics',
+      comparativeRadars: 'Comparative Skill Radars',
       pitchGoalsTitle: 'Tactical Goal Map',
       pitchGoalsDesc: 'Goals scored by field zone',
       untrackedGoalsHint: 'goals recorded without specific field zone assigned',
@@ -733,6 +752,25 @@
       dribblesLabel: 'TRIBLINGUD',
       recoveriesLabel: 'PALLI VÕIDUD',
       touchesLabel: 'PUUTED',
+      prob1v1Title: '1v1 Võidu Tõenäosus',
+      favoriteBadge: 'Favoriit',
+      veryBalanced: 'Väga Tasavägine',
+      bayesAgeModel: 'Bayes + 1v1 + Vanuse Mudel',
+      sameBioAge: 'Sama bioloogiline vanus',
+      reasonDribble: 'Parem tribling / möödamäng',
+      reasonPhysical: 'Füüsiline üleolek',
+      reasonDefense: 'Kindlam kaitsemäng',
+      reasonWinRate: 'Parem varasem 1v1 näitaja',
+      reasonAge: 'Füüsilise küpsuse eelis',
+      duels1v1Historical: '1v1 Duellid (Ajalugu)',
+      duels1v1: '1v1 Duellid',
+      duels1v1WinRate: '1v1 Võiduprotsent',
+      duels1v1Won: 'Võidetud Duellid',
+      duels1v1Lost: 'Kaotatud Duellid',
+      duel1v1Goals: '1v1 Väravad',
+      duel1v1Stops: 'Vaheltlõiked / Tõrjed',
+      performanceMetrics: 'Sooritusvõime Näitajad',
+      comparativeRadars: 'Võrdlevad Oskuste Radarid',
       pitchGoalsTitle: 'Taktikaline Väljakukaart',
       pitchGoalsDesc: 'Tegevused ja väravad väljaku tsoonide kaupa',
       untrackedGoalsHint: 'tsoonita salvestatud tegevused',
@@ -1035,6 +1073,25 @@
       dribblesLabel: 'REGATES',
       recoveriesLabel: 'RECUP.',
       touchesLabel: 'TOQUES',
+      prob1v1Title: 'Probabilidad Victoria 1v1',
+      favoriteBadge: 'Favorito',
+      veryBalanced: 'Muy Equilibrado',
+      bayesAgeModel: 'Datos Bayes + 1v1 + Edad',
+      sameBioAge: 'Misma edad biológica',
+      reasonDribble: 'Mayor desborde / regate',
+      reasonPhysical: 'Superioridad física',
+      reasonDefense: 'Mayor solidez defensiva',
+      reasonWinRate: 'Mejor % victorias 1v1 previo',
+      reasonAge: 'Ventaja por madurez física',
+      duels1v1Historical: 'Duelos 1v1 (Histórico)',
+      duels1v1: 'Duelos 1v1',
+      duels1v1WinRate: '% Victorias 1v1',
+      duels1v1Won: 'Duelos Ganados',
+      duels1v1Lost: 'Duelos Perdidos',
+      duel1v1Goals: 'Goles en 1v1',
+      duel1v1Stops: 'Robos / Cierres',
+      performanceMetrics: 'Métricas de Rendimiento',
+      comparativeRadars: 'Radares Comparativos de Habilidad',
       pitchGoalsTitle: 'Mapa Táctico del Campo',
       pitchGoalsDesc: 'Acciones tácticas geolocalizadas según la zona del campo',
       untrackedGoalsHint: 'goles contabilizados en partidos anteriores sin zona asignada',
@@ -5338,14 +5395,18 @@
       months += 12;
     }
     if (years < 0) return '';
-    const isEn = (lang || currentLang || 'en') === 'en';
-    if (isEn) {
-      const yStr = years === 1 ? '1 year' : `${years} years`;
-      const mStr = months === 1 ? '1 month' : `${months} months`;
+    const curL = (lang || currentLang || 'en');
+    if (curL === 'ee') {
+      const yStr = years === 1 ? '1 aasta' : `${years} aastat`;
+      const mStr = months === 1 ? '1 kuu' : `${months} kuud`;
       return `${yStr}, ${mStr}`;
-    } else {
+    } else if (curL === 'es') {
       const yStr = years === 1 ? '1 año' : `${years} años`;
       const mStr = months === 1 ? '1 mes' : `${months} meses`;
+      return `${yStr}, ${mStr}`;
+    } else {
+      const yStr = years === 1 ? '1 year' : `${years} years`;
+      const mStr = months === 1 ? '1 month' : `${months} months`;
       return `${yStr}, ${mStr}`;
     }
   }
@@ -5592,6 +5653,11 @@
               <div style="font-size: 14px; font-weight: 800; color: #fff; margin: 8px 0; line-height: 1.45; background: rgba(0,0,0,0.3); padding: 10px 12px; border-radius: 10px;">
                 "${escapeHtml(mText)}"
               </div>
+              ${myP.weeklyMission.comment ? `
+                <div style="margin: 6px 0 10px; font-size: 12.5px; color: #cbd5e1; background: rgba(255,255,255,0.06); padding: 8px 12px; border-radius: 10px; border-left: 3px solid #c084fc; line-height: 1.4;">
+                  <span style="font-weight: 800; color: #e9d5ff;">💬 ${t('coachNote', 'Nota del Míster')}:</span> "${escapeHtml(myP.weeklyMission.comment)}"
+                </div>
+              ` : ''}
               <div style="font-size: 11px; color: var(--muted); line-height: 1.35;">
                 ${t('missionMotivation', 'Concéntrate en este objetivo táctico en tus próximos entrenos y partidos.')}
               </div>
@@ -6453,13 +6519,17 @@
         if (Math.abs(diffMonths) >= 1) {
           const name1 = (p1.name || 'J1').split(' ')[0];
           const name2 = (p2.name || 'J2').split(' ')[0];
-          if (diffMonths > 0) {
-            ageDiffText = `${name1} es ${Math.abs(diffMonths)} ${Math.abs(diffMonths) === 1 ? 'mes' : 'meses'} mayor`;
+          const olderName = diffMonths > 0 ? name1 : name2;
+          const mCount = Math.abs(diffMonths);
+          if (currentLang === 'ee') {
+            ageDiffText = `${olderName} on ${mCount} ${mCount === 1 ? 'kuu' : 'kuud'} vanem`;
+          } else if (currentLang === 'es') {
+            ageDiffText = `${olderName} es ${mCount} ${mCount === 1 ? 'mes' : 'meses'} mayor`;
           } else {
-            ageDiffText = `${name2} es ${Math.abs(diffMonths)} ${Math.abs(diffMonths) === 1 ? 'mes' : 'meses'} mayor`;
+            ageDiffText = `${olderName} is ${mCount} ${mCount === 1 ? 'month' : 'months'} older`;
           }
         } else {
-          ageDiffText = 'Misma edad biológica';
+          ageDiffText = t('sameBioAge', 'Misma edad biológica');
         }
       }
     }
@@ -6478,18 +6548,18 @@
     const reasons = [];
     if (prob1 >= 53) {
       favorite = 1;
-      if (r1.reg > r2.reg) reasons.push('Mayor desborde / regate');
-      if (r1.fis > r2.fis) reasons.push('Superioridad física');
-      if (r1.def > r2.def) reasons.push('Mayor solidez defensiva');
-      if (d1.winRate > d2.winRate && d1.total >= 3) reasons.push('Mejor % victorias 1v1 previo');
-      if (ageBonus1 >= 2) reasons.push('Ventaja por madurez física');
+      if (r1.reg > r2.reg) reasons.push(t('reasonDribble', 'Mayor desborde / regate'));
+      if (r1.fis > r2.fis) reasons.push(t('reasonPhysical', 'Superioridad física'));
+      if (r1.def > r2.def) reasons.push(t('reasonDefense', 'Mayor solidez defensiva'));
+      if (d1.winRate > d2.winRate && d1.total >= 3) reasons.push(t('reasonWinRate', 'Mejor % victorias 1v1 previo'));
+      if (ageBonus1 >= 2) reasons.push(t('reasonAge', 'Ventaja por madurez física'));
     } else if (prob2 >= 53) {
       favorite = 2;
-      if (r2.reg > r1.reg) reasons.push('Mayor desborde / regate');
-      if (r2.fis > r1.fis) reasons.push('Superioridad física');
-      if (r2.def > r1.def) reasons.push('Mayor solidez defensiva');
-      if (d2.winRate > d1.winRate && d2.total >= 3) reasons.push('Mejor % victorias 1v1 previo');
-      if (ageBonus2 >= 2) reasons.push('Ventaja por madurez física');
+      if (r2.reg > r1.reg) reasons.push(t('reasonDribble', 'Mayor desborde / regate'));
+      if (r2.fis > r1.fis) reasons.push(t('reasonPhysical', 'Superioridad física'));
+      if (r2.def > r1.def) reasons.push(t('reasonDefense', 'Mayor solidez defensiva'));
+      if (d2.winRate > d1.winRate && d2.total >= 3) reasons.push(t('reasonWinRate', 'Mejor % victorias 1v1 previo'));
+      if (ageBonus2 >= 2) reasons.push(t('reasonAge', 'Ventaja por madurez física'));
     }
 
     return {
@@ -6655,11 +6725,11 @@
             </span>
             ${prob.favorite ? `
               <span class="badge" style="background: ${prob.favorite === 1 ? 'rgba(34, 211, 238, 0.2)' : 'rgba(244, 114, 182, 0.2)'}; color: ${prob.favorite === 1 ? '#22d3ee' : '#f472b6'}; border: 1px solid ${prob.favorite === 1 ? '#22d3ee' : '#f472b6'}; font-size: 10.5px; font-weight: 800; padding: 2px 7px;">
-                ⭐ Favorito: ${(prob.favorite === 1 ? p1.name : p2.name).split(' ')[0]}
+                ⭐ ${t('favoriteBadge', 'Favorito')}: ${(prob.favorite === 1 ? p1.name : p2.name).split(' ')[0]}
               </span>
             ` : `
               <span class="badge" style="background: rgba(250, 204, 21, 0.2); color: #fde047; font-size: 10.5px; font-weight: 800; padding: 2px 7px;">
-                ⚖️ Muy Equilibrado
+                ⚖️ ${t('veryBalanced', 'Muy Equilibrado')}
               </span>
             `}
           </div>
@@ -6667,7 +6737,7 @@
           <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px;">
             <div style="font-size: 26px; font-weight: 900; color: #22d3ee;">${prob.prob1}%</div>
             <div style="font-size: 11px; font-weight: 700; color: var(--muted); text-align: center;">
-              ${prob.ageDiffText ? `<span>🎂 ${prob.ageDiffText}</span>` : 'Datos Bayes + 1v1 + Edad'}
+              ${prob.ageDiffText ? `<span>🎂 ${prob.ageDiffText}</span>` : t('bayesAgeModel', 'Datos Bayes + 1v1 + Edad')}
             </div>
             <div style="font-size: 26px; font-weight: 900; color: #f472b6;">${prob.prob2}%</div>
           </div>
@@ -6691,7 +6761,7 @@
         <!-- ⚔️ DUELOS 1v1 HISTÓRICOS -->
         <div class="card" style="margin-bottom: 14px; padding: 14px; border: 1.5px solid var(--border); display: flex; flex-direction: column; gap: 8px; border-radius: 14px;">
           <div style="font-size: 12px; font-weight: 900; color: #fb923c; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px;">
-            ⚔️ ${t('duels1v1', 'Duelos 1v1')} (Histórico)
+            ⚔️ ${t('duels1v1Historical', 'Duelos 1v1 (Histórico)')}
           </div>
           ${renderH2HMetricRow(t('duels1v1WinRate', '% Victorias 1v1'), `${d1.winRate}%`, `${d2.winRate}%`, '🏆')}
           ${renderH2HMetricRow(t('duels1v1Won', 'Duelos Ganados'), d1.won, d2.won, '⚔️')}
@@ -6703,7 +6773,7 @@
         <!-- Métricas Generales -->
         <div class="card" style="margin-bottom: 14px; padding: 14px; border: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; border-radius: 14px;">
           <div style="font-size: 12px; font-weight: 900; color: var(--cyan); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px;">
-            📊 Métricas de Rendimiento
+            📊 ${t('performanceMetrics', 'Métricas de Rendimiento')}
           </div>
           ${renderH2HMetricRow(t('performanceRating'), `⭐ ${s1.aggregatedRating}`, `⭐ ${s2.aggregatedRating}`, '⭐')}
           ${renderH2HMetricRow(t('matchesAttended'), s1.matchesAttended, s2.matchesAttended, '🏟️')}
@@ -6717,13 +6787,13 @@
         <!-- Radares comparativos 100% simétricos -->
         <div class="section-title"><span>${t('comparativeRadars', 'Comparative Skill Radars')}</span></div>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: stretch; margin-bottom: 8px;">
-          <div class="card" style="padding: 10px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; border: 1.5px solid rgba(34, 211, 238, 0.35); border-radius: 14px; height: 100%; box-sizing: border-box;">
+          <div class="card" style="margin: 0 !important; margin-top: 0 !important; padding: 10px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; border: 1.5px solid rgba(34, 211, 238, 0.35); border-radius: 14px; height: 100%; box-sizing: border-box;">
             <b style="font-size: 12.5px; color: #22d3ee; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; text-align: center; height: 20px; line-height: 20px; display: block; margin-bottom: 4px;">
               ${escapeHtml(p1.name || '')}
             </b>
             ${renderH2HRadarSVG(r1, '#22d3ee')}
           </div>
-          <div class="card" style="padding: 10px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; border: 1.5px solid rgba(244, 114, 182, 0.35); border-radius: 14px; height: 100%; box-sizing: border-box;">
+          <div class="card" style="margin: 0 !important; margin-top: 0 !important; padding: 10px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; border: 1.5px solid rgba(244, 114, 182, 0.35); border-radius: 14px; height: 100%; box-sizing: border-box;">
             <b style="font-size: 12.5px; color: #f472b6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; text-align: center; height: 20px; line-height: 20px; display: block; margin-bottom: 4px;">
               ${escapeHtml(p2.name || '')}
             </b>
