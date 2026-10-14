@@ -5481,6 +5481,9 @@
 
     function build() {
       const list = Store.filterSessions(filter, 'all');
+      const todayIso = getTodayIso();
+      const todaySessions = list.filter(s => s.date === todayIso);
+      const pastSessions = list.filter(s => s.date !== todayIso);
 
       view.innerHTML = `
         <div class="topbar">
@@ -5567,8 +5570,10 @@
         </div>
       `;
 
-      view.querySelector('#btn-history-quick-training').onclick = () => showNewSessionModal('training');
-      view.querySelector('#btn-history-quick-match').onclick = () => showNewSessionModal('match');
+      const btnTr = view.querySelector('#btn-history-quick-training');
+      if (btnTr) btnTr.onclick = () => showNewSessionModal('training');
+      const btnMa = view.querySelector('#btn-history-quick-match');
+      if (btnMa) btnMa.onclick = () => showNewSessionModal('match');
 
       const btnJoin = view.querySelector('#btn-history-join-live');
       if (btnJoin) btnJoin.onclick = () => showLiveSyncModal(null, 'guest');
@@ -5595,8 +5600,10 @@
         };
       });
 
-      view.querySelector('#btn-history-export-json').onclick = () => IO.exportBackup();
-      view.querySelector('#btn-history-export-csv').onclick = () => IO.exportStatsCSV(list);
+      const btnExpJson = view.querySelector('#btn-history-export-json');
+      if (btnExpJson) btnExpJson.onclick = () => IO.exportBackup();
+      const btnExpCsv = view.querySelector('#btn-history-export-csv');
+      if (btnExpCsv) btnExpCsv.onclick = () => IO.exportStatsCSV(list);
     }
 
     build();
@@ -6992,11 +6999,15 @@
     const team = Store.team(p.teamId);
 
     const overall = Store.calculatePlayerOverallRating ? Store.calculatePlayerOverallRating(p.id, p.mainPosition) : { rating: 6.0, mode: 'none' };
+    const allSessions = Store.state.sessions || [];
     const trainingSessions = Store.filterSessions('training', 'all');
     const matchSessions = Store.filterSessions('match', 'all');
+    const aggAll = Store.playerAggregate(p.id, allSessions);
     const aggTraining = Store.playerAggregate(p.id, trainingSessions);
     const aggMatch = Store.playerAggregate(p.id, matchSessions);
     let activeProfileTab = (aggTraining.count === 0 && aggMatch.count > 0) ? 'match' : 'training';
+    const playerRadar = Store.calculatePlayerRadar ? Store.calculatePlayerRadar(p.id) : { pas: 50, tir: 50, reg: 50, def: 50, fis: 50, dis: 50 };
+    const matchRating = overall.rating;
 
     const isEn = (Store.state.settings && Store.state.settings.lang === 'en');
     const footText = getPlayerFootLabel(p.foot);
@@ -7491,9 +7502,12 @@
       };
 
       // Ficha de Jugador
-      body.querySelector('#btn-player-match-card').onclick = () => {
-        showPlayerCardModal(p, aggAll.sessions.length ? aggAll.sessions[aggAll.sessions.length - 1].session : null);
-      };
+      const btnCard = body.querySelector('#btn-player-match-card');
+      if (btnCard) {
+        btnCard.onclick = () => {
+          showPlayerCardModal(p, aggAll.sessions.length ? aggAll.sessions[aggAll.sessions.length - 1].session : null);
+        };
+      }
 
       // Carta FUT Coleccionable
       const btnFut = body.querySelector('#btn-player-fut-card');
