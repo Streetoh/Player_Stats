@@ -256,6 +256,9 @@
       mostTouches: '⚽ Más Toques al Balón',
       topScorers: '🥅 Máximos Goleadores',
       topPassers: '🎯 Pases Completados',
+      top1v1: '⚔️ Líderes en Duelos 1v1 Ganados',
+      top1v1Stops: '🛡️ Más Robos / Cierres en 1v1',
+      playerMetricsList: '📊 Desglose de Jugadores (Toca para ver perfil)',
 
       // Ajustes
       configTitle: 'Ajustes',
@@ -889,6 +892,9 @@
       mostTouches: '⚽ Most Touches',
       topScorers: '🥅 Top Scorers',
       topPassers: '🎯 Completed Passes',
+      top1v1: '⚔️ 1v1 Duels Leaders (Won)',
+      top1v1Stops: '🛡️ Most 1v1 Steals / Stops',
+      playerMetricsList: '📊 Player Breakdown (Tap to open profile)',
 
       // Settings
       configTitle: 'Settings',

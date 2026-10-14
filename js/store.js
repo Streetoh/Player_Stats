@@ -153,6 +153,49 @@
       return true;
     });
     s.recurringSchedules = Array.isArray(s.recurringSchedules) ? s.recurringSchedules : [];
+    const validScheduleIds = new Set(s.recurringSchedules.map(r => r.id));
+    const nowNorm = new Date();
+    const todayNormStr = `${nowNorm.getFullYear()}-${String(nowNorm.getMonth() + 1).padStart(2, '0')}-${String(nowNorm.getDate()).padStart(2, '0')}`;
+
+    // Limpieza de convocatorias huérfanas de horarios recurrentes eliminados (hoy y futuras)
+    s.convocations = s.convocations.filter(c => {
+      if (!c || !c.id) return false;
+      const isRec = !!(c.isRecurring || c.id.startsWith('rec_') || c.scheduleId);
+      if (!isRec) return true;
+      let schedId = c.scheduleId;
+      if (!schedId && c.id.startsWith('rec_')) {
+        const parts = c.id.split('_');
+        if (parts.length >= 3) schedId = parts[1];
+      }
+      if (schedId && !validScheduleIds.has(schedId) && c.date >= todayNormStr) {
+        return false;
+      }
+      return true;
+    });
+
+    // Limpieza de sesiones huérfanas de horarios recurrentes eliminados (hoy, futuras o sin datos jugados)
+    s.sessions = s.sessions.filter(sess => {
+      if (!sess) return false;
+      const hasSchedId = !!sess.scheduleId;
+      const isRecConv = !!(sess.convocationId && sess.convocationId.startsWith('rec_'));
+      if (!hasSchedId && !isRecConv) return true;
+      let schedId = sess.scheduleId;
+      if (!schedId && isRecConv) {
+        const parts = sess.convocationId.split('_');
+        if (parts.length >= 3) schedId = parts[1];
+      }
+      if (schedId && !validScheduleIds.has(schedId)) {
+        const isTodayOrFuture = (sess.date >= todayNormStr);
+        const hasData = (sess.elapsedMs > 0) ||
+                        (sess.stats && Object.keys(sess.stats).length > 0) ||
+                        (sess.log && sess.log.length > 0) ||
+                        (sess.status === 'completed');
+        if (isTodayOrFuture || !hasData) {
+          return false;
+        }
+      }
+      return true;
+    });
     s.coachProfile = Object.assign({}, d.coachProfile, s.coachProfile || {});
     s.settings = Object.assign({}, d.settings, s.settings || {});
     if (!s.settings.convocatoriaWebUrl) s.settings.convocatoriaWebUrl = d.settings.convocatoriaWebUrl;
@@ -474,6 +517,11 @@
 
     deleteSession(id) {
       this.state.sessions = this.state.sessions.filter(s => s.id !== id);
+      if (Array.isArray(this.state.convocations)) {
+        this.state.convocations.forEach(c => {
+          if (c && c.sessionId === id) c.sessionId = null;
+        });
+      }
       this.save();
       if (typeof window !== 'undefined' && window.Cloud) {
         try {
@@ -1413,7 +1461,45 @@
     },
 
     deleteConvocation(id) {
+      const conv = (this.state.convocations || []).find(c => c.id === id);
+      const linkedSessionId = conv ? conv.sessionId : null;
+
       this.state.convocations = (this.state.convocations || []).filter(c => c.id !== id);
+
+      const now = new Date();
+      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+      // Eliminar también la sesión asociada si no fue jugada / sin datos
+      const sessionsToDelete = [];
+      this.state.sessions = (this.state.sessions || []).filter(s => {
+        const isLinked = (s.convocationId === id) || (linkedSessionId && s.id === linkedSessionId);
+        if (!isLinked) return true;
+
+        const isTodayOrFuture = (s.date >= todayStr);
+        const hasData = (s.elapsedMs > 0) ||
+                        (s.stats && Object.keys(s.stats).length > 0) ||
+                        (s.log && s.log.length > 0) ||
+                        (s.status === 'completed');
+
+        if (isTodayOrFuture || !hasData) {
+          sessionsToDelete.push(s);
+          return false;
+        }
+        return true;
+      });
+
+      if (typeof window !== 'undefined' && window.Cloud) {
+        sessionsToDelete.forEach(s => {
+          try {
+            if (typeof window.Cloud.deleteSessionFromCloud === 'function') {
+              window.Cloud.deleteSessionFromCloud(s.id);
+            }
+          } catch (e) {
+            console.warn('[Store] Error borrando sesión vinculada a convocatoria de la nube:', e);
+          }
+        });
+      }
+
       this.save();
     },
 
@@ -1467,18 +1553,148 @@
 
       const now = new Date();
       const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-      const curTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-      // Eliminar entrenamientos futuros generados por este plan recurrente
-      // Los entrenamientos pasados se conservan en el historial
+      // 1. Identificar convocatorias vinculadas a este horario recurrente
+      const isConvFromSchedule = (c) => {
+        if (!c) return false;
+        return c.scheduleId === id || (c.id && c.id.startsWith(`rec_${id}_`));
+      };
+
+      const schedConvs = (this.state.convocations || []).filter(isConvFromSchedule);
+      const schedConvIds = new Set(schedConvs.map(c => c.id));
+      const schedConvSessionIds = new Set(schedConvs.map(c => c.sessionId).filter(Boolean));
+
+      // 2. Eliminar convocatorias de hoy y futuras generadas por este plan recurrente
       this.state.convocations = (this.state.convocations || []).filter(c => {
-        const isFromSchedule = (c.scheduleId === id || (c.id && c.id.startsWith(`rec_${id}_`)));
-        if (!isFromSchedule) return true;
-        const isFuture = (c.date > todayStr) || (c.date === todayStr && (c.time || '23:59') >= curTime);
-        return !isFuture;
+        if (!isConvFromSchedule(c)) return true;
+        const isTodayOrFuture = c.date >= todayStr;
+        return !isTodayOrFuture;
       });
 
+      // 3. Identificar y eliminar sesiones asociadas a este plan recurrente
+      const isSessionFromSchedule = (s) => {
+        if (!s) return false;
+        if (s.scheduleId === id) return true;
+        if (s.convocationId && (s.convocationId.startsWith(`rec_${id}_`) || schedConvIds.has(s.convocationId))) return true;
+        if (schedConvSessionIds.has(s.id)) return true;
+        return false;
+      };
+
+      const sessionsToDelete = [];
+      this.state.sessions = (this.state.sessions || []).filter(s => {
+        if (!isSessionFromSchedule(s)) return true;
+
+        const isTodayOrFuture = (s.date >= todayStr);
+        const hasData = (s.elapsedMs > 0) ||
+                        (s.stats && Object.keys(s.stats).length > 0) ||
+                        (s.log && s.log.length > 0) ||
+                        (s.status === 'completed');
+
+        // Si es de hoy, futura, o no tiene datos de partido/entrenamiento jugados, eliminar
+        if (isTodayOrFuture || !hasData) {
+          sessionsToDelete.push(s);
+          return false;
+        }
+        return true;
+      });
+
+      // 4. Notificar a la nube el borrado de las sesiones individuales
+      if (typeof window !== 'undefined' && window.Cloud) {
+        sessionsToDelete.forEach(s => {
+          try {
+            if (typeof window.Cloud.deleteSessionFromCloud === 'function') {
+              window.Cloud.deleteSessionFromCloud(s.id);
+            }
+          } catch (e) {
+            console.warn('[Store] Error borrando sesión recurrente de la nube:', e);
+          }
+        });
+      }
+
       this.save();
+    },
+
+    cleanupOrphanRecurring() {
+      const schedules = this.state.recurringSchedules || [];
+      const validScheduleIds = new Set(schedules.map(r => r.id));
+
+      const now = new Date();
+      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+      // 1. Limpiar convocatorias huérfanas de horarios recurrentes que ya no existen
+      let convsChanged = false;
+      this.state.convocations = (this.state.convocations || []).filter(c => {
+        if (!c) return false;
+        const isRec = !!(c.isRecurring || (c.id && c.id.startsWith('rec_')) || c.scheduleId);
+        if (!isRec) return true;
+
+        let schedId = c.scheduleId;
+        if (!schedId && c.id && c.id.startsWith('rec_')) {
+          const parts = c.id.split('_');
+          if (parts.length >= 3) schedId = parts[1];
+        }
+
+        if (schedId && !validScheduleIds.has(schedId)) {
+          if (c.date >= todayStr) {
+            convsChanged = true;
+            return false;
+          }
+        }
+        return true;
+      });
+
+      // 2. Limpiar sesiones huérfanas de horarios recurrentes que ya no existen
+      const sessionsToDelete = [];
+      const remainingSessions = [];
+      (this.state.sessions || []).forEach(s => {
+        if (!s) return;
+        const hasScheduleId = !!s.scheduleId;
+        const isRecConv = !!(s.convocationId && s.convocationId.startsWith('rec_'));
+
+        if (!hasScheduleId && !isRecConv) {
+          remainingSessions.push(s);
+          return;
+        }
+
+        let schedId = s.scheduleId;
+        if (!schedId && isRecConv) {
+          const parts = s.convocationId.split('_');
+          if (parts.length >= 3) schedId = parts[1];
+        }
+
+        if (schedId && !validScheduleIds.has(schedId)) {
+          const isTodayOrFuture = (s.date >= todayStr);
+          const hasData = (s.elapsedMs > 0) ||
+                          (s.stats && Object.keys(s.stats).length > 0) ||
+                          (s.log && s.log.length > 0) ||
+                          (s.status === 'completed');
+
+          if (isTodayOrFuture || !hasData) {
+            sessionsToDelete.push(s);
+            return;
+          }
+        }
+        remainingSessions.push(s);
+      });
+
+      if (sessionsToDelete.length > 0 || convsChanged) {
+        this.state.sessions = remainingSessions;
+        this.save();
+        if (typeof window !== 'undefined' && window.Cloud) {
+          sessionsToDelete.forEach(s => {
+            try {
+              if (typeof window.Cloud.deleteSessionFromCloud === 'function') {
+                window.Cloud.deleteSessionFromCloud(s.id);
+              }
+            } catch (e) {
+              console.warn('[Store] Error borrando sesión huérfana de la nube:', e);
+            }
+          });
+          if (typeof window.Cloud.pushCoachState === 'function') {
+            window.Cloud.pushCoachState(this.state, true);
+          }
+        }
+      }
     },
 
     generateRecurringConvocations(daysAhead = 30, startDateStr = '', endDateStr = '') {
@@ -1630,6 +1846,9 @@
 
       this.state.sessions = Array.isArray(this.state.sessions) ? this.state.sessions : [];
       this.state.convocations = Array.isArray(this.state.convocations) ? this.state.convocations : [];
+
+      // Limpiar convocatorias y sesiones huérfanas de horarios recurrentes previamente eliminados
+      this.cleanupOrphanRecurring();
 
       // Asegurar que las convocatorias recurrentes estén generadas hasta la fecha
       if (this.state.recurringSchedules && this.state.recurringSchedules.length > 0) {

@@ -446,6 +446,12 @@
       duels1v1WinRate: '1v1 Win Rate %',
       duels1v1Won: '1v1 Duels Won',
       duels1v1Lost: '1v1 Duels Lost',
+      won: 'Won',
+      lost: 'Lost',
+      sessions: 'Trainings & Sessions',
+      winRate: 'WIN RATE',
+      stops: 'defensive stops',
+      goals: 'goals',
       duel1v1Goals: '1v1 Goals',
       duel1v1Stops: 'Steals / Stops',
       performanceMetrics: 'Performance Metrics',
@@ -767,6 +773,12 @@
       duels1v1WinRate: '1v1 Võiduprotsent',
       duels1v1Won: 'Võidetud Duellid',
       duels1v1Lost: 'Kaotatud Duellid',
+      won: 'Võidetud',
+      lost: 'Kaotatud',
+      sessions: 'Trennid ja Sessioonid',
+      winRate: 'VÕIDUMÄÄR',
+      stops: 'kaitsetõrjed',
+      goals: 'väravat',
       duel1v1Goals: '1v1 Väravad',
       duel1v1Stops: 'Vaheltlõiked / Tõrjed',
       performanceMetrics: 'Sooritusvõime Näitajad',
@@ -1088,6 +1100,12 @@
       duels1v1WinRate: '% Victorias 1v1',
       duels1v1Won: 'Duelos Ganados',
       duels1v1Lost: 'Duelos Perdidos',
+      won: 'Ganados',
+      lost: 'Perdidos',
+      sessions: 'Entrenamientos y Sesiones',
+      winRate: 'VICTORIAS',
+      stops: 'cierres defensivos',
+      goals: 'goles',
       duel1v1Goals: 'Goles en 1v1',
       duel1v1Stops: 'Robos / Cierres',
       performanceMetrics: 'Métricas de Rendimiento',
@@ -2284,8 +2302,13 @@
     const info = dict[skillKey] || dict.rating || SKILL_EXPLANATIONS_EN[skillKey] || SKILL_EXPLANATIONS_EN.rating;
     const overlay = document.createElement('div');
     overlay.className = 'dialog-overlay';
+    overlay.id = 'dialog-skill-explanation';
+    overlay.style.zIndex = '1000005';
+    overlay.style.background = 'rgba(0, 0, 0, 0.78)';
+    overlay.style.backdropFilter = 'blur(4px)';
+    overlay.style.webkitBackdropFilter = 'blur(4px)';
     overlay.innerHTML = `
-      <div class="dialog-box" style="max-width: 400px; padding: 22px;">
+      <div class="dialog-box" style="max-width: 400px; padding: 22px; z-index: 1000006; box-shadow: 0 10px 40px rgba(0,0,0,0.85); border: 1.5px solid rgba(255,255,255,0.2);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
           <div style="display: flex; align-items: center; gap: 8px;">
             <span style="font-size: 22px;">${info.icon}</span>
@@ -5558,6 +5581,40 @@
           </div>
         </div>
 
+        <!-- Tarjeta Dedicada: ⚔️ Duelos 1v1 -->
+        ${(() => {
+          const dWonGoal = curAgg.totals.duel1v1WonGoal || 0;
+          const dWonStop = curAgg.totals.duel1v1WonStop || 0;
+          const dLostTurnover = curAgg.totals.duel1v1LostTurnover || 0;
+          const dLostGoal = curAgg.totals.duel1v1LostGoal || 0;
+          const dWon = dWonGoal + dWonStop;
+          const dLost = dLostGoal + dLostTurnover;
+          const dTotal = dWon + dLost;
+          const dWinRate = dTotal > 0 ? Math.round((dWon / dTotal) * 100) : 0;
+          return `
+            <div class="card duel-card-profile" style="margin-bottom: 14px; background: rgba(15, 23, 42, 0.7); border: 1.5px solid rgba(255, 255, 255, 0.08); border-radius: 14px; padding: 12px 14px; display: flex; align-items: center; gap: 12px;">
+              <div style="background: rgba(0, 0, 0, 0.45); border: 1.5px solid ${dWinRate >= 50 ? '#22c55e' : (dTotal > 0 ? '#ef4444' : 'var(--border)')}; border-radius: 12px; width: 62px; height: 62px; display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0;">
+                <span style="font-size: 16px; font-weight: 900; color: ${dWinRate >= 50 ? '#86efac' : (dTotal > 0 ? '#fca5a5' : '#cbd5e1')};">${dWinRate}%</span>
+                <span style="font-size: 8.5px; font-weight: 800; color: var(--muted); text-transform: uppercase;">${t('winRate', 'WIN RATE')}</span>
+              </div>
+              <div class="grow" style="text-align: left; min-width: 0;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+                  <span style="font-size: 13.5px; font-weight: 900; color: #fff;">⚔️ ${t('duels1v1', 'Duelos 1v1')}</span>
+                  <span style="font-size: 11.5px; font-weight: 800;">
+                    <span style="color: #4ade80;">${t('won', 'Ganados')}: ${dWon}</span> • <span style="color: #f87171;">${t('lost', 'Perdidos')}: ${dLost}</span>
+                  </span>
+                </div>
+                <div style="height: 6px; width: 100%; background: ${dTotal > 0 ? '#ef4444' : 'rgba(255,255,255,0.1)'}; border-radius: 999px; overflow: hidden; display: flex; margin: 4px 0;">
+                  <div style="width: ${dWinRate}%; background: #22c55e; height: 100%;"></div>
+                </div>
+                <div style="font-size: 11px; color: var(--muted);">
+                  (${dWonGoal} ${t('goals', 'goles')} · ${dWonStop} ${t('stops', 'cierres defensivos')})
+                </div>
+              </div>
+            </div>
+          `;
+        })()}
+
         <!-- Mapa Táctico de Goles y Acciones por Zonas -->
         ${renderPlayerGoalsPitchHtml(myP.id, curSessions)}
 
@@ -6279,7 +6336,7 @@
             <div class="card duel-card-profile" style="margin-bottom: 14px; background: rgba(15, 23, 42, 0.7); border: 1.5px solid rgba(255, 255, 255, 0.08); border-radius: 14px; padding: 12px 14px; display: flex; align-items: center; gap: 12px;">
               <div style="background: rgba(0, 0, 0, 0.45); border: 1.5px solid ${dWinRate >= 50 ? '#22c55e' : (dTotal > 0 ? '#ef4444' : 'var(--border)')}; border-radius: 12px; width: 62px; height: 62px; display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0;">
                 <span style="font-size: 16px; font-weight: 900; color: ${dWinRate >= 50 ? '#86efac' : (dTotal > 0 ? '#fca5a5' : '#cbd5e1')};">${dWinRate}%</span>
-                <span style="font-size: 8.5px; font-weight: 800; color: var(--muted); text-transform: uppercase;">WIN RATE</span>
+                <span style="font-size: 8.5px; font-weight: 800; color: var(--muted); text-transform: uppercase;">${t('winRate', 'WIN RATE')}</span>
               </div>
               <div class="grow" style="text-align: left; min-width: 0;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
@@ -6292,7 +6349,7 @@
                   <div style="width: ${dWinRate}%; background: #22c55e; height: 100%;"></div>
                 </div>
                 <div style="font-size: 11px; color: var(--muted);">
-                  (${dWonGoal} ${t('stat_goal', 'goles')} · ${dWonStop} ${t('stops', 'cierres defensivos')})
+                  (${dWonGoal} ${t('goals', 'goles')} · ${dWonStop} ${t('stops', 'cierres defensivos')})
                 </div>
               </div>
             </div>

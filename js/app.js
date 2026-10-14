@@ -22,6 +22,7 @@
   let statsFilterType = 'all';
   let statsFilterPeriod = 'all';
   let statsSelectedPlayerId = 'all';
+  let statsFilterTeams = ['all'];
   let playerListSearch = '';
   let playerListTeam = 'all';
 
@@ -11420,6 +11421,13 @@
               toast(t('deleted', 'Eliminado'), 'info');
               renderSchedulesList();
               if (onDone) onDone();
+              if (currentTab === 'home' || currentTab === 'history') {
+                const view = document.getElementById('view');
+                if (view) {
+                  if (currentTab === 'home') renderHomeView(view);
+                  else if (currentTab === 'history') renderHistoryView(view);
+                }
+              }
             });
           };
         });
@@ -12301,13 +12309,38 @@
      ========================================================= */
   function renderStatsView(view) {
     function build() {
-      const sessions = Store.filterSessions(statsFilterType, statsFilterPeriod);
-      const allPlayers = Store.sortedPlayers();
+      const allTeams = Store.state.teams || [];
+      const isAllTeams = statsFilterTeams.includes('all');
+
+      // Jugadores filtrados por equipos seleccionados
+      const allPlayers = Store.sortedPlayers().filter(p => {
+        if (isAllTeams) return true;
+        return statsFilterTeams.includes(p.teamId);
+      });
+
+      // Sesiones filtradas por tipo/periodo y por los equipos activos
+      const rawSessions = Store.filterSessions(statsFilterType, statsFilterPeriod);
+      const sessions = rawSessions.filter(s => {
+        if (isAllTeams) return true;
+        const pids = Store.sessionPlayerIds(s);
+        return pids.some(pid => {
+          const p = Store.player(pid);
+          return p && statsFilterTeams.includes(p.teamId);
+        });
+      });
 
       let totalTouches = 0, totalPassOk = 0, totalPassKo = 0, totalShotOn = 0, totalShotOff = 0, totalGoals = 0;
+      let totalDuelWonGoal = 0, totalDuelWonStop = 0, totalDuelLostTurnover = 0, totalDuelLostGoal = 0;
 
       sessions.forEach(s => {
-        const pids = statsSelectedPlayerId === 'all' ? Store.sessionPlayerIds(s) : [statsSelectedPlayerId];
+        const pids = statsSelectedPlayerId === 'all'
+          ? Store.sessionPlayerIds(s).filter(pid => {
+              if (isAllTeams) return true;
+              const p = Store.player(pid);
+              return p && statsFilterTeams.includes(p.teamId);
+            })
+          : [statsSelectedPlayerId];
+
         pids.forEach(pid => {
           const st = s.stats[pid] || {};
           totalTouches += (st.touches || 0);
@@ -12316,6 +12349,11 @@
           totalShotOn += (st.shotOn || 0);
           totalShotOff += (st.shotOff || 0);
           totalGoals += (st.goal || 0);
+
+          totalDuelWonGoal += (st.duel1v1WonGoal || 0);
+          totalDuelWonStop += (st.duel1v1WonStop || 0);
+          totalDuelLostTurnover += (st.duel1v1LostTurnover || 0);
+          totalDuelLostGoal += (st.duel1v1LostGoal || 0);
         });
       });
 
@@ -12323,6 +12361,11 @@
       const passPct = totalPass ? Math.round((totalPassOk / totalPass) * 100) : 0;
       const totalShots = totalShotOn + totalShotOff;
       const shotPct = totalShots ? Math.round((totalShotOn / totalShots) * 100) : 0;
+
+      const totalDuelWon = totalDuelWonGoal + totalDuelWonStop;
+      const totalDuelLost = totalDuelLostTurnover + totalDuelLostGoal;
+      const totalDuels = totalDuelWon + totalDuelLost;
+      const duelWinRate = totalDuels ? Math.round((totalDuelWon / totalDuels) * 100) : 0;
 
       view.innerHTML = `
         <div class="topbar">
@@ -12337,10 +12380,32 @@
           </div>
         </div>
 
-        <div class="segmented" style="margin-bottom: 8px;">
+        <!-- Filtros por tipo de sesión -->
+        <div class="segmented" style="margin-bottom: 10px;">
           <button class="${statsFilterType === 'all' ? 'active' : ''}" data-type="all">${t('all')}</button>
           <button class="${statsFilterType === 'training' ? 'active t-training' : ''}" data-type="training">${t('training')}</button>
           <button class="${statsFilterType === 'match' ? 'active t-match' : ''}" data-type="match">${t('match')}</button>
+        </div>
+
+        <!-- Filtros por equipos (Multi-selección acumulativa) -->
+        <div style="margin-bottom: 12px;">
+          <div style="font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px;">
+            🛡️ ${t('teams', 'Equipos')}:
+          </div>
+          <div class="chips" id="metrics-team-filters" style="display: flex; flex-wrap: wrap; gap: 6px;">
+            <button class="chip ${isAllTeams ? 'active' : ''}" data-team="all" style="font-weight: 800;">
+              👥 ${t('all', 'Todos')}
+            </button>
+            ${allTeams.map(tm => {
+              const isAct = !isAllTeams && statsFilterTeams.includes(tm.id);
+              return `
+                <button class="chip ${isAct ? 'active' : ''}" data-team="${tm.id}" style="${isAct ? `background: ${tm.color || '#22c55e'}; color: #fff; border-color: ${tm.color || '#22c55e'}; font-weight: 800; box-shadow: 0 0 10px ${tm.color}55;` : ''}">
+                  <span class="dot" style="background: ${tm.color || '#22c55e'}"></span>
+                  ${escapeHtml(tm.name)}
+                </button>
+              `;
+            }).join('')}
+          </div>
         </div>
 
         <!-- Selector visual de jugador para Métricas -->
@@ -12366,7 +12431,12 @@
                     ${sTeam ? `<b style="color: ${sTeam.color};">${escapeHtml(sTeam.name)}</b>` : ''}
                   </div>
                 </div>
-                <button class="icon-btn ghost" id="btn-metrics-reset-all" type="button" title="${t('viewAllPlayers')}">${icon('x', 18)}</button>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <button class="btn sm primary clickable-p-profile" data-pid="${sp ? sp.id : ''}" type="button" style="font-size: 11px; padding: 4px 8px; font-weight: 800;">
+                    👤 Perfil
+                  </button>
+                  <button class="icon-btn ghost" id="btn-metrics-reset-all" type="button" title="${t('viewAllPlayers')}">${icon('x', 18)}</button>
+                </div>
               `;
             })()}
           </div>
@@ -12386,53 +12456,105 @@
           </div>
         </div>
 
-        <div class="rings" style="margin-bottom: 12px;">
-          <div class="ring-card">
+        <!-- Anillos de Progreso y Métricas Principales (incluyendo 1v1) -->
+        <div class="rings" style="margin-bottom: 12px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;">
+          <div class="ring-card" style="padding: 10px 4px;">
             <div class="ring">
               ${renderProgressRing(passPct, '#22c55e')}
               <span class="r-val" style="color: #22c55e;">${passPct}%</span>
             </div>
-            <span>${t('passAccuracy')}</span>
+            <span style="font-size: 11px;">${t('passAccuracy')}</span>
             <small>${totalPassOk}/${totalPass}</small>
           </div>
 
-          <div class="ring-card">
+          <div class="ring-card" style="padding: 10px 4px;">
             <div class="ring">
               ${renderProgressRing(shotPct, '#06b6d4')}
               <span class="r-val" style="color: #06b6d4;">${shotPct}%</span>
             </div>
-            <span>${t('shotAccuracy')}</span>
+            <span style="font-size: 11px;">${t('shotAccuracy')}</span>
             <small>${totalShotOn}/${totalShots}</small>
           </div>
 
-          <div class="ring-card">
+          <div class="ring-card" style="padding: 10px 4px;">
             <div class="ring">
               ${renderProgressRing(Math.min(100, totalGoals * 20), '#facc15')}
               <span class="r-val" style="color: #facc15;">${totalGoals}</span>
             </div>
-            <span>${t('totalGoals')}</span>
+            <span style="font-size: 11px;">${t('totalGoals')}</span>
             <small>${sessions.length} ses.</small>
+          </div>
+
+          <div class="ring-card" style="padding: 10px 4px;">
+            <div class="ring">
+              ${renderProgressRing(duelWinRate, '#f97316')}
+              <span class="r-val" style="color: #f97316;">${duelWinRate}%</span>
+            </div>
+            <span style="font-size: 11px;">${t('duels1v1WinRate', '% Victoria 1v1')}</span>
+            <small>${totalDuelWon}/${totalDuels} 1v1</small>
           </div>
         </div>
 
+        <!-- Tarjeta Dedicada: Datos Completos de 1v1 -->
+        <div class="card" style="margin-bottom: 14px; border: 1.5px solid rgba(249, 115, 22, 0.4); background: linear-gradient(135deg, rgba(249, 115, 22, 0.1) 0%, var(--surface2) 100%); border-radius: 14px; padding: 12px 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <span style="font-size: 12.5px; font-weight: 900; color: #fb923c; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px;">
+              <span>⚔️</span> <span>${t('duels1v1', 'Duelos 1v1')}</span>
+            </span>
+            <span class="badge" style="background: ${duelWinRate >= 50 ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)'}; color: ${duelWinRate >= 50 ? '#86efac' : '#fca5a5'}; font-size: 11px; font-weight: 800; border: 1px solid ${duelWinRate >= 50 ? 'rgba(34, 197, 94, 0.4)' : 'rgba(239, 68, 68, 0.4)'};">
+              ${duelWinRate}% Win Rate
+            </span>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; text-align: center;">
+            <div style="background: rgba(0,0,0,0.3); padding: 8px 4px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.06);">
+              <div style="font-size: 10px; font-weight: 800; color: #4ade80;">${t('won', 'Ganados')}</div>
+              <div style="font-size: 17px; font-weight: 900; color: #4ade80;">${totalDuelWon}</div>
+            </div>
+            <div style="background: rgba(0,0,0,0.3); padding: 8px 4px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.06);">
+              <div style="font-size: 10px; font-weight: 800; color: #f87171;">${t('lost', 'Perdidos')}</div>
+              <div style="font-size: 17px; font-weight: 900; color: #f87171;">${totalDuelLost}</div>
+            </div>
+            <div style="background: rgba(0,0,0,0.3); padding: 8px 4px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.06);">
+              <div style="font-size: 10px; font-weight: 800; color: #facc15;">${t('duel1v1Goals', 'Goles 1v1')}</div>
+              <div style="font-size: 17px; font-weight: 900; color: #facc15;">${totalDuelWonGoal}</div>
+            </div>
+            <div style="background: rgba(0,0,0,0.3); padding: 8px 4px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.06);">
+              <div style="font-size: 10px; font-weight: 800; color: #38bdf8;">${t('duel1v1Stops', 'Robos 1v1')}</div>
+              <div style="font-size: 17px; font-weight: 900; color: #38bdf8;">${totalDuelWonStop}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Líderes de Rendimiento (con 1v1) -->
         <div class="section-title"><span>${t('performanceLeaders')}</span></div>
 
         <div class="card" style="margin-bottom: 12px;">
-          <h4 style="margin: 0 0 10px; font-size: 14px; color: var(--muted);">${t('mostTouches')}</h4>
-          ${renderTopRankHtml(allPlayers, sessions, 'touches', '#22c55e')}
+          <h4 style="margin: 0 0 10px; font-size: 14px; color: #fb923c;">${t('top1v1', '⚔️ Líderes en Duelos 1v1 Ganados')}</h4>
+          ${renderTopRankHtml(allPlayers, sessions, 'duel1v1Won', '#fb923c')}
         </div>
 
         <div class="card" style="margin-bottom: 12px;">
-          <h4 style="margin: 0 0 10px; font-size: 14px; color: var(--muted);">${t('topScorers')}</h4>
+          <h4 style="margin: 0 0 10px; font-size: 14px; color: #38bdf8;">${t('top1v1Stops', '🛡️ Más Robos / Cierres en 1v1')}</h4>
+          ${renderTopRankHtml(allPlayers, sessions, 'duel1v1WonStop', '#38bdf8')}
+        </div>
+
+        <div class="card" style="margin-bottom: 12px;">
+          <h4 style="margin: 0 0 10px; font-size: 14px; color: #facc15;">${t('topScorers')}</h4>
           ${renderTopRankHtml(allPlayers, sessions, 'goal', '#facc15')}
         </div>
 
-        <div class="card">
-          <h4 style="margin: 0 0 10px; font-size: 14px; color: var(--muted);">${t('topPassers')}</h4>
+        <div class="card" style="margin-bottom: 12px;">
+          <h4 style="margin: 0 0 10px; font-size: 14px; color: #22c55e;">${t('mostTouches')}</h4>
+          ${renderTopRankHtml(allPlayers, sessions, 'touches', '#22c55e')}
+        </div>
+
+        <div class="card" style="margin-bottom: 14px;">
+          <h4 style="margin: 0 0 10px; font-size: 14px; color: #06b6d4;">${t('topPassers')}</h4>
           ${renderTopRankHtml(allPlayers, sessions, 'passOk', '#06b6d4')}
         </div>
       `;
 
+      // Eventos de filtros por sesión
       view.querySelectorAll('.segmented button').forEach(b => {
         b.onclick = () => {
           statsFilterType = b.getAttribute('data-type');
@@ -12440,6 +12562,37 @@
         };
       });
 
+      // Eventos de filtros multi-selección de equipos
+      view.querySelectorAll('#metrics-team-filters .chip').forEach(btn => {
+        btn.onclick = () => {
+          const tid = btn.getAttribute('data-team');
+          if (tid === 'all') {
+            statsFilterTeams = ['all'];
+          } else {
+            if (statsFilterTeams.includes('all')) {
+              statsFilterTeams = [tid];
+            } else {
+              if (statsFilterTeams.includes(tid)) {
+                statsFilterTeams = statsFilterTeams.filter(id => id !== tid);
+                if (statsFilterTeams.length === 0) {
+                  statsFilterTeams = ['all'];
+                }
+              } else {
+                statsFilterTeams.push(tid);
+              }
+            }
+          }
+          if (statsSelectedPlayerId !== 'all') {
+            const sp = Store.player(statsSelectedPlayerId);
+            if (sp && !statsFilterTeams.includes('all') && !statsFilterTeams.includes(sp.teamId)) {
+              statsSelectedPlayerId = 'all';
+            }
+          }
+          build();
+        };
+      });
+
+      // Eventos del carrusel de jugadores
       view.querySelectorAll('.metrics-p-chip').forEach(chip => {
         chip.onclick = () => {
           statsSelectedPlayerId = chip.getAttribute('data-pid');
@@ -12447,9 +12600,11 @@
         };
       });
 
+      // Evento abrir selector modal de jugadores
       const cardEl = view.querySelector('#btn-metrics-open-picker');
       if (cardEl) {
         cardEl.onclick = (e) => {
+          if (e.target.closest('.clickable-p-profile')) return;
           const resetBtn = e.target.closest('#btn-metrics-reset-all');
           if (resetBtn) {
             e.stopPropagation();
@@ -12463,6 +12618,18 @@
           });
         };
       }
+
+      // Al pulsar en cualquier jugador de la lista / rankings / tarjeta -> abrir perfil
+      view.querySelectorAll('.clickable-p-profile').forEach(el => {
+        el.onclick = (e) => {
+          e.stopPropagation();
+          const pid = el.getAttribute('data-pid');
+          if (pid) {
+            haptic(25);
+            showPlayerProfileModal(pid);
+          }
+        };
+      });
 
       view.querySelector('#btn-stats-h2h').onclick = () => {
         showHeadToHeadModal(statsSelectedPlayerId !== 'all' ? statsSelectedPlayerId : null, null);
@@ -12479,9 +12646,9 @@
     const circ = 2 * Math.PI * r;
     const offset = circ - (circ * Math.min(100, Math.max(0, pct))) / 100;
     return `
-      <svg width="70" height="70">
-        <circle cx="35" cy="35" r="${r}" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="6" />
-        <circle cx="35" cy="35" r="${r}" fill="none" stroke="${color}" stroke-width="6"
+      <svg width="64" height="64" viewBox="0 0 64 64" style="display: block; margin: 0 auto;">
+        <circle cx="32" cy="32" r="${r}" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="5.5" />
+        <circle cx="32" cy="32" r="${r}" fill="none" stroke="${color}" stroke-width="5.5"
                 stroke-dasharray="${circ}" stroke-dashoffset="${offset}" stroke-linecap="round" />
       </svg>
     `;
@@ -12491,8 +12658,12 @@
     const ranking = players.map(p => {
       let sum = 0;
       sessions.forEach(s => {
-        const st = s.stats[p.id] || {};
-        sum += (st[key] || 0);
+        const st = (s && s.stats && s.stats[p.id]) || {};
+        if (key === 'duel1v1Won') {
+          sum += (st.duel1v1WonGoal || 0) + (st.duel1v1WonStop || 0);
+        } else {
+          sum += (st[key] || 0);
+        }
       });
       return { player: p, value: sum };
     }).filter(x => x.value > 0).sort((a, b) => b.value - a.value).slice(0, 3);
@@ -12506,14 +12677,15 @@
     return ranking.map((item, idx) => {
       const pct = Math.round((item.value / maxVal) * 100);
       return `
-        <div class="rank-item" style="padding: 6px 0; background: none; border: 0;">
-          <div class="rank-pos">#${idx + 1}</div>
+        <div class="rank-item clickable-p-profile" data-pid="${item.player.id}" style="padding: 8px 10px; border-radius: 10px; cursor: pointer; transition: background 0.15s ease; display: flex; align-items: center; gap: 8px;" title="${t('viewPlayerProfile', 'Ver Perfil del Jugador')}">
+          <div class="rank-pos" style="font-weight: 900; font-size: 12px; color: var(--muted); width: 22px;">#${idx + 1}</div>
           ${renderAvatar(item.player, 'sm')}
           <div class="grow ellipsis">
-            <b>${escapeHtml(Store.playerName(item.player))}</b>
+            <b style="color: #fff; font-size: 13px;">${escapeHtml(Store.playerName(item.player))}</b>
             <div class="rank-bar"><i style="--rc: ${color}; width: ${pct}%;"></i></div>
           </div>
-          <div class="rank-val" style="color: ${color};">${item.value}</div>
+          <div class="rank-val" style="color: ${color}; font-weight: 900; font-size: 14px;">${item.value}</div>
+          <span style="color: var(--muted); font-size: 14px; margin-left: 4px;">›</span>
         </div>
       `;
     }).join('');
