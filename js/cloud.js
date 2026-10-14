@@ -520,6 +520,26 @@
       }
     },
 
+    // Elimina una sesión específica de la subcolección de Firestore y limpia el estado local de sincronización
+    deleteSessionFromCloud: async function (sessionId) {
+      if (!sessionId) return;
+      if (!this.init()) return;
+      try {
+        const clubRef = db.collection('clubs').doc(CLUB_ID);
+        await clubRef.collection('sessions').doc(sessionId).delete();
+        if (knownRemoteSessionIds) {
+          knownRemoteSessionIds.delete(sessionId);
+        }
+        if (syncedHashes && syncedHashes.sessions) {
+          delete syncedHashes.sessions[sessionId];
+        }
+        savePersistedSyncState();
+        console.log('[Cloud] Sesión eliminada definitivamente de Firestore:', sessionId);
+      } catch (err) {
+        console.error('[Cloud] Error eliminando sesión de Firestore:', err);
+      }
+    },
+
     /* -------------------------------------------------------------
        2. FUNCIONES PARA LOS JUGADORES (PORTAL JUGADOR / PWA)
        ------------------------------------------------------------- */
@@ -563,6 +583,16 @@
             finalPlayers = null; // Aún cargando subcolección
           }
 
+          let finalConvs = currentConvocations;
+          if (!hasSubConvs && !hasReceivedConvsSnapshot && Array.isArray(root.convocations) && root.convocations.length > 0) {
+            finalConvs = root.convocations;
+          }
+
+          let finalSessions = currentSessions;
+          if (!hasSubSessions && !hasReceivedSessionsSnapshot && Array.isArray(root.sessions) && root.sessions.length > 0) {
+            finalSessions = root.sessions;
+          }
+
           const combined = {
             settings: root.settings || {
               lang: 'es',
@@ -574,8 +604,8 @@
             teams: root.teams || [],
             recurringSchedules: root.recurringSchedules || [],
             players: finalPlayers !== null ? finalPlayers : (root.players || []),
-            convocations: hasSubConvs ? currentConvocations : (root.convocations || []),
-            sessions: hasSubSessions ? currentSessions : (root.sessions || []),
+            convocations: finalConvs,
+            sessions: finalSessions,
             updatedAt: root.updatedAt || null,
             clientTime: root.clientTime || Date.now(),
             schemaVersion: 2,
@@ -611,6 +641,7 @@
 
         // 3. Listener de la Subcolección de Convocatorias
         const convsUnsub = clubRef.collection('convocations').onSnapshot((snapshot) => {
+          hasReceivedConvsSnapshot = true;
           const list = [];
           snapshot.forEach(doc => {
             const data = doc.data();
@@ -625,6 +656,7 @@
 
         // 4. Listener de la Subcolección de Sesiones (Partidos y Entrenamientos)
         const sessionsUnsub = clubRef.collection('sessions').limit(25).onSnapshot((snapshot) => {
+          hasReceivedSessionsSnapshot = true;
           const list = [];
           snapshot.forEach(doc => {
             const data = doc.data();

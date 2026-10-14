@@ -1763,19 +1763,21 @@
     let rating = 6.0;
     let mode = 'none'; // 'combined' | 'training' | 'match' | 'none'
 
-    if (hasTrain && hasMatch) {
+    if (rTrain != null && rMatch != null) {
       rating = (rTrain + rMatch) / 2;
       mode = 'combined';
-    } else if (hasTrain && !hasMatch) {
+    } else if (rTrain != null) {
       rating = rTrain;
       mode = 'training';
-    } else if (!hasTrain && hasMatch) {
+    } else if (rMatch != null) {
       rating = rMatch;
       mode = 'match';
     } else {
       rating = 6.0;
       mode = 'none';
     }
+
+    if (typeof rating !== 'number' || isNaN(rating)) rating = 6.0;
 
     return {
       rating: Number(rating.toFixed(1)),
@@ -5563,27 +5565,39 @@
         </div>
 
         <!-- MISIÓN SEMANAL DEL MÍSTER -->
-        ${myP.weeklyMission ? `
-          <div class="card" style="margin-bottom: 14px; border: 1.5px solid ${myP.weeklyMission.status === 'completed' ? 'rgba(34, 197, 94, 0.6)' : 'rgba(168, 85, 247, 0.5)'}; background: ${myP.weeklyMission.status === 'completed' ? 'linear-gradient(135deg, rgba(34, 197, 94, 0.16) 0%, rgba(15, 23, 42, 0.8) 100%)' : 'linear-gradient(135deg, rgba(168, 85, 247, 0.16) 0%, rgba(15, 23, 42, 0.8) 100%)'}; border-radius: 16px; padding: 14px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <span style="font-size: 24px;">🎯</span>
-                <b style="font-size: 13.5px; color: ${myP.weeklyMission.status === 'completed' ? '#4ade80' : '#c084fc'}; text-transform: uppercase; letter-spacing: 0.5px;">
-                  ${t('weeklyMissionTitle', 'Misión Semanal del Míster')}
-                </b>
+        ${(() => {
+          if (!myP.weeklyMission) return '';
+          function getPlayerMissionText(mission, lang) {
+            if (!mission) return '';
+            if (lang === 'ee' && mission.text_ee) return mission.text_ee;
+            if (lang === 'en' && mission.text_en) return mission.text_en;
+            if (lang === 'es' && mission.text_es) return mission.text_es;
+            return mission.text || '';
+          }
+          const mText = getPlayerMissionText(myP.weeklyMission, currentLang);
+          const mIcon = myP.weeklyMission.icon || '🎯';
+          return `
+            <div class="card" style="margin-bottom: 14px; border: 1.5px solid ${myP.weeklyMission.status === 'completed' ? 'rgba(34, 197, 94, 0.6)' : 'rgba(168, 85, 247, 0.5)'}; background: ${myP.weeklyMission.status === 'completed' ? 'linear-gradient(135deg, rgba(34, 197, 94, 0.16) 0%, rgba(15, 23, 42, 0.8) 100%)' : 'linear-gradient(135deg, rgba(168, 85, 247, 0.16) 0%, rgba(15, 23, 42, 0.8) 100%)'}; border-radius: 16px; padding: 14px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="font-size: 24px;">${mIcon}</span>
+                  <b style="font-size: 13.5px; color: ${myP.weeklyMission.status === 'completed' ? '#4ade80' : '#c084fc'}; text-transform: uppercase; letter-spacing: 0.5px;">
+                    ${t('weeklyMissionTitle', 'Misión Semanal del Míster')}
+                  </b>
+                </div>
+                <span class="badge" style="background: ${myP.weeklyMission.status === 'completed' ? '#16a34a' : 'rgba(250, 204, 21, 0.2)'}; color: ${myP.weeklyMission.status === 'completed' ? '#fff' : '#fde047'}; font-weight: 900; font-size: 11px; padding: 4px 10px; border-radius: 999px;">
+                  ${myP.weeklyMission.status === 'completed' ? t('missionStatusCompleted', '🎉 ¡Misión Cumplida!') : t('missionStatusPending', '⏳ En curso')}
+                </span>
               </div>
-              <span class="badge" style="background: ${myP.weeklyMission.status === 'completed' ? '#16a34a' : 'rgba(250, 204, 21, 0.2)'}; color: ${myP.weeklyMission.status === 'completed' ? '#fff' : '#fde047'}; font-weight: 900; font-size: 11px; padding: 4px 10px; border-radius: 999px;">
-                ${myP.weeklyMission.status === 'completed' ? t('missionStatusCompleted', '🎉 ¡Misión Cumplida!') : t('missionStatusPending', '⏳ En curso')}
-              </span>
+              <div style="font-size: 14px; font-weight: 800; color: #fff; margin: 8px 0; line-height: 1.45; background: rgba(0,0,0,0.3); padding: 10px 12px; border-radius: 10px;">
+                "${escapeHtml(mText)}"
+              </div>
+              <div style="font-size: 11px; color: var(--muted); line-height: 1.35;">
+                ${t('missionMotivation', 'Concéntrate en este objetivo táctico en tus próximos entrenos y partidos.')}
+              </div>
             </div>
-            <div style="font-size: 14px; font-weight: 800; color: #fff; margin: 8px 0; line-height: 1.45; background: rgba(0,0,0,0.3); padding: 10px 12px; border-radius: 10px;">
-              "${escapeHtml(myP.weeklyMission.text)}"
-            </div>
-            <div style="font-size: 11px; color: var(--muted); line-height: 1.35;">
-              ${t('missionMotivation', 'Concéntrate en este objetivo táctico en tus próximos entrenos y partidos.')}
-            </div>
-          </div>
-        ` : ''}
+          `;
+        })()}
 
         <!-- RACHA DE ASISTENCIA Y MEDALLAS -->
         <div class="card" style="margin-bottom: 14px; border: 1.5px solid rgba(249, 115, 22, 0.45); background: linear-gradient(135deg, rgba(249, 115, 22, 0.16) 0%, rgba(19, 31, 56, 0.8) 100%);">
@@ -5975,9 +5989,16 @@
 
     // Tocar jugador = ver ficha completa (Punto 9)
     view.querySelectorAll('.squad-item-card').forEach(card => {
-      card.onclick = () => {
+      card.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
         const pid = card.getAttribute('data-pid');
-        showPlayerFullProfileModal(pid);
+        try {
+          showPlayerFullProfileModal(pid);
+        } catch (err) {
+          console.error('[PlayerApp] Error abriendo ficha de compañero:', err);
+          toast(t('errorOpeningProfile', 'Error abriendo perfil del jugador'), 'error');
+        }
       };
     });
   }
@@ -6098,6 +6119,9 @@
   }
 
   function showPlayerFullProfileModal(pid) {
+    const existing = document.getElementById('dialog-player-full-profile');
+    if (existing) existing.remove();
+
     const p = (clubData.players || []).find(x => x.id === pid);
     if (!p) return;
 
@@ -6225,6 +6249,8 @@
 
     const overlay = document.createElement('div');
     overlay.className = 'dialog-overlay';
+    overlay.id = 'dialog-player-full-profile';
+    overlay.style.zIndex = '999999';
     overlay.innerHTML = `
       <div class="dialog-box" style="max-height: 88vh; width: 94%; max-width: 480px; padding: 18px; overflow-y: auto;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
@@ -6374,6 +6400,184 @@
   let h2hPlayer1Id = null;
   let h2hPlayer2Id = null;
 
+  function getPlayer1v1Stats(pid, sessions) {
+    let wonGoal = 0, wonStop = 0, lostTurnover = 0, lostGoal = 0;
+    (sessions || []).forEach(s => {
+      const st = (s && s.stats && s.stats[pid]) ? s.stats[pid] : {};
+      wonGoal += st.duel1v1WonGoal || 0;
+      wonStop += st.duel1v1WonStop || 0;
+      lostTurnover += st.duel1v1LostTurnover || 0;
+      lostGoal += st.duel1v1LostGoal || 0;
+    });
+    const won = wonGoal + wonStop;
+    const lost = lostTurnover + lostGoal;
+    const total = won + lost;
+    const winRate = total > 0 ? Math.round((won / total) * 100) : 0;
+    return { won, lost, total, winRate, wonGoal, wonStop, lostTurnover, lostGoal };
+  }
+
+  function calculate1v1WinProbability(p1, p2, r1, r2, d1, d2) {
+    // 1. Atributos técnicos/físicos clave para 1v1: Regate (35%), Defensa (30%), Físico (25%), Tiro (10%)
+    const skill1 = (r1.reg * 0.35) + (r1.def * 0.30) + (r1.fis * 0.25) + (r1.tir * 0.10);
+    const skill2 = (r2.reg * 0.35) + (r2.def * 0.30) + (r2.fis * 0.25) + (r2.tir * 0.10);
+
+    // 2. Ajuste por historial empírico de duelos (ponderado por tamaño de muestra)
+    let empAdj1 = 0;
+    if (d1.total > 0) {
+      const conf1 = Math.min(1.0, d1.total / 12);
+      empAdj1 = conf1 * (d1.winRate - 50) * 0.22;
+    }
+    let empAdj2 = 0;
+    if (d2.total > 0) {
+      const conf2 = Math.min(1.0, d2.total / 12);
+      empAdj2 = conf2 * (d2.winRate - 50) * 0.22;
+    }
+
+    // 3. Diferencia de edad y maduración biológica a partir de fecha de nacimiento
+    let ageBonus1 = 0;
+    let ageBonus2 = 0;
+    let ageDiffText = '';
+
+    if (p1.birthDate && p2.birthDate) {
+      const b1 = new Date(p1.birthDate);
+      const b2 = new Date(p2.birthDate);
+      if (!isNaN(b1.getTime()) && !isNaN(b2.getTime())) {
+        const diffYears = (b2.getTime() - b1.getTime()) / (365.25 * 24 * 3600 * 1000); // positivo si p1 nació antes (es mayor)
+        const diffMonths = Math.round(diffYears * 12);
+
+        // En fútbol base/formativo, la diferencia de meses aporta ventaja de fuerza y velocidad
+        const ageImpact = Math.max(-9, Math.min(9, diffYears * 3.2));
+        ageBonus1 = ageImpact;
+        ageBonus2 = -ageImpact;
+
+        if (Math.abs(diffMonths) >= 1) {
+          const name1 = (p1.name || 'J1').split(' ')[0];
+          const name2 = (p2.name || 'J2').split(' ')[0];
+          if (diffMonths > 0) {
+            ageDiffText = `${name1} es ${Math.abs(diffMonths)} ${Math.abs(diffMonths) === 1 ? 'mes' : 'meses'} mayor`;
+          } else {
+            ageDiffText = `${name2} es ${Math.abs(diffMonths)} ${Math.abs(diffMonths) === 1 ? 'mes' : 'meses'} mayor`;
+          }
+        } else {
+          ageDiffText = 'Misma edad biológica';
+        }
+      }
+    }
+
+    const finalScore1 = skill1 + empAdj1 + ageBonus1;
+    const finalScore2 = skill2 + empAdj2 + ageBonus2;
+
+    // Modelo logístico de probabilidad
+    const scoreDiff = finalScore1 - finalScore2;
+    const rawProb1 = 1 / (1 + Math.exp(-scoreDiff / 14));
+    let prob1 = Math.round(rawProb1 * 100);
+    prob1 = Math.max(12, Math.min(88, prob1)); // Acotar entre 12% y 88%
+    const prob2 = 100 - prob1;
+
+    let favorite = null;
+    const reasons = [];
+    if (prob1 >= 53) {
+      favorite = 1;
+      if (r1.reg > r2.reg) reasons.push('Mayor desborde / regate');
+      if (r1.fis > r2.fis) reasons.push('Superioridad física');
+      if (r1.def > r2.def) reasons.push('Mayor solidez defensiva');
+      if (d1.winRate > d2.winRate && d1.total >= 3) reasons.push('Mejor % victorias 1v1 previo');
+      if (ageBonus1 >= 2) reasons.push('Ventaja por madurez física');
+    } else if (prob2 >= 53) {
+      favorite = 2;
+      if (r2.reg > r1.reg) reasons.push('Mayor desborde / regate');
+      if (r2.fis > r1.fis) reasons.push('Superioridad física');
+      if (r2.def > r1.def) reasons.push('Mayor solidez defensiva');
+      if (d2.winRate > d1.winRate && d2.total >= 3) reasons.push('Mejor % victorias 1v1 previo');
+      if (ageBonus2 >= 2) reasons.push('Ventaja por madurez física');
+    }
+
+    return {
+      prob1,
+      prob2,
+      favorite,
+      reasons: reasons.slice(0, 3),
+      ageDiffText
+    };
+  }
+
+  function renderH2HRadarSVG(rd, mainColor = '#22d3ee') {
+    const axesLabels = {
+      en: { pas: 'PASS', tir: 'SHOT', reg: 'DRIB', fis: 'PHYS', def: 'DEF' },
+      ee: { pas: 'SÖÖT', tir: 'LÖÖK', reg: 'TRIB', fis: 'FÜÜS', def: 'KAIT' },
+      es: { pas: 'PASE', tir: 'TIRO', reg: 'REG',  fis: 'FÍS',  def: 'DEF' }
+    };
+    const langLabels = axesLabels[currentLang] || axesLabels.en;
+    const axes = [
+      { key: 'pas', label: langLabels.pas, val: rd.pas },
+      { key: 'tir', label: langLabels.tir, val: rd.tir },
+      { key: 'reg', label: langLabels.reg, val: rd.reg },
+      { key: 'fis', label: langLabels.fis, val: rd.fis },
+      { key: 'def', label: langLabels.def, val: rd.def }
+    ];
+
+    const cx = 130, cy = 130, rMax = 88;
+    const totalAxes = 5;
+
+    function getCoords(index, value) {
+      const angle = (Math.PI * 2 / totalAxes) * index - Math.PI / 2;
+      const normalized = Math.max(10, Math.min(99, value)) / 100;
+      const r = rMax * normalized;
+      return { x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) };
+    }
+
+    const levels = [0.25, 0.50, 0.75, 1.0];
+    const gridPolygons = levels.map(lvl => {
+      const pts = [];
+      for (let i = 0; i < totalAxes; i++) {
+        const a = (Math.PI * 2 / totalAxes) * i - Math.PI / 2;
+        const r = rMax * lvl;
+        pts.push(`${(cx + r * Math.cos(a)).toFixed(1)},${(cy + r * Math.sin(a)).toFixed(1)}`);
+      }
+      return `<polygon points="${pts.join(' ')}" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1.2"/>`;
+    }).join('');
+
+    const dataPoints = axes.map((a, i) => ({ ...getCoords(i, a.val), a }));
+    const dataPolyPoints = dataPoints.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+
+    const labels = axes.map((a, i) => {
+      const angle = (Math.PI * 2 / totalAxes) * i - Math.PI / 2;
+      const labelR = rMax + 24;
+      const lx = cx + labelR * Math.cos(angle);
+      const ly = cy + labelR * Math.sin(angle);
+      return `
+        <g class="radar-click-label" data-skill="${a.key}" style="cursor: pointer;">
+          <circle cx="${lx.toFixed(1)}" cy="${(ly + 5).toFixed(1)}" r="18" fill="${mainColor}18" />
+          <text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" fill="#e2e8f0" font-size="10.5" font-weight="900" text-anchor="middle" dominant-baseline="central">
+            ${a.label}
+          </text>
+          <text x="${lx.toFixed(1)}" y="${(ly + 12).toFixed(1)}" fill="${mainColor}" font-size="11.5" font-weight="900" text-anchor="middle" dominant-baseline="central">
+            ${a.val}
+          </text>
+        </g>
+      `;
+    }).join('');
+
+    const gradId = 'h2hRadarGrad_' + mainColor.replace(/[^a-zA-Z0-9]/g, '');
+
+    return `
+      <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; margin: 0; padding: 0;">
+        <svg class="radar-svg" viewBox="0 0 260 260" style="width: 100%; aspect-ratio: 1 / 1; max-width: 230px; height: auto; display: block;">
+          <defs>
+            <radialGradient id="${gradId}" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="${mainColor}" stop-opacity="0.45" />
+              <stop offset="100%" stop-color="${mainColor}" stop-opacity="0.10" />
+            </radialGradient>
+          </defs>
+          ${gridPolygons}
+          <polygon points="${dataPolyPoints}" fill="url(#${gradId})" stroke="${mainColor}" stroke-width="2.5" />
+          ${dataPoints.map(p => `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4" fill="${mainColor}" stroke="#060a13" stroke-width="1.8" />`).join('')}
+          ${labels}
+        </svg>
+      </div>
+    `;
+  }
+
   function renderH2HView() {
     if (!hasApprovedProfile()) {
       renderNoProfileAccessView(t('h2h', 'Face to Face'));
@@ -6408,6 +6612,11 @@
     const r1 = calculatePlayerRadar(p1.id);
     const r2 = calculatePlayerRadar(p2.id);
 
+    const allSessions = (clubData && clubData.sessions) || [];
+    const d1 = getPlayer1v1Stats(p1.id, allSessions);
+    const d2 = getPlayer1v1Stats(p2.id, allSessions);
+    const prob = calculate1v1WinProbability(p1, p2, r1, r2, d1, d2);
+
     view.innerHTML = `
       <div style="padding: 6px 0;">
         <h2 style="font-size: 18px; font-weight: 900; margin: 0 0 4px;">${t('h2hTitle')}</h2>
@@ -6416,30 +6625,86 @@
         <!-- Selector Cara a Cara -->
         <div style="display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; margin-bottom: 14px;">
           <!-- Jugador 1 -->
-          <div class="card" style="padding: 10px; text-align: center; border: 1.5px solid #22d3ee; cursor: pointer;" id="btn-change-h2h-1">
+          <div class="card" style="padding: 10px; text-align: center; border: 1.5px solid #22d3ee; cursor: pointer; border-radius: 14px;" id="btn-change-h2h-1">
             ${renderAvatar(p1, 'md')}
             <h4 style="margin: 6px 0 2px; font-size: 13.5px; font-weight: 800; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">
               #${p1.mainDorsal != null ? p1.mainDorsal : '-'} ${escapeHtml(p1.name || '')}
             </h4>
             <span class="pos-tag" style="font-size: 10.5px;">${formatPosition(p1.mainPosition)}</span>
-            <div style="font-size: 11px; color: #22d3ee; margin-top: 4px; font-weight: 800;">${t('changeProfile')}</div>
+            <div style="font-size: 11px; color: #22d3ee; margin-top: 4px; font-weight: 800;">${t('changeProfile')} ▾</div>
           </div>
 
           <div style="font-size: 20px; font-weight: 900; color: var(--muted);">VS</div>
 
           <!-- Jugador 2 -->
-          <div class="card" style="padding: 10px; text-align: center; border: 1.5px solid #f472b6; cursor: pointer;" id="btn-change-h2h-2">
+          <div class="card" style="padding: 10px; text-align: center; border: 1.5px solid #f472b6; cursor: pointer; border-radius: 14px;" id="btn-change-h2h-2">
             ${renderAvatar(p2, 'md')}
             <h4 style="margin: 6px 0 2px; font-size: 13.5px; font-weight: 800; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">
               #${p2.mainDorsal != null ? p2.mainDorsal : '-'} ${escapeHtml(p2.name || '')}
             </h4>
             <span class="pos-tag" style="font-size: 10.5px;">${formatPosition(p2.mainPosition)}</span>
-            <div style="font-size: 11px; color: #f472b6; margin-top: 4px; font-weight: 800;">${t('changeProfile')}</div>
+            <div style="font-size: 11px; color: #f472b6; margin-top: 4px; font-weight: 800;">${t('changeProfile')} ▾</div>
           </div>
         </div>
 
-        <!-- Duelos Métricos -->
-        <div class="card" style="margin-bottom: 14px; padding: 14px; border: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px;">
+        <!-- 🔮 PREDICCIÓN ANALÍTICA DE VICTORIA EN 1v1 -->
+        <div class="card" style="margin-bottom: 14px; padding: 14px; border: 1.5px solid rgba(168, 85, 247, 0.45); background: linear-gradient(135deg, rgba(168, 85, 247, 0.12) 0%, rgba(15, 23, 42, 0.8) 100%); border-radius: 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span style="font-size: 12px; font-weight: 900; color: #c084fc; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px;">
+              <span>🔮</span> <span>${t('prob1v1Title', 'Probabilidad Victoria 1v1')}</span>
+            </span>
+            ${prob.favorite ? `
+              <span class="badge" style="background: ${prob.favorite === 1 ? 'rgba(34, 211, 238, 0.2)' : 'rgba(244, 114, 182, 0.2)'}; color: ${prob.favorite === 1 ? '#22d3ee' : '#f472b6'}; border: 1px solid ${prob.favorite === 1 ? '#22d3ee' : '#f472b6'}; font-size: 10.5px; font-weight: 800; padding: 2px 7px;">
+                ⭐ Favorito: ${(prob.favorite === 1 ? p1.name : p2.name).split(' ')[0]}
+              </span>
+            ` : `
+              <span class="badge" style="background: rgba(250, 204, 21, 0.2); color: #fde047; font-size: 10.5px; font-weight: 800; padding: 2px 7px;">
+                ⚖️ Muy Equilibrado
+              </span>
+            `}
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px;">
+            <div style="font-size: 26px; font-weight: 900; color: #22d3ee;">${prob.prob1}%</div>
+            <div style="font-size: 11px; font-weight: 700; color: var(--muted); text-align: center;">
+              ${prob.ageDiffText ? `<span>🎂 ${prob.ageDiffText}</span>` : 'Datos Bayes + 1v1 + Edad'}
+            </div>
+            <div style="font-size: 26px; font-weight: 900; color: #f472b6;">${prob.prob2}%</div>
+          </div>
+
+          <!-- Barra de Probabilidad 1v1 -->
+          <div style="height: 10px; width: 100%; background: #f472b6; border-radius: 999px; overflow: hidden; display: flex; box-shadow: inset 0 2px 4px rgba(0,0,0,0.4);">
+            <div style="width: ${prob.prob1}%; background: #22d3ee; height: 100%;"></div>
+          </div>
+
+          ${prob.reasons.length > 0 ? `
+            <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px;">
+              ${prob.reasons.map(r => `
+                <span class="badge" style="background: rgba(255,255,255,0.06); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.1); font-size: 10px; font-weight: 700; padding: 2px 6px;">
+                  ✓ ${escapeHtml(r)}
+                </span>
+              `).join('')}
+            </div>
+          ` : ''}
+        </div>
+
+        <!-- ⚔️ DUELOS 1v1 HISTÓRICOS -->
+        <div class="card" style="margin-bottom: 14px; padding: 14px; border: 1.5px solid var(--border); display: flex; flex-direction: column; gap: 8px; border-radius: 14px;">
+          <div style="font-size: 12px; font-weight: 900; color: #fb923c; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px;">
+            ⚔️ ${t('duels1v1', 'Duelos 1v1')} (Histórico)
+          </div>
+          ${renderH2HMetricRow(t('duels1v1WinRate', '% Victorias 1v1'), `${d1.winRate}%`, `${d2.winRate}%`, '🏆')}
+          ${renderH2HMetricRow(t('duels1v1Won', 'Duelos Ganados'), d1.won, d2.won, '⚔️')}
+          ${renderH2HMetricRow(t('duels1v1Lost', 'Duelos Perdidos'), d1.lost, d2.lost, '❌')}
+          ${renderH2HMetricRow(t('duel1v1Goals', 'Goles en 1v1'), d1.wonGoal, d2.wonGoal, '⚽')}
+          ${renderH2HMetricRow(t('duel1v1Stops', 'Robos / Cierres'), d1.wonStop, d2.wonStop, '🛡️')}
+        </div>
+
+        <!-- Métricas Generales -->
+        <div class="card" style="margin-bottom: 14px; padding: 14px; border: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; border-radius: 14px;">
+          <div style="font-size: 12px; font-weight: 900; color: var(--cyan); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px;">
+            📊 Métricas de Rendimiento
+          </div>
           ${renderH2HMetricRow(t('performanceRating'), `⭐ ${s1.aggregatedRating}`, `⭐ ${s2.aggregatedRating}`, '⭐')}
           ${renderH2HMetricRow(t('matchesAttended'), s1.matchesAttended, s2.matchesAttended, '🏟️')}
           ${renderH2HMetricRow(t('trainingsAttended'), s1.trainingsAttended, s2.trainingsAttended, '🏃‍♂️')}
@@ -6449,17 +6714,24 @@
           ${renderH2HMetricRow(t('ballTouches'), s1.touches, s2.touches, '👟')}
         </div>
 
-        <!-- Radares individuales -->
+        <!-- Radares comparativos 100% simétricos -->
         <div class="section-title"><span>${t('comparativeRadars', 'Comparative Skill Radars')}</span></div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-          <div class="card" style="padding: 8px; text-align: center; border: 1px solid var(--border);">
-            <b style="font-size: 12px; color: #22d3ee;">${escapeHtml(p1.name || '')}</b>
-            ${renderRadarSVG(r1)}
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: stretch; margin-bottom: 8px;">
+          <div class="card" style="padding: 10px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; border: 1.5px solid rgba(34, 211, 238, 0.35); border-radius: 14px; height: 100%; box-sizing: border-box;">
+            <b style="font-size: 12.5px; color: #22d3ee; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; text-align: center; height: 20px; line-height: 20px; display: block; margin-bottom: 4px;">
+              ${escapeHtml(p1.name || '')}
+            </b>
+            ${renderH2HRadarSVG(r1, '#22d3ee')}
           </div>
-          <div class="card" style="padding: 8px; text-align: center; border: 1px solid var(--border);">
-            <b style="font-size: 12px; color: #f472b6;">${escapeHtml(p2.name || '')}</b>
-            ${renderRadarSVG(r2)}
+          <div class="card" style="padding: 10px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; border: 1.5px solid rgba(244, 114, 182, 0.35); border-radius: 14px; height: 100%; box-sizing: border-box;">
+            <b style="font-size: 12.5px; color: #f472b6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; text-align: center; height: 20px; line-height: 20px; display: block; margin-bottom: 4px;">
+              ${escapeHtml(p2.name || '')}
+            </b>
+            ${renderH2HRadarSVG(r2, '#f472b6')}
           </div>
+        </div>
+        <div style="text-align: center; font-size: 11px; color: var(--muted); margin-bottom: 12px;">
+          ${t('tapSkillHint')}
         </div>
       </div>
     `;
@@ -6494,21 +6766,104 @@
 
   function showPickerForH2H(targetSlot) {
     const players = clubData.players || [];
+    const teams = clubData.teams || [];
+
     const overlay = document.createElement('div');
     overlay.className = 'dialog-overlay';
+    overlay.style.zIndex = '999999';
+
+    function buildGridHtml(searchFilter = '') {
+      const q = searchFilter.toLowerCase().trim();
+      const filtered = players.filter(p => {
+        if (!q) return true;
+        const name = `${p.name || ''} ${p.lastName || ''}`.toLowerCase();
+        const dorsal = String(p.mainDorsal || '');
+        return name.includes(q) || dorsal.includes(q);
+      });
+
+      if (filtered.length === 0) {
+        return `
+          <div style="padding: 24px; text-align: center; color: var(--muted); font-size: 12.5px;">
+            No se encontraron jugadores
+          </div>
+        `;
+      }
+
+      // Agrupar por equipos
+      const teamGroups = teams.map(tm => ({
+        team: tm,
+        players: filtered.filter(p => p.teamId === tm.id)
+      })).filter(g => g.players.length > 0);
+
+      const generalPlayers = filtered.filter(p => !teams.some(tm => tm.id === p.teamId));
+
+      let html = '';
+      teamGroups.forEach(g => {
+        html += `
+          <div style="margin-bottom: 12px;">
+            <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px; padding: 0 4px;">
+              <span class="dot" style="background: ${g.team.color || 'var(--cyan)'}; width: 8px; height: 8px; border-radius: 50%;"></span>
+              <span style="font-size: 12px; font-weight: 800; color: #fff;">${escapeHtml(g.team.name)}</span>
+              <span class="badge" style="font-size: 10px; padding: 1px 6px;">${g.players.length}</span>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px;">
+              ${g.players.map(p => renderPlayerCard(p)).join('')}
+            </div>
+          </div>
+        `;
+      });
+
+      if (generalPlayers.length > 0) {
+        html += `
+          <div style="margin-bottom: 12px;">
+            <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px; padding: 0 4px;">
+              <span>🛡️</span>
+              <span style="font-size: 12px; font-weight: 800; color: #fff;">General / Otros</span>
+              <span class="badge" style="font-size: 10px; padding: 1px 6px;">${generalPlayers.length}</span>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px;">
+              ${generalPlayers.map(p => renderPlayerCard(p)).join('')}
+            </div>
+          </div>
+        `;
+      }
+
+      return html;
+    }
+
+    function renderPlayerCard(p) {
+      const isSelected = (targetSlot === 1 && p.id === h2hPlayer1Id) || (targetSlot === 2 && p.id === h2hPlayer2Id);
+      const st = calculatePlayerStats(p.id);
+      return `
+        <div class="h2h-pick-item" data-pid="${p.id}" style="display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 12px; background: ${isSelected ? 'rgba(34, 211, 238, 0.16)' : 'var(--surface2)'}; border: 1.5px solid ${isSelected ? 'var(--cyan)' : 'var(--border)'}; cursor: pointer; transition: all .15s ease;">
+          ${renderAvatar(p, 'sm')}
+          <div style="min-width: 0; flex: 1; overflow: hidden;">
+            <div style="font-size: 12.5px; font-weight: 800; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+              #${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(p.name || '')}
+            </div>
+            <div style="font-size: 10.5px; color: var(--muted); display: flex; align-items: center; gap: 4px;">
+              <span>${formatPosition(p.mainPosition)}</span>
+              <span>•</span>
+              <span style="color: #22d3ee; font-weight: 800;">⭐ ${st.aggregatedRating}</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
     overlay.innerHTML = `
-      <div class="dialog-box" style="max-height: 80vh;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <h3 style="margin: 0; font-size: 16px; font-weight: 800;">${t('choosePlayer')} ${targetSlot}</h3>
+      <div class="dialog-box" style="max-height: 85vh; width: 94%; max-width: 460px; padding: 18px; display: flex; flex-direction: column;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-shrink: 0;">
+          <h3 style="margin: 0; font-size: 16px; font-weight: 800; color: #fff;">
+            ${t('choosePlayer')} ${targetSlot === 1 ? '1 (Izquierda)' : '2 (Derecha)'}
+          </h3>
           <button type="button" class="icon-btn ghost" id="dlg-h2h-x" style="width: 32px; height: 32px;">✕</button>
         </div>
-        <div style="display: flex; flex-direction: column; gap: 6px; max-height: 60vh; overflow-y: auto;">
-          ${players.map(p => `
-            <div class="h2h-pick-item" data-pid="${p.id}" style="display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 12px; background: var(--surface2); border: 1px solid var(--border); cursor: pointer;">
-              ${renderAvatar(p, 'sm')}
-              <b>#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(p.name || '')} ${escapeHtml(p.lastName || '')}</b>
-            </div>
-          `).join('')}
+
+        <input type="text" id="h2h-search-player" placeholder="🔍 Buscar por nombre o dorsal..." style="width: 100%; padding: 9px 12px; font-size: 13px; border-radius: 10px; margin-bottom: 12px; flex-shrink: 0;" />
+
+        <div id="h2h-picker-grid-container" style="flex: 1; overflow-y: auto; max-height: 62vh; padding-right: 2px;">
+          ${buildGridHtml('')}
         </div>
       </div>
     `;
@@ -6517,15 +6872,30 @@
     overlay.querySelector('#dlg-h2h-x').onclick = close;
     overlay.onclick = (e) => { if (e.target === overlay) close(); };
 
-    overlay.querySelectorAll('.h2h-pick-item').forEach(it => {
-      it.onclick = () => {
-        const pid = it.getAttribute('data-pid');
-        if (targetSlot === 1) h2hPlayer1Id = pid;
-        else h2hPlayer2Id = pid;
-        close();
-        renderH2HView();
+    function bindCardClicks() {
+      overlay.querySelectorAll('.h2h-pick-item').forEach(it => {
+        it.onclick = () => {
+          const pid = it.getAttribute('data-pid');
+          if (targetSlot === 1) h2hPlayer1Id = pid;
+          else h2hPlayer2Id = pid;
+          close();
+          renderH2HView();
+        };
+      });
+    }
+
+    bindCardClicks();
+
+    const searchInp = overlay.querySelector('#h2h-search-player');
+    if (searchInp) {
+      searchInp.oninput = () => {
+        const gridCont = overlay.querySelector('#h2h-picker-grid-container');
+        if (gridCont) {
+          gridCont.innerHTML = buildGridHtml(searchInp.value);
+          bindCardClicks();
+        }
       };
-    });
+    }
 
     document.body.appendChild(overlay);
   }

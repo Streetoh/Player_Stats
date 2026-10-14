@@ -158,6 +158,7 @@
     if (!s.settings.convocatoriaWebUrl) s.settings.convocatoriaWebUrl = d.settings.convocatoriaWebUrl;
     s.settings.enabledStats = (s.settings.enabledStats || []).filter(k => STAT_MAP[k]);
     if (!s.settings.enabledStats.length) s.settings.enabledStats = d.settings.enabledStats;
+    s.settings.customButtonPresets = Array.isArray(s.settings.customButtonPresets) ? s.settings.customButtonPresets : [];
     s.sessions.forEach(x => {
       x.type = (x.type === 'match' ? 'match' : 'training');
       x.stats = x.stats || {};
@@ -468,6 +469,18 @@
     deleteSession(id) {
       this.state.sessions = this.state.sessions.filter(s => s.id !== id);
       this.save();
+      if (typeof window !== 'undefined' && window.Cloud) {
+        try {
+          if (typeof window.Cloud.deleteSessionFromCloud === 'function') {
+            window.Cloud.deleteSessionFromCloud(id);
+          }
+          if (typeof window.Cloud.pushCoachState === 'function') {
+            window.Cloud.pushCoachState(this.state, true);
+          }
+        } catch (e) {
+          console.warn('[Store] Error notificando borrado de sesión a la nube:', e);
+        }
+      }
     },
 
     /* Gestión de Asistencia (Pasar Lista) */
@@ -592,6 +605,41 @@
     setSessionStats(session, keys) {
       if (!session) return;
       session.enabledStats = Array.isArray(keys) && keys.length ? keys : null;
+      this.save();
+    },
+
+    /* Gestión de Presets Personalizados de Botones */
+    getCustomButtonPresets() {
+      if (!this.state.settings.customButtonPresets) {
+        this.state.settings.customButtonPresets = [];
+      }
+      return this.state.settings.customButtonPresets;
+    },
+
+    saveCustomButtonPreset(name, statsKeys) {
+      if (!name || !Array.isArray(statsKeys) || statsKeys.length === 0) return null;
+      if (!this.state.settings.customButtonPresets) {
+        this.state.settings.customButtonPresets = [];
+      }
+      const trimmed = name.trim();
+      const existing = this.state.settings.customButtonPresets.find(p => p.name.trim().toLowerCase() === trimmed.toLowerCase());
+      const preset = {
+        id: existing ? existing.id : ('pst_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4)),
+        name: trimmed,
+        stats: statsKeys.slice()
+      };
+      if (existing) {
+        existing.stats = preset.stats;
+      } else {
+        this.state.settings.customButtonPresets.push(preset);
+      }
+      this.save();
+      return preset;
+    },
+
+    deleteCustomButtonPreset(id) {
+      if (!this.state.settings.customButtonPresets) return;
+      this.state.settings.customButtonPresets = this.state.settings.customButtonPresets.filter(p => p.id !== id);
       this.save();
     },
 
@@ -1028,19 +1076,21 @@
       let rating = 6.0;
       let mode = 'none'; // 'combined' | 'training' | 'match' | 'none'
 
-      if (hasTrain && hasMatch) {
+      if (rTrain != null && rMatch != null) {
         rating = (rTrain + rMatch) / 2;
         mode = 'combined';
-      } else if (hasTrain && !hasMatch) {
+      } else if (rTrain != null) {
         rating = rTrain;
         mode = 'training';
-      } else if (!hasTrain && hasMatch) {
+      } else if (rMatch != null) {
         rating = rMatch;
         mode = 'match';
       } else {
         rating = 6.0;
         mode = 'none';
       }
+
+      if (typeof rating !== 'number' || isNaN(rating)) rating = 6.0;
 
       return {
         rating: Number(rating.toFixed(1)),
@@ -1131,6 +1181,110 @@
       }
 
       return { pas, tir, reg, def, fis, dis };
+    },
+
+    /* Estadísticas de Duelos 1v1 */
+    getPlayer1v1Stats(pid, sessions) {
+      const sessList = sessions || this.state.sessions || [];
+      let wonGoal = 0, wonStop = 0, lostTurnover = 0, lostGoal = 0;
+      sessList.forEach(s => {
+        const st = (s && s.stats && s.stats[pid]) ? s.stats[pid] : {};
+        wonGoal += st.duel1v1WonGoal || 0;
+        wonStop += st.duel1v1WonStop || 0;
+        lostTurnover += st.duel1v1LostTurnover || 0;
+        lostGoal += st.duel1v1LostGoal || 0;
+      });
+      const won = wonGoal + wonStop;
+      const lost = lostTurnover + lostGoal;
+      const total = won + lost;
+      const winRate = total > 0 ? Math.round((won / total) * 100) : 0;
+      return { won, lost, total, winRate, wonGoal, wonStop, lostTurnover, lostGoal };
+    },
+
+    /* Algoritmo predictivo de probabilidad de victoria en 1v1 */
+    calculate1v1WinProbability(p1, p2, r1, r2, d1, d2) {
+      // 1. Atributos técnicos/físicos clave para 1v1: Regate (35%), Defensa (30%), Físico (25%), Tiro (10%)
+      const skill1 = (r1.reg * 0.35) + (r1.def * 0.30) + (r1.fis * 0.25) + (r1.tir * 0.10);
+      const skill2 = (r2.reg * 0.35) + (r2.def * 0.30) + (r2.fis * 0.25) + (r2.tir * 0.10);
+
+      // 2. Ajuste por historial empírico de duelos (ponderado por tamaño de muestra)
+      let empAdj1 = 0;
+      if (d1.total > 0) {
+        const conf1 = Math.min(1.0, d1.total / 12);
+        empAdj1 = conf1 * (d1.winRate - 50) * 0.22;
+      }
+      let empAdj2 = 0;
+      if (d2.total > 0) {
+        const conf2 = Math.min(1.0, d2.total / 12);
+        empAdj2 = conf2 * (d2.winRate - 50) * 0.22;
+      }
+
+      // 3. Diferencia de edad y maduración biológica a partir de fecha de nacimiento
+      let ageBonus1 = 0;
+      let ageBonus2 = 0;
+      let ageDiffText = '';
+
+      if (p1 && p2 && p1.birthDate && p2.birthDate) {
+        const b1 = new Date(p1.birthDate);
+        const b2 = new Date(p2.birthDate);
+        if (!isNaN(b1.getTime()) && !isNaN(b2.getTime())) {
+          const diffYears = (b2.getTime() - b1.getTime()) / (365.25 * 24 * 3600 * 1000); // positivo si p1 nació antes (es mayor)
+          const diffMonths = Math.round(diffYears * 12);
+
+          // En fútbol base/formativo, la diferencia de meses aporta ventaja de fuerza y velocidad
+          const ageImpact = Math.max(-9, Math.min(9, diffYears * 3.2));
+          ageBonus1 = ageImpact;
+          ageBonus2 = -ageImpact;
+
+          if (Math.abs(diffMonths) >= 1) {
+            const name1 = (p1.name || 'J1').split(' ')[0];
+            const name2 = (p2.name || 'J2').split(' ')[0];
+            if (diffMonths > 0) {
+              ageDiffText = `${name1} es ${Math.abs(diffMonths)} ${Math.abs(diffMonths) === 1 ? 'mes' : 'meses'} mayor`;
+            } else {
+              ageDiffText = `${name2} es ${Math.abs(diffMonths)} ${Math.abs(diffMonths) === 1 ? 'mes' : 'meses'} mayor`;
+            }
+          } else {
+            ageDiffText = 'Misma edad biológica';
+          }
+        }
+      }
+
+      const finalScore1 = skill1 + empAdj1 + ageBonus1;
+      const finalScore2 = skill2 + empAdj2 + ageBonus2;
+
+      // Modelo logístico de probabilidad
+      const scoreDiff = finalScore1 - finalScore2;
+      const rawProb1 = 1 / (1 + Math.exp(-scoreDiff / 14));
+      let prob1 = Math.round(rawProb1 * 100);
+      prob1 = Math.max(12, Math.min(88, prob1)); // Acotar entre 12% y 88%
+      const prob2 = 100 - prob1;
+
+      let favorite = null;
+      const reasons = [];
+      if (prob1 >= 53) {
+        favorite = 1;
+        if (r1.reg > r2.reg) reasons.push('Mayor desborde / regate');
+        if (r1.fis > r2.fis) reasons.push('Superioridad física');
+        if (r1.def > r2.def) reasons.push('Mayor solidez defensiva');
+        if (d1.winRate > d2.winRate && d1.total >= 3) reasons.push('Mejor % victorias 1v1 previo');
+        if (ageBonus1 >= 2) reasons.push('Ventaja por madurez física');
+      } else if (prob2 >= 53) {
+        favorite = 2;
+        if (r2.reg > r1.reg) reasons.push('Mayor desborde / regate');
+        if (r2.fis > r1.fis) reasons.push('Superioridad física');
+        if (r2.def > r1.def) reasons.push('Mayor solidez defensiva');
+        if (d2.winRate > d1.winRate && d2.total >= 3) reasons.push('Mejor % victorias 1v1 previo');
+        if (ageBonus2 >= 2) reasons.push('Ventaja por madurez física');
+      }
+
+      return {
+        prob1,
+        prob2,
+        favorite,
+        reasons: reasons.slice(0, 3),
+        ageDiffText
+      };
     },
 
     upsertCoachProfile(profile) {

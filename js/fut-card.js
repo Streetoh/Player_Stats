@@ -358,16 +358,16 @@
     rowStats.forEach((row, idx) => {
       const y = statsY + idx * rowStep;
 
-      // Izquierda
+      // Izquierda (separado de la línea central divisoria en W/2)
       ctx.textAlign = 'right';
       ctx.font = '900 52px "Arial Black", Impact, sans-serif';
       ctx.fillStyle = theme.statValColor;
-      ctx.fillText(String(Math.round(row.left.val)), W / 2 - 55, y);
+      ctx.fillText(String(Math.round(row.left.val)), W / 2 - 108, y);
 
       ctx.textAlign = 'left';
       ctx.font = '900 28px sans-serif';
       ctx.fillStyle = theme.statLabelColor;
-      ctx.fillText(row.left.label, W / 2 - 42, y - 4);
+      ctx.fillText(row.left.label, W / 2 - 95, y - 4);
 
       // Derecha
       ctx.textAlign = 'right';
@@ -393,8 +393,8 @@
     ctx.fillStyle = theme.statLabelColor;
     ctx.fillText(getI18nText('statReg', 'REG'), W / 2 + 6, yReg - 4);
 
-    // 8. Insignias en el pie de la carta (Bandera Estonia, Logo EJL, Logo JK Noova) AMPLIADAS
-    const badgeY = 740;
+    // 8. Insignias en el pie de la carta (Bandera Estonia, Logo EJL, Logo JK Noova) - Ajustado en Y para no rozar borde
+    const badgeY = 724;
 
     // Bandera de Estonia (ampliada a 74x48)
     if (flagImg && flagImg.complete && flagImg.naturalWidth > 0) {

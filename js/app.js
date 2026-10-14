@@ -3452,7 +3452,7 @@
 
       <!-- CINTA DE PAREJAS / TRÍOS -->
       ${s.duels1v1.pairs.length > 0 ? `
-        <div style="display: flex; gap: 6px; overflow-x: auto; padding: 6px 10px; background: rgba(0,0,0,0.35); border-bottom: 1px solid var(--border); scrollbar-width: none; flex-shrink: 0;">
+        <div id="tracker-1v1-pairs-ribbon" style="display: flex; gap: 6px; overflow-x: auto; padding: 6px 10px; background: rgba(0,0,0,0.35); border-bottom: 1px solid var(--border); scrollbar-width: none; flex-shrink: 0;">
           ${s.duels1v1.pairs.map((pr, idx) => {
             const isActive = (idx === activeIdx);
             const p1Obj = Store.player(pr.playerIds[0]);
@@ -3510,8 +3510,6 @@
     const dTotal = dWon + dLost;
     const dWinRate = dTotal > 0 ? Math.round((dWon / dTotal) * 100) : 0;
 
-    const statsList = Store.getSessionStats(session);
-
     return `
       <div class="split-player-col" data-slot="${slotIndex}" data-player="${player.id}" style="height: 100%; box-sizing: border-box; display: flex; flex-direction: column;">
         <!-- Encabezado del Jugador -->
@@ -3532,44 +3530,34 @@
           </button>
         </div>
 
-        <!-- PANEL RÁPIDO 1-TAP DUELOS 1v1 -->
-        <div style="display: flex; flex-direction: column; gap: 6px; margin: 8px 0; flex-shrink: 0;">
-          <button type="button" class="duel-1tap-btn duel-btn-goal" data-duel-action="${isSlotA ? 'goal_A' : 'goal_B'}" data-p-win="${player.id}" data-p-loss="${opponentId || ''}">
-            ⚽ 1v1 Gol (+1)
+        <!-- PANEL EXCLUSIVO 1-TAP DUELOS 1v1 (SIN OTRAS ACCIONES) -->
+        <div style="display: flex; flex-direction: column; gap: 10px; margin: 12px 0 6px; flex: 1; justify-content: space-evenly;">
+          <button type="button" class="duel-1tap-btn duel-btn-goal" data-duel-action="${isSlotA ? 'goal_A' : 'goal_B'}" data-p-win="${player.id}" data-p-loss="${opponentId || ''}" style="flex: 1; max-height: 115px; min-height: 72px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border-radius: 14px; font-size: 15px; font-weight: 900; background: linear-gradient(135deg, rgba(34, 197, 94, 0.28) 0%, rgba(22, 163, 74, 0.45) 100%); border: 2px solid #22c55e; color: #86efac; box-shadow: 0 4px 14px rgba(34, 197, 94, 0.22); cursor: pointer;">
+            <span style="font-size: 24px;">⚽</span>
+            <span>1v1 Gol (+1)</span>
           </button>
-          <button type="button" class="duel-1tap-btn duel-btn-steal" data-duel-action="${isSlotA ? 'steal_goal_A' : 'steal_goal_B'}" data-p-win="${player.id}" data-p-loss="${opponentId || ''}">
-            ⚡ Robo y Gol
+          <button type="button" class="duel-1tap-btn duel-btn-steal" data-duel-action="${isSlotA ? 'steal_goal_A' : 'steal_goal_B'}" data-p-win="${player.id}" data-p-loss="${opponentId || ''}" style="flex: 1; max-height: 115px; min-height: 72px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border-radius: 14px; font-size: 15px; font-weight: 900; background: linear-gradient(135deg, rgba(245, 158, 11, 0.25) 0%, rgba(217, 119, 6, 0.42) 100%); border: 2px solid #f59e0b; color: #fde047; box-shadow: 0 4px 14px rgba(245, 158, 11, 0.22); cursor: pointer;">
+            <span style="font-size: 24px;">⚡</span>
+            <span>Robo y Gol</span>
           </button>
-          <button type="button" class="duel-1tap-btn duel-btn-out" data-duel-action="${isSlotA ? 'out_loss_A' : 'out_loss_B'}" data-p-win="${player.id}" data-p-loss="${opponentId || ''}">
-            ❌ Fuera / Pérdida
+          <button type="button" class="duel-1tap-btn duel-btn-out" data-duel-action="${isSlotA ? 'out_loss_A' : 'out_loss_B'}" data-p-win="${player.id}" data-p-loss="${opponentId || ''}" style="flex: 1; max-height: 115px; min-height: 72px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border-radius: 14px; font-size: 15px; font-weight: 900; background: linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(220, 38, 38, 0.42) 100%); border: 2px solid #ef4444; color: #fca5a5; box-shadow: 0 4px 14px rgba(239, 68, 68, 0.22); cursor: pointer;">
+            <span style="font-size: 24px;">❌</span>
+            <span>Fuera / Pérdida</span>
           </button>
-        </div>
-
-        <!-- ACCIONES REGULARES COMPACTAS -->
-        <div style="font-size: 10px; font-weight: 800; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; flex-shrink: 0;">
-          Otras Acciones
-        </div>
-        <div class="counters compact" style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; flex: 1; overflow-y: auto;">
-          ${statsList.map(item => {
-            const count = st[item.key] || 0;
-            const isGoal = item.key === 'goal';
-            return `
-              <button class="counter ${isGoal ? 'goal' : ''}"
-                      style="--c: ${item.color}; padding: 6px 4px; min-height: 48px;"
-                      data-key="${item.key}"
-                      data-player="${player.id}">
-                <span class="c-emoji" style="font-size: 15px;">${item.emoji}</span>
-                <span class="c-val num" id="val-${player.id}-${item.key}" style="font-size: 14px;">${count}</span>
-                <span class="c-lbl" style="font-size: 9px;">${item.short}</span>
-              </button>
-            `;
-          }).join('')}
         </div>
       </div>
     `;
   }
 
   function bind1v1TrackerInteractions(container, session) {
+    const ribbon = container.querySelector('#tracker-1v1-pairs-ribbon');
+    if (ribbon) {
+      ribbon.addEventListener('scroll', () => {
+        session.duels1v1 = session.duels1v1 || {};
+        session.duels1v1._scrollLeft = ribbon.scrollLeft;
+      }, { passive: true });
+    }
+
     container.querySelector('#tracker-btn-chrono').onclick = () => {
       Store.toggleTimer(session);
       haptic(30);
@@ -3604,6 +3592,8 @@
     const btnRotateTrio = container.querySelector('#btn-1v1-rotate-trio');
     if (btnRotateTrio) {
       btnRotateTrio.onclick = () => {
+        const ribbonEl = container.querySelector('#tracker-1v1-pairs-ribbon');
+        if (ribbonEl) session.duels1v1._scrollLeft = ribbonEl.scrollLeft;
         const pairs = session.duels1v1 ? session.duels1v1.pairs : [];
         const activeIdx = session.duels1v1 ? (session.duels1v1.activePairIndex || 0) : 0;
         const cur = pairs[activeIdx];
@@ -3618,6 +3608,11 @@
 
     container.querySelectorAll('[data-pair-idx]').forEach(btn => {
       btn.onclick = () => {
+        const ribbonEl = container.querySelector('#tracker-1v1-pairs-ribbon');
+        if (ribbonEl) {
+          session.duels1v1 = session.duels1v1 || {};
+          session.duels1v1._scrollLeft = ribbonEl.scrollLeft;
+        }
         const idx = parseInt(btn.getAttribute('data-pair-idx'), 10);
         session.duels1v1 = session.duels1v1 || {};
         session.duels1v1.activePairIndex = idx;
@@ -3669,6 +3664,12 @@
           return;
         }
 
+        const ribbonEl = container.querySelector('#tracker-1v1-pairs-ribbon');
+        if (ribbonEl) {
+          session.duels1v1 = session.duels1v1 || {};
+          session.duels1v1._scrollLeft = ribbonEl.scrollLeft;
+        }
+
         const logEntry = Store.recordDuel1v1Outcome(session.id, action, pWin, pLoss);
         haptic(35);
 
@@ -3676,23 +3677,21 @@
           SyncEngine.sendAction(session.id, pWin, 'duel1v1', 0, logEntry);
         }
 
-        renderTracker();
-      };
-    });
-
-    container.querySelectorAll('.split-player-col .counter[data-key]').forEach(btn => {
-      btn.onclick = (e) => {
-        e.stopPropagation();
-        const k = btn.getAttribute('data-key');
-        const pid = btn.getAttribute('data-player');
-        if (!pid) return;
-
-        haptic(20);
-        Store.record(session.id, pid, k);
-        const valEl = container.querySelector(`#val-${pid}-${k}`);
-        if (valEl) {
-          valEl.textContent = (session.stats[pid] && session.stats[pid][k]) || 0;
+        // Auto-rotar trío si la pareja actual es un trío (al terminar el turno)
+        const pairs = session.duels1v1 ? session.duels1v1.pairs : [];
+        const curIdx = session.duels1v1 ? (session.duels1v1.activePairIndex || 0) : 0;
+        const curPair = pairs[curIdx];
+        if (curPair && curPair.type === 'trio' && Array.isArray(curPair.playerIds) && curPair.playerIds.length >= 3) {
+          curPair.trioRotation = ((curPair.trioRotation || 0) + 1) % 3;
         }
+
+        // Auto-avanzar a la siguiente pareja en la lista (cíclicamente)
+        if (pairs.length > 0) {
+          session.duels1v1.activePairIndex = (curIdx + 1) % pairs.length;
+        }
+
+        Store.save();
+        renderTracker();
       };
     });
   }
@@ -3703,8 +3702,15 @@
     const s = Store.session(activeSessionId);
     if (!s) { closeTracker(); return; }
 
+    const ribbonEl = trackerEl.querySelector('#tracker-1v1-pairs-ribbon');
+    const savedScrollLeft = ribbonEl ? ribbonEl.scrollLeft : (s.duels1v1 ? s.duels1v1._scrollLeft : 0);
+
     if (s.trainingModality === '1v1') {
       render1v1Tracker(trackerEl, s);
+      const newRibbon = trackerEl.querySelector('#tracker-1v1-pairs-ribbon');
+      if (newRibbon && savedScrollLeft) {
+        newRibbon.scrollLeft = savedScrollLeft;
+      }
       return;
     }
 
@@ -4159,6 +4165,34 @@
     setTimeout(() => floater.remove(), 700);
   }
 
+  function promptInputDialog(title, message, defaultVal, onConfirm) {
+    const overlay = document.createElement('div');
+    overlay.className = 'dialog-overlay';
+    overlay.style.zIndex = '999999';
+    overlay.innerHTML = `
+      <div class="card dialog-box" style="max-width: 360px; width: 90%; padding: 18px; border-radius: 16px; border: 1.5px solid var(--border);">
+        <h3 style="margin: 0 0 8px; font-size: 15px; font-weight: 800; color: #fff;">${escapeHtml(title)}</h3>
+        <p style="font-size: 12px; color: var(--muted); margin: 0 0 12px;">${escapeHtml(message)}</p>
+        <input type="text" id="dlg-prompt-inp" value="${escapeHtml(defaultVal || '')}" style="width: 100%; padding: 10px 12px; font-size: 13.5px; border-radius: 10px; margin-bottom: 14px;" autofocus />
+        <div style="display: flex; gap: 8px; justify-content: flex-end;">
+          <button type="button" class="btn sm ghost" id="dlg-prompt-cancel">${t('cancel')}</button>
+          <button type="button" class="btn sm primary" id="dlg-prompt-ok" style="font-weight: 800;">${t('save', 'Guardar')}</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    const inp = overlay.querySelector('#dlg-prompt-inp');
+    inp.focus();
+    const close = () => overlay.remove();
+    overlay.querySelector('#dlg-prompt-cancel').onclick = close;
+    overlay.querySelector('#dlg-prompt-ok').onclick = () => {
+      const val = inp.value.trim();
+      if (!val) { toast('Introduce un nombre válido', 'warning'); return; }
+      close();
+      if (typeof onConfirm === 'function') onConfirm(val);
+    };
+  }
+
   /* =========================================================
      MODAL DE CONFIGURACIÓN DE BOTONES EN PANTALLA
      ========================================================= */
@@ -4197,12 +4231,19 @@
 
         <p class="hint" style="margin-bottom: 12px;">${t('selectButtonsForView')}</p>
 
-        <!-- Presets a 1 toque -->
-        <div class="segmented" style="margin-bottom: 14px;">
+        <!-- Presets a 1 toque y Personalizados -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+          <span style="font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase;">Presets de Botones</span>
+          <button type="button" class="btn sm" id="btn-save-current-as-preset" style="font-size: 11px; font-weight: 800; padding: 3px 8px; background: rgba(34, 211, 238, 0.15); color: var(--cyan); border: 1px solid rgba(34, 211, 238, 0.35); border-radius: 8px;">
+            💾 Guardar actual
+          </button>
+        </div>
+        <div class="segmented" style="margin-bottom: 8px;">
           <button type="button" id="pst-all">${t('presetAll')}</button>
           <button type="button" id="pst-tp">Toques & Pases</button>
           <button type="button" id="pst-shots">Solo Tiros</button>
         </div>
+        <div id="custom-presets-pills" style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px;"></div>
 
         <div class="card" style="max-height: 44vh; overflow-y: auto;">
           ${Store.STATS.map(item => {
@@ -4248,6 +4289,64 @@
           sw.classList.toggle('on', currentEnabled.includes(k));
         });
       }
+
+      function updateCustomPresetsView() {
+        const container = body.querySelector('#custom-presets-pills');
+        if (!container) return;
+        const customList = Store.getCustomButtonPresets ? Store.getCustomButtonPresets() : [];
+        if (customList.length === 0) {
+          container.innerHTML = '';
+          return;
+        }
+        container.innerHTML = customList.map(pst => `
+          <div class="chip" data-apply-preset="${pst.id}" style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; font-size: 11.5px; font-weight: 800; cursor: pointer; background: var(--surface2); border: 1.5px solid var(--border); border-radius: 999px;">
+            <span>⭐ ${escapeHtml(pst.name)}</span>
+            <span class="btn-del-pst" data-del-preset="${pst.id}" style="color: #f87171; font-size: 12px; margin-left: 2px;" title="Borrar preset">✕</span>
+          </div>
+        `).join('');
+
+        container.querySelectorAll('[data-apply-preset]').forEach(el => {
+          el.onclick = (e) => {
+            if (e.target.closest('.btn-del-pst')) return;
+            const pid = el.getAttribute('data-apply-preset');
+            const targetPst = customList.find(x => x.id === pid);
+            if (targetPst && Array.isArray(targetPst.stats)) {
+              currentEnabled = targetPst.stats.slice();
+              syncSwitches();
+              haptic(25);
+              toast('Preset aplicado: ' + targetPst.name, 'info');
+            }
+          };
+        });
+
+        container.querySelectorAll('.btn-del-pst').forEach(btn => {
+          btn.onclick = (e) => {
+            e.stopPropagation();
+            const pid = btn.getAttribute('data-del-preset');
+            Store.deleteCustomButtonPreset(pid);
+            updateCustomPresetsView();
+            haptic(20);
+          };
+        });
+      }
+
+      updateCustomPresetsView();
+
+      body.querySelector('#btn-save-current-as-preset').onclick = () => {
+        promptInputDialog(
+          'Guardar Preset de Botones',
+          'Introduce un nombre para guardar la selección actual de botones:',
+          '',
+          (name) => {
+            const saved = Store.saveCustomButtonPreset(name, currentEnabled);
+            if (saved) {
+              toast('Preset "' + saved.name + '" guardado con éxito', 'success');
+              updateCustomPresetsView();
+              haptic(30);
+            }
+          }
+        );
+      };
 
       body.querySelector('#pst-all').onclick = () => {
         currentEnabled = Store.STATS.map(s => s.key);
@@ -5194,17 +5293,99 @@
     }
   };
 
-  /* Modal de selección visual de jugador con foto y buscador */
+  /* Modal de selección visual de jugador con foto y buscador en cuadrícula por equipos */
   function showPlayerPickerModal(currentPlayerId, onSelect) {
     const isEn = (Store.state.settings && Store.state.settings.lang === 'en');
     const allPlayers = Store.sortedPlayers();
+    const teams = Store.state.teams || [];
     const dialog = document.createElement('div');
     dialog.className = 'dialog-overlay';
+    dialog.style.zIndex = '999999';
+
+    function buildGridHtml(searchFilter = '') {
+      const q = searchFilter.toLowerCase().trim();
+      const filtered = allPlayers.filter(p => {
+        if (!q) return true;
+        const name = Store.playerName(p).toLowerCase();
+        const dorsal = String(p.mainDorsal || '');
+        return name.includes(q) || dorsal.includes(q);
+      });
+
+      if (filtered.length === 0) {
+        return `
+          <div style="padding: 24px; text-align: center; color: var(--muted); font-size: 13px;">
+            ${isEn ? 'No players found' : 'No se encontraron jugadores'}
+          </div>
+        `;
+      }
+
+      // Agrupar por equipos
+      const teamGroups = teams.map(tm => ({
+        team: tm,
+        players: filtered.filter(p => p.teamId === tm.id)
+      })).filter(g => g.players.length > 0);
+
+      const generalPlayers = filtered.filter(p => !teams.some(tm => tm.id === p.teamId));
+
+      let html = '';
+      teamGroups.forEach(g => {
+        html += `
+          <div class="picker-team-group" style="margin-bottom: 14px;">
+            <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 8px; padding: 0 4px;">
+              <span class="dot" style="background: ${g.team.color || 'var(--cyan)'}; width: 8px; height: 8px; border-radius: 50%;"></span>
+              <span style="font-size: 12.5px; font-weight: 800; color: #fff;">${escapeHtml(g.team.name)}</span>
+              <span class="badge" style="font-size: 10px; padding: 1px 6px;">${g.players.length}</span>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;">
+              ${g.players.map(p => renderPlayerPickerCard(p)).join('')}
+            </div>
+          </div>
+        `;
+      });
+
+      if (generalPlayers.length > 0) {
+        html += `
+          <div class="picker-team-group" style="margin-bottom: 14px;">
+            <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 8px; padding: 0 4px;">
+              <span>🛡️</span>
+              <span style="font-size: 12.5px; font-weight: 800; color: #fff;">${isEn ? 'General / Other' : 'General / Otros'}</span>
+              <span class="badge" style="font-size: 10px; padding: 1px 6px;">${generalPlayers.length}</span>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;">
+              ${generalPlayers.map(p => renderPlayerPickerCard(p)).join('')}
+            </div>
+          </div>
+        `;
+      }
+
+      return html;
+    }
+
+    function renderPlayerPickerCard(p) {
+      const isSelected = p.id === currentPlayerId;
+      const agg = Store.playerAggregate(p.id);
+      const rating = Store.calculateMatchRating(agg.totals, p.mainPosition);
+      return `
+        <div class="player-picker-card" data-pid="${p.id}" style="display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 12px; background: ${isSelected ? 'rgba(34, 211, 238, 0.16)' : 'var(--surface2)'}; border: 1.5px solid ${isSelected ? 'var(--cyan)' : 'var(--border)'}; cursor: pointer; transition: all .15s ease;">
+          ${renderAvatar(p, 'sm')}
+          <div style="min-width: 0; flex: 1; overflow: hidden;">
+            <div style="font-size: 12.5px; font-weight: 800; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+              #${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(Store.playerName(p, true))}
+            </div>
+            <div style="font-size: 10.5px; color: var(--muted); display: flex; align-items: center; gap: 4px;">
+              <span>${p.mainPosition || 'JUG'}</span>
+              <span>•</span>
+              <span style="color: #22d3ee; font-weight: 800;">⭐ ${rating.toFixed(1)}</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }
 
     dialog.innerHTML = `
-      <div class="dialog-box" style="max-width: 400px; padding: 18px;">
+      <div class="dialog-box" style="width: 94%; max-width: 520px; max-height: 85vh; padding: 18px; display: flex; flex-direction: column;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <h3 style="margin: 0; font-size: 16px; font-weight: 800;">${isEn ? 'Select Player' : 'Seleccionar Jugador'}</h3>
+          <h3 style="margin: 0; font-size: 16px; font-weight: 900; color: #fff;">${isEn ? 'Select Player' : 'Seleccionar Jugador'}</h3>
           <button type="button" class="icon-btn ghost" id="picker-close-x" style="width: 32px; height: 32px;">${icon('x', 18)}</button>
         </div>
 
@@ -5212,20 +5393,8 @@
           <input type="text" id="picker-search-input" placeholder="${isEn ? 'Search by name or number...' : 'Buscar por nombre o dorsal...'}" style="width: 100%; padding: 10px 14px; font-size: 13.5px; border-radius: 12px;" autofocus autocomplete="off" />
         </div>
 
-        <div class="player-picker-grid" id="picker-grid-list">
-          ${allPlayers.map(p => {
-            const team = Store.team(p.teamId);
-            const isSelected = p.id === currentPlayerId;
-            return `
-              <div class="player-picker-card" data-pid="${p.id}" style="${isSelected ? 'border-color: var(--cyan); background: rgba(34, 211, 238, 0.12);' : ''}">
-                ${renderAvatar(p, 'sm')}
-                <div class="grow ellipsis">
-                  <b style="font-size: 13px; color: #fff;">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(Store.playerName(p, true))}</b>
-                  <small style="display: block; color: var(--muted); font-size: 11px;">${p.mainPosition || 'Jugador'}${team ? ' • ' + escapeHtml(team.shortName || team.name) : ''}</small>
-                </div>
-              </div>
-            `;
-          }).join('')}
+        <div id="picker-grid-list" style="overflow-y: auto; flex: 1; padding-right: 2px;">
+          ${buildGridHtml('')}
         </div>
       </div>
     `;
@@ -5233,29 +5402,23 @@
     document.body.appendChild(dialog);
 
     const searchInput = dialog.querySelector('#picker-search-input');
-    const cards = dialog.querySelectorAll('.player-picker-card');
+    const container = dialog.querySelector('#picker-grid-list');
+
+    function bindCardClicks() {
+      container.querySelectorAll('.player-picker-card').forEach(card => {
+        card.onclick = () => {
+          const pid = card.getAttribute('data-pid');
+          dialog.remove();
+          if (typeof onSelect === 'function') onSelect(pid);
+        };
+      });
+    }
+
+    bindCardClicks();
 
     searchInput.addEventListener('input', () => {
-      const q = searchInput.value.trim().toLowerCase();
-      cards.forEach(card => {
-        const pid = card.getAttribute('data-pid');
-        const p = Store.player(pid);
-        const name = p ? Store.playerName(p).toLowerCase() : '';
-        const dorsal = p && p.mainDorsal != null ? String(p.mainDorsal) : '';
-        if (!q || name.includes(q) || dorsal.includes(q)) {
-          card.style.display = 'flex';
-        } else {
-          card.style.display = 'none';
-        }
-      });
-    });
-
-    cards.forEach(card => {
-      card.onclick = () => {
-        const pid = card.getAttribute('data-pid');
-        dialog.remove();
-        if (typeof onSelect === 'function') onSelect(pid);
-      };
+      container.innerHTML = buildGridHtml(searchInput.value);
+      bindCardClicks();
     });
 
     dialog.querySelector('#picker-close-x').onclick = () => dialog.remove();
@@ -5474,6 +5637,86 @@
     `;
   }
 
+  function renderH2HSymmetricalRadarSVG(rd, mainColor = '#22d3ee') {
+    const isEn = (Store.state.settings && Store.state.settings.lang === 'en');
+    const isEe = (Store.state.settings && Store.state.settings.lang === 'ee');
+    const axesLabels = {
+      en: { pas: 'PASS', tir: 'SHOT', reg: 'DRIB', fis: 'PHYS', def: 'DEF' },
+      ee: { pas: 'SÖÖT', tir: 'LÖÖK', reg: 'TRIB', fis: 'FÜÜS', def: 'KAIT' },
+      es: { pas: 'PASE', tir: 'TIRO', reg: 'REG',  fis: 'FÍS',  def: 'DEF' }
+    };
+    const lang = isEn ? 'en' : (isEe ? 'ee' : 'es');
+    const langLabels = axesLabels[lang];
+    const axes = [
+      { key: 'pas', label: langLabels.pas, val: rd.pas },
+      { key: 'tir', label: langLabels.tir, val: rd.tir },
+      { key: 'reg', label: langLabels.reg, val: rd.reg },
+      { key: 'fis', label: langLabels.fis, val: rd.fis },
+      { key: 'def', label: langLabels.def, val: rd.def }
+    ];
+
+    const cx = 130, cy = 130, rMax = 88;
+    const totalAxes = 5;
+
+    function getCoords(index, value) {
+      const angle = (Math.PI * 2 / totalAxes) * index - Math.PI / 2;
+      const normalized = Math.max(10, Math.min(99, value)) / 100;
+      const r = rMax * normalized;
+      return { x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) };
+    }
+
+    const levels = [0.25, 0.50, 0.75, 1.0];
+    const gridPolygons = levels.map(lvl => {
+      const pts = [];
+      for (let i = 0; i < totalAxes; i++) {
+        const a = (Math.PI * 2 / totalAxes) * i - Math.PI / 2;
+        const r = rMax * lvl;
+        pts.push(`${(cx + r * Math.cos(a)).toFixed(1)},${(cy + r * Math.sin(a)).toFixed(1)}`);
+      }
+      return `<polygon points="${pts.join(' ')}" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1.2"/>`;
+    }).join('');
+
+    const dataPoints = axes.map((a, i) => ({ ...getCoords(i, a.val), a }));
+    const dataPolyPoints = dataPoints.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+
+    const labels = axes.map((a, i) => {
+      const angle = (Math.PI * 2 / totalAxes) * i - Math.PI / 2;
+      const labelR = rMax + 24;
+      const lx = cx + labelR * Math.cos(angle);
+      const ly = cy + labelR * Math.sin(angle);
+      return `
+        <g>
+          <circle cx="${lx.toFixed(1)}" cy="${(ly + 5).toFixed(1)}" r="18" fill="${mainColor}18" />
+          <text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" fill="#e2e8f0" font-size="10.5" font-weight="900" text-anchor="middle" dominant-baseline="central">
+            ${a.label}
+          </text>
+          <text x="${lx.toFixed(1)}" y="${(ly + 12).toFixed(1)}" fill="${mainColor}" font-size="11.5" font-weight="900" text-anchor="middle" dominant-baseline="central">
+            ${a.val}
+          </text>
+        </g>
+      `;
+    }).join('');
+
+    const gradId = 'h2hCoachRadarGrad_' + mainColor.replace(/[^a-zA-Z0-9]/g, '');
+
+    return `
+      <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; margin: 0; padding: 0;">
+        <svg class="radar-svg" viewBox="0 0 260 260" style="width: 100%; aspect-ratio: 1 / 1; max-width: 220px; height: auto; display: block;">
+          <defs>
+            <radialGradient id="${gradId}" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="${mainColor}" stop-opacity="0.45" />
+              <stop offset="100%" stop-color="${mainColor}" stop-opacity="0.10" />
+            </radialGradient>
+          </defs>
+          ${gridPolygons}
+          <polygon points="${dataPolyPoints}" fill="url(#${gradId})" stroke="${mainColor}" stroke-width="2.5" />
+          ${dataPoints.map(p => `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4" fill="${mainColor}" stroke="#060a13" stroke-width="1.8" />`).join('')}
+          ${labels}
+        </svg>
+      </div>
+    `;
+  }
+
   /* =========================================================
      MODAL COMPARADOR CARA A CARA (HEAD-TO-HEAD)
      ========================================================= */
@@ -5510,6 +5753,13 @@
         const curSession = (selectedScope !== 'global') ? Store.session(selectedScope) : null;
         const p1HasSessionStats = curSession && curSession.stats && curSession.stats[id1] && Object.values(curSession.stats[id1]).some(v => v > 0);
         const p2HasSessionStats = curSession && curSession.stats && curSession.stats[id2] && Object.values(curSession.stats[id2]).some(v => v > 0);
+
+        // Estadísticas de duelos 1v1 y radares bayesianos
+        const d1 = Store.getPlayer1v1Stats(id1, sessionSubset);
+        const d2 = Store.getPlayer1v1Stats(id2, sessionSubset);
+        const r1 = Store.calculatePlayerRadar(id1, sessionSubset);
+        const r2 = Store.calculatePlayerRadar(id2, sessionSubset);
+        const prob = Store.calculate1v1WinProbability(p1, p2, r1, r2, d1, d2);
 
         body.innerHTML = `
           <div class="h2h-wrapper">
@@ -5560,7 +5810,7 @@
               ` : ''}
             </div>
 
-            <div class="h2h-header">
+            <div class="h2h-header" style="margin-bottom: 14px;">
               <!-- Jugador 1 -->
               <div class="h2h-player-col">
                 ${renderAvatar(p1, 'md')}
@@ -5586,7 +5836,80 @@
               </div>
             </div>
 
+            <!-- 🔮 PREDICCIÓN ANALÍTICA DE VICTORIA EN 1v1 -->
+            <div class="card" style="margin-bottom: 14px; padding: 14px; border: 1.5px solid rgba(168, 85, 247, 0.45); background: linear-gradient(135deg, rgba(168, 85, 247, 0.12) 0%, rgba(15, 23, 42, 0.8) 100%); border-radius: 14px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <span style="font-size: 12px; font-weight: 900; color: #c084fc; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px;">
+                  <span>🔮</span> <span>${t('prob1v1Title', 'Probabilidad Victoria 1v1')}</span>
+                </span>
+                ${prob.favorite ? `
+                  <span class="badge" style="background: ${prob.favorite === 1 ? 'rgba(34, 211, 238, 0.2)' : 'rgba(134, 239, 172, 0.2)'}; color: ${prob.favorite === 1 ? '#22d3ee' : '#86efac'}; border: 1px solid ${prob.favorite === 1 ? '#22d3ee' : '#86efac'}; font-size: 10.5px; font-weight: 800; padding: 2px 7px;">
+                    ⭐ Favorito: ${(prob.favorite === 1 ? p1.name : p2.name).split(' ')[0]}
+                  </span>
+                ` : `
+                  <span class="badge" style="background: rgba(250, 204, 21, 0.2); color: #fde047; font-size: 10.5px; font-weight: 800; padding: 2px 7px;">
+                    ⚖️ Muy Equilibrado
+                  </span>
+                `}
+              </div>
+
+              <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px;">
+                <div style="font-size: 26px; font-weight: 900; color: #22d3ee;">${prob.prob1}%</div>
+                <div style="font-size: 11px; font-weight: 700; color: var(--muted); text-align: center;">
+                  ${prob.ageDiffText ? `<span>🎂 ${prob.ageDiffText}</span>` : 'Datos Bayes + 1v1 + Edad'}
+                </div>
+                <div style="font-size: 26px; font-weight: 900; color: #86efac;">${prob.prob2}%</div>
+              </div>
+
+              <!-- Barra de Probabilidad 1v1 -->
+              <div style="height: 10px; width: 100%; background: #86efac; border-radius: 999px; overflow: hidden; display: flex; box-shadow: inset 0 2px 4px rgba(0,0,0,0.4);">
+                <div style="width: ${prob.prob1}%; background: #22d3ee; height: 100%;"></div>
+              </div>
+
+              ${prob.reasons.length > 0 ? `
+                <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px;">
+                  ${prob.reasons.map(r => `
+                    <span class="badge" style="background: rgba(255,255,255,0.06); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.1); font-size: 10px; font-weight: 700; padding: 2px 6px;">
+                      ✓ ${escapeHtml(r)}
+                    </span>
+                  `).join('')}
+                </div>
+              ` : ''}
+            </div>
+
+            <!-- ⚔️ DUELOS 1v1 HISTÓRICOS -->
+            <div class="card" style="margin-bottom: 14px; padding: 14px; border: 1.5px solid var(--border); display: flex; flex-direction: column; gap: 8px; border-radius: 14px; background: var(--bg2);">
+              <div style="font-size: 12px; font-weight: 900; color: #fb923c; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px;">
+                ⚔️ ${t('duels1v1', 'Duelos 1v1')} (Histórico)
+              </div>
+              ${renderCoachH2HMetricRow(t('duels1v1WinRate', '% Victorias 1v1'), `${d1.winRate}%`, `${d2.winRate}%`, '🏆')}
+              ${renderCoachH2HMetricRow(t('duels1v1Won', 'Duelos Ganados'), d1.won, d2.won, '⚔️')}
+              ${renderCoachH2HMetricRow(t('duels1v1Lost', 'Duelos Perdidos'), d1.lost, d2.lost, '❌')}
+              ${renderCoachH2HMetricRow(t('duel1v1Goals', 'Goles en 1v1'), d1.wonGoal, d2.wonGoal, '⚽')}
+              ${renderCoachH2HMetricRow(t('duel1v1Stops', 'Robos / Cierres'), d1.wonStop, d2.wonStop, '🛡️')}
+            </div>
+
+            <!-- Radares comparativos 100% simétricos -->
+            <div class="section-title" style="margin-top: 6px; margin-bottom: 8px;"><span>${t('comparativeRadars', 'Comparative Skill Radars')}</span></div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: stretch; margin-bottom: 14px;">
+              <div class="card" style="padding: 10px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; border: 1.5px solid rgba(34, 211, 238, 0.35); border-radius: 14px; height: 100%; box-sizing: border-box; background: var(--bg2);">
+                <b style="font-size: 12.5px; color: #22d3ee; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; text-align: center; height: 20px; line-height: 20px; display: block; margin-bottom: 4px;">
+                  ${escapeHtml(Store.playerName(p1))}
+                </b>
+                ${renderH2HSymmetricalRadarSVG(r1, '#22d3ee')}
+              </div>
+              <div class="card" style="padding: 10px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; border: 1.5px solid rgba(134, 239, 172, 0.35); border-radius: 14px; height: 100%; box-sizing: border-box; background: var(--bg2);">
+                <b style="font-size: 12.5px; color: #86efac; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; text-align: center; height: 20px; line-height: 20px; display: block; margin-bottom: 4px;">
+                  ${escapeHtml(Store.playerName(p2))}
+                </b>
+                ${renderH2HSymmetricalRadarSVG(r2, '#86efac')}
+              </div>
+            </div>
+
             <!-- Métricas comparativas -->
+            <div style="font-size: 12px; font-weight: 900; color: var(--cyan); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">
+              📊 ${t('performanceMetrics', 'Métricas de Rendimiento')}
+            </div>
             <div style="display: flex; flex-direction: column; gap: 8px;">
               ${metrics.map(m => {
                 const v1 = m.v1 || 0;
@@ -5607,13 +5930,13 @@
                         ${v1}${m.suffix} ${p1Wins ? '👑' : ''}
                       </span>
                       <span class="h2h-metric-title">${label}</span>
-                      <span style="color: ${p2Wins ? '#22c55e' : 'var(--text)'}; font-weight: ${p2Wins ? '900' : '700'};">
+                      <span style="color: ${p2Wins ? '#86efac' : 'var(--text)'}; font-weight: ${p2Wins ? '900' : '700'};">
                         ${p2Wins ? '👑' : ''} ${v2}${m.suffix}
                       </span>
                     </div>
                     <div class="h2h-bars">
                       <div class="h2h-bar-p1" style="width: ${pct1}%;"></div>
-                      <div class="h2h-bar-p2" style="width: ${pct2}%;"></div>
+                      <div class="h2h-bar-p2" style="width: ${pct2}%; background: #86efac;"></div>
                     </div>
                   </div>
                 `;
@@ -5621,6 +5944,22 @@
             </div>
           </div>
         `;
+
+        function renderCoachH2HMetricRow(label, v1, v2, iconStr) {
+          const num1 = parseFloat(String(v1).replace(/[^0-9.]/g, '')) || 0;
+          const num2 = parseFloat(String(v2).replace(/[^0-9.]/g, '')) || 0;
+          const c1 = num1 > num2 ? '#22d3ee' : (num1 < num2 ? 'var(--text)' : '#94a3b8');
+          const c2 = num2 > num1 ? '#86efac' : (num2 < num1 ? 'var(--text)' : '#94a3b8');
+          return `
+            <div style="display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-size: 12.5px; font-weight: 800;">
+              <div style="color: ${c1}; text-align: right; font-size: 14px;">${v1} ${num1 > num2 ? '👑' : ''}</div>
+              <div style="padding: 0 10px; color: var(--muted); font-size: 11px; text-align: center; text-transform: uppercase;">
+                ${iconStr ? iconStr + ' ' : ''}${label}
+              </div>
+              <div style="color: ${c2}; text-align: left; font-size: 14px;">${num2 > num1 ? '👑 ' : ''}${v2}</div>
+            </div>
+          `;
+        }
 
         const scopeSelect = body.querySelector('#h2h-scope-select');
         if (scopeSelect) {
@@ -7275,98 +7614,218 @@
   function showAssignMissionModal(player, onSaved) {
     if (!player) return;
     const presets = [
-      { key: 'preset_pass', text: '🎯 Completar al menos el 75% de pases en el próximo partido' },
-      { key: 'preset_foot', text: '👟 Disparar al menos una vez a portería con la pierna menos hábil' },
-      { key: 'preset_recov', text: '🛡️ Realizar 3 recuperaciones limpias de balón' },
-      { key: 'preset_streak', text: '⚡ Asistir al 100% de los entrenamientos de la semana' },
-      { key: 'preset_assist', text: '⚽ Dar al menos 1 asistencia de gol o pase clave' },
-      { key: 'preset_duels', text: '⚔️ Ganar al menos el 60% de los duelos 1vs1' }
+      {
+        key: 'preset_pass',
+        category: 'Táctica',
+        icon: '🎯',
+        color: '#22d3ee',
+        text_es: 'Completar al menos el 80% de pases con precisión',
+        text_en: 'Complete at least 80% of passes with accuracy',
+        text_ee: 'Lõpeta vähemalt 80% söötudest täpselt'
+      },
+      {
+        key: 'preset_recov',
+        category: 'Defensa',
+        icon: '🛡️',
+        color: '#38bdf8',
+        text_es: 'Realizar 3 recuperaciones limpias de balón',
+        text_en: 'Make 3 clean ball recoveries',
+        text_ee: 'Teha 3 puhast pallivõitu'
+      },
+      {
+        key: 'preset_duels',
+        category: 'Duelos 1v1',
+        icon: '⚔️',
+        color: '#f97316',
+        text_es: 'Ganar al menos el 60% de los duelos 1vs1',
+        text_en: 'Win at least 60% of 1v1 duels',
+        text_ee: 'Võita vähemalt 60% 1vs1 duellidest'
+      },
+      {
+        key: 'preset_foot',
+        category: 'Técnica',
+        icon: '👟',
+        color: '#a855f7',
+        text_es: 'Disparar a portería con la pierna menos hábil',
+        text_en: 'Shoot on target using your weaker foot',
+        text_ee: 'Lüüa väravale nõrgema jalaga'
+      },
+      {
+        key: 'preset_assist',
+        category: 'Visión',
+        icon: '⚽',
+        color: '#4ade80',
+        text_es: 'Dar al menos 1 asistencia de gol o pase clave',
+        text_en: 'Provide at least 1 goal assist or key pass',
+        text_ee: 'Anda vähemalt 1 väravasööt või võtmesööt'
+      },
+      {
+        key: 'preset_streak',
+        category: 'Constancia',
+        icon: '⚡',
+        color: '#facc15',
+        text_es: 'Asistir al 100% de los entrenamientos de la semana',
+        text_en: "Attend 100% of this week's training sessions",
+        text_ee: 'Osaleda 100% selle nädala treeningutel'
+      },
+      {
+        key: 'preset_shots',
+        category: 'Finalización',
+        icon: '🚀',
+        color: '#fb7185',
+        text_es: 'Realizar 2 o más disparos a puerta en cada partido',
+        text_en: 'Take 2 or more shots on target in each match',
+        text_ee: 'Teha igas mängus 2 või rohkem lööki raami'
+      },
+      {
+        key: 'preset_fairplay',
+        category: 'Fair Play',
+        icon: '🤝',
+        color: '#34d399',
+        text_es: 'Cero tarjetas y máxima comunicación de apoyo en el campo',
+        text_en: 'Zero cards and maximum supportive communication on the pitch',
+        text_ee: 'Null kaarti ja maksimaalne toetav suhtlus väljakul'
+      }
     ];
 
-    const currentText = (player.weeklyMission && player.weeklyMission.text) || '';
+    const curLang = (Store.state.settings && Store.state.settings.lang) || 'es';
+    let selectedPreset = null;
+    const currentMission = player.weeklyMission || null;
+    const currentText = currentMission ? (currentMission['text_' + curLang] || currentMission.text || '') : '';
+
+    if (currentMission && currentMission.presetKey) {
+      selectedPreset = presets.find(p => p.key === currentMission.presetKey) || null;
+    }
 
     const modal = document.createElement('div');
     modal.className = 'dialog-overlay';
     modal.id = 'dialog-assign-mission';
     modal.style.zIndex = '999999';
 
-    modal.innerHTML = `
-      <div class="card dialog-box" style="max-width: 440px; width: 92%; padding: 20px; border-radius: 16px; border: 1.5px solid rgba(168, 85, 247, 0.4);">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <h3 style="margin: 0; font-size: 16px; font-weight: 900; color: #fff;">
-            🎯 ${t('weeklyMissionTitle', 'Misión Semanal del Míster')}
-          </h3>
-          <button type="button" class="btn sm ghost" id="btn-close-assign-mission" style="padding: 4px 8px;">✕</button>
-        </div>
-        <div style="font-size: 12.5px; color: var(--muted); margin-bottom: 12px;">
-          Objetivo para <b style="color: #fff;">${escapeHtml(Store.playerName(player))}</b>:
-        </div>
+    function renderModalHtml() {
+      return `
+        <div class="card dialog-box" style="max-width: 480px; width: 92%; padding: 20px; border-radius: 18px; border: 1.5px solid rgba(168, 85, 247, 0.45); max-height: 90vh; overflow-y: auto;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <h3 style="margin: 0; font-size: 16.5px; font-weight: 900; color: #fff;">
+              🎯 ${t('weeklyMissionTitle', 'Misión Semanal del Míster')}
+            </h3>
+            <button type="button" class="btn sm ghost" id="btn-close-assign-mission" style="padding: 4px 8px;">✕</button>
+          </div>
+          <div style="font-size: 12.5px; color: var(--muted); margin-bottom: 12px;">
+            Objetivo personalizado para <b style="color: #fff;">${escapeHtml(Store.playerName(player))}</b>:
+          </div>
 
-        <div style="margin-bottom: 12px;">
-          <label style="font-size: 11.5px; font-weight: 700; color: #c084fc; display: block; margin-bottom: 5px;">
-            ${t('selectMissionPreset', 'Elegir objetivo recomendado:')}
-          </label>
-          <select id="mission-preset-select" style="width: 100%; font-size: 12.5px; padding: 9px 10px; border-radius: 10px; font-weight: 700;">
-            <option value="">-- Elige un objetivo rápido o escribe abajo --</option>
-            ${presets.map(pr => `<option value="${escapeHtml(pr.text)}" data-key="${pr.key}">${pr.text}</option>`).join('')}
-          </select>
-        </div>
+          <!-- Cuadrícula visual de Objetivos Rápidos -->
+          <div style="margin-bottom: 14px;">
+            <label style="font-size: 11px; font-weight: 800; color: #c084fc; display: block; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">
+              ⚡ Objetivos Rápidos (Toca para seleccionar):
+            </label>
+            <div id="quick-missions-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; max-height: 220px; overflow-y: auto; padding: 2px;">
+              ${presets.map(pr => {
+                const isCur = selectedPreset && selectedPreset.key === pr.key;
+                const prText = (curLang === 'ee' ? pr.text_ee : (curLang === 'en' ? pr.text_en : pr.text_es));
+                return `
+                  <div class="quick-mission-card ${isCur ? 'active' : ''}" data-mkey="${pr.key}" style="background: var(--surface2); border: 1.5px solid ${isCur ? pr.color : 'rgba(255,255,255,0.08)'}; border-radius: 12px; padding: 10px; cursor: pointer; transition: all .15s ease; display: flex; flex-direction: column; gap: 4px; ${isCur ? `box-shadow: 0 0 12px ${pr.color}40; background: ${pr.color}15;` : ''}">
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                      <span style="font-size: 18px;">${pr.icon}</span>
+                      <span class="badge" style="font-size: 9.5px; font-weight: 800; background: ${pr.color}22; color: ${pr.color}; border: 1px solid ${pr.color}44; padding: 1px 6px; border-radius: 6px;">
+                        ${pr.category}
+                      </span>
+                    </div>
+                    <div style="font-size: 11px; font-weight: 700; color: #fff; line-height: 1.35; margin-top: 2px;">
+                      ${escapeHtml(prText)}
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
 
-        <div style="margin-bottom: 16px;">
-          <label style="font-size: 11.5px; font-weight: 700; color: var(--muted); display: block; margin-bottom: 5px;">
-            Texto de la Misión (el jugador lo verá en su app):
-          </label>
-          <textarea id="mission-text-input" rows="3" style="width: 100%; font-size: 13.5px; padding: 10px; border-radius: 10px; resize: vertical;" placeholder="Ej. Intentar 2 centros al área, asegurar pases en corto...">${escapeHtml(currentText)}</textarea>
-        </div>
+          <div style="margin-bottom: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+              <label style="font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase;">
+                Texto de la Misión (Editable):
+              </label>
+              ${selectedPreset ? `
+                <span style="font-size: 10px; font-weight: 800; color: #86efac; background: rgba(34, 197, 94, 0.15); padding: 1px 6px; border-radius: 6px;">
+                  🌐 Auto-traducido en ES/EN/EE
+                </span>
+              ` : ''}
+            </div>
+            <textarea id="mission-text-input" rows="3" style="width: 100%; font-size: 13.5px; padding: 10px; border-radius: 10px; resize: vertical;" placeholder="Ej. Intentar 2 centros al área, asegurar pases en corto...">${escapeHtml(currentText)}</textarea>
+          </div>
 
-        <div style="display: flex; gap: 8px; justify-content: flex-end;">
-          <button type="button" class="btn ghost" id="btn-cancel-mission">${t('cancel')}</button>
-          <button type="button" class="btn primary" id="btn-save-mission" style="font-weight: 800;">
-            🚀 ${t('assignMission', 'Asignar Misión')}
-          </button>
+          <div style="display: flex; gap: 8px; justify-content: flex-end;">
+            <button type="button" class="btn ghost" id="btn-cancel-mission">${t('cancel')}</button>
+            <button type="button" class="btn primary" id="btn-save-mission" style="font-weight: 800;">
+              🚀 ${t('assignMission', 'Asignar Misión')}
+            </button>
+          </div>
         </div>
-      </div>
-    `;
+      `;
+    }
 
+    modal.innerHTML = renderModalHtml();
     document.body.appendChild(modal);
 
-    const txtInput = modal.querySelector('#mission-text-input');
-    const selPreset = modal.querySelector('#mission-preset-select');
-    selPreset.onchange = () => {
-      if (selPreset.value) {
-        txtInput.value = selPreset.value;
-      }
-    };
+    function bindEvents() {
+      const txtInput = modal.querySelector('#mission-text-input');
 
-    function closeModal() {
-      modal.remove();
-    }
-    modal.querySelector('#btn-close-assign-mission').onclick = closeModal;
-    modal.querySelector('#btn-cancel-mission').onclick = closeModal;
-
-    modal.querySelector('#btn-save-mission').onclick = () => {
-      const val = txtInput.value.trim();
-      if (!val) {
-        toast('Por favor escribe o selecciona un objetivo para la misión', 'warning');
-        return;
-      }
-      const selectedOpt = selPreset.options[selPreset.selectedIndex];
-      const presetKey = selectedOpt ? selectedOpt.getAttribute('data-key') || '' : '';
-
-      Store.setPlayerWeeklyMission(player.id, {
-        text: val,
-        presetKey: presetKey,
-        status: 'pending'
+      modal.querySelectorAll('[data-mkey]').forEach(card => {
+        card.onclick = () => {
+          const k = card.getAttribute('data-mkey');
+          selectedPreset = presets.find(p => p.key === k) || null;
+          if (selectedPreset) {
+            const prText = (curLang === 'ee' ? selectedPreset.text_ee : (curLang === 'en' ? selectedPreset.text_en : selectedPreset.text_es));
+            if (txtInput) txtInput.value = prText;
+          }
+          modal.innerHTML = renderModalHtml();
+          bindEvents();
+          haptic(25);
+        };
       });
 
-      if (window.Cloud && window.Cloud.pushCoachState) {
-        window.Cloud.pushCoachState(Store.state, true);
+      function closeModal() {
+        modal.remove();
       }
+      modal.querySelector('#btn-close-assign-mission').onclick = closeModal;
+      modal.querySelector('#btn-cancel-mission').onclick = closeModal;
 
-      toast('🎯 ¡Misión semanal asignada con éxito!', 'success');
-      closeModal();
-      if (typeof onSaved === 'function') onSaved();
-    };
+      modal.querySelector('#btn-save-mission').onclick = () => {
+        const inp = modal.querySelector('#mission-text-input');
+        const val = inp ? inp.value.trim() : '';
+        if (!val) {
+          toast('Por favor escribe o selecciona un objetivo para la misión', 'warning');
+          return;
+        }
+
+        const isCustomText = selectedPreset
+          ? (val !== (curLang === 'ee' ? selectedPreset.text_ee : (curLang === 'en' ? selectedPreset.text_en : selectedPreset.text_es)))
+          : true;
+
+        Store.setPlayerWeeklyMission(player.id, {
+          text: val,
+          text_es: (selectedPreset && !isCustomText) ? selectedPreset.text_es : val,
+          text_en: (selectedPreset && !isCustomText) ? selectedPreset.text_en : val,
+          text_ee: (selectedPreset && !isCustomText) ? selectedPreset.text_ee : val,
+          presetKey: (selectedPreset && !isCustomText) ? selectedPreset.key : '',
+          category: selectedPreset ? selectedPreset.category : 'General',
+          icon: selectedPreset ? selectedPreset.icon : '🎯',
+          status: 'pending',
+          updatedAt: Date.now()
+        });
+
+        if (window.Cloud && window.Cloud.pushCoachState) {
+          window.Cloud.pushCoachState(Store.state, true);
+        }
+
+        toast('🎯 ¡Misión semanal asignada y traducida!', 'success');
+        closeModal();
+        if (typeof onSaved === 'function') onSaved();
+      };
+    }
+
+    bindEvents();
   }
 
   // 📄 Modal Generador de Informe Mensual de Progreso (PDF / Ficha para Padres)
@@ -7899,7 +8358,7 @@
 
           ${p.weeklyMission ? `
             <div style="font-size: 13px; font-weight: 700; color: #fff; margin: 6px 0 10px; line-height: 1.4; background: rgba(0,0,0,0.25); padding: 8px 12px; border-radius: 10px;">
-              "${escapeHtml(p.weeklyMission.text)}"
+              "${escapeHtml((p.weeklyMission['text_' + ((Store.state.settings && Store.state.settings.lang) || 'es')]) || p.weeklyMission.text)}"
             </div>
             <div style="display: flex; gap: 8px; flex-wrap: wrap;">
               <button type="button" class="btn sm" id="btn-toggle-mission-status" style="font-size: 11.5px; font-weight: 800; background: ${p.weeklyMission.status === 'completed' ? 'var(--surface2)' : '#16a34a'}; color: #fff;">
@@ -11561,7 +12020,7 @@
                 });
 
                 let htmlGroups = teamGroups.map(g => `
-                  <details class="card past-convs-details" open style="margin-bottom: 12px; padding: 0; border-radius: 14px; overflow: hidden; background: var(--surface2); border: 1.5px solid var(--border);">
+                  <details class="card past-convs-details" style="margin-bottom: 12px; padding: 0; border-radius: 14px; overflow: hidden; background: var(--surface2); border: 1.5px solid var(--border);">
                     <summary style="cursor: pointer; padding: 12px 14px; display: flex; justify-content: space-between; align-items: center; user-select: none; list-style: none;">
                       <div style="display: flex; align-items: center; gap: 8px;">
                         <span class="dot" style="background: ${g.team.color || 'var(--cyan)'}; width: 10px; height: 10px; border-radius: 50%; display: inline-block;"></span>
@@ -11580,7 +12039,7 @@
 
                 if (generalConvs.length > 0) {
                   htmlGroups += `
-                    <details class="card past-convs-details" open style="margin-bottom: 12px; padding: 0; border-radius: 14px; overflow: hidden; background: var(--surface2); border: 1.5px solid var(--border);">
+                    <details class="card past-convs-details" style="margin-bottom: 12px; padding: 0; border-radius: 14px; overflow: hidden; background: var(--surface2); border: 1.5px solid var(--border);">
                       <summary style="cursor: pointer; padding: 12px 14px; display: flex; justify-content: space-between; align-items: center; user-select: none; list-style: none;">
                         <div style="display: flex; align-items: center; gap: 8px;">
                           <span>🛡️</span>
