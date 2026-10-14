@@ -152,8 +152,7 @@
     const r = radar.reg || 50;
     const f = radar.fis || 50;
     const d = radar.def || 50;
-    const di = radar.dis || 50;
-    const avg = (p * 0.22 + t * 0.20 + r * 0.20 + f * 0.15 + d * 0.13 + di * 0.10);
+    const avg = (p * 0.25 + t * 0.22 + r * 0.22 + f * 0.16 + d * 0.15);
     return Math.min(99, Math.max(45, Math.round(avg)));
   }
 
@@ -245,31 +244,31 @@
     ctx.textBaseline = 'alphabetic';
 
     // 1. OVR (Media General en esquina superior izquierda)
-    ctx.font = '900 70px "Arial Black", Impact, sans-serif';
+    ctx.font = '900 74px "Arial Black", Impact, sans-serif';
     ctx.fillStyle = theme.numColor;
     ctx.shadowColor = 'rgba(0,0,0,0.85)';
     ctx.shadowBlur = 8;
-    ctx.fillText(String(ovr), 110, 138);
+    ctx.fillText(String(ovr), 110, 140);
 
     // 2. Posición Oficial
     ctx.font = '900 30px "Arial Black", sans-serif';
     ctx.fillStyle = theme.posColor;
-    ctx.fillText(pos, 110, 182);
+    ctx.fillText(pos, 110, 184);
 
     // 3. Dorsal
     if (dorsal) {
       ctx.font = '800 20px sans-serif';
       ctx.fillStyle = theme.cardBorder;
-      ctx.fillText(dorsal, 110, 214);
+      ctx.fillText(dorsal, 110, 216);
     }
 
-    // 4. Escudo del Club en panel lateral izquierdo (AMPLIADO a 64x64)
-    const crestY = 265;
+    // 4. Escudo del Club en panel lateral izquierdo (AMPLIADO a 86x86)
+    const crestY = 270;
     if (noovaImg && noovaImg.complete && noovaImg.naturalWidth > 0) {
-      ctx.drawImage(noovaImg, 110 - 32, crestY - 32, 64, 64);
+      ctx.drawImage(noovaImg, 110 - 43, crestY - 43, 86, 86);
     } else {
-      ctx.font = '48px sans-serif';
-      ctx.fillText('🛡️', 110, crestY + 16);
+      ctx.font = '54px sans-serif';
+      ctx.fillText('🛡️', 110, crestY + 18);
     }
 
     // 5. Avatar / Foto del Jugador (Círculo en panel derecho)
@@ -332,90 +331,93 @@
     ctx.fillText(displayName.toUpperCase(), W / 2, nameY - 5);
     ctx.restore();
 
-    // 7. Atributos: 6 Stats en dos columnas (AMPLIADAS para rellenar armónicamente el espacio)
-    const statsY = 460;
-    const r = data.radar || { pas: 70, tir: 70, reg: 70, fis: 70, def: 70, dis: 70 };
-    const leftStats = [
-      { label: getI18nText('statPas', 'PAS'), val: r.pas },
-      { label: getI18nText('statTir', 'TIR'), val: r.tir },
-      { label: getI18nText('statReg', 'REG'), val: r.reg }
-    ];
-    const rightStats = [
-      { label: getI18nText('statFis', 'FIS'), val: r.fis },
-      { label: getI18nText('statDef', 'DEF'), val: r.def },
-      { label: getI18nText('statDis', 'DIS'), val: r.dis }
+    // 7. Atributos: 5 Stats oficiales (Sin Disciplina, cifras ampliadas y bien distribuidas)
+    const statsY = 462;
+    const r = data.radar || { pas: 70, tir: 70, reg: 70, fis: 70, def: 70 };
+    const rowStep = 78;
+
+    // Fila 0: PAS | DEF
+    // Fila 1: TIR | FIS
+    // Fila 2: REG (centrado)
+    const rowStats = [
+      { left: { label: getI18nText('statPas', 'PAS'), val: r.pas }, right: { label: getI18nText('statDef', 'DEF'), val: r.def } },
+      { left: { label: getI18nText('statTir', 'TIR'), val: r.tir }, right: { label: getI18nText('statFis', 'FIS'), val: r.fis } }
     ];
 
-    // Línea divisoria central
+    // Línea divisoria central sólo entre filas 0 y 1
     ctx.save();
     ctx.strokeStyle = theme.dividerColor;
     ctx.lineWidth = 2.5;
     ctx.beginPath();
-    ctx.moveTo(W / 2, statsY - 30);
-    ctx.lineTo(W / 2, statsY + 185);
+    ctx.moveTo(W / 2, statsY - 26);
+    ctx.lineTo(W / 2, statsY + rowStep + 18);
     ctx.stroke();
     ctx.restore();
 
-    const rowStep = 68; // Paso vertical amplio para llenar el espacio vacío
-
-    leftStats.forEach((st, idx) => {
+    // Renderizar Filas 0 y 1 con cifras más grandes
+    rowStats.forEach((row, idx) => {
       const y = statsY + idx * rowStep;
 
-      // Cifra numérica grande
+      // Izquierda
       ctx.textAlign = 'right';
-      ctx.font = '900 48px "Arial Black", Impact, sans-serif';
+      ctx.font = '900 52px "Arial Black", Impact, sans-serif';
       ctx.fillStyle = theme.statValColor;
-      ctx.fillText(String(Math.round(st.val)), W / 2 - 95, y);
+      ctx.fillText(String(Math.round(row.left.val)), W / 2 - 55, y);
 
-      // Etiqueta del atributo
       ctx.textAlign = 'left';
-      ctx.font = '900 26px sans-serif';
+      ctx.font = '900 28px sans-serif';
       ctx.fillStyle = theme.statLabelColor;
-      ctx.fillText(st.label, W / 2 - 82, y - 4);
+      ctx.fillText(row.left.label, W / 2 - 42, y - 4);
+
+      // Derecha
+      ctx.textAlign = 'right';
+      ctx.font = '900 52px "Arial Black", Impact, sans-serif';
+      ctx.fillStyle = theme.statValColor;
+      ctx.fillText(String(Math.round(row.right.val)), W / 2 + 95, y);
+
+      ctx.textAlign = 'left';
+      ctx.font = '900 28px sans-serif';
+      ctx.fillStyle = theme.statLabelColor;
+      ctx.fillText(row.right.label, W / 2 + 108, y - 4);
     });
 
-    rightStats.forEach((st, idx) => {
-      const y = statsY + idx * rowStep;
+    // Fila 2: REG (Dribbling) Centrado armónicamente para completar la tarjeta
+    const yReg = statsY + 2 * rowStep;
+    ctx.textAlign = 'right';
+    ctx.font = '900 52px "Arial Black", Impact, sans-serif';
+    ctx.fillStyle = theme.statValColor;
+    ctx.fillText(String(Math.round(r.reg)), W / 2 - 8, yReg);
 
-      // Cifra numérica grande
-      ctx.textAlign = 'right';
-      ctx.font = '900 48px "Arial Black", Impact, sans-serif';
-      ctx.fillStyle = theme.statValColor;
-      ctx.fillText(String(Math.round(st.val)), W / 2 + 55, y);
-
-      // Etiqueta del atributo
-      ctx.textAlign = 'left';
-      ctx.font = '900 26px sans-serif';
-      ctx.fillStyle = theme.statLabelColor;
-      ctx.fillText(st.label, W / 2 + 68, y - 4);
-    });
+    ctx.textAlign = 'left';
+    ctx.font = '900 28px sans-serif';
+    ctx.fillStyle = theme.statLabelColor;
+    ctx.fillText(getI18nText('statReg', 'REG'), W / 2 + 6, yReg - 4);
 
     // 8. Insignias en el pie de la carta (Bandera Estonia, Logo EJL, Logo JK Noova) AMPLIADAS
-    // Sin texto inferior innecesario
-    const badgeY = 735;
+    const badgeY = 740;
 
-    // Bandera de Estonia (ampliada a 66x44)
+    // Bandera de Estonia (ampliada a 74x48)
     if (flagImg && flagImg.complete && flagImg.naturalWidth > 0) {
-      ctx.drawImage(flagImg, W / 2 - 100 - 33, badgeY - 22, 66, 44);
+      ctx.drawImage(flagImg, W / 2 - 105 - 37, badgeY - 24, 74, 48);
+    } else {
+      ctx.font = '38px sans-serif';
+      ctx.fillText('🇪🇪', W / 2 - 105, badgeY + 14);
+    }
+
+    // Logo EJL (ampliado a 64x64)
+    if (ejlImg && ejlImg.complete && ejlImg.naturalWidth > 0) {
+      ctx.drawImage(ejlImg, W / 2 - 32, badgeY - 32, 64, 64);
     } else {
       ctx.font = '36px sans-serif';
-      ctx.fillText('🇪🇪', W / 2 - 100, badgeY + 12);
+      ctx.fillText('⚽', W / 2, badgeY + 14);
     }
 
-    // Logo EJL (ampliado a 58x58)
-    if (ejlImg && ejlImg.complete && ejlImg.naturalWidth > 0) {
-      ctx.drawImage(ejlImg, W / 2 - 29, badgeY - 29, 58, 58);
-    } else {
-      ctx.font = '34px sans-serif';
-      ctx.fillText('⚽', W / 2, badgeY + 12);
-    }
-
-    // Logo JK Noova (ampliado a 62x62)
+    // Logo JK Noova (ampliado a 68x68)
     if (noovaImg && noovaImg.complete && noovaImg.naturalWidth > 0) {
-      ctx.drawImage(noovaImg, W / 2 + 100 - 31, badgeY - 31, 62, 62);
+      ctx.drawImage(noovaImg, W / 2 + 105 - 34, badgeY - 34, 68, 68);
     } else {
-      ctx.font = '34px sans-serif';
-      ctx.fillText('🛡️', W / 2 + 100, badgeY + 12);
+      ctx.font = '36px sans-serif';
+      ctx.fillText('🛡️', W / 2 + 105, badgeY + 14);
     }
 
     ctx.restore();

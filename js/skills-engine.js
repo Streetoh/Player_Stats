@@ -166,27 +166,48 @@
     const g = k => Number(t[k]) || 0;
     const passOk = g('passOk'), passKo = g('passKo');
     const goals = g('goal');
-    const shotOn = Math.max(g('shotOn'), goals), shotOff = g('shotOff');
-    const dribbleOk = g('dribbleOk'), dribbleKo = g('dribbleKo');
-    const duelWon = g('duelWon'), duelLost = g('duelLost');
-    const recovery = g('recovery'), loss = g('loss');
-    const passes = passOk + passKo, shots = shotOn + shotOff;
-    const dribbles = dribbleOk + dribbleKo, duels = duelWon + duelLost;
-    const positive = passOk + recovery + dribbleOk;
-    const possessionLost = loss + passKo + dribbleKo;
-    const involvement = g('touches') + passes + dribbles + shots + recovery + loss + duels;
+    const d1v1Goal = g('duel1v1WonGoal');
+    const d1v1Stop = g('duel1v1WonStop');
+    const d1v1LostTurnover = g('duel1v1LostTurnover');
+    const d1v1LostGoal = g('duel1v1LostGoal');
+
+    // Tiro: peso moderado (0.35) de duel1v1WonGoal para premiar definición sin inflar la estadística pura
+    const effGoals = goals + (d1v1Goal * 0.35);
+    const effShotOn = Math.max(g('shotOn'), goals) + (d1v1Goal * 0.35);
+    const effShotOff = g('shotOff');
+    const effShots = effShotOn + effShotOff;
+
+    // Regate: duel1v1WonGoal (peso 1.5) como éxito de desborde, duel1v1LostTurnover (peso 1.0) como intento fallido
+    const effDribbleOk = g('dribbleOk') + (d1v1Goal * 1.5);
+    const effDribbleKo = g('dribbleKo') + (d1v1LostTurnover * 1.0);
+    const effDribbles = effDribbleOk + effDribbleKo;
+
+    // Defensa: duel1v1WonStop (peso 1.2) junto a recovery como éxito defensivo, duel1v1LostGoal (peso 1.5) como fallo
+    const effRecovery = g('recovery') + (d1v1Stop * 1.2);
+    const effLoss = g('loss') + (d1v1LostTurnover * 0.8);
+
+    // Físico y duelos totales
+    const effDuelWon = g('duelWon') + (d1v1Goal * 1.0) + (d1v1Stop * 1.0);
+    const effDuelLost = g('duelLost') + (d1v1LostTurnover * 1.0) + (d1v1LostGoal * 1.5);
+    const effDuels = effDuelWon + effDuelLost;
+
+    const passes = passOk + passKo;
+    const positive = passOk + effRecovery + effDribbleOk;
+    const possessionLost = effLoss + passKo + effDribbleKo;
+    const involvement = g('touches') + passes + effDribbles + effShots + effRecovery + effLoss + effDuels;
+
     return {
       rates: {
         passAcc: [passOk, passes],
-        shotOnRate: [shotOn, shots],
-        convOnTarget: [goals, shotOn],
-        dribbleAcc: [dribbleOk, dribbles],
-        duelAcc: [duelWon, duels],
-        lossRate: [loss, involvement],
+        shotOnRate: [effShotOn, effShots],
+        convOnTarget: [effGoals, effShotOn],
+        dribbleAcc: [effDribbleOk, effDribbles],
+        duelAcc: [effDuelWon, effDuels],
+        lossRate: [effLoss, involvement],
         retention: [positive, positive + possessionLost]
       },
       volumes: {
-        shots, passes, dribbles, recovery, involvement,
+        shots: effShots, passes, dribbles: effDribbles, recovery: effRecovery, involvement,
         creative: g('keyPass') + g('assist'),
         saves: g('save'),
         fouls: g('foul'),

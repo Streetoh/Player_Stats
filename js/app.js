@@ -1981,7 +1981,8 @@
     const todayIso = getTodayIso();
     const allSessions = Store.state.sessions || [];
     const todaySessions = allSessions.filter(s => s.date === todayIso);
-    const pastSessions = allSessions.filter(s => s.date !== todayIso);
+    const futureSessions = allSessions.filter(s => s.date > todayIso).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    const pastSessions = allSessions.filter(s => s.date < todayIso).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
     let html = `
       <div class="topbar">
@@ -2050,8 +2051,15 @@
             </div>
           `}
 
+          ${futureSessions.length > 0 ? `
+            <div style="font-size: 12.5px; font-weight: 800; color: #a5b4fc; margin-top: 10px; margin-bottom: 2px; display: flex; align-items: center; gap: 6px;">
+              <span>📅</span> ${t('futureSessionsTitle', 'Próximas Sesiones')} (${futureSessions.length})
+            </div>
+            ${futureSessions.map(s => renderSessionItemHtml(s)).join('')}
+          ` : ''}
+
           ${pastSessions.length > 0 ? `
-            <details class="card past-convs-details" style="margin-top: 6px; padding: 0; border-radius: 14px; overflow: hidden; background: rgba(15, 23, 42, 0.5);">
+            <details class="card past-convs-details" style="margin-top: 10px; padding: 0; border-radius: 14px; overflow: hidden; background: rgba(15, 23, 42, 0.5);">
               <summary style="cursor: pointer; padding: 12px 14px; font-size: 13px; font-weight: 800; display: flex; justify-content: space-between; align-items: center; user-select: none; list-style: none;">
                 <span style="display: flex; align-items: center; gap: 6px; color: #cbd5e1;">
                   📁 ${t('pastSessionsTitle', 'Sesiones de días anteriores')} (${pastSessions.length})
@@ -2875,7 +2883,7 @@
           const convList = {};
           targetPlayers.forEach(p => { convList[p.id] = 'called'; });
 
-          const autoTitle = title || (selectedType === 'match' ? (rival ? 'vs ' + rival : t('match', 'Partido')) : t('training', 'Entrenamiento'));
+          const autoTitle = title || (selectedType === 'match' ? (rival || t('match', 'Partido')) : t('training', 'Entrenamiento'));
           const sessTimeInp = document.getElementById('sess-time');
           const sessTime = (sessTimeInp && sessTimeInp.value) ? sessTimeInp.value.trim() : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
@@ -3080,11 +3088,625 @@
     }
   }
 
+  /* =========================================================
+     ASISTENTE DE EMPAREJAMIENTO PARA DUELOS 1v1 Y TRÍOS
+     ========================================================= */
+  function show1v1PairingModal(session, onDone) {
+    session.duels1v1 = session.duels1v1 || { pairs: [], activePairIndex: 0 };
+    let pairs = (session.duels1v1.pairs || []).slice();
+
+    const pids = Store.sessionPlayerIds(session);
+    let allSessionPlayers = pids.map(id => Store.player(id)).filter(Boolean);
+    if (allSessionPlayers.length === 0) {
+      const sessTeams = Array.isArray(session.teamIds) && session.teamIds.length > 0 ? session.teamIds : (session.teamId ? [session.teamId] : []);
+      const filterT = sessTeams.length === 1 ? sessTeams[0] : (sessTeams.length > 1 ? sessTeams : 'all');
+      allSessionPlayers = Store.sortedPlayers(filterT);
+    }
+    if (allSessionPlayers.length === 0) {
+      allSessionPlayers = Store.sortedPlayers('all');
+    }
+
+    let mode = 'pair'; // 'pair' (2) | 'trio' (3)
+    let selectedPlayerIds = [];
+
+    openSheet('⚔️ ' + t('setup1v1Pairs', 'Configurar Parejas y Tríos 1v1'), (body) => {
+      function renderWizard() {
+        const pairedIdSet = new Set();
+        pairs.forEach(pr => {
+          (pr.playerIds || []).forEach(pid => pairedIdSet.add(pid));
+        });
+
+        const available = allSessionPlayers.filter(p => !pairedIdSet.has(p.id));
+
+        body.innerHTML = `
+          <!-- Selector de Modo: Parejas vs Tríos -->
+          <div style="display: flex; gap: 8px; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <div class="segmented" style="margin: 0; flex: 1;">
+              <button type="button" class="${mode === 'pair' ? 'active' : ''}" id="wizard-mode-pair">
+                👥 ${t('modePair', 'Parejas (2)')}
+              </button>
+              <button type="button" class="${mode === 'trio' ? 'active' : ''}" id="wizard-mode-trio">
+                🔺 ${t('modeTrio', 'Tríos (3)')}
+              </button>
+            </div>
+            <button type="button" class="btn sm ghost" id="wizard-btn-auto-pair" style="font-size: 11px; font-weight: 800; border-color: rgba(34, 211, 238, 0.4); color: var(--cyan); white-space: nowrap;">
+              ⚡ ${t('autoPair', 'Emparejar al azar')}
+            </button>
+          </div>
+
+          <!-- Selección en curso -->
+          ${selectedPlayerIds.length > 0 ? `
+            <div style="background: rgba(34, 211, 238, 0.12); border: 1.5px solid var(--cyan); border-radius: 12px; padding: 8px 12px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+              <div style="font-size: 12px; font-weight: 800; color: var(--cyan);">
+                Seleccionando para ${mode === 'pair' ? 'Pareja' : 'Trío'}: ${selectedPlayerIds.map(pid => {
+                  const pl = Store.player(pid);
+                  return pl ? `#${pl.mainDorsal || ''} ${escapeHtml(Store.playerName(pl))}` : pid;
+                }).join(' + ')} (${selectedPlayerIds.length}/${mode === 'pair' ? 2 : 3})
+              </div>
+              <button type="button" class="btn sm ghost" id="wizard-btn-cancel-sel" style="font-size: 11px; padding: 2px 6px;">✕</button>
+            </div>
+          ` : ''}
+
+          <!-- Jugadores Disponibles -->
+          <div style="margin-bottom: 14px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <span style="font-size: 12px; font-weight: 800; color: var(--muted); text-transform: uppercase;">
+                Jugadores disponibles (${available.length})
+              </span>
+              <span style="font-size: 11px; color: var(--muted);">Toca para emparejar</span>
+            </div>
+
+            ${available.length === 0 ? `
+              <div class="card" style="padding: 14px; text-align: center; color: #4ade80; font-size: 12.5px; border: 1px dashed rgba(34, 197, 94, 0.4);">
+                ✅ ¡Todos los jugadores han sido asignados a un duelo!
+              </div>
+            ` : `
+              <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(82px, 1fr)); gap: 6px; max-height: 28vh; overflow-y: auto; padding-right: 2px;">
+                ${available.map(p => {
+                  const isSel = selectedPlayerIds.includes(p.id);
+                  return `
+                    <div class="card wizard-player-chip" data-w-pid="${p.id}" style="padding: 8px 4px; text-align: center; cursor: pointer; border-radius: 10px; border: 1.5px solid ${isSel ? 'var(--cyan)' : 'var(--border)'}; background: ${isSel ? 'rgba(34, 211, 238, 0.2)' : 'var(--surface2)'};">
+                      ${renderAvatar(p, 'sm')}
+                      <div class="ellipsis" style="font-size: 11px; font-weight: 800; color: #fff; margin-top: 4px;">
+                        ${escapeHtml(Store.playerName(p).split(' ')[0])}
+                      </div>
+                      <div style="font-size: 9.5px; color: var(--muted);">#${p.mainDorsal != null ? p.mainDorsal : '-'}</div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            `}
+          </div>
+
+          <!-- Parejas y Tríos Creados -->
+          <div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <span style="font-size: 12px; font-weight: 800; color: var(--text); text-transform: uppercase;">
+                Duelos Creados (${pairs.length})
+              </span>
+              ${pairs.length > 0 ? `
+                <button type="button" class="link danger" id="wizard-btn-clear-all" style="font-size: 11px;">
+                  🗑️ ${t('clearPairs', 'Vaciar')}
+                </button>
+              ` : ''}
+            </div>
+
+            ${pairs.length === 0 ? `
+              <div class="card" style="padding: 16px; text-align: center; color: var(--muted); font-size: 12px; border: 1px dashed var(--border);">
+                Pulsa sobre dos jugadores para crear tu primera pareja de duelo.
+              </div>
+            ` : `
+              <div style="display: flex; flex-direction: column; gap: 6px; max-height: 24vh; overflow-y: auto;">
+                ${pairs.map((pr, idx) => {
+                  const prPlayers = (pr.playerIds || []).map(id => Store.player(id)).filter(Boolean);
+                  return `
+                    <div class="card" style="padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; background: rgba(15, 23, 42, 0.5); border: 1px solid var(--border); border-radius: 10px;">
+                      <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
+                        <span style="font-size: 12.5px; font-weight: 900; color: #fb923c;">${pr.name}</span>
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                          ${prPlayers.map(pl => `
+                            <span class="badge" style="font-size: 10.5px; background: rgba(255,255,255,0.1); color: #fff;">
+                              #${pl.mainDorsal || ''} ${escapeHtml(Store.playerName(pl).split(' ')[0])}
+                            </span>
+                          `).join('<span style="color: var(--muted); font-size: 11px;">vs</span>')}
+                        </div>
+                      </div>
+                      <button type="button" class="icon-btn ghost danger wizard-delete-pair" data-del-idx="${idx}" style="width: 28px; height: 28px; font-size: 13px;">
+                        🗑️
+                      </button>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            `}
+          </div>
+        `;
+
+        const btnPair = body.querySelector('#wizard-mode-pair');
+        if (btnPair) btnPair.onclick = () => { mode = 'pair'; selectedPlayerIds = []; renderWizard(); };
+        const btnTrio = body.querySelector('#wizard-mode-trio');
+        if (btnTrio) btnTrio.onclick = () => { mode = 'trio'; selectedPlayerIds = []; renderWizard(); };
+
+        const btnCancelSel = body.querySelector('#wizard-btn-cancel-sel');
+        if (btnCancelSel) btnCancelSel.onclick = () => { selectedPlayerIds = []; renderWizard(); };
+
+        const btnClearAll = body.querySelector('#wizard-btn-clear-all');
+        if (btnClearAll) {
+          btnClearAll.onclick = () => {
+            pairs = [];
+            selectedPlayerIds = [];
+            renderWizard();
+          };
+        }
+
+        const btnAutoPair = body.querySelector('#wizard-btn-auto-pair');
+        if (btnAutoPair) {
+          btnAutoPair.onclick = () => {
+            const avail = allSessionPlayers.filter(p => !pairedIdSet.has(p.id));
+            if (avail.length < 2) {
+              toast('No hay suficientes jugadores disponibles para emparejar', 'warning');
+              return;
+            }
+            const shuffled = avail.slice().sort(() => Math.random() - 0.5);
+            while (shuffled.length >= 2) {
+              if (shuffled.length === 3 && mode === 'trio') {
+                const trioPlayers = [shuffled.pop().id, shuffled.pop().id, shuffled.pop().id];
+                const letter = String.fromCharCode(65 + pairs.length);
+                pairs.push({ id: 'p_' + Date.now() + '_' + Math.random().toString(36).substr(2,4), name: 'Trío ' + letter, type: 'trio', playerIds: trioPlayers, trioRotation: 0 });
+                break;
+              }
+              const p1 = shuffled.pop().id;
+              const p2 = shuffled.pop().id;
+              const letter = String.fromCharCode(65 + pairs.length);
+              pairs.push({ id: 'p_' + Date.now() + '_' + Math.random().toString(36).substr(2,4), name: 'Pareja ' + letter, type: 'pair', playerIds: [p1, p2], trioRotation: 0 });
+            }
+            selectedPlayerIds = [];
+            haptic(30);
+            renderWizard();
+          };
+        }
+
+        body.querySelectorAll('.wizard-player-chip').forEach(chip => {
+          chip.onclick = () => {
+            const pid = chip.getAttribute('data-w-pid');
+            if (selectedPlayerIds.includes(pid)) {
+              selectedPlayerIds = selectedPlayerIds.filter(id => id !== pid);
+            } else {
+              selectedPlayerIds.push(pid);
+              const maxNeeded = mode === 'pair' ? 2 : 3;
+              if (selectedPlayerIds.length === maxNeeded) {
+                const letter = String.fromCharCode(65 + pairs.length);
+                const prefix = mode === 'pair' ? 'Pareja ' : 'Trío ';
+                pairs.push({
+                  id: 'p_' + Date.now() + '_' + Math.random().toString(36).substr(2,4),
+                  name: prefix + letter,
+                  type: mode,
+                  playerIds: selectedPlayerIds.slice(),
+                  trioRotation: 0
+                });
+                selectedPlayerIds = [];
+                haptic(35);
+              }
+            }
+            renderWizard();
+          };
+        });
+
+        body.querySelectorAll('.wizard-delete-pair').forEach(btn => {
+          btn.onclick = () => {
+            const idx = parseInt(btn.getAttribute('data-del-idx'), 10);
+            pairs.splice(idx, 1);
+            pairs.forEach((pr, i) => {
+              const letter = String.fromCharCode(65 + i);
+              const prefix = pr.type === 'trio' ? 'Trío ' : 'Pareja ';
+              pr.name = prefix + letter;
+            });
+            renderWizard();
+          };
+        });
+      }
+
+      renderWizard();
+    }, (foot) => {
+      foot.innerHTML = `
+        <div class="btn-row">
+          <button class="btn" id="wizard-btn-cancel">${t('cancel')}</button>
+          <button class="btn primary" id="wizard-btn-start" style="background: linear-gradient(135deg, #f97316, #ea580c); border: none; font-weight: 900;">
+            ⚔️ ${t('startDuels', 'Comenzar Duelos')}
+          </button>
+        </div>
+      `;
+
+      foot.querySelector('#wizard-btn-cancel').onclick = closeSheet;
+
+      foot.querySelector('#wizard-btn-start').onclick = () => {
+        session.duels1v1 = session.duels1v1 || {};
+        session.duels1v1.pairs = pairs;
+        session.trainingModality = '1v1';
+        if (pairs.length > 0) {
+          session.duels1v1.activePairIndex = 0;
+          const first = pairs[0];
+          session.slots = [first.playerIds[0], first.playerIds[1]];
+        }
+        Store.save();
+        closeSheet();
+        haptic(40);
+        if (typeof onDone === 'function') onDone();
+        else renderTracker();
+      };
+    });
+  }
+
+  /* =========================================================
+     TRACKER VERTICAL DIVIDIDO PARA DUELOS 1v1
+     ========================================================= */
+  function render1v1Tracker(trackerEl, s) {
+    s.duels1v1 = s.duels1v1 || { pairs: [], activePairIndex: 0 };
+    if (!Array.isArray(s.duels1v1.pairs)) s.duels1v1.pairs = [];
+
+    if (s.duels1v1.pairs.length === 0 && s.slots && (s.slots[0] || s.slots[1])) {
+      const p1 = s.slots[0] || '';
+      const p2 = s.slots[1] || '';
+      if (p1 && p2) {
+        s.duels1v1.pairs.push({
+          id: 'pair_' + Date.now(),
+          name: 'Pareja A',
+          type: 'pair',
+          playerIds: [p1, p2],
+          trioRotation: 0
+        });
+      }
+    }
+
+    let activeIdx = s.duels1v1.activePairIndex || 0;
+    if (activeIdx >= s.duels1v1.pairs.length) activeIdx = 0;
+    s.duels1v1.activePairIndex = activeIdx;
+    const curPair = s.duels1v1.pairs[activeIdx] || null;
+
+    let pAId = null;
+    let pBId = null;
+    let pRestId = null;
+
+    if (curPair) {
+      if (curPair.type === 'trio' && curPair.playerIds.length >= 3) {
+        const rot = curPair.trioRotation || 0;
+        if (rot === 0) {
+          pAId = curPair.playerIds[0]; pBId = curPair.playerIds[1]; pRestId = curPair.playerIds[2];
+        } else if (rot === 1) {
+          pAId = curPair.playerIds[1]; pBId = curPair.playerIds[2]; pRestId = curPair.playerIds[0];
+        } else {
+          pAId = curPair.playerIds[2]; pBId = curPair.playerIds[0]; pRestId = curPair.playerIds[1];
+        }
+      } else if (curPair.playerIds.length >= 2) {
+        pAId = curPair.playerIds[0];
+        pBId = curPair.playerIds[1];
+      }
+      s.slots = [pAId, pBId];
+    } else {
+      pAId = s.slots ? s.slots[0] : null;
+      pBId = s.slots ? s.slots[1] : null;
+    }
+
+    const playerA = pAId ? Store.player(pAId) : null;
+    const playerB = pBId ? Store.player(pBId) : null;
+    const restPlayer = pRestId ? Store.player(pRestId) : null;
+
+    const isLive = s.timerStartedAt != null;
+    const attMap = s.attendance || {};
+    let attPresentCount = 0;
+    Object.keys(attMap).forEach(k => {
+      const rec = attMap[k];
+      const st = (typeof rec === 'object' && rec !== null) ? rec.status : rec;
+      if (st === 'present' || st === 'late') attPresentCount++;
+    });
+    const hasAttendance = Object.keys(attMap).length > 0;
+
+    trackerEl.className = 'tracker tracker-1v1-mode';
+    trackerEl.style.cssText = 'display: flex; flex-direction: column; height: 100vh; overflow: hidden;';
+
+    trackerEl.innerHTML = `
+      <!-- BARRA SUPERIOR DE CONTROL -->
+      <div class="t-bar" style="border-radius: 0; margin-bottom: 2px;">
+        <div class="t-bar-top">
+          <button class="icon-btn ghost" id="tracker-btn-back" title="Volver">${icon('back', 18)}</button>
+          <div class="t-title">
+            <b>${escapeHtml(Store.sessionTitle(s))}</b>
+            <span class="badge" style="background: rgba(249, 115, 22, 0.2); color: #fb923c; border: 1.5px solid #f97316; font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 6px;">
+              ⚔️ 1v1 DUELOS
+            </span>
+          </div>
+
+          <button class="icon-btn ${hasAttendance ? 'accent' : ''}" id="tracker-btn-attendance" title="${t('rollCallTitle', 'Pasar Lista')}">
+            📋${hasAttendance ? `<span style="font-size: 10px; font-weight: 900; margin-left: 1px;">${attPresentCount}</span>` : ''}
+          </button>
+
+          <button class="icon-btn" id="tracker-btn-filter-buttons" title="${t('customizeButtons')}">
+            ${icon('sliders', 16)}
+          </button>
+
+          <button class="finish-btn" id="tracker-btn-finish" title="${t('finish')}">
+            ${icon('check', 15)} <span>${t('finish')}</span>
+          </button>
+        </div>
+
+        <div class="t-bar-bottom" style="justify-content: space-between;">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <button class="btn sm" id="btn-1v1-open-wizard" style="background: rgba(15, 23, 42, 0.8); border: 1.5px solid var(--border); color: var(--cyan); font-weight: 800; font-size: 11.5px; padding: 4px 10px; border-radius: 8px;">
+              👥 Parejas (${s.duels1v1.pairs.length})
+            </button>
+            ${(curPair && curPair.type === 'trio') ? `
+              <button class="btn sm" id="btn-1v1-rotate-trio" style="background: rgba(245, 158, 11, 0.25); border: 1.5px solid #f59e0b; color: #fbbf24; font-weight: 900; font-size: 11.5px; padding: 4px 10px; border-radius: 8px;" title="Rotar turno del trío">
+                🔄 Rotar (${restPlayer ? escapeHtml(Store.playerName(restPlayer).split(' ')[0]) : 'J3'} ${t('rests', 'descansa')})
+              </button>
+            ` : ''}
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 4px;">
+            <button class="chrono ${isLive ? 'running' : ''} ${Store.fmtTime(Store.elapsed(s), s).startsWith('-') ? 'negative' : ''}" id="tracker-btn-chrono">
+              ${icon(isLive ? 'pause' : 'play', 16)}
+              <span id="tracker-chrono-val">${Store.fmtTime(Store.elapsed(s), s)}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- CINTA DE PAREJAS / TRÍOS -->
+      ${s.duels1v1.pairs.length > 0 ? `
+        <div style="display: flex; gap: 6px; overflow-x: auto; padding: 6px 10px; background: rgba(0,0,0,0.35); border-bottom: 1px solid var(--border); scrollbar-width: none; flex-shrink: 0;">
+          ${s.duels1v1.pairs.map((pr, idx) => {
+            const isActive = (idx === activeIdx);
+            const p1Obj = Store.player(pr.playerIds[0]);
+            const p2Obj = Store.player(pr.playerIds[1]);
+            const p1Name = p1Obj ? Store.playerName(p1Obj).split(' ')[0] : 'J1';
+            const p2Name = p2Obj ? Store.playerName(p2Obj).split(' ')[0] : 'J2';
+            return `
+              <button type="button" class="btn sm ${isActive ? 'primary' : 'ghost'}" data-pair-idx="${idx}" style="flex-shrink: 0; font-size: 11.5px; font-weight: 800; padding: 4px 10px; border-radius: 8px; white-space: nowrap; ${isActive ? 'box-shadow: 0 0 10px rgba(34, 211, 238, 0.4);' : ''}">
+                ${pr.type === 'trio' ? '🔺' : '👥'} ${escapeHtml(pr.name)}: ${escapeHtml(p1Name)} vs ${escapeHtml(p2Name)}
+              </button>
+            `;
+          }).join('')}
+        </div>
+      ` : `
+        <div style="padding: 6px 12px; background: rgba(249, 115, 22, 0.15); border-bottom: 1px solid rgba(249, 115, 22, 0.35); display: flex; justify-content: space-between; align-items: center; font-size: 11.5px;">
+          <span style="color: #fb923c; font-weight: 700;">Sin parejas configuradas para este entrenamiento</span>
+          <button type="button" class="btn sm" id="btn-1v1-empty-create" style="background: #f97316; color: #fff; font-weight: 800; padding: 2px 8px; font-size: 11px;">
+            Crear Parejas ➔
+          </button>
+        </div>
+      `}
+
+      <!-- PANTALLA DIVIDIDA VERTICALMENTE (IZQUIERDA = JUGADOR 1 | DERECHA = JUGADOR 2) -->
+      <div class="tracker-1v1-split" style="flex: 1; padding: 8px; min-height: 0; overflow: hidden;">
+        ${render1v1PlayerColumn(s, playerA, 0, playerB ? playerB.id : null)}
+        ${render1v1PlayerColumn(s, playerB, 1, playerA ? playerA.id : null)}
+      </div>
+    `;
+
+    bind1v1TrackerInteractions(trackerEl, s);
+  }
+
+  function render1v1PlayerColumn(session, player, slotIndex, opponentId) {
+    const slotLetter = slotIndex === 0 ? 'A' : 'B';
+    const isSlotA = slotIndex === 0;
+
+    if (!player) {
+      return `
+        <div class="split-player-col" style="justify-content: center; align-items: center; border: 1.5px dashed var(--border); height: 100%; box-sizing: border-box;">
+          <button class="add-slot" id="btn-pick-slot-${slotIndex}" style="background: none; border: none; color: var(--muted); cursor: pointer; text-align: center;">
+            <div style="font-size: 28px; margin-bottom: 6px;">➕</div>
+            <span style="font-size: 12.5px; font-weight: 800; color: #fff;">${t('selectPlayer')} (${slotLetter})</span>
+          </button>
+        </div>
+      `;
+    }
+
+    const st = session.stats[player.id] || {};
+    const dWonGoal = st.duel1v1WonGoal || 0;
+    const dWonStop = st.duel1v1WonStop || 0;
+    const dLostTurnover = st.duel1v1LostTurnover || 0;
+    const dLostGoal = st.duel1v1LostGoal || 0;
+    const dWon = dWonGoal + dWonStop;
+    const dLost = dLostGoal + dLostTurnover;
+    const dTotal = dWon + dLost;
+    const dWinRate = dTotal > 0 ? Math.round((dWon / dTotal) * 100) : 0;
+
+    const statsList = Store.getSessionStats(session);
+
+    return `
+      <div class="split-player-col" data-slot="${slotIndex}" data-player="${player.id}" style="height: 100%; box-sizing: border-box; display: flex; flex-direction: column;">
+        <!-- Encabezado del Jugador -->
+        <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 6px; flex-shrink: 0;">
+          <div style="display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1;">
+            ${renderAvatar(player, 'sm')}
+            <div style="min-width: 0; flex: 1;">
+              <h4 class="ellipsis" style="margin: 0; font-size: 13.5px; font-weight: 900; color: #fff;">
+                #${player.mainDorsal != null ? player.mainDorsal : '-'} ${escapeHtml(Store.playerName(player))}
+              </h4>
+              <div style="font-size: 11px; font-weight: 800; color: ${dWinRate >= 50 ? '#4ade80' : (dTotal > 0 ? '#f87171' : 'var(--muted)')};">
+                🏆 ${dWon}G / ${dLost}P (${dWinRate}%)
+              </div>
+            </div>
+          </div>
+          <button class="undo-btn" id="btn-undo-${slotIndex}" title="${t('undo')}" style="width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0;">
+            ${icon('undo', 16)}
+          </button>
+        </div>
+
+        <!-- PANEL RÁPIDO 1-TAP DUELOS 1v1 -->
+        <div style="display: flex; flex-direction: column; gap: 6px; margin: 8px 0; flex-shrink: 0;">
+          <button type="button" class="duel-1tap-btn duel-btn-goal" data-duel-action="${isSlotA ? 'goal_A' : 'goal_B'}" data-p-win="${player.id}" data-p-loss="${opponentId || ''}">
+            ⚽ 1v1 Gol (+1)
+          </button>
+          <button type="button" class="duel-1tap-btn duel-btn-steal" data-duel-action="${isSlotA ? 'steal_goal_A' : 'steal_goal_B'}" data-p-win="${player.id}" data-p-loss="${opponentId || ''}">
+            ⚡ Robo y Gol
+          </button>
+          <button type="button" class="duel-1tap-btn duel-btn-out" data-duel-action="${isSlotA ? 'out_loss_A' : 'out_loss_B'}" data-p-win="${player.id}" data-p-loss="${opponentId || ''}">
+            ❌ Fuera / Pérdida
+          </button>
+        </div>
+
+        <!-- ACCIONES REGULARES COMPACTAS -->
+        <div style="font-size: 10px; font-weight: 800; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; flex-shrink: 0;">
+          Otras Acciones
+        </div>
+        <div class="counters compact" style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; flex: 1; overflow-y: auto;">
+          ${statsList.map(item => {
+            const count = st[item.key] || 0;
+            const isGoal = item.key === 'goal';
+            return `
+              <button class="counter ${isGoal ? 'goal' : ''}"
+                      style="--c: ${item.color}; padding: 6px 4px; min-height: 48px;"
+                      data-key="${item.key}"
+                      data-player="${player.id}">
+                <span class="c-emoji" style="font-size: 15px;">${item.emoji}</span>
+                <span class="c-val num" id="val-${player.id}-${item.key}" style="font-size: 14px;">${count}</span>
+                <span class="c-lbl" style="font-size: 9px;">${item.short}</span>
+              </button>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  function bind1v1TrackerInteractions(container, session) {
+    container.querySelector('#tracker-btn-chrono').onclick = () => {
+      Store.toggleTimer(session);
+      haptic(30);
+      renderTracker();
+    };
+
+    container.querySelector('#tracker-btn-back').onclick = () => {
+      closeTracker();
+    };
+
+    container.querySelector('#tracker-btn-finish').onclick = () => {
+      confirmDialog(t('finishSession', 'Finalizar Sesión'), '¿Deseas finalizar el entrenamiento?', () => {
+        if (session.timerStartedAt) Store.toggleTimer(session);
+        closeTracker();
+        showSessionDetailModal(session.id);
+      });
+    };
+
+    const btnAtt = container.querySelector('#tracker-btn-attendance');
+    if (btnAtt) btnAtt.onclick = () => showSessionAttendanceModal(session.id);
+
+    container.querySelector('#tracker-btn-filter-buttons').onclick = () => {
+      showCustomizeSessionButtonsModal(session);
+    };
+
+    const btnWiz = container.querySelector('#btn-1v1-open-wizard');
+    if (btnWiz) btnWiz.onclick = () => show1v1PairingModal(session);
+
+    const btnEmptyCreate = container.querySelector('#btn-1v1-empty-create');
+    if (btnEmptyCreate) btnEmptyCreate.onclick = () => show1v1PairingModal(session);
+
+    const btnRotateTrio = container.querySelector('#btn-1v1-rotate-trio');
+    if (btnRotateTrio) {
+      btnRotateTrio.onclick = () => {
+        const pairs = session.duels1v1 ? session.duels1v1.pairs : [];
+        const activeIdx = session.duels1v1 ? (session.duels1v1.activePairIndex || 0) : 0;
+        const cur = pairs[activeIdx];
+        if (cur && cur.type === 'trio' && cur.playerIds.length >= 3) {
+          cur.trioRotation = ((cur.trioRotation || 0) + 1) % 3;
+          Store.save();
+          haptic(35);
+          renderTracker();
+        }
+      };
+    }
+
+    container.querySelectorAll('[data-pair-idx]').forEach(btn => {
+      btn.onclick = () => {
+        const idx = parseInt(btn.getAttribute('data-pair-idx'), 10);
+        session.duels1v1 = session.duels1v1 || {};
+        session.duels1v1.activePairIndex = idx;
+        Store.save();
+        haptic(25);
+        renderTracker();
+      };
+    });
+
+    container.querySelectorAll('.split-player-col #btn-pick-slot-0').forEach(b => {
+      b.onclick = () => showPlayerSelectorModal(session, 0);
+    });
+    container.querySelectorAll('.split-player-col #btn-pick-slot-1').forEach(b => {
+      b.onclick = () => showPlayerSelectorModal(session, 1);
+    });
+
+    const btnUndo0 = container.querySelector('#btn-undo-0');
+    if (btnUndo0) {
+      btnUndo0.onclick = () => {
+        const pid = session.slots ? session.slots[0] : null;
+        if (pid) {
+          Store.undo(session.id, pid);
+          haptic(40);
+          renderTracker();
+        }
+      };
+    }
+    const btnUndo1 = container.querySelector('#btn-undo-1');
+    if (btnUndo1) {
+      btnUndo1.onclick = () => {
+        const pid = session.slots ? session.slots[1] : null;
+        if (pid) {
+          Store.undo(session.id, pid);
+          haptic(40);
+          renderTracker();
+        }
+      };
+    }
+
+    container.querySelectorAll('.duel-1tap-btn[data-duel-action]').forEach(btn => {
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        const action = btn.getAttribute('data-duel-action');
+        const pWin = btn.getAttribute('data-p-win');
+        const pLoss = btn.getAttribute('data-p-loss');
+
+        if (!pWin || !pLoss) {
+          toast('Se necesitan 2 jugadores para registrar el duelo 1v1', 'warning');
+          return;
+        }
+
+        const logEntry = Store.recordDuel1v1Outcome(session.id, action, pWin, pLoss);
+        haptic(35);
+
+        if (window.SyncEngine && SyncEngine.isLive() && logEntry) {
+          SyncEngine.sendAction(session.id, pWin, 'duel1v1', 0, logEntry);
+        }
+
+        renderTracker();
+      };
+    });
+
+    container.querySelectorAll('.split-player-col .counter[data-key]').forEach(btn => {
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        const k = btn.getAttribute('data-key');
+        const pid = btn.getAttribute('data-player');
+        if (!pid) return;
+
+        haptic(20);
+        Store.record(session.id, pid, k);
+        const valEl = container.querySelector(`#val-${pid}-${k}`);
+        if (valEl) {
+          valEl.textContent = (session.stats[pid] && session.stats[pid][k]) || 0;
+        }
+      };
+    });
+  }
+
   function renderTracker() {
     const trackerEl = document.getElementById('tracker-fullscreen');
     if (!trackerEl) return;
     const s = Store.session(activeSessionId);
     if (!s) { closeTracker(); return; }
+
+    if (s.trainingModality === '1v1') {
+      render1v1Tracker(trackerEl, s);
+      return;
+    }
 
     const isLive = s.timerStartedAt != null;
     const slots = s.slots || [null, null];
@@ -3544,9 +4166,35 @@
     let currentEnabled = (session.enabledStats && session.enabledStats.length)
       ? session.enabledStats.slice()
       : Store.state.settings.enabledStats.slice();
+    let currentModality = session.trainingModality || 'normal';
 
     openSheet(t('customizeButtons'), (body) => {
       body.innerHTML = `
+        ${session.type === 'training' ? `
+          <!-- Selector de Modalidad de Entrenamiento -->
+          <div class="card" style="margin-bottom: 14px; padding: 12px; background: rgba(15, 23, 42, 0.6); border: 1.5px solid var(--border); border-radius: 14px;">
+            <label style="font-size: 11.5px; font-weight: 800; color: var(--muted); display: block; margin-bottom: 8px; text-transform: uppercase;">
+              🏷️ ${t('trainingModality', 'Modalidad de Entrenamiento')}
+            </label>
+            <div class="segmented" id="session-modality-selector" style="margin-bottom: 8px;">
+              <button type="button" class="${currentModality === 'normal' ? 'active' : ''}" data-mod="normal">
+                ⚽ ${t('modalityNormal', 'Normal')}
+              </button>
+              <button type="button" class="${currentModality === 'minifutbol' ? 'active' : ''}" data-mod="minifutbol">
+                🥅 ${t('modalityMinifootball', 'Mini-Fútbol')}
+              </button>
+              <button type="button" class="${currentModality === '1v1' ? 'active' : ''}" data-mod="1v1">
+                ⚔️ ${t('modality1v1', 'Duelos 1v1')}
+              </button>
+            </div>
+            <div id="modality-1v1-action-box" style="display: ${currentModality === '1v1' ? 'block' : 'none'}; margin-top: 8px;">
+              <button type="button" class="btn sm block" id="btn-open-1v1-pairing-wizard" style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.25), rgba(249, 115, 22, 0.35)); color: #f97316; border: 1.5px solid #f97316; font-weight: 800; font-size: 12px; border-radius: 10px; width: 100%;">
+                👥 ${t('setup1v1Pairs', 'Configurar Parejas y Tríos 1v1')} ➔
+              </button>
+            </div>
+          </div>
+        ` : ''}
+
         <p class="hint" style="margin-bottom: 12px;">${t('selectButtonsForView')}</p>
 
         <!-- Presets a 1 toque -->
@@ -3556,7 +4204,7 @@
           <button type="button" id="pst-shots">Solo Tiros</button>
         </div>
 
-        <div class="card" style="max-height: 50vh; overflow-y: auto;">
+        <div class="card" style="max-height: 44vh; overflow-y: auto;">
           ${Store.STATS.map(item => {
             const isChecked = currentEnabled.includes(item.key);
             return `
@@ -3572,6 +4220,27 @@
           }).join('')}
         </div>
       `;
+
+      if (session.type === 'training') {
+        const modBtns = body.querySelectorAll('#session-modality-selector button[data-mod]');
+        const box1v1 = body.querySelector('#modality-1v1-action-box');
+        modBtns.forEach(btn => {
+          btn.onclick = () => {
+            currentModality = btn.getAttribute('data-mod');
+            modBtns.forEach(b => b.classList.toggle('active', b === btn));
+            if (box1v1) box1v1.style.display = (currentModality === '1v1') ? 'block' : 'none';
+            haptic(25);
+          };
+        });
+
+        const btnWiz = body.querySelector('#btn-open-1v1-pairing-wizard');
+        if (btnWiz) {
+          btnWiz.onclick = () => {
+            closeSheet();
+            show1v1PairingModal(session, () => renderTracker());
+          };
+        }
+      }
 
       function syncSwitches() {
         body.querySelectorAll('[data-custom-stat]').forEach(sw => {
@@ -3621,12 +4290,18 @@
       foot.querySelector('#btn-cancel-custom').onclick = closeSheet;
 
       foot.querySelector('#btn-apply-custom').onclick = () => {
+        session.trainingModality = currentModality;
         // Orden canónico estricto
         const sorted = Store.getSortedStats(currentEnabled).map(s => s.key);
         Store.setSessionStats(session, sorted);
         closeSheet();
         haptic(30);
-        renderTracker();
+
+        if (currentModality === '1v1' && (!session.duels1v1 || !session.duels1v1.pairs || session.duels1v1.pairs.length === 0)) {
+          show1v1PairingModal(session, () => renderTracker());
+        } else {
+          renderTracker();
+        }
       };
     });
   }
@@ -4712,52 +5387,45 @@
         <!-- Fila 1: Ataque -->
         <div class="pitch-grid-cell pz-top-l ${cntTopL > 0 ? 'has-actions' : ''}" style="grid-area: top_l; background: ${getHeatBg(cntTopL)}; cursor: pointer;" data-zone-name="${t('zone_wing_off_l', 'Banda Ofensiva Izquierda')}" data-zone-count="${cntTopL}" data-zone-actions='${JSON.stringify(zoneActionsMap.top_l)}' onclick="window.handlePitchZoneCellClick(this)">
           <span class="z-emoji">↖️</span>
-          <span style="font-size: 11px; font-weight: 900;">${cntTopL}</span>
+          <span style="font-size: 13px; font-weight: 900;">${cntTopL}</span>
           <span style="font-size: 9px; opacity: 0.85;">${t('zone_wing_off_l')}</span>
-          ${getZoneBadgeHtml(cntTopL, zoneActionsMap.top_l)}
         </div>
         <div class="pitch-grid-cell pz-top-c ${cntTopC > 0 ? 'has-actions' : ''}" style="grid-area: top_c; background: ${getHeatBg(cntTopC)}; border-color: rgba(239, 68, 68, 0.8); cursor: pointer;" data-zone-name="${t('zone_box_opp', 'Área Rival')}" data-zone-count="${cntTopC}" data-zone-actions='${JSON.stringify(zoneActionsMap.top_c)}' onclick="window.handlePitchZoneCellClick(this)">
           <span class="z-emoji">🥅</span>
-          <span style="font-size: 12px; font-weight: 900; color: #fde047;">${cntTopC}</span>
+          <span style="font-size: 14px; font-weight: 900; color: #fde047;">${cntTopC}</span>
           <span style="font-size: 9px; opacity: 0.9;">${t('zone_box_opp')}</span>
-          ${getZoneBadgeHtml(cntTopC, zoneActionsMap.top_c)}
         </div>
         <div class="pitch-grid-cell pz-top-r ${cntTopR > 0 ? 'has-actions' : ''}" style="grid-area: top_r; background: ${getHeatBg(cntTopR)}; cursor: pointer;" data-zone-name="${t('zone_wing_off_r', 'Banda Ofensiva Derecha')}" data-zone-count="${cntTopR}" data-zone-actions='${JSON.stringify(zoneActionsMap.top_r)}' onclick="window.handlePitchZoneCellClick(this)">
           <span class="z-emoji">↗️</span>
-          <span style="font-size: 11px; font-weight: 900;">${cntTopR}</span>
+          <span style="font-size: 13px; font-weight: 900;">${cntTopR}</span>
           <span style="font-size: 9px; opacity: 0.85;">${t('zone_wing_off_r')}</span>
-          ${getZoneBadgeHtml(cntTopR, zoneActionsMap.top_r)}
         </div>
 
         <!-- Fila 2-3: Bandas unidas laterales -->
         <div class="pitch-grid-cell pz-wing-l ${cntWingL > 0 ? 'has-actions' : ''}" style="grid-area: wing_l; background: ${getHeatBg(cntWingL)}; cursor: pointer;" data-zone-name="${t('zone_wing_l', 'Banda Izquierda')}" data-zone-count="${cntWingL}" data-zone-actions='${JSON.stringify(zoneActionsMap.wing_l)}' onclick="window.handlePitchZoneCellClick(this)">
           <span class="z-emoji">⬅️</span>
-          <span style="font-size: 12px; font-weight: 900;">${cntWingL}</span>
+          <span style="font-size: 13px; font-weight: 900;">${cntWingL}</span>
           <span style="font-size: 9px; opacity: 0.85;">${t('zone_wing_l')}</span>
-          ${getZoneBadgeHtml(cntWingL, zoneActionsMap.wing_l)}
         </div>
 
         <!-- Fila 2 Centro: Frontal del Área -->
         <div class="pitch-grid-cell pz-mid-t ${cntMidT > 0 ? 'has-actions' : ''}" style="grid-area: mid_t; background: ${getHeatBg(cntMidT)}; cursor: pointer;" data-zone-name="${t('zone_front', 'Frontal del Área')}" data-zone-count="${cntMidT}" data-zone-actions='${JSON.stringify(zoneActionsMap.mid_t)}' onclick="window.handlePitchZoneCellClick(this)">
           <span class="z-emoji">🎯</span>
-          <span style="font-size: 11.5px; font-weight: 900;">${cntMidT}</span>
+          <span style="font-size: 13px; font-weight: 900;">${cntMidT}</span>
           <span style="font-size: 9px; opacity: 0.85;">${t('zone_front')}</span>
-          ${getZoneBadgeHtml(cntMidT, zoneActionsMap.mid_t)}
         </div>
 
         <div class="pitch-grid-cell pz-wing-r ${cntWingR > 0 ? 'has-actions' : ''}" style="grid-area: wing_r; background: ${getHeatBg(cntWingR)}; cursor: pointer;" data-zone-name="${t('zone_wing_r', 'Banda Derecha')}" data-zone-count="${cntWingR}" data-zone-actions='${JSON.stringify(zoneActionsMap.wing_r)}' onclick="window.handlePitchZoneCellClick(this)">
           <span class="z-emoji">➡️</span>
-          <span style="font-size: 12px; font-weight: 900;">${cntWingR}</span>
+          <span style="font-size: 13px; font-weight: 900;">${cntWingR}</span>
           <span style="font-size: 9px; opacity: 0.85;">${t('zone_wing_r')}</span>
-          ${getZoneBadgeHtml(cntWingR, zoneActionsMap.wing_r)}
         </div>
 
         <!-- Fila 3 Centro: Centro del Campo -->
         <div class="pitch-grid-cell pz-mid-b ${cntMidB > 0 ? 'has-actions' : ''}" style="grid-area: mid_b; background: ${getHeatBg(cntMidB)}; cursor: pointer;" data-zone-name="${t('zone_mid', 'Centro del Campo')}" data-zone-count="${cntMidB}" data-zone-actions='${JSON.stringify(zoneActionsMap.mid_b)}' onclick="window.handlePitchZoneCellClick(this)">
           <span class="z-emoji">⚽</span>
-          <span style="font-size: 11.5px; font-weight: 900;">${cntMidB}</span>
+          <span style="font-size: 13px; font-weight: 900;">${cntMidB}</span>
           <span style="font-size: 9px; opacity: 0.85;">${t('zone_mid')}</span>
-          ${getZoneBadgeHtml(cntMidB, zoneActionsMap.mid_b)}
         </div>
       </div>
     `;
@@ -5483,7 +6151,8 @@
       const list = Store.filterSessions(filter, 'all');
       const todayIso = getTodayIso();
       const todaySessions = list.filter(s => s.date === todayIso);
-      const pastSessions = list.filter(s => s.date !== todayIso);
+      const futureSessions = list.filter(s => s.date > todayIso).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+      const pastSessions = list.filter(s => s.date < todayIso).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
       view.innerHTML = `
         <div class="topbar">
@@ -5553,8 +6222,15 @@
               </div>
             `}
 
+            ${futureSessions.length > 0 ? `
+              <div style="font-size: 12.5px; font-weight: 800; color: #a5b4fc; margin-top: 8px; margin-bottom: 2px; display: flex; align-items: center; gap: 6px;">
+                <span>📅</span> ${t('futureSessionsTitle', 'Próximas Sesiones')} (${futureSessions.length})
+              </div>
+              ${futureSessions.map(s => renderSessionItemHtml(s)).join('')}
+            ` : ''}
+
             ${pastSessions.length > 0 ? `
-              <details class="card past-convs-details" id="sessions-history-past-accordion" style="margin-top: 6px; padding: 0; border-radius: 14px; overflow: hidden; background: rgba(15, 23, 42, 0.5);" ${todaySessions.length === 0 ? 'open' : ''}>
+              <details class="card past-convs-details" id="sessions-history-past-accordion" style="margin-top: 8px; padding: 0; border-radius: 14px; overflow: hidden; background: rgba(15, 23, 42, 0.5);" ${(todaySessions.length === 0 && futureSessions.length === 0) ? 'open' : ''}>
                 <summary style="cursor: pointer; padding: 12px 14px; font-size: 13px; font-weight: 800; display: flex; justify-content: space-between; align-items: center; user-select: none; list-style: none;">
                   <span style="display: flex; align-items: center; gap: 6px; color: #cbd5e1;">
                     📁 ${t('pastSessionsTitle', 'Sesiones de días anteriores')} (${pastSessions.length})
@@ -5672,52 +6348,45 @@
         <!-- Fila 1: Ataque -->
         <div class="pitch-grid-cell pz-top-l ${cntTopL > 0 ? 'has-actions' : ''}" style="grid-area: top_l; background: ${getHeatBg(cntTopL)}; cursor: pointer;" data-zone-name="${t('zone_wing_off_l', 'Banda Ofensiva Izquierda')}" data-zone-count="${cntTopL}" data-zone-actions='${JSON.stringify(zoneActionsMap.top_l)}' onclick="window.handlePitchZoneCellClick(this)">
           <span class="z-emoji">↖️</span>
-          <span style="font-size: 11px; font-weight: 900;">${cntTopL}</span>
+          <span style="font-size: 13px; font-weight: 900;">${cntTopL}</span>
           <span style="font-size: 9px; opacity: 0.85;">${t('zone_wing_off_l')}</span>
-          ${getZoneBadgeHtml(cntTopL, zoneActionsMap.top_l)}
         </div>
         <div class="pitch-grid-cell pz-top-c ${cntTopC > 0 ? 'has-actions' : ''}" style="grid-area: top_c; background: ${getHeatBg(cntTopC)}; border-color: rgba(239, 68, 68, 0.8); cursor: pointer;" data-zone-name="${t('zone_box_opp', 'Área Rival')}" data-zone-count="${cntTopC}" data-zone-actions='${JSON.stringify(zoneActionsMap.top_c)}' onclick="window.handlePitchZoneCellClick(this)">
           <span class="z-emoji">🥅</span>
-          <span style="font-size: 12px; font-weight: 900; color: #fde047;">${cntTopC}</span>
+          <span style="font-size: 14px; font-weight: 900; color: #fde047;">${cntTopC}</span>
           <span style="font-size: 9px; opacity: 0.9;">${t('zone_box_opp')}</span>
-          ${getZoneBadgeHtml(cntTopC, zoneActionsMap.top_c)}
         </div>
         <div class="pitch-grid-cell pz-top-r ${cntTopR > 0 ? 'has-actions' : ''}" style="grid-area: top_r; background: ${getHeatBg(cntTopR)}; cursor: pointer;" data-zone-name="${t('zone_wing_off_r', 'Banda Ofensiva Derecha')}" data-zone-count="${cntTopR}" data-zone-actions='${JSON.stringify(zoneActionsMap.top_r)}' onclick="window.handlePitchZoneCellClick(this)">
           <span class="z-emoji">↗️</span>
-          <span style="font-size: 11px; font-weight: 900;">${cntTopR}</span>
+          <span style="font-size: 13px; font-weight: 900;">${cntTopR}</span>
           <span style="font-size: 9px; opacity: 0.85;">${t('zone_wing_off_r')}</span>
-          ${getZoneBadgeHtml(cntTopR, zoneActionsMap.top_r)}
         </div>
 
         <!-- Fila 2-3: Bandas unidas laterales -->
         <div class="pitch-grid-cell pz-wing-l ${cntWingL > 0 ? 'has-actions' : ''}" style="grid-area: wing_l; background: ${getHeatBg(cntWingL)}; cursor: pointer;" data-zone-name="${t('zone_wing_l', 'Banda Izquierda')}" data-zone-count="${cntWingL}" data-zone-actions='${JSON.stringify(zoneActionsMap.wing_l)}' onclick="window.handlePitchZoneCellClick(this)">
           <span class="z-emoji">⬅️</span>
-          <span style="font-size: 12px; font-weight: 900;">${cntWingL}</span>
+          <span style="font-size: 13px; font-weight: 900;">${cntWingL}</span>
           <span style="font-size: 9px; opacity: 0.85;">${t('zone_wing_l')}</span>
-          ${getZoneBadgeHtml(cntWingL, zoneActionsMap.wing_l)}
         </div>
 
         <!-- Fila 2 Centro: Frontal -->
         <div class="pitch-grid-cell pz-mid-t ${cntMidT > 0 ? 'has-actions' : ''}" style="grid-area: mid_t; background: ${getHeatBg(cntMidT)}; cursor: pointer;" data-zone-name="${t('zone_front', 'Frontal del Área')}" data-zone-count="${cntMidT}" data-zone-actions='${JSON.stringify(zoneActionsMap.mid_t)}' onclick="window.handlePitchZoneCellClick(this)">
           <span class="z-emoji">🎯</span>
-          <span style="font-size: 11.5px; font-weight: 900;">${cntMidT}</span>
+          <span style="font-size: 13px; font-weight: 900;">${cntMidT}</span>
           <span style="font-size: 9px; opacity: 0.85;">${t('zone_front')}</span>
-          ${getZoneBadgeHtml(cntMidT, zoneActionsMap.mid_t)}
         </div>
 
         <div class="pitch-grid-cell pz-wing-r ${cntWingR > 0 ? 'has-actions' : ''}" style="grid-area: wing_r; background: ${getHeatBg(cntWingR)}; cursor: pointer;" data-zone-name="${t('zone_wing_r', 'Banda Derecha')}" data-zone-count="${cntWingR}" data-zone-actions='${JSON.stringify(zoneActionsMap.wing_r)}' onclick="window.handlePitchZoneCellClick(this)">
           <span class="z-emoji">➡️</span>
-          <span style="font-size: 12px; font-weight: 900;">${cntWingR}</span>
+          <span style="font-size: 13px; font-weight: 900;">${cntWingR}</span>
           <span style="font-size: 9px; opacity: 0.85;">${t('zone_wing_r')}</span>
-          ${getZoneBadgeHtml(cntWingR, zoneActionsMap.wing_r)}
         </div>
 
         <!-- Fila 3 Centro: Centro del campo -->
         <div class="pitch-grid-cell pz-mid-b ${cntMidB > 0 ? 'has-actions' : ''}" style="grid-area: mid_b; background: ${getHeatBg(cntMidB)}; cursor: pointer;" data-zone-name="${t('zone_mid', 'Centro del Campo')}" data-zone-count="${cntMidB}" data-zone-actions='${JSON.stringify(zoneActionsMap.mid_b)}' onclick="window.handlePitchZoneCellClick(this)">
           <span class="z-emoji">⚽</span>
-          <span style="font-size: 11.5px; font-weight: 900;">${cntMidB}</span>
+          <span style="font-size: 13px; font-weight: 900;">${cntMidB}</span>
           <span style="font-size: 9px; opacity: 0.85;">${t('zone_mid')}</span>
-          ${getZoneBadgeHtml(cntMidB, zoneActionsMap.mid_b)}
         </div>
       </div>
     `;
@@ -6380,21 +7049,35 @@
           ` : players.map(p => {
             const team = Store.team(p.teamId);
             const presBadge = getPlayerBadgeHtml(p.id);
+            const pStats = Store.playerAggregate(p.id);
+            const pGoals = (pStats && pStats.totals && pStats.totals.goal) || 0;
+            const overall = Store.calculatePlayerOverallRating ? Store.calculatePlayerOverallRating(p.id, p.mainPosition) : { rating: 6.0 };
+            const pRating = (overall.rating || 6.0).toFixed(1);
+            const pStreak = Store.calculatePlayerAttendanceStreak ? Store.calculatePlayerAttendanceStreak(p.id) : 0;
+            const pMvp = Store.calculatePlayerMvpCount ? Store.calculatePlayerMvpCount(p.id) : 0;
 
             return `
-              <div class="player-item" data-id="${p.id}">
-                ${renderAvatar(p)}
+              <div class="player-item" data-id="${p.id}" style="display: flex; align-items: center; gap: 12px; cursor: pointer;">
+                ${renderAvatar(p, 'md')}
                 <div class="grow ellipsis">
-                  <h4 style="display: flex; align-items: center; justify-content: space-between;">
-                    <span class="ellipsis">${escapeHtml(Store.playerName(p))}</span>
+                  <h4 style="display: flex; align-items: center; justify-content: space-between; margin: 0 0 2px;">
+                    <span class="ellipsis">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(Store.playerName(p))}</span>
                     <span class="pres-badge-slot">${presBadge}</span>
                   </h4>
-                  <div class="meta">
+                  <div class="meta" style="display: flex; gap: 6px; flex-wrap: wrap; font-size: 12px; color: var(--muted);">
                     <span class="pos-tag">${p.mainPosition || 'Jugador'}</span>
                     <span>•</span>
                     <span>${getPlayerFootLabel(p.foot)}</span>
-                    ${team ? `<span>•</span><span style="color: ${team.color}; font-weight: 700;">${escapeHtml(team.name)}</span>` : ''}
+                    ${team ? `<span>• <span style="color: ${team.color || '#22c55e'}; font-weight: 700;">🛡️ ${escapeHtml(team.name)}</span></span>` : ''}
                   </div>
+                </div>
+                <div style="text-align: right; flex-shrink: 0;">
+                  <div style="display: flex; align-items: center; justify-content: flex-end; gap: 4px;">
+                    ${pMvp > 0 ? `<span style="font-size: 11px; font-weight: 800; color: #fde047; background: rgba(250, 204, 21, 0.15); border: 1px solid rgba(250, 204, 21, 0.35); padding: 1px 5px; border-radius: 6px;" title="MVP">👑 ${pMvp}</span>` : ''}
+                    ${pStreak >= 2 ? `<span style="font-size: 11px; font-weight: 800; color: #fb923c; background: rgba(249, 115, 22, 0.15); border: 1px solid rgba(249, 115, 22, 0.35); padding: 1px 5px; border-radius: 6px;" title="${t('attendanceStreak', 'Racha de asistencia')}">🔥 ${pStreak}</span>` : ''}
+                    <div style="font-size: 13px; font-weight: 900; color: #22d3ee;">⭐ ${pRating}</div>
+                  </div>
+                  <small style="font-size: 10.5px; color: var(--muted);">⚽ ${pGoals} ${t('goals', 'goles')}</small>
                 </div>
                 ${icon('chevR', 18, 'dim')}
               </div>
@@ -7386,6 +8069,40 @@
             </div>
           </div>
 
+          <!-- Tarjeta Dedicada: ⚔️ Duelos 1v1 -->
+          ${(() => {
+            const dWonGoal = agg.totals.duel1v1WonGoal || 0;
+            const dWonStop = agg.totals.duel1v1WonStop || 0;
+            const dLostTurnover = agg.totals.duel1v1LostTurnover || 0;
+            const dLostGoal = agg.totals.duel1v1LostGoal || 0;
+            const dWon = dWonGoal + dWonStop;
+            const dLost = dLostGoal + dLostTurnover;
+            const dTotal = dWon + dLost;
+            const dWinRate = dTotal > 0 ? Math.round((dWon / dTotal) * 100) : 0;
+            return `
+              <div class="card duel-card-profile" style="margin-bottom: 14px; background: rgba(15, 23, 42, 0.7); border: 1.5px solid rgba(255, 255, 255, 0.08); border-radius: 14px; padding: 12px 14px; display: flex; align-items: center; gap: 12px;">
+                <div style="background: rgba(0, 0, 0, 0.45); border: 1.5px solid ${dWinRate >= 50 ? '#22c55e' : (dTotal > 0 ? '#ef4444' : 'var(--border)')}; border-radius: 12px; width: 62px; height: 62px; display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0;">
+                  <span style="font-size: 16px; font-weight: 900; color: ${dWinRate >= 50 ? '#86efac' : (dTotal > 0 ? '#fca5a5' : '#cbd5e1')};">${dWinRate}%</span>
+                  <span style="font-size: 8.5px; font-weight: 800; color: var(--muted); text-transform: uppercase;">WIN RATE</span>
+                </div>
+                <div class="grow" style="text-align: left; min-width: 0;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+                    <span style="font-size: 13.5px; font-weight: 900; color: #fff;">⚔️ ${t('duels1v1', 'Duelos 1v1')}</span>
+                    <span style="font-size: 11.5px; font-weight: 800;">
+                      <span style="color: #4ade80;">${t('duels1v1Won', 'Ganados')}: ${dWon}</span> • <span style="color: #f87171;">${t('duels1v1Lost', 'Perdidos')}: ${dLost}</span>
+                    </span>
+                  </div>
+                  <div style="height: 6px; width: 100%; background: ${dTotal > 0 ? '#ef4444' : 'rgba(255,255,255,0.1)'}; border-radius: 999px; overflow: hidden; display: flex; margin: 4px 0;">
+                    <div style="width: ${dWinRate}%; background: #22c55e; height: 100%;"></div>
+                  </div>
+                  <div style="font-size: 11px; color: var(--muted);">
+                    (${dWonGoal} ${t('stat_goal', 'goles')} · ${dWonStop} ${t('stops', 'cierres defensivos')})
+                  </div>
+                </div>
+              </div>
+            `;
+          })()}
+
           <!-- Zonas del campo táctico (Heatmap) -->
           <div class="section-title"><span>${t('pitchZones')} (Puntos Calientes - ${isMatch ? t('matchesTab') : t('trainingsTab')})</span></div>
           <div class="card" style="margin-bottom: 14px; text-align: center;">
@@ -7418,6 +8135,27 @@
                   </tr>
                 `;
               }).join('')}
+              ${(() => {
+                const dWon = (agg.totals.duel1v1WonGoal || 0) + (agg.totals.duel1v1WonStop || 0);
+                const dLost = (agg.totals.duel1v1LostGoal || 0) + (agg.totals.duel1v1LostTurnover || 0);
+                const dTotal = dWon + dLost;
+                const dWinRate = dTotal > 0 ? Math.round((dWon / dTotal) * 100) : 0;
+                if (dTotal === 0) return '';
+                return `
+                  <tr style="background: rgba(34, 197, 94, 0.05);">
+                    <td><span class="e">⚔️</span>${t('duels1v1Won', '1v1 Won')}</td>
+                    <td class="${isMatch ? 'mt' : 'tr'}"><b style="color: #4ade80;">${dWon}</b></td>
+                  </tr>
+                  <tr style="background: rgba(239, 68, 68, 0.05);">
+                    <td><span class="e">❌</span>${t('duels1v1Lost', '1v1 Lost')}</td>
+                    <td class="${isMatch ? 'mt' : 'tr'}"><b style="color: #f87171;">${dLost}</b></td>
+                  </tr>
+                  <tr style="background: rgba(34, 211, 238, 0.05);">
+                    <td><span class="e">🏆</span>${t('duels1v1WinRate', '1v1 Win %')}</td>
+                    <td class="${isMatch ? 'mt' : 'tr'}"><b style="color: #22d3ee;">${dWinRate}%</b></td>
+                  </tr>
+                `;
+              })()}
             </tbody>
           </table>
 
@@ -7513,17 +8251,24 @@
       const btnFut = body.querySelector('#btn-player-fut-card');
       if (btnFut) {
         btnFut.onclick = () => {
-          if (window.FutCard && FutCard.showModal) {
-            const streak = Store.calculateAttendanceStreak ? Store.calculateAttendanceStreak(p.id) : 0;
-            const ovr = FutCard.computeOvr ? FutCard.computeOvr(playerRadar) : Math.min(99, Math.max(45, Math.round(matchRating * 10)));
-            FutCard.showModal({
-              player: p,
-              radar: playerRadar,
-              ovr: ovr,
-              team: team,
-              streak: streak,
-              lang: (Store.state.settings && Store.state.settings.lang) || 'es'
-            });
+          try {
+            if (window.FutCard && FutCard.showModal) {
+              const streak = Store.calculatePlayerAttendanceStreak ? Store.calculatePlayerAttendanceStreak(p.id) : 0;
+              const ovr = FutCard.computeOvr ? FutCard.computeOvr(playerRadar) : Math.min(99, Math.max(45, Math.round(matchRating * 10)));
+              FutCard.showModal({
+                player: p,
+                radar: playerRadar,
+                ovr: ovr,
+                team: team,
+                streak: streak,
+                lang: (Store.state.settings && Store.state.settings.lang) || 'es'
+              });
+            } else {
+              toast('FUT Card no disponible en este momento', 'warning');
+            }
+          } catch (err) {
+            console.error('Error opening FUT card modal:', err);
+            toast('Error abriendo Carta FUT: ' + err.message, 'error');
           }
         };
       }
@@ -8800,7 +9545,7 @@
     conv.list = conv.list || {};
     conv.responses = conv.responses || {};
 
-    openSheet(conv.title || (conv.rival ? 'vs ' + conv.rival : 'Convocatoria'), (body) => {
+    openSheet(conv.title || conv.rival || 'Convocatoria', (body) => {
       function renderDetails() {
         const allPlayersMap = {};
         Store.sortedPlayers().forEach(p => { allPlayersMap[p.id] = p; });
@@ -9915,7 +10660,7 @@
         const isNew = !c.id;
         const savedConv = Store.upsertConvocation({
           id: c.id,
-          title: title || (currentType === 'match' ? (rival ? 'vs ' + rival : 'Partido') : 'Entrenamiento'),
+          title: title || (currentType === 'match' ? (rival || 'Partido') : 'Entrenamiento'),
           type: currentType,
           date,
           time,
@@ -9935,7 +10680,7 @@
               type: currentType,
               date,
               rival: rival || '',
-              title: title || (currentType === 'match' ? (rival ? 'vs ' + rival : 'Partido') : 'Entrenamiento'),
+              title: title || (currentType === 'match' ? (rival || 'Partido') : 'Entrenamiento'),
               teamId: selectedTeamIds[0] || '',
               teamIds: selectedTeamIds,
               convocationId: savedConv.id
@@ -10698,7 +11443,7 @@
                   ` : ''}
                 </div>
                 <h3 style="margin: 0; font-size: 16px; font-weight: 800;">
-                  ${escapeHtml(c.title || (c.rival ? 'vs ' + c.rival : 'Convocatoria'))}
+                  ${escapeHtml(c.title || c.rival || 'Convocatoria')}
                 </h3>
                 <div class="muted" style="font-size: 12px; margin-top: 3px;">
                   📅 <b>${formatConvocationDateWithDay(c.date)}</b> ${c.time ? '• ⏰ ' + c.time + (c.endTime ? ' - ' + c.endTime : '') + (c.duration ? ' (' + c.duration + ' min)' : '') : ''} ${c.venue ? '• 📍 ' + escapeHtml(c.venue) : ''}
@@ -10783,14 +11528,82 @@
             </button>
           </div>
         ` : `
-          <!-- Lista de eventos próximos / activos -->
+          <!-- Lista de eventos próximos agrupados por equipo en desplegables -->
           ${upcomingList.length === 0 ? `
             <div style="text-align: center; padding: 22px 14px; background: var(--surface2); border: 1.5px dashed var(--border); border-radius: 14px; color: var(--muted); font-size: 12px; margin-bottom: 12px;">
               ℹ️ ${t('noUpcomingConvs', 'No hay convocatorias ni entrenamientos próximos activos.')}
             </div>
           ` : `
-            <div class="conv-list">
-              ${upcomingList.map(c => renderCard(c, false)).join('')}
+            <div class="conv-teams-container">
+              ${(() => {
+                const allTeams = Store.state.teams || [];
+                if (allTeams.length <= 1) {
+                  return `
+                    <div class="conv-list">
+                      ${upcomingList.map(c => renderCard(c, false)).join('')}
+                    </div>
+                  `;
+                }
+
+                const teamGroups = allTeams.map(tm => {
+                  const convs = upcomingList.filter(c => {
+                    if (Array.isArray(c.teamIds) && c.teamIds.length > 0) {
+                      return c.teamIds.includes(tm.id);
+                    }
+                    return c.teamId === tm.id;
+                  });
+                  return { team: tm, convs };
+                }).filter(g => g.convs.length > 0);
+
+                const generalConvs = upcomingList.filter(c => {
+                  const hasSpecific = Array.isArray(c.teamIds) ? (c.teamIds.length > 0) : !!c.teamId;
+                  return !hasSpecific;
+                });
+
+                let htmlGroups = teamGroups.map(g => `
+                  <details class="card past-convs-details" open style="margin-bottom: 12px; padding: 0; border-radius: 14px; overflow: hidden; background: var(--surface2); border: 1.5px solid var(--border);">
+                    <summary style="cursor: pointer; padding: 12px 14px; display: flex; justify-content: space-between; align-items: center; user-select: none; list-style: none;">
+                      <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="dot" style="background: ${g.team.color || 'var(--cyan)'}; width: 10px; height: 10px; border-radius: 50%; display: inline-block;"></span>
+                        <b style="font-size: 14px; color: #fff;">${escapeHtml(g.team.name)}</b>
+                        <span class="badge" style="background: ${g.team.color || '#22d3ee'}22; color: ${g.team.color || '#22d3ee'}; font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 6px;">
+                          ${g.convs.length}
+                        </span>
+                      </div>
+                      <span style="font-size: 11px; color: var(--muted); font-weight: 700;">▼</span>
+                    </summary>
+                    <div class="conv-list" style="display: flex; flex-direction: column; gap: 8px; padding: 10px 12px 14px; border-top: 1px solid rgba(255, 255, 255, 0.08);">
+                      ${g.convs.map(c => renderCard(c, false)).join('')}
+                    </div>
+                  </details>
+                `).join('');
+
+                if (generalConvs.length > 0) {
+                  htmlGroups += `
+                    <details class="card past-convs-details" open style="margin-bottom: 12px; padding: 0; border-radius: 14px; overflow: hidden; background: var(--surface2); border: 1.5px solid var(--border);">
+                      <summary style="cursor: pointer; padding: 12px 14px; display: flex; justify-content: space-between; align-items: center; user-select: none; list-style: none;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                          <span>🛡️</span>
+                          <b style="font-size: 14px; color: #fff;">${t('allTeams', 'General / Club')}</b>
+                          <span class="badge" style="font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 6px;">
+                            ${generalConvs.length}
+                          </span>
+                        </div>
+                        <span style="font-size: 11px; color: var(--muted); font-weight: 700;">▼</span>
+                      </summary>
+                      <div class="conv-list" style="display: flex; flex-direction: column; gap: 8px; padding: 10px 12px 14px; border-top: 1px solid rgba(255, 255, 255, 0.08);">
+                        ${generalConvs.map(c => renderCard(c, false)).join('')}
+                      </div>
+                    </details>
+                  `;
+                }
+
+                return htmlGroups || `
+                  <div class="conv-list">
+                    ${upcomingList.map(c => renderCard(c, false)).join('')}
+                  </div>
+                `;
+              })()}
             </div>
           `}
 

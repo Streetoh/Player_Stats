@@ -32,7 +32,11 @@
     { key: 'foul',      labelKey: 'stat_foul',      shortKey: 'short_foul',      emoji: '🦵', color: '#fb923c', def: false },
     { key: 'save',      labelKey: 'stat_save',      shortKey: 'short_save',      emoji: '🧤', color: '#38bdf8', def: false },
     { key: 'yellow',    labelKey: 'stat_yellow',    shortKey: 'short_yellow',    emoji: '🟨', color: '#eab308', def: false },
-    { key: 'red',       labelKey: 'stat_red',       shortKey: 'short_red',       emoji: '🟥', color: '#dc2626', def: false }
+    { key: 'red',       labelKey: 'stat_red',       shortKey: 'short_red',       emoji: '🟥', color: '#dc2626', def: false },
+    { key: 'duel1v1WonGoal',     labelKey: 'stat_duel1v1WonGoal',     shortKey: 'short_duel1v1WonGoal',     emoji: '⚽', color: '#22c55e', def: false },
+    { key: 'duel1v1WonStop',     labelKey: 'stat_duel1v1WonStop',     shortKey: 'short_duel1v1WonStop',     emoji: '🛡️', color: '#3b82f6', def: false },
+    { key: 'duel1v1LostTurnover', labelKey: 'stat_duel1v1LostTurnover', shortKey: 'short_duel1v1LostTurnover', emoji: '❌', color: '#f43f5e', def: false },
+    { key: 'duel1v1LostGoal',     labelKey: 'stat_duel1v1LostGoal',     shortKey: 'short_duel1v1LostGoal',     emoji: '🥅', color: '#ef4444', def: false }
   ];
 
   // Helper para textos dinámicos según idioma
@@ -632,13 +636,94 @@
       return entry;
     },
 
-    /* Deshacer (Undo) silencioso por jugador */
+    /* Registro atómico de duelo 1v1 (1-Tap para ambos jugadores) */
+    recordDuel1v1Outcome(sessionId, outcomeType, pAId, pBId) {
+      const s = this.session(sessionId);
+      if (!s || !pAId || !pBId) return null;
+      s.type = s.type === 'match' ? 'match' : 'training';
+      const stA = s.stats[pAId] = s.stats[pAId] || {};
+      const stB = s.stats[pBId] = s.stats[pBId] || {};
+
+      const changesA = {};
+      const changesB = {};
+
+      if (outcomeType === 'goal_A') {
+        // Gol 1v1 A (+1 duel1v1WonGoal A, +1 duel1v1LostGoal B)
+        stA.duel1v1WonGoal = (stA.duel1v1WonGoal || 0) + 1;
+        stB.duel1v1LostGoal = (stB.duel1v1LostGoal || 0) + 1;
+        changesA.duel1v1WonGoal = 1;
+        changesB.duel1v1LostGoal = 1;
+      } else if (outcomeType === 'goal_B') {
+        // Gol 1v1 B (+1 duel1v1WonGoal B, +1 duel1v1LostGoal A)
+        stB.duel1v1WonGoal = (stB.duel1v1WonGoal || 0) + 1;
+        stA.duel1v1LostGoal = (stA.duel1v1LostGoal || 0) + 1;
+        changesB.duel1v1WonGoal = 1;
+        changesA.duel1v1LostGoal = 1;
+      } else if (outcomeType === 'steal_goal_A') {
+        // Robo y Gol A (+1 duel1v1WonGoal A, +1 recovery A, +1 duel1v1LostGoal B)
+        stA.duel1v1WonGoal = (stA.duel1v1WonGoal || 0) + 1;
+        stA.recovery = (stA.recovery || 0) + 1;
+        stB.duel1v1LostGoal = (stB.duel1v1LostGoal || 0) + 1;
+        changesA.duel1v1WonGoal = 1;
+        changesA.recovery = 1;
+        changesB.duel1v1LostGoal = 1;
+      } else if (outcomeType === 'steal_goal_B') {
+        // Robo y Gol B (+1 duel1v1WonGoal B, +1 recovery B, +1 duel1v1LostGoal A)
+        stB.duel1v1WonGoal = (stB.duel1v1WonGoal || 0) + 1;
+        stB.recovery = (stB.recovery || 0) + 1;
+        stA.duel1v1LostGoal = (stA.duel1v1LostGoal || 0) + 1;
+        changesB.duel1v1WonGoal = 1;
+        changesB.recovery = 1;
+        changesA.duel1v1LostGoal = 1;
+      } else if (outcomeType === 'out_loss_A') {
+        // Fuera / Pérdida A (+1 duel1v1LostTurnover A, +1 duel1v1WonStop B)
+        stA.duel1v1LostTurnover = (stA.duel1v1LostTurnover || 0) + 1;
+        stB.duel1v1WonStop = (stB.duel1v1WonStop || 0) + 1;
+        changesA.duel1v1LostTurnover = 1;
+        changesB.duel1v1WonStop = 1;
+      } else if (outcomeType === 'out_loss_B') {
+        // Fuera / Pérdida B (+1 duel1v1LostTurnover B, +1 duel1v1WonStop A)
+        stB.duel1v1LostTurnover = (stB.duel1v1LostTurnover || 0) + 1;
+        stA.duel1v1WonStop = (stA.duel1v1WonStop || 0) + 1;
+        changesB.duel1v1LostTurnover = 1;
+        changesA.duel1v1WonStop = 1;
+      }
+
+      const logEntry = {
+        t: Date.now(),
+        m: this.elapsed(s),
+        isDuel1v1: true,
+        outcomeType,
+        pA: pAId,
+        pB: pBId,
+        changesA,
+        changesB,
+        type: s.type
+      };
+      s.log.push(logEntry);
+      this.save();
+      return logEntry;
+    },
+
+    /* Deshacer (Undo) silencioso por jugador o por duelo */
     undo(sessionId, playerId) {
       const s = this.session(sessionId);
       if (!s) return null;
       for (let i = s.log.length - 1; i >= 0; i--) {
         const e = s.log[i];
-        if (e.p === playerId) {
+        if (e.isDuel1v1 && (e.pA === playerId || e.pB === playerId || !playerId)) {
+          const stA = s.stats[e.pA] || {};
+          const stB = s.stats[e.pB] || {};
+          Object.keys(e.changesA || {}).forEach(k => {
+            stA[k] = Math.max(0, (stA[k] || 0) - e.changesA[k]);
+          });
+          Object.keys(e.changesB || {}).forEach(k => {
+            stB[k] = Math.max(0, (stB[k] || 0) - e.changesB[k]);
+          });
+          s.log.splice(i, 1);
+          this.save();
+          return e;
+        } else if (e.p === playerId) {
           const st = s.stats[playerId] || {};
           e.k.forEach(k => { st[k] = Math.max(0, (st[k] || 0) - e.d); });
           if (e.goalScoreHome && s.type === 'match' && s.score) {
@@ -675,6 +760,34 @@
         }
       });
       return count;
+    },
+
+    calculatePlayerAttendanceStreak(playerId) {
+      if (!playerId || !Array.isArray(this.state.sessions)) return 0;
+      const sPid = String(playerId);
+      const allSessions = this.state.sessions
+        .slice()
+        .filter(s => {
+          if (!s) return false;
+          return (s.attendance && s.attendance[sPid] != null) || (s.stats && s.stats[sPid] && Object.values(s.stats[sPid]).some(v => v > 0));
+        })
+        .sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.createdAt || 0) - (a.createdAt || 0));
+
+      let streak = 0;
+      for (const s of allSessions) {
+        const att = s.attendance ? s.attendance[sPid] : null;
+        const st = (typeof att === 'object' && att !== null) ? att.status : att;
+        const hasAction = s.stats && s.stats[sPid] && Object.values(s.stats[sPid]).some(v => v > 0);
+
+        if (st === 'present' || st === 'late' || (st == null && hasAction)) {
+          streak++;
+        } else if (st === 'justified') {
+          continue;
+        } else {
+          break;
+        }
+      }
+      return streak;
     },
 
     /* Cronómetro y Cuenta Atrás */
@@ -796,7 +909,8 @@
       return counts;
     },
 
-    /* Algoritmo de Índice de Rendimiento / Match Rating (1.0 a 10.0) ponderado por volumen e impacto real */
+    /* Algoritmo de Índice de Rendimiento / Match Rating (1.0 a 10.0)
+       Calibración realista: 6.0 estándar, 7.5-8.5 muy bueno, 8.5-9.2 sobresaliente, 9.5+ casi imposible */
     calculateMatchRating(stats, position) {
       if (!stats || Object.keys(stats).length === 0) return 6.0;
       const p = (position || 'Jugador').toUpperCase();
@@ -821,57 +935,73 @@
       const red = stats.red || 0;
       const touches = stats.touches || 0;
 
-      const totalActions = passes + shotOn + shotOff + goal + assist + keyPass + dribbleOk + dribbleKo + recovery + loss + duelWon + duelLost + save;
+      // Eventos de 1v1
+      const d1v1Goal = stats.duel1v1WonGoal || 0;
+      const d1v1Stop = stats.duel1v1WonStop || 0;
+      const d1v1Turnover = stats.duel1v1LostTurnover || 0;
+      const d1v1LostGoal = stats.duel1v1LostGoal || 0;
+
+      const totalActions = passes + shotOn + shotOff + goal + assist + keyPass + dribbleOk + dribbleKo + recovery + loss + duelWon + duelLost + save + foul + yellow + red + d1v1Goal + d1v1Stop + d1v1Turnover + d1v1LostGoal;
       if (totalActions === 0 && touches === 0) return 6.0;
 
-      let scoreDelta = 0;
-
-      // Pases: el volumen real premia más que un porcentaje aislado sin juego
+      // Acciones positivas puras
+      let posScore = 0;
       if (passes > 0) {
-        const netPass = passOk * 0.08 - passKo * 0.06;
         const passAcc = passOk / passes;
-        const volumeFactor = Math.min(1.0, Math.log10(passes + 1) * 0.7);
-        scoreDelta += netPass + (passAcc - 0.65) * volumeFactor;
+        posScore += (passOk * 0.05) + Math.max(0, (passAcc - 0.70) * 1.2);
+      }
+      posScore += goal * 0.95;
+      posScore += assist * 0.65;
+      posScore += shotOn * 0.20;
+      posScore += keyPass * 0.35;
+      posScore += dribbleOk * 0.22;
+      posScore += recovery * 0.28;
+      posScore += duelWon * 0.20;
+      posScore += save * 0.45;
+      posScore += d1v1Goal * 0.35;
+      posScore += d1v1Stop * 0.25;
+
+      // Bonus posicional específico
+      if (p.includes('POR') || p.includes('GK')) {
+        posScore += save * 0.30;
+      } else if (p.includes('DC') || p.includes('DEL') || p.includes('ST') || p.includes('EXT')) {
+        posScore += (goal * 0.20) + (shotOn * 0.15);
+      } else if (p.includes('DFC') || p.includes('DEF') || p.includes('MCD')) {
+        posScore += (recovery * 0.20) + (duelWon * 0.15);
       }
 
-      // Acciones ofensivas y defensivas
-      scoreDelta += goal * 1.25;
-      scoreDelta += assist * 0.85;
-      scoreDelta += shotOn * 0.35;
-      scoreDelta += shotOff * 0.05;
-      scoreDelta += keyPass * 0.45;
-      scoreDelta += dribbleOk * 0.30;
-      scoreDelta -= dribbleKo * 0.18;
-      scoreDelta += recovery * 0.38;
-      scoreDelta -= loss * 0.22;
-      scoreDelta += duelWon * 0.28;
-      scoreDelta -= duelLost * 0.18;
-      scoreDelta += save * 0.65;
-      scoreDelta -= foul * 0.15;
-      scoreDelta -= yellow * 0.80;
-      scoreDelta -= red * 2.50;
+      // Acciones negativas puras
+      let negScore = 0;
+      negScore += passKo * 0.06;
+      negScore += shotOff * 0.08;
+      negScore += dribbleKo * 0.14;
+      negScore += loss * 0.20;
+      negScore += duelLost * 0.14;
+      negScore += foul * 0.15;
+      negScore += yellow * 0.75;
+      negScore += red * 2.50;
+      negScore += d1v1Turnover * 0.18;
+      negScore += d1v1LostGoal * 0.30;
 
-      // Volumen de participación activa
-      scoreDelta += Math.min(0.7, touches * 0.02);
+      const rawNet = posScore - negScore;
 
-      // Ponderación por rol posicional
-      if (p.includes('POR')) {
-        scoreDelta += save * 0.5;
-      } else if (p.includes('DC') || p.includes('DEL') || p.includes('EXT') || p.includes('ED') || p.includes('EI')) {
-        scoreDelta += goal * 0.3 + shotOn * 0.2;
-      } else if (p.includes('DFC') || p.includes('DEF') || p.includes('LD') || p.includes('LI') || p.includes('MCD')) {
-        scoreDelta += recovery * 0.3 + duelWon * 0.2;
+      // Factor de volumen: requiere volumen sostenido para notas altas
+      const effectiveVolume = totalActions + (touches * 0.3);
+      const volumeFactor = Math.min(1.0, Math.sqrt(effectiveVolume / 22.0));
+
+      let delta = 0;
+      if (rawNet >= 0) {
+        delta = 4.0 * (1 - Math.exp(-rawNet / 7.2)) * volumeFactor;
+      } else {
+        delta = -5.0 * (1 - Math.exp(-Math.abs(rawNet) / 5.5));
       }
 
-      // Amortiguación por muestra reducida: menos de 4 acciones totales evita notas infladas arbitrarias
-      const confidence = Math.min(1.0, (totalActions + touches * 0.5) / 5.0);
-      const finalScore = 6.0 + (scoreDelta * confidence);
-
+      const finalScore = 6.0 + delta;
       return Math.min(10.0, Math.max(1.0, Math.round(finalScore * 10) / 10));
     },
 
     /* Rating General (1 al 10) estilo FIFA: promedio de Entrenamientos y Partidos.
-       Si solo tiene entrenamientos, muestra directamente entrenamientos sin penalizar. */
+       Calcula la media por sesión para no inflar la nota por acumulación histórica de partidos. */
     calculatePlayerOverallRating(playerId, position) {
       const allSessions = (this.state && this.state.sessions) || [];
       const trainingSessions = allSessions.filter(s => (s.type || 'training') === 'training');
@@ -883,8 +1013,17 @@
       const hasTrain = aggTrain.count > 0;
       const hasMatch = aggMatch.count > 0;
 
-      let rTrain = hasTrain ? this.calculateMatchRating(aggTrain.totals, position) : null;
-      let rMatch = hasMatch ? this.calculateMatchRating(aggMatch.totals, position) : null;
+      let rTrain = null;
+      if (hasTrain) {
+        const trainRatings = aggTrain.sessions.map(item => this.calculateMatchRating(item.stats, position));
+        rTrain = trainRatings.reduce((a, b) => a + b, 0) / trainRatings.length;
+      }
+
+      let rMatch = null;
+      if (hasMatch) {
+        const matchRatings = aggMatch.sessions.map(item => this.calculateMatchRating(item.stats, position));
+        rMatch = matchRatings.reduce((a, b) => a + b, 0) / matchRatings.length;
+      }
 
       let rating = 6.0;
       let mode = 'none'; // 'combined' | 'training' | 'match' | 'none'

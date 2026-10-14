@@ -1533,6 +1533,7 @@
 
   /* -------------------------------------------------------------
      ALGORITMO OFICIAL DE NOTA DE RENDIMIENTO (MATCH RATING 1.0 - 10.0)
+     Calibración realista: 6.0 estándar, 7.5-8.5 muy bueno, 8.5-9.2 sobresaliente, 9.5+ casi imposible
      ------------------------------------------------------------- */
   function calculateMatchRating(stats, position) {
     if (!stats || Object.keys(stats).length === 0) return 6.0;
@@ -1557,45 +1558,72 @@
     const red = stats.red || 0;
     const touches = stats.touches || 0;
 
-    const totalActions = goal + assist + shotOn + shotOff + passOk + passKo + keyPass +
-      dribbleOk + dribbleKo + recovery + loss + duelWon + duelLost + save + foul + yellow + red;
+    // Eventos 1v1
+    const d1v1Goal = stats.duel1v1WonGoal || 0;
+    const d1v1Stop = stats.duel1v1WonStop || 0;
+    const d1v1Turnover = stats.duel1v1LostTurnover || 0;
+    const d1v1LostGoal = stats.duel1v1LostGoal || 0;
 
-    let scoreDelta = 0;
     const passes = passOk + passKo;
+    const totalActions = goal + assist + shotOn + shotOff + passes + keyPass +
+      dribbleOk + dribbleKo + recovery + loss + duelWon + duelLost + save + foul + yellow + red +
+      d1v1Goal + d1v1Stop + d1v1Turnover + d1v1LostGoal;
+
+    if (totalActions === 0 && touches === 0) return 6.0;
+
+    // Acciones positivas puras
+    let posScore = 0;
     if (passes > 0) {
       const passAcc = passOk / passes;
-      const netPass = (passOk * 0.08) - (passKo * 0.12);
-      const volumeFactor = Math.min(1.0, Math.log10(passes + 1) * 0.7);
-      scoreDelta += netPass + (passAcc - 0.65) * volumeFactor;
+      posScore += (passOk * 0.05) + Math.max(0, (passAcc - 0.70) * 1.2);
     }
+    posScore += goal * 0.95;
+    posScore += assist * 0.65;
+    posScore += shotOn * 0.20;
+    posScore += keyPass * 0.35;
+    posScore += dribbleOk * 0.22;
+    posScore += recovery * 0.28;
+    posScore += duelWon * 0.20;
+    posScore += save * 0.45;
+    posScore += d1v1Goal * 0.35;
+    posScore += d1v1Stop * 0.25;
 
-    scoreDelta += goal * 1.25;
-    scoreDelta += assist * 0.85;
-    scoreDelta += shotOn * 0.35;
-    scoreDelta += shotOff * 0.05;
-    scoreDelta += keyPass * 0.45;
-    scoreDelta += dribbleOk * 0.30;
-    scoreDelta -= dribbleKo * 0.18;
-    scoreDelta += recovery * 0.38;
-    scoreDelta -= loss * 0.22;
-    scoreDelta += duelWon * 0.28;
-    scoreDelta -= duelLost * 0.18;
-    scoreDelta += save * 0.65;
-    scoreDelta -= foul * 0.15;
-    scoreDelta -= yellow * 0.80;
-    scoreDelta -= red * 2.50;
-    scoreDelta += Math.min(0.7, touches * 0.02);
-
+    // Bonus posicional específico
     if (p.includes('POR') || p.includes('GK')) {
-      scoreDelta += save * 0.5;
+      posScore += save * 0.30;
     } else if (p.includes('DC') || p.includes('DEL') || p.includes('ST') || p.includes('CF') || p.includes('EXT') || p.includes('RW') || p.includes('LW')) {
-      scoreDelta += goal * 0.3 + shotOn * 0.2;
+      posScore += (goal * 0.20) + (shotOn * 0.15);
     } else if (p.includes('DFC') || p.includes('CB') || p.includes('DEF') || p.includes('RB') || p.includes('LB') || p.includes('MCD') || p.includes('DM')) {
-      scoreDelta += recovery * 0.3 + duelWon * 0.2;
+      posScore += (recovery * 0.20) + (duelWon * 0.15);
     }
 
-    const confidence = Math.min(1.0, (totalActions + touches * 0.5) / 5.0);
-    const finalScore = 6.0 + (scoreDelta * confidence);
+    // Acciones negativas puras
+    let negScore = 0;
+    negScore += passKo * 0.06;
+    negScore += shotOff * 0.08;
+    negScore += dribbleKo * 0.14;
+    negScore += loss * 0.20;
+    negScore += duelLost * 0.14;
+    negScore += foul * 0.15;
+    negScore += yellow * 0.75;
+    negScore += red * 2.50;
+    negScore += d1v1Turnover * 0.18;
+    negScore += d1v1LostGoal * 0.30;
+
+    const rawNet = posScore - negScore;
+
+    // Factor de volumen: requiere volumen sostenido para notas altas
+    const effectiveVolume = totalActions + (touches * 0.3);
+    const volumeFactor = Math.min(1.0, Math.sqrt(effectiveVolume / 22.0));
+
+    let delta = 0;
+    if (rawNet >= 0) {
+      delta = 4.0 * (1 - Math.exp(-rawNet / 7.2)) * volumeFactor;
+    } else {
+      delta = -5.0 * (1 - Math.exp(-Math.abs(rawNet) / 5.5));
+    }
+
+    const finalScore = 6.0 + delta;
     return Math.min(10.0, Math.max(1.0, Math.round(finalScore * 10) / 10));
   }
 
@@ -1729,8 +1757,8 @@
     const hasTrain = aggTrain.count > 0;
     const hasMatch = aggMatch.count > 0;
 
-    const rTrain = hasTrain ? calculateMatchRating(aggTrain.totals, position) : null;
-    const rMatch = hasMatch ? calculateMatchRating(aggMatch.totals, position) : null;
+    const rTrain = (hasTrain && aggTrain.ratingsCount > 0) ? (aggTrain.ratingsSum / aggTrain.ratingsCount) : null;
+    const rMatch = (hasMatch && aggMatch.ratingsCount > 0) ? (aggMatch.ratingsSum / aggMatch.ratingsCount) : null;
 
     let rating = 6.0;
     let mode = 'none'; // 'combined' | 'training' | 'match' | 'none'
@@ -5001,7 +5029,11 @@
     foul:      { emoji: '🦵', key: 'stat_foul' },
     save:      { emoji: '🧤', key: 'stat_save' },
     yellow:    { emoji: '🟨', key: 'stat_yellow' },
-    red:       { emoji: '🟥', key: 'stat_red' }
+    red:       { emoji: '🟥', key: 'stat_red' },
+    duel1v1WonGoal:     { emoji: '⚽', key: 'stat_duel1v1WonGoal' },
+    duel1v1WonStop:     { emoji: '🛡️', key: 'stat_duel1v1WonStop' },
+    duel1v1LostTurnover: { emoji: '❌', key: 'stat_duel1v1LostTurnover' },
+    duel1v1LostGoal:     { emoji: '🥅', key: 'stat_duel1v1LostGoal' }
   };
 
   function getActionInfo(k) {
@@ -5164,52 +5196,45 @@
           <!-- Fila 1: Ataque -->
           <div class="pitch-grid-cell pz-top-l ${cntTopL > 0 ? 'has-actions' : ''}" style="grid-area: top_l; background: ${getHeatBg(cntTopL)}; cursor: pointer;" data-zone-name="${t('zone_wing_off_l')}" data-zone-count="${cntTopL}" data-zone-actions='${JSON.stringify(zoneActionsMap.top_l)}' onclick="window.handlePlayerPitchZoneClick(this)">
             <span class="z-emoji">↖️</span>
-            <span style="font-size: 11px; font-weight: 900;">${cntTopL}</span>
-            <span style="font-size: 9px; opacity: 0.85;">${t('zone_wing_off_l')}</span>
-            ${getZoneBadgeHtml(cntTopL, zoneActionsMap.top_l)}
+            <span style="font-size: 13px; font-weight: 900;">${cntTopL}</span>
+            <span style="font-size: 9px; opacity: 0.85; text-align: center; line-height: 1.1;">${t('zone_wing_off_l')}</span>
           </div>
           <div class="pitch-grid-cell pz-top-c ${cntTopC > 0 ? 'has-actions' : ''}" style="grid-area: top_c; background: ${getHeatBg(cntTopC)}; border: ${cntTopC > 0 ? '2px solid #facc15' : '1.5px dashed rgba(255,255,255,0.4)'}; cursor: pointer;" data-zone-name="${t('zone_box_opp')}" data-zone-count="${cntTopC}" data-zone-actions='${JSON.stringify(zoneActionsMap.top_c)}' onclick="window.handlePlayerPitchZoneClick(this)">
             <span class="z-emoji">🥅</span>
-            <span style="font-size: 12px; font-weight: 900; color: #fde047;">${cntTopC}</span>
-            <span style="font-size: 9px; opacity: 0.9;">${t('zone_box_opp')}</span>
-            ${getZoneBadgeHtml(cntTopC, zoneActionsMap.top_c)}
+            <span style="font-size: 14px; font-weight: 900; color: #fde047;">${cntTopC}</span>
+            <span style="font-size: 9px; opacity: 0.9; text-align: center; line-height: 1.1;">${t('zone_box_opp')}</span>
           </div>
           <div class="pitch-grid-cell pz-top-r ${cntTopR > 0 ? 'has-actions' : ''}" style="grid-area: top_r; background: ${getHeatBg(cntTopR)}; cursor: pointer;" data-zone-name="${t('zone_wing_off_r')}" data-zone-count="${cntTopR}" data-zone-actions='${JSON.stringify(zoneActionsMap.top_r)}' onclick="window.handlePlayerPitchZoneClick(this)">
             <span class="z-emoji">↗️</span>
-            <span style="font-size: 11px; font-weight: 900;">${cntTopR}</span>
-            <span style="font-size: 9px; opacity: 0.85;">${t('zone_wing_off_r')}</span>
-            ${getZoneBadgeHtml(cntTopR, zoneActionsMap.top_r)}
+            <span style="font-size: 13px; font-weight: 900;">${cntTopR}</span>
+            <span style="font-size: 9px; opacity: 0.85; text-align: center; line-height: 1.1;">${t('zone_wing_off_r')}</span>
           </div>
 
           <!-- Fila 2-3: Bandas unidas laterales -->
           <div class="pitch-grid-cell pz-wing-l ${cntWingL > 0 ? 'has-actions' : ''}" style="grid-area: wing_l; background: ${getHeatBg(cntWingL)}; cursor: pointer;" data-zone-name="${t('zone_wing_l')}" data-zone-count="${cntWingL}" data-zone-actions='${JSON.stringify(zoneActionsMap.wing_l)}' onclick="window.handlePlayerPitchZoneClick(this)">
             <span class="z-emoji">⬅️</span>
-            <span style="font-size: 12px; font-weight: 900;">${cntWingL}</span>
-            <span style="font-size: 9px; opacity: 0.85;">${t('zone_wing_l')}</span>
-            ${getZoneBadgeHtml(cntWingL, zoneActionsMap.wing_l)}
+            <span style="font-size: 13px; font-weight: 900;">${cntWingL}</span>
+            <span style="font-size: 9px; opacity: 0.85; text-align: center; line-height: 1.1;">${t('zone_wing_l')}</span>
           </div>
 
           <!-- Fila 2 Centro: Frontal del Área -->
           <div class="pitch-grid-cell pz-mid-t ${cntMidT > 0 ? 'has-actions' : ''}" style="grid-area: mid_t; background: ${getHeatBg(cntMidT)}; border: ${cntMidT > 0 ? '2px solid #facc15' : '1.5px dashed rgba(255,255,255,0.4)'}; cursor: pointer;" data-zone-name="${t('zone_front')}" data-zone-count="${cntMidT}" data-zone-actions='${JSON.stringify(zoneActionsMap.mid_t)}' onclick="window.handlePlayerPitchZoneClick(this)">
             <span class="z-emoji">🎯</span>
-            <span style="font-size: 11.5px; font-weight: 900;">${cntMidT}</span>
-            <span style="font-size: 9px; opacity: 0.85;">${t('zone_front')}</span>
-            ${getZoneBadgeHtml(cntMidT, zoneActionsMap.mid_t)}
+            <span style="font-size: 13px; font-weight: 900;">${cntMidT}</span>
+            <span style="font-size: 9px; opacity: 0.85; text-align: center; line-height: 1.1;">${t('zone_front')}</span>
           </div>
 
           <div class="pitch-grid-cell pz-wing-r ${cntWingR > 0 ? 'has-actions' : ''}" style="grid-area: wing_r; background: ${getHeatBg(cntWingR)}; cursor: pointer;" data-zone-name="${t('zone_wing_r')}" data-zone-count="${cntWingR}" data-zone-actions='${JSON.stringify(zoneActionsMap.wing_r)}' onclick="window.handlePlayerPitchZoneClick(this)">
             <span class="z-emoji">➡️</span>
-            <span style="font-size: 12px; font-weight: 900;">${cntWingR}</span>
-            <span style="font-size: 9px; opacity: 0.85;">${t('zone_wing_r')}</span>
-            ${getZoneBadgeHtml(cntWingR, zoneActionsMap.wing_r)}
+            <span style="font-size: 13px; font-weight: 900;">${cntWingR}</span>
+            <span style="font-size: 9px; opacity: 0.85; text-align: center; line-height: 1.1;">${t('zone_wing_r')}</span>
           </div>
 
           <!-- Fila 3 Centro: Centro del Campo -->
           <div class="pitch-grid-cell pz-mid-b ${cntMidB > 0 ? 'has-actions' : ''}" style="grid-area: mid_b; background: ${getHeatBg(cntMidB)}; cursor: pointer;" data-zone-name="${t('zone_mid')}" data-zone-count="${cntMidB}" data-zone-actions='${JSON.stringify(zoneActionsMap.mid_b)}' onclick="window.handlePlayerPitchZoneClick(this)">
             <span class="z-emoji">⚽</span>
-            <span style="font-size: 11.5px; font-weight: 900;">${cntMidB}</span>
-            <span style="font-size: 9px; opacity: 0.85;">${t('zone_mid')}</span>
-            ${getZoneBadgeHtml(cntMidB, zoneActionsMap.mid_b)}
+            <span style="font-size: 13px; font-weight: 900;">${cntMidB}</span>
+            <span style="font-size: 9px; opacity: 0.85; text-align: center; line-height: 1.1;">${t('zone_mid')}</span>
           </div>
         </div>
       </div>
@@ -6149,6 +6174,40 @@
             <div style="font-size: 18px; font-weight: 900; color: #38bdf8;">${curStats.recoveries}</div>
           </div>
         </div>
+
+        <!-- Tarjeta Dedicada: ⚔️ Duelos 1v1 -->
+        ${(() => {
+          const dWonGoal = curAgg.totals.duel1v1WonGoal || 0;
+          const dWonStop = curAgg.totals.duel1v1WonStop || 0;
+          const dLostTurnover = curAgg.totals.duel1v1LostTurnover || 0;
+          const dLostGoal = curAgg.totals.duel1v1LostGoal || 0;
+          const dWon = dWonGoal + dWonStop;
+          const dLost = dLostGoal + dLostTurnover;
+          const dTotal = dWon + dLost;
+          const dWinRate = dTotal > 0 ? Math.round((dWon / dTotal) * 100) : 0;
+          return `
+            <div class="card duel-card-profile" style="margin-bottom: 14px; background: rgba(15, 23, 42, 0.7); border: 1.5px solid rgba(255, 255, 255, 0.08); border-radius: 14px; padding: 12px 14px; display: flex; align-items: center; gap: 12px;">
+              <div style="background: rgba(0, 0, 0, 0.45); border: 1.5px solid ${dWinRate >= 50 ? '#22c55e' : (dTotal > 0 ? '#ef4444' : 'var(--border)')}; border-radius: 12px; width: 62px; height: 62px; display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0;">
+                <span style="font-size: 16px; font-weight: 900; color: ${dWinRate >= 50 ? '#86efac' : (dTotal > 0 ? '#fca5a5' : '#cbd5e1')};">${dWinRate}%</span>
+                <span style="font-size: 8.5px; font-weight: 800; color: var(--muted); text-transform: uppercase;">WIN RATE</span>
+              </div>
+              <div class="grow" style="text-align: left; min-width: 0;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+                  <span style="font-size: 13.5px; font-weight: 900; color: #fff;">⚔️ ${t('duels1v1', 'Duelos 1v1')}</span>
+                  <span style="font-size: 11.5px; font-weight: 800;">
+                    <span style="color: #4ade80;">${t('won', 'Ganados')}: ${dWon}</span> • <span style="color: #f87171;">${t('lost', 'Perdidos')}: ${dLost}</span>
+                  </span>
+                </div>
+                <div style="height: 6px; width: 100%; background: ${dTotal > 0 ? '#ef4444' : 'rgba(255,255,255,0.1)'}; border-radius: 999px; overflow: hidden; display: flex; margin: 4px 0;">
+                  <div style="width: ${dWinRate}%; background: #22c55e; height: 100%;"></div>
+                </div>
+                <div style="font-size: 11px; color: var(--muted);">
+                  (${dWonGoal} ${t('stat_goal', 'goles')} · ${dWonStop} ${t('stops', 'cierres defensivos')})
+                </div>
+              </div>
+            </div>
+          `;
+        })()}
 
         <!-- Mapa Táctico de Goles y Acciones por Zonas -->
         ${renderPlayerGoalsPitchHtml(pid, curSessions)}
