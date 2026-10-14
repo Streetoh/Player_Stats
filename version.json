@@ -1,5 +1,5 @@
 {
-  "version": "2026.10.13.5",
-  "buildTime": 1791903600000,
-  "description": "Fix Firestore delta sync, quota throttling, and player unlinking access"
+  "version": "2026.10.14.1",
+  "buildTime": 1791961200000,
+  "description": "Enable Firestore IndexedDB persistence to slash reads and prevent quota limits"
 }

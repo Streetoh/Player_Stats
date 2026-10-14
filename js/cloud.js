@@ -114,6 +114,21 @@
         }
 
         db = global.firebase.firestore();
+
+        // Activar persistencia local en caché (IndexedDB) para evitar descargar 144 docs en cada apertura (reduce lecturas en un 85%)
+        if (typeof window !== 'undefined' && !window._firestorePersistenceEnabled) {
+          window._firestorePersistenceEnabled = true;
+          try {
+            db.enablePersistence({ synchronizeTabs: true }).catch((err) => {
+              if (err && err.code === 'failed-precondition') {
+                console.warn('[Cloud] Múltiples pestañas abiertas con persistencia');
+              } else if (err && err.code === 'unimplemented') {
+                console.warn('[Cloud] Navegador sin soporte de persistencia');
+              }
+            });
+          } catch (e) {}
+        }
+
         isReady = true;
         console.log('[Cloud] Firebase Firestore inicializado con éxito.');
         this._notifyStatus('connected');
