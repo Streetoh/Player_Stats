@@ -1542,7 +1542,30 @@
     return res;
   }
 
+  // Contexto de plantilla (priors bayesianos) cacheado por versión de datos del club
+  let _skillsLeagueCache = null;
+  function getSkillsLeague() {
+    const players = (clubData && clubData.players) || [];
+    const sessions = (clubData && clubData.sessions) || [];
+    if (!_skillsLeagueCache || _skillsLeagueCache.src !== clubData || _skillsLeagueCache.n !== sessions.length) {
+      _skillsLeagueCache = { src: clubData, n: sessions.length, league: window.SkillsEngine.buildLeagueContext(players, sessions) };
+    }
+    return _skillsLeagueCache.league;
+  }
+
   function calculatePlayerRadar(pid) {
+    if (window.SkillsEngine) {
+      return window.SkillsEngine.computePlayerSkills(pid, {
+        players: (clubData && clubData.players) || [],
+        sessions: (clubData && clubData.sessions) || [],
+        league: getSkillsLeague()
+      });
+    }
+    return legacyPlayerRadar(pid);
+  }
+
+  /* Fórmula v1 (solo respaldo si skills-engine.js no está cargado) */
+  function legacyPlayerRadar(pid) {
     const agg = getPlayerAggregate(pid);
     const st = agg.totals || {};
     const count = agg.count || 0;

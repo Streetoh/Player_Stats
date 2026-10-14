@@ -695,8 +695,32 @@
       return Math.min(10.0, Math.max(1.0, Math.round(finalScore * 10) / 10));
     },
 
-    /* Radar de Habilidades (Spider Chart de 0 a 99) */
+    /* Radar de Habilidades (Spider Chart de 0 a 99) — delega en SkillsEngine v2 (js/skills-engine.js) */
+    _skillsLeagueCache: null,
+    _skillsLeague() {
+      const sessions = (this.state && this.state.sessions) || [];
+      const key = (this.state.updatedAt || 0) + '|' + sessions.length + '|' + ((this.state.players || []).length);
+      if (!this._skillsLeagueCache || this._skillsLeagueCache.key !== key) {
+        this._skillsLeagueCache = { key, league: window.SkillsEngine.buildLeagueContext(this.state.players || [], sessions) };
+      }
+      return this._skillsLeagueCache.league;
+    },
+
     calculatePlayerRadar(playerId, sessions) {
+      if (window.SkillsEngine) {
+        // Los priors se calculan con TODA la historia; el filtro de periodo solo afecta al jugador
+        return window.SkillsEngine.computePlayerSkills(playerId, {
+          players: this.state.players || [],
+          sessions: this.state.sessions || [],
+          playerSessions: sessions || this.state.sessions || [],
+          league: this._skillsLeague()
+        });
+      }
+      return this._legacyPlayerRadar(playerId, sessions);
+    },
+
+    /* Fórmula v1 (solo respaldo si skills-engine.js no está cargado) */
+    _legacyPlayerRadar(playerId, sessions) {
       const agg = this.playerAggregate(playerId, sessions || this.state.sessions);
       const st = agg.totals || {};
       const count = agg.count || 0;
