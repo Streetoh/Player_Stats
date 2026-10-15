@@ -2208,19 +2208,20 @@
     let border = '';
     let boxShadow = '';
 
-    const alpha = isPast ? 0.16 : 0.22;
-    const darkStop = isPast ? 'rgba(15, 23, 42, 0.92)' : 'rgba(15, 23, 42, 0.85)';
+    const alphaMain = isPast ? 0.32 : 0.48;
+    const alphaMid = isPast ? 0.18 : 0.28;
+    const darkStop = isPast ? 'rgba(15, 23, 42, 0.94)' : 'rgba(15, 23, 42, 0.86)';
 
     if (colors.length === 0) {
       background = isPast ? 'rgba(15, 23, 42, 0.65)' : 'rgba(30, 41, 59, 0.7)';
     } else if (colors.length === 1) {
-      background = `linear-gradient(135deg, ${hexToRgba(colors[0], alpha)} 0%, ${darkStop} 100%)`;
+      background = `linear-gradient(135deg, ${hexToRgba(colors[0], alphaMain)} 0%, ${hexToRgba(colors[0], alphaMid)} 55%, ${darkStop} 100%)`;
     } else if (colors.length === 2) {
-      background = `linear-gradient(135deg, ${hexToRgba(colors[0], alpha * 1.15)} 0%, rgba(15, 23, 42, 0.72) 50%, ${hexToRgba(colors[1], alpha * 1.15)} 100%)`;
+      background = `linear-gradient(135deg, ${hexToRgba(colors[0], alphaMain)} 0%, rgba(15, 23, 42, 0.60) 50%, ${hexToRgba(colors[1], alphaMain)} 100%)`;
     } else {
       const stops = colors.map((col, idx) => {
         const pct = Math.round((idx / (colors.length - 1)) * 100);
-        return `${hexToRgba(col, alpha)} ${pct}%`;
+        return `${hexToRgba(col, alphaMain)} ${pct}%`;
       });
       background = `linear-gradient(135deg, ${stops.join(', ')})`;
     }
@@ -2234,7 +2235,7 @@
       border = '2px solid rgba(34, 211, 238, 0.95)';
     } else {
       if (colors.length > 0) {
-        border = `1.5px solid ${hexToRgba(colors[0], isPast ? 0.22 : 0.38)}`;
+        border = `1.5px solid ${hexToRgba(colors[0], isPast ? 0.30 : 0.50)}`;
       } else {
         border = `1px solid ${isPast ? 'rgba(255, 255, 255, 0.08)' : 'var(--border)'}`;
       }
@@ -12911,6 +12912,7 @@
 
       function renderCard(c, isPast = false) {
         const cList = c.list || {};
+        const responses = c.responses || {};
         let calledPids = Object.keys(cList).filter(pid => cList[pid] && cList[pid] !== 'uncalled');
         if (calledPids.length === 0 && Store.state.players) {
           const convTeams = (Array.isArray(c.teamIds) && c.teamIds.length > 0)
@@ -12928,9 +12930,10 @@
 
         calledPids.forEach(pid => {
           const r = responses[pid];
-          if (r && (r.status === 'called' || r.status === 'attending' || r.status === 'yes')) {
+          const st = (r && typeof r === 'object') ? r.status : (r || cList[pid]);
+          if (st === 'called' || st === 'attending' || st === 'yes') {
             nAccepted++;
-          } else if (r && (r.status === 'absent' || r.status === 'no')) {
+          } else if (st === 'absent' || st === 'no') {
             nRejected++;
           } else {
             nPending++;

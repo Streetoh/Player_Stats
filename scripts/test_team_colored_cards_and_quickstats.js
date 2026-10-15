@@ -59,20 +59,20 @@ const singleTeamStyle = (() => {
   const item = { type: 'training', teamId: 't2015', date: '2026-10-20' };
   const teams = [mockTeams['t2015']];
   const colors = teams.map(t => t.color);
-  const alpha = 0.22;
-  const darkStop = 'rgba(15, 23, 42, 0.85)';
-  const bg = `linear-gradient(135deg, ${hexToRgba(colors[0], alpha)} 0%, ${darkStop} 100%)`;
-  return { bg, border: `1.5px solid ${hexToRgba(colors[0], 0.38)}` };
+  const alpha = 0.48;
+  const darkStop = 'rgba(15, 23, 42, 0.86)';
+  const bg = `linear-gradient(135deg, ${hexToRgba(colors[0], alpha)} 0%, ${hexToRgba(colors[0], 0.28)} 55%, ${darkStop} 100%)`;
+  return { bg, border: `1.5px solid ${hexToRgba(colors[0], 0.50)}` };
 })();
-assert(singleTeamStyle.bg.includes('rgba(59, 130, 246, 0.22)'), 'Single team background should have rgba of #3b82f6');
+assert(singleTeamStyle.bg.includes('rgba(59, 130, 246, 0.48)'), 'Single team background should have rgba of #3b82f6 with 0.48 alpha');
 console.log('✅ Single team background style verified:', singleTeamStyle.bg);
 
 // Test two teams gradient
 const twoTeamsStyle = (() => {
   const teams = [mockTeams['t2015'], mockTeams['t2016']];
   const colors = teams.map(t => t.color);
-  const alpha = 0.22;
-  const bg = `linear-gradient(135deg, ${hexToRgba(colors[0], alpha * 1.15)} 0%, rgba(15, 23, 42, 0.72) 50%, ${hexToRgba(colors[1], alpha * 1.15)} 100%)`;
+  const alpha = 0.48;
+  const bg = `linear-gradient(135deg, ${hexToRgba(colors[0], alpha)} 0%, rgba(15, 23, 42, 0.60) 50%, ${hexToRgba(colors[1], alpha)} 100%)`;
   return { bg };
 })();
 assert(twoTeamsStyle.bg.includes('rgba(59, 130, 246'), 'Two teams gradient must contain color 1');
@@ -80,8 +80,8 @@ assert(twoTeamsStyle.bg.includes('rgba(16, 185, 129'), 'Two teams gradient must 
 console.log('✅ Two teams gradient verified:', twoTeamsStyle.bg);
 
 // Test future custom team color
-const customTeamStyle = hexToRgba(mockTeams['t_custom'].color, 0.22);
-assert(customTeamStyle.includes('rgba(236, 72, 153, 0.22)'), 'Custom team #ec4899 must be parsed correctly to rgba');
+const customTeamStyle = hexToRgba(mockTeams['t_custom'].color, 0.48);
+assert(customTeamStyle.includes('rgba(236, 72, 153, 0.48)'), 'Custom team #ec4899 must be parsed correctly to rgba');
 console.log('✅ Future custom team color parsing verified:', customTeamStyle);
 
 // Test match golden border
