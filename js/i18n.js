@@ -644,7 +644,18 @@
       "h2h_keys_title": "Claves del Duelo",
       "mvp_coach_reason_title": "Motivo del entrenador:",
       "mvp_btn_confirm_vote": "Votar a {name} como MVP",
-      "mvp_btn_cancel": "Cancelar y ver otros"
+      "mvp_btn_cancel": "Cancelar y ver otros",
+      "viewPlayers": "Ver Jugadores",
+      "viewTrainings": "Ver Entrenamientos",
+      "viewMatches": "Ver Partidos",
+      "newMatch": "Nuevo Partido",
+      "newTraining": "Nuevo Entrenamiento",
+      "matchesCount": "partidos registrados",
+      "trainingsCount": "entrenamientos registrados",
+      "noMatchesYet": "No hay partidos registrados",
+      "noTrainingsYet": "No hay entrenamientos registrados",
+      "noMatchesDesc": "Crea un partido para registrar estadísticas en directo.",
+      "noTrainingsDesc": "Crea una sesión de entrenamiento para pasar lista."
 },
     en: {
       "appName": "Player stats (Coach)",
@@ -1285,7 +1296,18 @@
       "h2h_keys_title": "Duel Keys",
       "mvp_coach_reason_title": "Coach's reason:",
       "mvp_btn_confirm_vote": "Vote {name} as MVP",
-      "mvp_btn_cancel": "Cancel and view others"
+      "mvp_btn_cancel": "Cancel and view others",
+      "viewPlayers": "View Players",
+      "viewTrainings": "View Trainings",
+      "viewMatches": "View Matches",
+      "newMatch": "New Match",
+      "newTraining": "New Training",
+      "matchesCount": "registered matches",
+      "trainingsCount": "registered trainings",
+      "noMatchesYet": "No matches recorded",
+      "noTrainingsYet": "No trainings recorded",
+      "noMatchesDesc": "Create a match to track live stats.",
+      "noTrainingsDesc": "Create a training session to take attendance."
 },
     et: {
       "appName": "Player stats (Coach)",
@@ -1926,7 +1948,18 @@
       "h2h_keys_title": "Duelli võtmed",
       "mvp_coach_reason_title": "Treeneri põhjendus:",
       "mvp_btn_confirm_vote": "Hääleta {name} MVP-ks",
-      "mvp_btn_cancel": "Tühista ja vaata teisi"
+      "mvp_btn_cancel": "Tühista ja vaata teisi",
+      "viewPlayers": "Vaata mängijaid",
+      "viewTrainings": "Vaata treeninguid",
+      "viewMatches": "Vaata mänge",
+      "newMatch": "Uus mäng",
+      "newTraining": "Uus treening",
+      "matchesCount": "registreeritud mängu",
+      "trainingsCount": "registreeritud treeningut",
+      "noMatchesYet": "Mänge pole veel salvestatud",
+      "noTrainingsYet": "Treeninguid pole veel salvestatud",
+      "noMatchesDesc": "Loo mäng reaalajas statistika salvestamiseks.",
+      "noTrainingsDesc": "Loo treening kohaloleku märkimiseks."
 },
     ru: {
       "appName": "Player stats (Coach)",
@@ -2567,7 +2600,18 @@
       "h2h_keys_title": "Ключи к дуэли",
       "mvp_coach_reason_title": "Комментарий тренера:",
       "mvp_btn_confirm_vote": "Голосовать за {name} как MVP",
-      "mvp_btn_cancel": "Отмена и смотреть других"
+      "mvp_btn_cancel": "Отмена и смотреть других",
+      "viewPlayers": "Смотреть игроков",
+      "viewTrainings": "Смотреть тренировки",
+      "viewMatches": "Смотреть матчи",
+      "newMatch": "Новый матч",
+      "newTraining": "Новая тренировка",
+      "matchesCount": "зарегистрированных матчей",
+      "trainingsCount": "зарегистрированных тренировок",
+      "noMatchesYet": "Нет записанных матчей",
+      "noTrainingsYet": "Нет записанных тренировок",
+      "noMatchesDesc": "Создайте матч для записи статистики в реальном времени.",
+      "noTrainingsDesc": "Создайте тренировку для отметки посещаемости."
 }
   };
 

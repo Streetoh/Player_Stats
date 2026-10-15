@@ -25,6 +25,7 @@
   let statsFilterTeams = ['all'];
   let playerListSearch = '';
   let playerListTeam = 'all';
+  let historyInitialFilter = 'all';
 
   function haptic(ms) {
     if (!Store.state.settings.vibrate) return;
@@ -2009,15 +2010,15 @@
       </div>
 
       <div class="quick-stats">
-        <div class="qs">
+        <div class="qs clickable" id="qs-players" title="${t('viewPlayers', 'Ver Jugadores')}">
           <b>${totalPlayers}</b>
           <span>${t('players')}</span>
         </div>
-        <div class="qs">
+        <div class="qs clickable" id="qs-trainings" title="${t('viewTrainings', 'Ver Entrenamientos')}">
           <b style="color: var(--train);">${totalTrainings}</b>
           <span>${t('training')}</span>
         </div>
-        <div class="qs">
+        <div class="qs clickable" id="qs-matches" title="${t('viewMatches', 'Ver Partidos')}">
           <b style="color: var(--match);">${totalMatches}</b>
           <span>${t('match')}</span>
         </div>
@@ -2101,6 +2102,15 @@
     const btnImp = view.querySelector('#btn-home-import');
     if (btnImp) btnImp.onclick = () => showImportModal();
 
+    const qsP = view.querySelector('#qs-players');
+    if (qsP) qsP.onclick = () => navigate('players');
+
+    const qsTr = view.querySelector('#qs-trainings');
+    if (qsTr) qsTr.onclick = () => showHomeSessionsListModal('training');
+
+    const qsMa = view.querySelector('#qs-matches');
+    if (qsMa) qsMa.onclick = () => showHomeSessionsListModal('match');
+
     view.querySelectorAll('.session-item').forEach(el => {
       el.onclick = () => {
         const id = el.getAttribute('data-id');
@@ -2114,6 +2124,230 @@
         const sid = btn.getAttribute('data-att-sid');
         showSessionAttendanceModal(sid);
       };
+    });
+  }
+
+  /* =========================================================
+     UTILIDADES DINÁMICAS DE ESTILO POR EQUIPO (FONDO Y BORDES)
+     Totalmente extensible para cualquier equipo o color futuro
+     ========================================================= */
+  function hexToRgba(hex, alpha = 1) {
+    if (!hex || typeof hex !== 'string') return `rgba(15, 23, 42, ${alpha})`;
+    let c = hex.trim();
+    if (c.startsWith('#')) c = c.slice(1);
+    if (c.length === 3) {
+      c = c.split('').map(x => x + x).join('');
+    }
+    if (c.length === 6 || c.length === 8) {
+      const r = parseInt(c.slice(0, 2), 16);
+      const g = parseInt(c.slice(2, 4), 16);
+      const b = parseInt(c.slice(4, 6), 16);
+      if (!isNaN(r) && !isNaN(g) && !isNaN(b)) {
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+      }
+    }
+    if (c.startsWith('rgb(')) {
+      return c.replace('rgb(', 'rgba(').replace(')', `, ${alpha})`);
+    }
+    return hex;
+  }
+
+  function resolveEventTeams(item) {
+    if (!item) return [];
+    const teamIdSet = new Set();
+
+    if (Array.isArray(item.teamIds)) {
+      item.teamIds.forEach(id => { if (id) teamIdSet.add(String(id)); });
+    }
+    if (item.teamId) {
+      teamIdSet.add(String(item.teamId));
+    }
+
+    // Fallback para sesiones si no tienen teamId explícito
+    if (teamIdSet.size === 0) {
+      const pids = (typeof Store.sessionPlayerIds === 'function') ? Store.sessionPlayerIds(item) : (item.playerIds || []);
+      if (Array.isArray(pids) && pids.length > 0) {
+        pids.forEach(pid => {
+          const pl = Store.player(pid);
+          if (pl && pl.teamId) teamIdSet.add(String(pl.teamId));
+        });
+      }
+    }
+
+    // Fallback para convocatorias basadas en lista de convocados
+    if (teamIdSet.size === 0 && item.list && typeof item.list === 'object') {
+      Object.keys(item.list).forEach(pid => {
+        const pl = Store.player(pid);
+        if (pl && pl.teamId) teamIdSet.add(String(pl.teamId));
+      });
+    }
+
+    const teams = [];
+    teamIdSet.forEach(tid => {
+      const tm = Store.team(tid);
+      if (tm) teams.push(tm);
+    });
+
+    // Para partidos, si sigue sin haber equipo identificado, fallback al primer equipo registrado
+    if (teams.length === 0 && item.type === 'match' && Store.state.teams && Store.state.teams.length > 0) {
+      teams.push(Store.state.teams[0]);
+    }
+
+    return teams;
+  }
+
+  function getEventCardStyle(item, options = {}) {
+    const isMatch = options.isMatch != null ? options.isMatch : (item && item.type === 'match');
+    const isPast = options.isPast != null ? options.isPast : false;
+    const isToday = options.isToday != null ? options.isToday : false;
+
+    const teams = resolveEventTeams(item);
+    const colors = teams.map(tm => tm.color || '#22c55e').filter(Boolean);
+
+    let background = '';
+    let border = '';
+    let boxShadow = '';
+
+    const alpha = isPast ? 0.16 : 0.22;
+    const darkStop = isPast ? 'rgba(15, 23, 42, 0.92)' : 'rgba(15, 23, 42, 0.85)';
+
+    if (colors.length === 0) {
+      background = isPast ? 'rgba(15, 23, 42, 0.65)' : 'rgba(30, 41, 59, 0.7)';
+    } else if (colors.length === 1) {
+      background = `linear-gradient(135deg, ${hexToRgba(colors[0], alpha)} 0%, ${darkStop} 100%)`;
+    } else if (colors.length === 2) {
+      background = `linear-gradient(135deg, ${hexToRgba(colors[0], alpha * 1.15)} 0%, rgba(15, 23, 42, 0.72) 50%, ${hexToRgba(colors[1], alpha * 1.15)} 100%)`;
+    } else {
+      const stops = colors.map((col, idx) => {
+        const pct = Math.round((idx / (colors.length - 1)) * 100);
+        return `${hexToRgba(col, alpha)} ${pct}%`;
+      });
+      background = `linear-gradient(135deg, ${stops.join(', ')})`;
+    }
+
+    if (isMatch) {
+      border = isToday ? '2.8px solid #f59e0b' : '2.5px solid #f59e0b';
+      boxShadow = isToday
+        ? '0 0 18px rgba(245, 158, 11, 0.55), inset 0 0 10px rgba(245, 158, 11, 0.12)'
+        : '0 0 14px rgba(245, 158, 11, 0.35)';
+    } else if (isToday) {
+      border = '2px solid rgba(34, 211, 238, 0.95)';
+    } else {
+      if (colors.length > 0) {
+        border = `1.5px solid ${hexToRgba(colors[0], isPast ? 0.22 : 0.38)}`;
+      } else {
+        border = `1px solid ${isPast ? 'rgba(255, 255, 255, 0.08)' : 'var(--border)'}`;
+      }
+    }
+
+    let styleStr = `background: ${background};`;
+    if (border) styleStr += ` border: ${border};`;
+    if (boxShadow) styleStr += ` box-shadow: ${boxShadow};`;
+    if (isPast) styleStr += ` opacity: 0.92;`;
+
+    return {
+      background,
+      border,
+      boxShadow,
+      styleStr,
+      teams,
+      colors
+    };
+  }
+
+  function showHomeSessionsListModal(type) {
+    const isMatch = type === 'match';
+    const title = isMatch 
+      ? `🏆 ${t('matchesTab', 'Partidos')}` 
+      : `⚽ ${t('trainingsTab', 'Entrenamientos')}`;
+
+    openSheet(title, (body) => {
+      const allSessions = (Store.state.sessions || []).filter(s => s.type === type);
+      const todayIso = getTodayIso();
+      const todaySessions = allSessions.filter(s => s.date === todayIso);
+      const futureSessions = allSessions.filter(s => s.date > todayIso).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+      const pastSessions = allSessions.filter(s => s.date < todayIso).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+      body.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 8px;">
+          <div style="font-size: 12.5px; color: var(--muted);">
+            <b>${allSessions.length}</b> ${isMatch ? t('matchesCount', 'partidos registrados') : t('trainingsCount', 'entrenamientos registrados')}
+          </div>
+          <button type="button" class="btn sm primary" id="btn-modal-new-session" style="font-weight: 800; font-size: 12px;">
+            ➕ ${isMatch ? t('newMatch', 'Nuevo Partido') : t('newTraining', 'Nuevo Entrenamiento')}
+          </button>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          ${allSessions.length === 0 ? `
+            <div style="text-align: center; padding: 32px 14px; color: var(--muted);">
+              <div style="font-size: 32px; margin-bottom: 8px;">${isMatch ? '🏆' : '⚽'}</div>
+              <h4 style="margin: 0 0 4px; color: #fff;">${isMatch ? t('noMatchesYet', 'No hay partidos registrados') : t('noTrainingsYet', 'No hay entrenamientos registrados')}</h4>
+              <p style="font-size: 12px; margin: 0 0 12px;">${isMatch ? t('noMatchesDesc', 'Crea un partido para registrar estadísticas en directo.') : t('noTrainingsDesc', 'Crea una sesión de entrenamiento para pasar lista.')}</p>
+            </div>
+          ` : `
+            ${todaySessions.length > 0 ? `
+              <div style="font-size: 12px; font-weight: 800; color: var(--cyan); margin-bottom: -2px; display: flex; align-items: center; gap: 6px;">
+                <span>⚡</span> ${t('todaySessions', 'Sesiones de Hoy')} (${todaySessions.length})
+              </div>
+              ${todaySessions.map(s => renderSessionItemHtml(s)).join('')}
+            ` : ''}
+
+            ${futureSessions.length > 0 ? `
+              <div style="font-size: 12px; font-weight: 800; color: #a5b4fc; margin-top: ${todaySessions.length > 0 ? '6px' : '0'}; margin-bottom: -2px; display: flex; align-items: center; gap: 6px;">
+                <span>📅</span> ${t('futureSessionsTitle', 'Próximas Sesiones')} (${futureSessions.length})
+              </div>
+              ${futureSessions.map(s => renderSessionItemHtml(s)).join('')}
+            ` : ''}
+
+            ${pastSessions.length > 0 ? `
+              <div style="font-size: 12px; font-weight: 800; color: #94a3b8; margin-top: ${(todaySessions.length > 0 || futureSessions.length > 0) ? '6px' : '0'}; margin-bottom: -2px; display: flex; align-items: center; gap: 6px;">
+                <span>📁</span> ${t('pastSessionsTitle', 'Sesiones de días anteriores')} (${pastSessions.length})
+              </div>
+              ${pastSessions.map(s => renderSessionItemHtml(s)).join('')}
+            ` : ''}
+
+            <div style="margin-top: 10px; text-align: center;">
+              <button type="button" class="btn sm ghost" id="btn-modal-see-history" style="font-size: 12px; font-weight: 800; width: 100%;">
+                ${t('seeAllSessions', 'Ver todas las sesiones en Historial')} ➔
+              </button>
+            </div>
+          `}
+        </div>
+      `;
+
+      const btnNew = body.querySelector('#btn-modal-new-session');
+      if (btnNew) {
+        btnNew.onclick = () => {
+          closeSheet();
+          showNewSessionModal(type);
+        };
+      }
+
+      const btnHist = body.querySelector('#btn-modal-see-history');
+      if (btnHist) {
+        btnHist.onclick = () => {
+          closeSheet();
+          historyInitialFilter = type;
+          navigate('history');
+        };
+      }
+
+      body.querySelectorAll('.session-item').forEach(el => {
+        el.onclick = () => {
+          const id = el.getAttribute('data-id');
+          closeSheet();
+          openTracker(id);
+        };
+      });
+
+      body.querySelectorAll('.btn-quick-att').forEach(btn => {
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          const sid = btn.getAttribute('data-att-sid');
+          showSessionAttendanceModal(sid);
+        };
+      });
     });
   }
 
@@ -2194,7 +2428,10 @@
       if (st === 'present' || st === 'late') attPresent++;
     });
     const hasAtt = attKeys.length > 0;
-    const isToday = s.date === getTodayIso();
+    const todayIso = getTodayIso();
+    const isToday = (s.date === todayIso);
+    const isPast = Boolean(s.date && s.date < todayIso);
+    const cardStyle = getEventCardStyle(s, { isPast, isToday, isMatch: s.type === 'match' });
 
     const attChipHtml = hasAtt ? `
       <span class="btn-quick-att" data-att-sid="${s.id}" title="${t('rollCallTitle', 'Pasar Lista')}" style="cursor: pointer; display: inline-flex; align-items: center; gap: 3px; background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.35); font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 6px;">
@@ -2211,29 +2448,36 @@
     `);
 
     if (s.type === 'match') {
-      let teamObj = s.teamId ? Store.team(s.teamId) : null;
-      if (!teamObj && pids.length > 0) {
-        for (const pid of pids) {
-          const pl = Store.player(pid);
-          if (pl && pl.teamId) { teamObj = Store.team(pl.teamId); break; }
-        }
-      }
+      const matchTeams = cardStyle.teams;
+      let teamObj = matchTeams[0] || null;
       if (!teamObj && Store.state.teams && Store.state.teams.length > 0) {
         teamObj = Store.state.teams[0];
       }
-      const myTeamName = teamObj ? teamObj.name : 'Mi Equipo';
+      const myTeamName = matchTeams.map(tm => tm.name).join(' / ') || (teamObj ? teamObj.name : 'Mi Equipo');
       const myTeamColor = teamObj ? (teamObj.color || '#22c55e') : '#22c55e';
       const rivalName = s.rival || (s.title ? s.title : t('rivalTeam', 'Rival'));
       const homeScore = (s.score && s.score.home != null) ? s.score.home : 0;
       const awayScore = (s.score && s.score.away != null) ? s.score.away : 0;
 
+      const matchClass = isToday ? 'conv-card-match-today' : 'card-match-gold';
+
       return `
-        <div class="session-item match ${isLive ? 'live' : ''} ${isToday ? 'conv-card-today' : ''}" data-id="${s.id}">
+        <div class="session-item match ${isLive ? 'live' : ''} ${matchClass}" data-id="${s.id}" style="${cardStyle.styleStr}">
           <div class="grow" style="min-width: 0;">
             <div class="match-teams-bar">
-              <span class="team-bubble-pill" style="border-color: ${myTeamColor}; background: ${myTeamColor}24; color: ${myTeamColor};" title="${escapeHtml(myTeamName)}">
-                🛡️ ${escapeHtml(myTeamName)}
-              </span>
+              ${matchTeams.length > 1 ? `
+                <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+                  ${matchTeams.map(tm => `
+                    <span class="team-bubble-pill" style="border-color: ${tm.color || '#22c55e'}; background: ${tm.color || '#22c55e'}24; color: ${tm.color || '#22c55e'};" title="${escapeHtml(tm.name)}">
+                      🛡️ ${escapeHtml(tm.name)}
+                    </span>
+                  `).join('')}
+                </div>
+              ` : `
+                <span class="team-bubble-pill" style="border-color: ${myTeamColor}; background: ${myTeamColor}24; color: ${myTeamColor};" title="${escapeHtml(myTeamName)}">
+                  🛡️ ${escapeHtml(myTeamName)}
+                </span>
+              `}
               <div class="score-pill-horiz">
                 <span>${homeScore}</span>
                 <span style="opacity: 0.55; font-size: 13px;">-</span>
@@ -2262,24 +2506,11 @@
       `;
     }
 
-    let trainingTeams = [];
-    if (Array.isArray(s.teamIds) && s.teamIds.length > 0) {
-      trainingTeams = s.teamIds.map(tid => Store.team(tid)).filter(Boolean);
-    } else if (s.teamId) {
-      const tm = Store.team(s.teamId);
-      if (tm) trainingTeams.push(tm);
-    }
-    if (trainingTeams.length === 0 && pids.length > 0) {
-      const tIdSet = new Set();
-      pids.forEach(pid => {
-        const pl = Store.player(pid);
-        if (pl && pl.teamId) tIdSet.add(pl.teamId);
-      });
-      trainingTeams = Array.from(tIdSet).map(tid => Store.team(tid)).filter(Boolean);
-    }
+    const trainingTeams = cardStyle.teams;
+    const todayClass = isToday ? 'conv-card-today' : '';
 
     return `
-      <div class="session-item training ${isLive ? 'live' : ''} ${isToday ? 'conv-card-today' : ''}" data-id="${s.id}">
+      <div class="session-item training ${isLive ? 'live' : ''} ${todayClass}" data-id="${s.id}" style="${cardStyle.styleStr}">
         <div class="s-ic">${emoji}</div>
         <div class="grow" style="min-width: 0;">
           <div class="row" style="justify-content: space-between; align-items: center; margin-bottom: 2px;">
@@ -4856,7 +5087,7 @@
 
         if (isLive) {
           // Vista de Sala Activa
-          const qrData = 'https://streetoh.github.io/Player_Stats/?join=' + roomCode;
+          const qrData = 'https://streetoh.github.io/Player_Stats/coach.html?join=' + roomCode;
           const qrSvg = SyncEngine.QR.toSVG(qrData, 7);
 
           body.innerHTML = `
@@ -6309,7 +6540,7 @@
               if (targetApp === 'whatsapp') {
                 window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`, '_blank');
               } else if (targetApp === 'telegram') {
-                window.open(`https://t.me/share/url?url=${encodeURIComponent('https://streetoh.github.io/Player_Stats/')}&text=${encodeURIComponent(shareText)}`, '_blank');
+                window.open(`https://t.me/share/url?url=${encodeURIComponent('https://streetoh.github.io/Player_Stats/jugadores.html')}&text=${encodeURIComponent(shareText)}`, '_blank');
               } else if (targetApp === 'viber') {
                 window.open(`viber://forward?text=${encodeURIComponent(shareText)}`, '_blank');
               } else {
@@ -6494,7 +6725,7 @@
             if (app === 'whatsapp') {
               window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(guideText)}`, '_blank');
             } else if (app === 'telegram') {
-              window.open(`https://t.me/share/url?url=${encodeURIComponent('https://streetoh.github.io/Player_Stats/')}&text=${encodeURIComponent(guideText)}`, '_blank');
+              window.open(`https://t.me/share/url?url=${encodeURIComponent('https://streetoh.github.io/Player_Stats/jugadores.html')}&text=${encodeURIComponent(guideText)}`, '_blank');
             } else if (app === 'viber') {
               window.open(`viber://forward?text=${encodeURIComponent(guideText)}`, '_blank');
             } else {
@@ -6521,7 +6752,8 @@
     if (window.Store && window.Store.autoCreateTodayScheduledSessions) {
       window.Store.autoCreateTodayScheduledSessions();
     }
-    let filter = 'all';
+    let filter = historyInitialFilter || 'all';
+    historyInitialFilter = 'all';
 
     function build() {
       const list = Store.filterSessions(filter, 'all');
@@ -10602,7 +10834,15 @@
     const allPlayersMap = {};
     Store.sortedPlayers().forEach(p => { allPlayersMap[p.id] = p; });
 
-    const calledPlayerIds = Object.keys(conv.list || {}).filter(pid => conv.list[pid] && conv.list[pid] !== 'uncalled');
+    let calledPlayerIds = Object.keys(conv.list || {}).filter(pid => conv.list[pid] && conv.list[pid] !== 'uncalled');
+    if (calledPlayerIds.length === 0 && Store.state.players) {
+      const convTeams = (Array.isArray(conv.teamIds) && conv.teamIds.length > 0)
+        ? conv.teamIds.map(String)
+        : (conv.teamId ? [String(conv.teamId)] : []);
+      calledPlayerIds = Store.state.players
+        .filter(p => convTeams.length === 0 || (p.teamId && convTeams.includes(String(p.teamId))))
+        .map(p => p.id);
+    }
     const responses = conv.responses || {};
 
     let pendingPlayers = [];
@@ -10744,10 +10984,21 @@
         const allPlayersMap = {};
         Store.sortedPlayers().forEach(p => { allPlayersMap[p.id] = p; });
 
-        const calledPlayerIds = Object.keys(conv.list).filter(pid => {
+        conv.list = conv.list || {};
+        conv.responses = conv.responses || {};
+
+        let calledPlayerIds = Object.keys(conv.list).filter(pid => {
           const st = conv.list[pid];
           return st && st !== 'uncalled';
         });
+        if (calledPlayerIds.length === 0 && Store.state.players) {
+          const convTeams = (Array.isArray(conv.teamIds) && conv.teamIds.length > 0)
+            ? conv.teamIds.map(String)
+            : (conv.teamId ? [String(conv.teamId)] : []);
+          calledPlayerIds = Store.state.players
+            .filter(p => convTeams.length === 0 || (p.teamId && convTeams.includes(String(p.teamId))))
+            .map(p => p.id);
+        }
 
         const respondedYes = [];
         const respondedNo = [];
@@ -11437,6 +11688,15 @@
     openSheet(c.id ? 'Editar Convocatoria' : t('newConvocation'), (body) => {
       const allPlayers = Store.sortedPlayers();
 
+      // Si es una convocatoria nueva y la lista está vacía, pre-convocar a los jugadores del equipo inicial
+      if (!c.id && Object.keys(list).length === 0) {
+        allPlayers.forEach(p => {
+          if (!selectedTeamIds.length || selectedTeamIds.includes(p.teamId)) {
+            list[p.id] = 'called';
+          }
+        });
+      }
+
       let countCalled = 0, countBench = 0, countInjured = 0, countAbsent = 0;
       allPlayers.forEach(p => {
         const st = list[p.id];
@@ -12007,8 +12267,9 @@
                   }
                   return `${dName} (${dTime} • ${dDur}m)`;
                 }).join(', ');
+                const cardStyle = getEventCardStyle(sc, { isPast: false, isToday: false, isMatch: false });
                 return `
-                  <div class="card" style="padding: 12px; border: 1.5px solid var(--border); border-radius: 14px; background: var(--surface2);">
+                  <div class="card" style="padding: 12px; border-radius: 14px; ${cardStyle.styleStr}">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">
                       <div>
                         <h4 style="margin: 0; font-size: 15px; font-weight: 900; color: #fff;">
@@ -12650,8 +12911,15 @@
 
       function renderCard(c, isPast = false) {
         const cList = c.list || {};
-        const responses = c.responses || {};
-        const calledPids = Object.keys(cList).filter(pid => cList[pid] && cList[pid] !== 'uncalled');
+        let calledPids = Object.keys(cList).filter(pid => cList[pid] && cList[pid] !== 'uncalled');
+        if (calledPids.length === 0 && Store.state.players) {
+          const convTeams = (Array.isArray(c.teamIds) && c.teamIds.length > 0)
+            ? c.teamIds.map(String)
+            : (c.teamId ? [String(c.teamId)] : []);
+          calledPids = Store.state.players
+            .filter(p => convTeams.length === 0 || (p.teamId && convTeams.includes(String(p.teamId))))
+            .map(p => p.id);
+        }
         const totalCalled = calledPids.length;
 
         let nAccepted = 0;
@@ -12669,14 +12937,30 @@
           }
         });
 
+        const todayIso = getTodayIso();
+        const isToday = (c.date === todayIso);
+        const isMatch = (c.type === 'match');
+        const cardStyle = getEventCardStyle(c, { isPast, isToday, isMatch });
+        const matchClass = isMatch ? (isToday ? 'conv-card-match-today' : 'card-match-gold') : (isToday ? 'conv-card-today' : '');
+
         return `
-          <div class="conv-card" data-cid="${c.id}" style="cursor: pointer; ${isPast ? 'opacity: 0.92; border-color: rgba(255,255,255,0.08); background: rgba(15, 23, 42, 0.7);' : ''}">
+          <div class="conv-card ${matchClass}" data-cid="${c.id}" style="cursor: pointer; ${cardStyle.styleStr}">
             <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
               <div>
-                <div style="display: flex; gap: 6px; align-items: center; margin-bottom: 4px;">
+                <div style="display: flex; gap: 6px; align-items: center; margin-bottom: 4px; flex-wrap: wrap;">
                   <span class="badge ${c.type}">
                     ${c.type === 'match' ? '🏆 ' + t('match') : '⚽ ' + t('training')}
                   </span>
+                  ${isToday ? `
+                    <span class="badge badge-today-glow" style="background: rgba(34, 211, 238, 0.25); color: #22d3ee; border: 1px solid rgba(34, 211, 238, 0.6); font-weight: 900; font-size: 10px;">
+                      🌟 ${t('today', 'HOY')}
+                    </span>
+                  ` : ''}
+                  ${cardStyle.teams.map(tm => `
+                    <span class="badge" style="font-size: 9.5px; font-weight: 800; background: ${tm.color || '#22c55e'}22; color: ${tm.color || '#22c55e'}; border: 1px solid ${tm.color || '#22c55e'}50; padding: 1px 5px; border-radius: 5px;">
+                      🛡️ ${escapeHtml(tm.name)}
+                    </span>
+                  `).join('')}
                   ${isPast ? `
                     <span class="badge" style="background: rgba(148, 163, 184, 0.15); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.3); font-size: 10px; font-weight: 800; padding: 2px 6px;">
                       ⏳ ${t('completed', 'Finalizado')}

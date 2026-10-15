@@ -3,36 +3,43 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta http-equiv="refresh" content="0; url=jugadores.html" />
   <meta name="theme-color" content="#060a13" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="mobile-web-app-capable" content="yes" />
-  <meta name="description" content="Seguimiento estadístico individual de jugadores de fútbol en entrenamientos y partidos" />
-  <title>Player stats (Coach)</title>
-  <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="css/app.css" />
+  <title>Player stats</title>
+  <link rel="manifest" href="manifest_jugadores.json" />
+  <script>
+    (function () {
+      var search = window.location.search || '';
+      var params = new URLSearchParams(search);
+      // Si se solicita explícitamente modo coach mediante ?coach o desde la app Android Coach en localhost
+      if (params.has('coach') || (window.AndroidBridge && (location.hostname === 'localhost' || location.hostname === '127.0.0.1'))) {
+        window.location.replace('coach.html' + search);
+      } else {
+        // Redirigir por defecto al portal de jugadores
+        window.location.replace('jugadores.html' + search);
+      }
+    })();
+  </script>
+  <style>
+    body {
+      background: #060a13;
+      color: #94a3b8;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      text-align: center;
+      padding: 20px;
+    }
+    a { color: #22d3ee; text-decoration: none; font-weight: 700; }
+  </style>
 </head>
 <body>
-  <div id="app">
-    <main id="view"></main>
-    <nav id="tabbar" class="tabbar"></nav>
+  <div>
+    <p style="font-size: 16px; margin-bottom: 12px; color: #f8fafc;">⚽ Redirigiendo al Portal de Jugadores...</p>
+    <p style="font-size: 13px;"><a href="jugadores.html">Pulsa aquí si no redirige automáticamente</a></p>
   </div>
-  <div id="toast-root"></div>
-
-  <!-- Scripts modulares -->
-  <script src="js/icons.js"></script>
-  <script src="js/i18n.js"></script>
-  <script src="js/skills-engine.js"></script>
-  <script src="js/store.js"></script>
-  <script src="js/io.js"></script>
-  <script src="js/qrcode.min.js"></script>
-  <script src="js/jsqr.min.js"></script>
-  <script src="js/firebase-app-compat.js"></script>
-  <script src="js/firebase-firestore-compat.js"></script>
-  <script src="js/cloud.js"></script>
-  <script src="js/sync.js"></script>
-  <script src="js/chat.js"></script>
-  <script src="js/fut-card.js"></script>
-  <script src="js/app.js"></script>
 </body>
 </html>

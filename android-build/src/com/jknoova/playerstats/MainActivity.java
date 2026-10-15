@@ -41,7 +41,7 @@ import java.util.Map;
 public class MainActivity extends Activity {
     private static final String TAG = "PlayerStats";
     private static final String BACKUP_FILE = "stats_internal_state.json";
-    private String defaultStartPage = "index.html";
+    private String defaultStartPage = "coach.html";
     private WebView webView;
     private ValueCallback<Uri[]> filePathCallback;
     private final static int FILE_CHOOSER_RESULT_CODE = 1001;

@@ -364,6 +364,7 @@
       "pastSessionBadge": "Completed",
       "chooseIdentityTitle": "Who are you in the team?",
       "chooseIdentityDesc": "Select your name to link your player profile to this device. Once chosen, it will be locked.",
+      "selectIdentityToVote": "Select your profile to confirm attendance",
       "confirmIdentityBtn": "Link My Profile",
       "reqChangeTitle": "Request Profile Change",
       "reqChangeDesc": "Your profile is currently locked to {name}. To prevent mistakes, selecting another player sends an authorization request to your coach:",
@@ -749,6 +750,7 @@
       "pastSessionBadge": "Lõppenud",
       "chooseIdentityTitle": "Kes sa oled meeskonnas?",
       "chooseIdentityDesc": "Vali oma nimi, et siduda oma profiil selle seadmega. Pärast valimist see lukustatakse.",
+      "selectIdentityToVote": "Vali oma profiil osalemise kinnitamiseks",
       "confirmIdentityBtn": "Seo minu profiil",
       "reqChangeTitle": "Taotle Profiili Muutmist",
       "reqChangeDesc": "Sinu profiil on praegu seotud mängijaga {name}. Vigade vältimiseks saadetakse teise mängija valimisel luba treenerile:",
@@ -1134,6 +1136,7 @@
       "pastSessionBadge": "Finalizado",
       "chooseIdentityTitle": "¿Quién eres en el equipo?",
       "chooseIdentityDesc": "Selecciona tu nombre para vincular tu ficha a este dispositivo. Una vez elegido, quedará fijado.",
+      "selectIdentityToVote": "Seleccionar mi perfil para confirmar asistencia",
       "confirmIdentityBtn": "Vincular mi perfil",
       "reqChangeTitle": "Solicitar Cambio de Perfil",
       "reqChangeDesc": "Tu perfil está vinculado a {name}. Para evitar confusiones, cambiar a otro jugador requiere autorización del entrenador:",
@@ -1519,6 +1522,7 @@
       "pastSessionBadge": "Завершено",
       "chooseIdentityTitle": "Кто ты?",
       "chooseIdentityDesc": "Выбери свой профиль из списка игроков клуба, чтобы просматривать персональную статистику.",
+      "selectIdentityToVote": "Выберите свой профиль, чтобы подтвердить участие",
       "confirmIdentityBtn": "Выбрать этот профиль",
       "reqChangeTitle": "Запрос на смену профиля",
       "reqChangeDesc": "Твой аккаунт привязан к игроку {name}. Для смены профиля требуется подтверждение тренера:",
@@ -4780,23 +4784,48 @@
   /* -------------------------------------------------------------
      CONTROL DE CONVOCATORIAS NUEVAS / NO LEÍDAS Y NOTIFICACIÓN (DOT)
      ------------------------------------------------------------- */
+  function getEffectiveCalledPlayerIds(conv) {
+    if (!conv) return [];
+    const list = conv.list || {};
+    let calledPids = Object.keys(list).filter(pid => list[pid] && list[pid] !== 'uncalled');
+    if (calledPids.length === 0 && clubData && Array.isArray(clubData.players)) {
+      const convTeams = (Array.isArray(conv.teamIds) && conv.teamIds.length > 0)
+        ? conv.teamIds.map(String)
+        : (conv.teamId ? [String(conv.teamId)] : []);
+      calledPids = clubData.players
+        .filter(p => convTeams.length === 0 || (p.teamId && convTeams.includes(String(p.teamId))))
+        .map(p => p.id);
+    }
+    return calledPids;
+  }
+
   function isPlayerCalledUpInConv(c, pid) {
     if (!c || !pid) return false;
     const p = (clubData && clubData.players ? clubData.players.find(x => x.id === pid) : null) || getMyPlayer();
     if (!p) return false;
 
-    // Pertenencia a equipo de la convocatoria
-    const convTeams = (Array.isArray(c.teamIds) && c.teamIds.length > 0)
-      ? c.teamIds
-      : (c.teamId ? [c.teamId] : []);
-    if (convTeams.length > 0) {
-      if (!p.teamId || !convTeams.includes(p.teamId)) return false;
-    }
-
-    // Explícitamente convocado en lista (ni 'uncalled' ni 'absent')
     const list = c.list || {};
     const st = list[pid];
-    return !!(st && st !== 'uncalled' && st !== 'absent');
+    if (st === 'uncalled') return false;
+
+    // 1) Explícitamente convocado en la lista o con respuesta registrada
+    const explicitlyCalled = (st === 'called' || st === 'bench' || st === 'attending' || st === 'yes' || st === 'confirmed' || st === 'absent' || st === 'no');
+    const hasResponse = !!((c.responses && c.responses[pid]) || (liveVotes[c.id] && liveVotes[c.id][pid]));
+    if (explicitlyCalled || hasResponse) return true;
+
+    // 2) Pertenencia al equipo de la convocatoria
+    const convTeams = (Array.isArray(c.teamIds) && c.teamIds.length > 0)
+      ? c.teamIds.map(String)
+      : (c.teamId ? [String(c.teamId)] : []);
+    const pTeam = p.teamId ? String(p.teamId) : '';
+    const belongsToConvTeam = convTeams.length === 0 || (pTeam && convTeams.includes(pTeam));
+
+    // Si la lista está vacía o el jugador pertenece al equipo y no fue desconvocado
+    const listCalledCount = Object.keys(list).filter(k => list[k] && list[k] !== 'uncalled').length;
+    if (listCalledCount === 0 && belongsToConvTeam) return true;
+    if (belongsToConvTeam && (!st || st !== 'uncalled')) return true;
+
+    return false;
   }
 
   function isConvUnopened(c, pid) {
@@ -4916,20 +4945,27 @@
       `;
     }
 
+    let identityPromptCardHtml = '';
     if (!hasApprovedProfile()) {
+      identityPromptCardHtml = `
+        <div class="card" style="padding: 20px 16px; text-align: center; background: linear-gradient(135deg, rgba(6, 182, 212, 0.12) 0%, rgba(14, 165, 233, 0.16) 100%); border: 2px dashed #06b6d4; border-radius: 16px; margin-bottom: 14px; box-shadow: 0 0 20px rgba(6, 182, 212, 0.15);">
+          <div style="font-size: 36px; margin-bottom: 8px;">👋</div>
+          <h3 style="margin: 0 0 6px; font-size: 16px; font-weight: 900; color: #fff;">${t('selectIdentity', 'Select who you are...')}</h3>
+          <p style="font-size: 12.5px; color: #94a3b8; margin: 0 0 14px; line-height: 1.45;">
+            ${t('chooseIdentityDesc', 'Elige tu nombre en la plantilla para ver tus convocatorias, votar asistencia y acceder a tus estadísticas.')}
+          </p>
+          <button type="button" class="btn primary" id="btn-select-id-from-convs" style="font-weight: 900; font-size: 13px; padding: 9px 22px; border-radius: 12px; box-shadow: 0 0 15px rgba(6, 182, 212, 0.4);">
+            ⚽ ${t('selectIdentity', 'Seleccionar mi perfil')}
+          </button>
+        </div>
+      `;
+    }
+
+    if (convs.length === 0) {
       view.innerHTML = `
         <div style="padding: 16px 0;">
           ${bannerHtml}
-          <div class="card" style="padding: 24px 16px; text-align: center; background: linear-gradient(135deg, rgba(6, 182, 212, 0.12) 0%, rgba(14, 165, 233, 0.16) 100%); border: 2px dashed #06b6d4; border-radius: 16px; margin-bottom: 16px; box-shadow: 0 0 20px rgba(6, 182, 212, 0.15);">
-            <div style="font-size: 40px; margin-bottom: 10px;">👋</div>
-            <h3 style="margin: 0 0 6px; font-size: 17px; font-weight: 900; color: #fff;">${t('selectIdentity', 'Select who you are...')}</h3>
-            <p style="font-size: 13px; color: #94a3b8; margin: 0 0 16px; line-height: 1.45;">
-              ${t('chooseIdentityDesc', 'Elige tu nombre en la plantilla para ver tus convocatorias, votar asistencia y acceder a tus estadísticas.')}
-            </p>
-            <button type="button" class="btn primary" id="btn-select-id-from-convs" style="font-weight: 900; font-size: 13.5px; padding: 10px 22px; border-radius: 12px; box-shadow: 0 0 15px rgba(6, 182, 212, 0.4);">
-              ⚽ ${t('selectIdentity', 'Seleccionar mi perfil')}
-            </button>
-          </div>
+          ${identityPromptCardHtml}
           <div class="empty-state card">
             <div class="e-ic">📋</div>
             <h3>${t('emptyConvs')}</h3>
@@ -4942,46 +4978,50 @@
       return;
     }
 
-    if (convs.length === 0) {
-      view.innerHTML = `
-        <div style="padding: 16px 0;">
-          ${bannerHtml}
-          <div class="empty-state card">
-            <div class="e-ic">📋</div>
-            <h3>${t('emptyConvs')}</h3>
-            <p>${t('emptyConvsDesc')}</p>
-          </div>
-        </div>
-      `;
-      return;
-    }
-
     const filteredConvs = convs.filter(c => {
       if (convFilterType !== 'all' && c.type !== convFilterType) return false;
-      if (!myP || !myPlayerId) return false;
 
       // Si es un entrenamiento recurrente, sólo mostrar sesiones de la semana actual
       const isRecurring = !!(c.isRecurring || c.scheduleId || (c.id && c.id.startsWith('rec_')));
       if (isRecurring && !isDateInCurrentWeek(c.date)) return false;
 
-      // Debe pertenecer al equipo de la convocatoria
-      const convTeams = (Array.isArray(c.teamIds) && c.teamIds.length > 0)
-        ? c.teamIds
-        : (c.teamId ? [c.teamId] : []);
-      
-      if (convTeams.length > 0) {
-        if (!myP.teamId || !convTeams.includes(myP.teamId)) return false;
-      } else {
-        if (!myP.teamId) return false;
+      // Si el usuario aún no tiene perfil aprobado, mostrar todas las convocatorias vigentes del club
+      if (!hasApprovedProfile() || !myPlayerId) {
+        return true;
       }
 
-      // Debe haber sido explícitamente convocado en la lista
+      const convTeams = (Array.isArray(c.teamIds) && c.teamIds.length > 0)
+        ? c.teamIds.map(String)
+        : (c.teamId ? [String(c.teamId)] : []);
+
       const list = c.list || {};
       const st = list[myPlayerId];
-      const isCalled = !!(st && st !== 'uncalled' && st !== 'absent');
-      if (!isCalled) return false;
 
-      return true;
+      // Si el entrenador lo desconvocó expresamente, no mostrar
+      if (st === 'uncalled') return false;
+
+      // 1) Si está explícitamente en la lista de convocados (o ya tiene respuesta):
+      const explicitlyCalled = (st === 'called' || st === 'bench' || st === 'attending' || st === 'yes' || st === 'confirmed' || st === 'absent' || st === 'no');
+      const hasResponse = !!((c.responses && c.responses[myPlayerId]) || (liveVotes[c.id] && liveVotes[c.id][myPlayerId]));
+
+      if (explicitlyCalled || hasResponse) {
+        return true;
+      }
+
+      // 2) Si pertenece a uno de los equipos de la convocatoria (o es para todo el club):
+      const myTid = myP && myP.teamId ? String(myP.teamId) : '';
+      const belongsToConvTeam = convTeams.length === 0 || (myTid && convTeams.includes(myTid));
+
+      const listCalledCount = Object.keys(list).filter(k => list[k] && list[k] !== 'uncalled').length;
+      if (listCalledCount === 0 && belongsToConvTeam) {
+        return true;
+      }
+
+      if (belongsToConvTeam && (!st || st !== 'uncalled')) {
+        return true;
+      }
+
+      return false;
     });
 
     const nowD = new Date();
@@ -4989,7 +5029,7 @@
 
     // Separar en:
     // 1. Convocatorias de HOY (destacadas con iluminación)
-    // 2. Convocatorias siguientes en la semana actual (y futuros partidos)
+    // 2. Convocatorias siguientes (hoy o futuras)
     // 3. Convocatorias / Entrenamientos pasados (para el desplegable)
     const todayConvs = [];
     const upcomingThisWeekConvs = [];
@@ -5002,14 +5042,8 @@
       } else if (cDate < todayIso) {
         pastConvs.push(c);
       } else {
-        // cDate > todayIso
-        if (c.type === 'training') {
-          if (isDateInCurrentWeek(cDate)) {
-            upcomingThisWeekConvs.push(c);
-          }
-        } else {
-          upcomingThisWeekConvs.push(c);
-        }
+        // cDate > todayIso (mostrar todos los eventos futuros próximos)
+        upcomingThisWeekConvs.push(c);
       }
     });
 
@@ -5018,17 +5052,15 @@
     pastConvs.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.time || '').localeCompare(a.time || ''));
 
     function renderSingleConvCard(c, isToday, isPast) {
-      const team = clubData.teams ? clubData.teams.find(t => t.id === c.teamId) : null;
+      const convTeams = (Array.isArray(c.teamIds) && c.teamIds.length > 0)
+        ? c.teamIds.map(String)
+        : (c.teamId ? [String(c.teamId)] : []);
+      const team = clubData.teams ? clubData.teams.find(t => convTeams.includes(String(t.id))) : null;
       const list = c.list || {};
       const responses = liveVotes[c.id] || {};
 
-      // SÓLO jugadores efectivamente convocados (st !== 'uncalled' y st !== 'absent')
-      const calledPlayerIds = Object.keys(list).filter(pid => {
-        const st = list[pid];
-        return st && st !== 'uncalled' && st !== 'absent';
-      });
-
-      const isCalled = true;
+      const calledPlayerIds = getEffectiveCalledPlayerIds(c);
+      const isCalled = myPlayerId ? isPlayerCalledUpInConv(c, myPlayerId) : false;
 
       // Recuentos reales entre los convocados
       let nAttending = 0;
@@ -5129,25 +5161,33 @@
 
           <!-- CAJA DE ASISTENCIA -->
           <div class="portal-vote-box" style="margin-top: 10px;">
-            ${isCalled ? `
-              <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span style="font-size: 12px; font-weight: 800; color: #fff;">${t('willYouAttend')}</span>
-                <span id="vote-badge-${c.id}" class="badge" style="${isAttending ? 'background: rgba(34,197,94,0.2); color: #86efac;' : (isAbsent ? 'background: rgba(239,68,68,0.2); color: #fca5a5;' : 'background: var(--surface); color: var(--muted);')}">
-                  ${isAttending ? t('attendanceConfirmed') : (isAbsent ? t('absenceReported') : t('pendingResponse'))}
-                </span>
-              </div>
+            ${(hasApprovedProfile() && myPlayerId) ? (
+              isCalled ? `
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <span style="font-size: 12px; font-weight: 800; color: #fff;">${t('willYouAttend')}</span>
+                  <span id="vote-badge-${c.id}" class="badge" style="${isAttending ? 'background: rgba(34,197,94,0.2); color: #86efac;' : (isAbsent ? 'background: rgba(239,68,68,0.2); color: #fca5a5;' : 'background: var(--surface); color: var(--muted);')}">
+                    ${isAttending ? t('attendanceConfirmed') : (isAbsent ? t('absenceReported') : t('pendingResponse'))}
+                  </span>
+                </div>
 
-              <div class="portal-vote-btns">
-                <button class="btn-vote yes ${isAttending ? 'active' : ''}" data-cid="${c.id}" data-vote="called">
-                  ${t('iWillAttend')}
+                <div class="portal-vote-btns">
+                  <button class="btn-vote yes ${isAttending ? 'active' : ''}" data-cid="${c.id}" data-vote="called">
+                    ${t('iWillAttend')}
+                  </button>
+                  <button class="btn-vote no ${isAbsent ? 'active' : ''}" data-cid="${c.id}" data-vote="absent">
+                    ${t('iCannotAttend')}
+                  </button>
+                </div>
+              ` : `
+                <div style="text-align: center; padding: 6px 0; color: var(--muted); font-size: 12.5px;">
+                  ${t('notCalledUp')}
+                </div>
+              `
+            ) : `
+              <div style="text-align: center; padding: 6px 0;">
+                <button type="button" class="btn sm primary btn-select-id-for-conv" style="font-weight: 800; font-size: 12px; padding: 7px 16px; border-radius: 10px; width: 100%;">
+                  ⚽ ${t('selectIdentityToVote', 'Seleccionar mi perfil para confirmar asistencia')}
                 </button>
-                <button class="btn-vote no ${isAbsent ? 'active' : ''}" data-cid="${c.id}" data-vote="absent">
-                  ${t('iCannotAttend')}
-                </button>
-              </div>
-            ` : `
-              <div style="text-align: center; padding: 6px 0; color: var(--muted); font-size: 12.5px;">
-                ${t('notCalledUp')}
               </div>
             `}
 
@@ -5327,6 +5367,7 @@
     view.innerHTML = `
       <div style="padding: 10px 0;">
         ${bannerHtml}
+        ${identityPromptCardHtml}
         ${mvpBannerHtml}
 
         <!-- FILTROS DE CONVOCATORIAS: TODOS, PARTIDOS, ENTRENAMIENTOS -->
@@ -5488,6 +5529,16 @@
         if (conv) showAttendeesBreakdownModal(conv);
       };
     });
+
+    const btnSelFromBanner = view.querySelector('#btn-select-id-from-convs');
+    if (btnSelFromBanner) btnSelFromBanner.onclick = showSelectIdentityModal;
+
+    view.querySelectorAll('.btn-select-id-for-conv').forEach(btn => {
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        showSelectIdentityModal();
+      };
+    });
   }
 
   /* -------------------------------------------------------------
@@ -5505,10 +5556,7 @@
     const allPlayersMap = {};
     (clubData.players || []).forEach(p => { allPlayersMap[p.id] = p; });
 
-    const calledPlayerIds = Object.keys(list).filter(pid => {
-      const st = list[pid];
-      return st && st !== 'uncalled' && st !== 'absent';
-    });
+    const calledPlayerIds = getEffectiveCalledPlayerIds(conv);
 
     const attendingPlayers = [];
     const absentPlayers = [];
@@ -5797,10 +5845,7 @@
     const allPlayersMap = {};
     (clubData.players || []).forEach(p => { allPlayersMap[p.id] = p; });
 
-    const calledPlayerIds = Object.keys(list).filter(pid => {
-      const st = list[pid];
-      return st && st !== 'uncalled' && st !== 'absent';
-    });
+    const calledPlayerIds = getEffectiveCalledPlayerIds(conv);
 
     const attendingPlayers = [];
     const absentPlayers = [];
@@ -6048,8 +6093,8 @@
     const allPlayersMap = {};
     (clubData.players || []).forEach(p => { allPlayersMap[p.id] = p; });
 
-    // SÓLO jugadores convocados
-    const calledPids = Object.keys(list).filter(pid => list[pid] && list[pid] !== 'uncalled');
+    // Jugadores convocados (con soporte para convocatorias de equipo completas)
+    const calledPids = getEffectiveCalledPlayerIds(conv);
 
     const attending = [];
     const absent = [];
