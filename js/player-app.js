@@ -458,6 +458,14 @@
       stat_def: 'Defending (DEF)',
       stat_fis: 'Physical (PHY)',
       stat_dis: 'Discipline (DIS)',
+      mvp_coach_pick: "Coach's Pick",
+      mvp_coach_picks_title: "Coach's Nominees",
+      btn_vote_as_mvp: 'Vote as MVP',
+      btn_cancel_view_others: 'Cancel / View others',
+      mvp_coach_reason_label: "Coach's Reason",
+      autoMissionBadge: 'Automatic Mission',
+      manualMissionBadge: 'Manual Mission',
+      progressLabel: 'Progress',
       won: 'Won',
       lost: 'Lost',
       sessions: 'Trainings & Sessions',
@@ -797,6 +805,14 @@
       stat_def: 'Kaitsetöö (KAI)',
       stat_fis: 'Füüsis (FÜÜ)',
       stat_dis: 'Distsipliin (DIS)',
+      mvp_coach_pick: 'Treeneri Valik',
+      mvp_coach_picks_title: 'Treeneri esiletõstetud',
+      btn_vote_as_mvp: 'Hääleta MVP-ks',
+      btn_cancel_view_others: 'Loobu / Vaata teisi',
+      mvp_coach_reason_label: 'Treeneri põhjendus',
+      autoMissionBadge: 'Automaatne missioon',
+      manualMissionBadge: 'Käsitsi hinnatav',
+      progressLabel: 'Progress',
       won: 'Võidetud',
       lost: 'Kaotatud',
       sessions: 'Trennid ja Sessioonid',
@@ -1136,6 +1152,14 @@
       stat_def: 'Defensa (DEF)',
       stat_fis: 'Físico (FIS)',
       stat_dis: 'Disciplina (DIS)',
+      mvp_coach_pick: 'Elegido por el Míster',
+      mvp_coach_picks_title: 'Destacados por el Míster',
+      btn_vote_as_mvp: 'Votar como MVP',
+      btn_cancel_view_others: 'Cancelar / Ver otros',
+      mvp_coach_reason_label: 'Nota del Entrenador',
+      autoMissionBadge: 'Misión Automática',
+      manualMissionBadge: 'Misión Manual',
+      progressLabel: 'Progreso',
       won: 'Ganados',
       lost: 'Perdidos',
       sessions: 'Entrenamientos y Sesiones',
@@ -1940,6 +1964,8 @@
         }
       }
     });
+    const p = (clubData && clubData.players ? clubData.players : []).find(x => String(x.id) === sPid);
+    if (p) p.mvpCount = count;
     return count;
   }
 
@@ -1966,10 +1992,157 @@
     let currentVoteData = null;
     let unsubMvp = null;
 
+    async function executeVote(targetId) {
+      if (!targetId || targetId === myP.id) return;
+      const targetPlayer = players.find(p => p.id === targetId);
+      try {
+        if (window.Cloud && window.Cloud.voteMatchMvp) {
+          await window.Cloud.voteMatchMvp(session.id, myP.id, targetId);
+        }
+        if (!currentVoteData) currentVoteData = { votes: {} };
+        if (!currentVoteData.votes) currentVoteData.votes = {};
+        currentVoteData.votes[myP.id] = targetId;
+
+        toast(t('mvpVoteRegistered', '¡Voto de MVP registrado para {name}!').replace('{name}', (targetPlayer ? targetPlayer.name : '')), 'success');
+        renderModal();
+      } catch (err) {
+        console.error('Error al registrar voto de MVP:', err);
+        toast('Error al votar: ' + err.message, 'error');
+      }
+    }
+
+    function showCoachPickDetailModal(pick, player, isVotedByMe) {
+      const existing = document.getElementById('dialog-coach-pick-detail');
+      if (existing) existing.remove();
+
+      const pStats = (session.stats && session.stats[player.id]) || {};
+      const rating = calculateMatchRating(pStats, player.mainPosition);
+      const goals = pStats.goal || 0;
+      const assists = pStats.assist || 0;
+      const passOk = pStats.passOk || 0;
+      const passKo = pStats.passKo || 0;
+      const totalPass = passOk + passKo;
+      const passAcc = totalPass > 0 ? Math.round((passOk / totalPass) * 100) : null;
+      const shotsOn = pStats.shotOn || 0;
+      const recoveries = pStats.recoveries || 0;
+      const duelsWon = pStats.duelsWon || 0;
+      const team = clubData.teams ? clubData.teams.find(tm => tm.id === player.teamId) : null;
+      const isSelf = (player.id === myP.id);
+
+      const dOverlay = document.createElement('div');
+      dOverlay.className = 'dialog-overlay';
+      dOverlay.id = 'dialog-coach-pick-detail';
+      dOverlay.style.zIndex = '1000000';
+
+      dOverlay.innerHTML = `
+        <div class="card dialog-box" style="max-width: 420px; width: 92%; padding: 20px; border-radius: 18px; border: 2px solid #facc15; background: #0b1329; box-shadow: 0 12px 40px rgba(0,0,0,0.85); max-height: 90vh; overflow-y: auto;">
+          <!-- Encabezado con badge Míster -->
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; border-bottom: 1px solid rgba(250, 204, 21, 0.3); padding-bottom: 10px;">
+            <span class="badge" style="background: rgba(234, 179, 8, 0.25); color: #fde047; border: 1.5px solid #facc15; font-size: 11px; font-weight: 900; padding: 4px 10px; border-radius: 999px;">
+              ${t('mvp_coach_pick', '🌟 Elección del Míster')}
+            </span>
+            <button type="button" class="btn sm ghost" id="btn-close-pick-detail-x" style="padding: 4px 8px;">✕</button>
+          </div>
+
+          <!-- Ficha Resumen del Jugador -->
+          <div style="display: flex; align-items: center; gap: 14px; background: rgba(15, 23, 42, 0.6); padding: 12px; border-radius: 14px; border: 1px solid var(--border); margin-bottom: 14px;">
+            ${renderAvatar(player, 'md')}
+            <div style="flex: 1; overflow: hidden;">
+              <h3 style="margin: 0 0 2px; font-size: 16px; font-weight: 900; color: #fff;">
+                #${player.mainDorsal != null ? player.mainDorsal : '—'} ${escapeHtml(player.name || '')} ${escapeHtml(player.lastName || '')}
+              </h3>
+              <div style="font-size: 11.5px; color: var(--muted); display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+                <span class="pos-tag">${formatPosition(player.mainPosition)}</span>
+                ${team ? `<span class="badge" style="background: ${team.color || 'var(--cyan)'}25; color: ${team.color || 'var(--cyan)'}; font-size: 10px;">${escapeHtml(team.name)}</span>` : ''}
+              </div>
+              <div style="margin-top: 6px;">
+                <span class="rating-pill" style="font-size: 12px; font-weight: 900; background: linear-gradient(135deg, rgba(234, 179, 8, 0.25), rgba(202, 138, 4, 0.4)); color: #fef08a; border: 1px solid #facc15; padding: 2px 8px; border-radius: 999px; display: inline-flex; align-items: center; gap: 4px;">
+                  ⭐ ${rating.toFixed(1)} ${t('matchRating', 'Nota del Partido')}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Motivo del Entrenador -->
+          <div style="background: linear-gradient(135deg, rgba(168, 85, 247, 0.15) 0%, rgba(234, 179, 8, 0.12) 100%); border: 1.5px solid rgba(250, 204, 21, 0.5); border-radius: 14px; padding: 12px 14px; margin-bottom: 14px;">
+            <div style="font-size: 11px; font-weight: 800; color: #fde047; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
+              <span>✍️</span>
+              <span>${t('mvp_coach_reason_label', 'Motivo del Míster')}</span>
+            </div>
+            <div style="font-size: 13.5px; color: #fff; line-height: 1.45; font-style: italic;">
+              "${escapeHtml(pick.coachReason || t('coachHighlightDefault', 'Gran rendimiento y actitud en el partido.'))}"
+            </div>
+          </div>
+
+          <!-- Estadísticas del Partido -->
+          <div style="margin-bottom: 16px;">
+            <div style="font-size: 11.5px; font-weight: 800; color: var(--muted); text-transform: uppercase; margin-bottom: 8px;">
+              📊 ${t('matchStats', 'Estadísticas del Partido')}
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;">
+              <div style="background: rgba(15, 23, 42, 0.7); padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border); text-align: center;">
+                <div style="font-size: 18px; font-weight: 900; color: #4ade80;">${goals}</div>
+                <div style="font-size: 10px; color: var(--muted);">${t('goals', 'Goles')}</div>
+              </div>
+              <div style="background: rgba(15, 23, 42, 0.7); padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border); text-align: center;">
+                <div style="font-size: 18px; font-weight: 900; color: #38bdf8;">${assists}</div>
+                <div style="font-size: 10px; color: var(--muted);">${t('assists', 'Asistencias')}</div>
+              </div>
+              <div style="background: rgba(15, 23, 42, 0.7); padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border); text-align: center;">
+                <div style="font-size: 18px; font-weight: 900; color: #facc15;">${passAcc !== null ? passAcc + '%' : `${passOk}/${totalPass}`}</div>
+                <div style="font-size: 10px; color: var(--muted);">${t('passes', 'Pases')}</div>
+              </div>
+              <div style="background: rgba(15, 23, 42, 0.7); padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border); text-align: center;">
+                <div style="font-size: 18px; font-weight: 900; color: #fb923c;">${shotsOn}</div>
+                <div style="font-size: 10px; color: var(--muted);">${t('shotsOnTarget', 'Tiros a puerta')}</div>
+              </div>
+              <div style="background: rgba(15, 23, 42, 0.7); padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border); text-align: center;">
+                <div style="font-size: 18px; font-weight: 900; color: #c084fc;">${recoveries}</div>
+                <div style="font-size: 10px; color: var(--muted);">${t('recoveries', 'Recuperaciones')}</div>
+              </div>
+              <div style="background: rgba(15, 23, 42, 0.7); padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border); text-align: center;">
+                <div style="font-size: 18px; font-weight: 900; color: #22d3ee;">${duelsWon}</div>
+                <div style="font-size: 10px; color: var(--muted);">${t('duelsWon', 'Duelos ganados')}</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Botones de Acción requeridos -->
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <button type="button" class="btn primary" id="btn-confirm-vote-pick" ${isSelf ? 'disabled' : ''} style="height: 44px; font-size: 14px; font-weight: 900; background: ${isVotedByMe ? '#16a34a' : 'linear-gradient(135deg, #eab308, #ca8a04)'}; border: none; color: ${isVotedByMe ? '#fff' : '#000'}; border-radius: 12px; display: flex; align-items: center; justify-content: center; gap: 8px;">
+              ${isSelf ? `(${t('cannotVoteSelf', 'No puedes votarte a ti mismo')})` : (isVotedByMe ? '✓ ' + t('voted', 'Votado como MVP') : t('btn_vote_as_mvp', '⭐ Votar como MVP'))}
+            </button>
+            <button type="button" class="btn ghost" id="btn-cancel-pick-modal" style="height: 40px; font-size: 13px; font-weight: 800; border-radius: 12px;">
+              ${t('btn_cancel_view_others', 'Cancelar / Ver otros')}
+            </button>
+          </div>
+        </div>
+      `;
+
+      function closePickDetail() { dOverlay.remove(); }
+      dOverlay.querySelector('#btn-close-pick-detail-x').onclick = closePickDetail;
+      dOverlay.querySelector('#btn-cancel-pick-modal').onclick = closePickDetail;
+      dOverlay.onclick = (e) => { if (e.target === dOverlay) closePickDetail(); };
+
+      const voteBtn = dOverlay.querySelector('#btn-confirm-vote-pick');
+      if (voteBtn && !isSelf) {
+        voteBtn.onclick = async () => {
+          closePickDetail();
+          await executeVote(player.id);
+        };
+      }
+
+      document.body.appendChild(dOverlay);
+    }
+
     function renderModal() {
       const myVotedTargetId = currentVoteData && currentVoteData.votes ? currentVoteData.votes[myP.id] : null;
       const officialMvpId = session.mvpOfficialId || (currentVoteData ? currentVoteData.officialMvpId : null);
       const officialMvpPlayer = officialMvpId ? players.find(p => p.id === officialMvpId) : null;
+
+      const coachPicks = (currentVoteData && Array.isArray(currentVoteData.coachPicks) && currentVoteData.coachPicks.length > 0) 
+        ? currentVoteData.coachPicks 
+        : (Array.isArray(session.coachPicks) ? session.coachPicks : []);
 
       const voteCounts = {};
       if (currentVoteData && currentVoteData.votes) {
@@ -2013,6 +2186,55 @@
             </p>
           `}
 
+          <!-- SECCIÓN DESTACADA: 3 ELEGIDOS POR EL MÍSTER -->
+          ${coachPicks.length > 0 ? `
+            <div style="margin-bottom: 14px; background: linear-gradient(135deg, rgba(234, 179, 8, 0.15) 0%, rgba(168, 85, 247, 0.15) 100%); border: 1.5px solid #facc15; border-radius: 14px; padding: 12px;">
+              <div style="font-size: 11.5px; font-weight: 900; color: #fde047; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;">
+                <span style="display: flex; align-items: center; gap: 6px;">
+                  <span>🌟</span>
+                  <span>${t('mvp_coach_picks_title', 'Destacados por el Míster')}</span>
+                </span>
+                <span class="badge" style="background: rgba(250, 204, 21, 0.25); color: #fef08a; font-size: 10px; font-weight: 800;">${coachPicks.length}/3</span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 6px;">
+                ${coachPicks.map(cp => {
+                  const p = (clubData && clubData.players ? clubData.players : []).find(x => x.id === cp.playerId);
+                  if (!p) return '';
+                  const isVoted = (myVotedTargetId === p.id);
+                  return `
+                    <div class="card coach-pick-card" data-pid="${p.id}" style="padding: 9px 11px; border-radius: 10px; background: rgba(15, 23, 42, 0.85); border: 1px solid ${isVoted ? '#facc15' : 'rgba(250, 204, 21, 0.4)'}; display: flex; align-items: center; justify-content: space-between; cursor: pointer; transition: transform 0.15s;">
+                      <div style="display: flex; align-items: center; gap: 8px; overflow: hidden;">
+                        ${renderAvatar(p, 'xs')}
+                        <div style="overflow: hidden;">
+                          <div style="display: flex; align-items: center; gap: 6px;">
+                            <b style="font-size: 12.5px; color: #fff; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">
+                              #${p.mainDorsal != null ? p.mainDorsal : '—'} ${escapeHtml(p.name || '')} ${escapeHtml(p.lastName || '')}
+                            </b>
+                            <span class="badge" style="background: rgba(234, 179, 8, 0.2); color: #fef08a; font-size: 9.5px; font-weight: 800; border: 1px solid rgba(234, 179, 8, 0.4); white-space: nowrap;">
+                              ${t('mvp_coach_pick', '🌟 Elección del Míster')}
+                            </span>
+                          </div>
+                          ${cp.coachReason ? `
+                            <div style="font-size: 11px; color: #cbd5e1; font-style: italic; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; max-width: 220px;">
+                              💬 "${escapeHtml(cp.coachReason)}"
+                            </div>
+                          ` : ''}
+                        </div>
+                      </div>
+                      <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+                        ${isVoted ? `<span style="font-size: 12px; color: #4ade80; font-weight: 900;">✓</span>` : ''}
+                        <button type="button" class="btn sm" style="font-size: 11px; font-weight: 800; padding: 4px 8px; border-radius: 8px; background: rgba(250, 204, 21, 0.2); color: #facc15; border: 1px solid #facc15; pointer-events: none;">
+                          🔍 ${t('view', 'Ver')}
+                        </button>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+          ` : ''}
+
+          <!-- LISTA COMPLETA DE CONVOCADOS (VOTACIÓN LIBRE) -->
           <div style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; padding-right: 4px;">
             ${players.length === 0 ? `
               <div style="text-align: center; color: var(--muted); padding: 20px;">No hay jugadores registrados en este partido</div>
@@ -2061,31 +2283,26 @@
       overlay.querySelector('#btn-close-mvp-vote').onclick = closeVoteModal;
       overlay.querySelector('#btn-close-mvp-modal').onclick = closeVoteModal;
 
+      // Eventos para los destacados del míster (abren modal informativo, NO votan directo)
+      overlay.querySelectorAll('.coach-pick-card').forEach(card => {
+        card.onclick = () => {
+          const pid = card.getAttribute('data-pid');
+          const pick = coachPicks.find(cp => cp.playerId === pid);
+          const p = players.find(x => x.id === pid);
+          if (pick && p) {
+            showCoachPickDetailModal(pick, p, (myVotedTargetId === pid));
+          }
+        };
+      });
+
       overlay.querySelectorAll('.btn-vote-player').forEach(btn => {
         btn.onclick = async (e) => {
           e.stopPropagation();
           const targetId = btn.getAttribute('data-pid');
           if (!targetId || targetId === myP.id) return;
-          const targetPlayer = players.find(p => p.id === targetId);
           btn.disabled = true;
           btn.textContent = '...';
-
-          try {
-            if (window.Cloud && window.Cloud.voteMatchMvp) {
-              await window.Cloud.voteMatchMvp(session.id, myP.id, targetId);
-            }
-            if (!currentVoteData) currentVoteData = { votes: {} };
-            if (!currentVoteData.votes) currentVoteData.votes = {};
-            currentVoteData.votes[myP.id] = targetId;
-
-            toast(t('mvpVoteRegistered', '¡Voto de MVP registrado para {name}!').replace('{name}', (targetPlayer ? targetPlayer.name : '')), 'success');
-            renderModal();
-          } catch (err) {
-            console.error('Error al registrar voto de MVP:', err);
-            toast('Error al votar: ' + err.message, 'error');
-            btn.disabled = false;
-            btn.textContent = '⭐ Votar';
-          }
+          await executeVote(targetId);
         };
       });
 
@@ -5744,7 +5961,7 @@
             ${mvpCount > 0 ? `
               <div style="margin-top: 6px;">
                 <span class="badge" style="background: rgba(250, 204, 21, 0.2); color: #fde047; border: 1px solid rgba(250, 204, 21, 0.5); font-weight: 800; font-size: 11px;">
-                  ${t('seasonMvpsBadge', '⭐ {count}x MVP del Partido').replace('{count}', mvpCount)}
+                  ⭐ x${mvpCount} MVP
                 </span>
               </div>
             ` : ''}
@@ -5763,22 +5980,47 @@
           }
           const mText = getPlayerMissionText(myP.weeklyMission, currentLang);
           const mIcon = myP.weeklyMission.icon || '🎯';
+          const isAuto = myP.weeklyMission.type === 'auto';
+          const target = Number(myP.weeklyMission.target) || 0;
+          const current = Number(myP.weeklyMission.currentProgress) || 0;
+          const isCompleted = myP.weeklyMission.status === 'completed';
+          const pct = target > 0 ? Math.min(100, Math.round((current / target) * 100)) : (isCompleted ? 100 : 0);
+
           return `
-            <div class="card" style="margin-bottom: 14px; border: 1.5px solid ${myP.weeklyMission.status === 'completed' ? 'rgba(34, 197, 94, 0.6)' : 'rgba(168, 85, 247, 0.5)'}; background: ${myP.weeklyMission.status === 'completed' ? 'linear-gradient(135deg, rgba(34, 197, 94, 0.16) 0%, rgba(15, 23, 42, 0.8) 100%)' : 'linear-gradient(135deg, rgba(168, 85, 247, 0.16) 0%, rgba(15, 23, 42, 0.8) 100%)'}; border-radius: 16px; padding: 14px;">
+            <div class="card" style="margin-bottom: 14px; border: 1.5px solid ${isCompleted ? 'rgba(34, 197, 94, 0.6)' : 'rgba(168, 85, 247, 0.5)'}; background: ${isCompleted ? 'linear-gradient(135deg, rgba(34, 197, 94, 0.16) 0%, rgba(15, 23, 42, 0.8) 100%)' : 'linear-gradient(135deg, rgba(168, 85, 247, 0.16) 0%, rgba(15, 23, 42, 0.8) 100%)'}; border-radius: 16px; padding: 14px;">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                 <div style="display: flex; align-items: center; gap: 8px;">
                   <span style="font-size: 24px;">${mIcon}</span>
-                  <b style="font-size: 13.5px; color: ${myP.weeklyMission.status === 'completed' ? '#4ade80' : '#c084fc'}; text-transform: uppercase; letter-spacing: 0.5px;">
+                  <b style="font-size: 13.5px; color: ${isCompleted ? '#4ade80' : '#c084fc'}; text-transform: uppercase; letter-spacing: 0.5px;">
                     ${t('weeklyMissionTitle', 'Misión Semanal del Míster')}
                   </b>
                 </div>
-                <span class="badge" style="background: ${myP.weeklyMission.status === 'completed' ? '#16a34a' : 'rgba(250, 204, 21, 0.2)'}; color: ${myP.weeklyMission.status === 'completed' ? '#fff' : '#fde047'}; font-weight: 900; font-size: 11px; padding: 4px 10px; border-radius: 999px;">
-                  ${myP.weeklyMission.status === 'completed' ? t('missionStatusCompleted', '🎉 ¡Misión Cumplida!') : t('missionStatusPending', '⏳ En curso')}
+                <span class="badge" style="background: ${isCompleted ? '#16a34a' : 'rgba(250, 204, 21, 0.2)'}; color: ${isCompleted ? '#fff' : '#fde047'}; font-weight: 900; font-size: 11px; padding: 4px 10px; border-radius: 999px;">
+                  ${isCompleted ? t('missionStatusCompleted', '🎉 ¡Misión Cumplida!') : t('missionStatusPending', '⏳ En curso')}
                 </span>
               </div>
               <div style="font-size: 14px; font-weight: 800; color: #fff; margin: 8px 0; line-height: 1.45; background: rgba(0,0,0,0.3); padding: 10px 12px; border-radius: 10px;">
                 "${escapeHtml(mText)}"
               </div>
+              ${isAuto ? `
+                <div style="margin: 10px 0; background: rgba(0,0,0,0.35); border-radius: 10px; padding: 10px; border: 1px solid rgba(168, 85, 247, 0.3);">
+                  <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11.5px; font-weight: 800; margin-bottom: 6px;">
+                    <span style="color: #e9d5ff; display: flex; align-items: center; gap: 6px;">
+                      <span class="badge" style="background: rgba(168, 85, 247, 0.3); color: #c084fc; font-size: 10px;">${t('autoMissionBadge', '⚡ Misión Automática')}</span>
+                      <span>${t('currentProgressLabel', 'Progreso')}: <b style="color: #fff;">${current} / ${target}${myP.weeklyMission.metric === 'pass_acc' ? '%' : ''}</b></span>
+                    </span>
+                    <span style="color: ${isCompleted ? '#4ade80' : '#fde047'}; font-weight: 900;">${pct}%</span>
+                  </div>
+                  <div style="height: 8px; background: rgba(255,255,255,0.1); border-radius: 999px; overflow: hidden;">
+                    <div style="height: 100%; width: ${Math.max(4, pct)}%; background: ${isCompleted ? 'linear-gradient(90deg, #16a34a, #4ade80)' : 'linear-gradient(90deg, #9333ea, #c084fc)'}; border-radius: 999px; transition: width 0.3s ease;"></div>
+                  </div>
+                  ${myP.weeklyMission.minAttempts ? `
+                    <div style="font-size: 10.5px; color: var(--muted); margin-top: 4px; text-align: right;">
+                      * ${t('minAttemptsLabel', 'Mín. intentos')}: ${myP.weeklyMission.minAttempts}
+                    </div>
+                  ` : ''}
+                </div>
+              ` : ''}
               ${myP.weeklyMission.comment ? `
                 <div style="margin: 6px 0 10px; font-size: 12.5px; color: #cbd5e1; background: rgba(255,255,255,0.06); padding: 8px 12px; border-radius: 10px; border-left: 3px solid #c084fc; line-height: 1.4;">
                   <span style="font-weight: 800; color: #e9d5ff;">💬 ${t('coachNote', 'Nota del Míster')}:</span> "${escapeHtml(myP.weeklyMission.comment)}"
@@ -5888,6 +6130,7 @@
             ovr: ovr,
             team: team,
             streak: streak,
+            mvpCount: mvpCount,
             lang: currentLang
           });
         }
@@ -6327,6 +6570,7 @@
     let activeProfileTab = (aggTraining.count === 0 && aggMatch.count > 0) ? 'match' : 'training';
 
     const streak = calculatePlayerAttendanceStreak(pid);
+    const mvpCount = calculatePlayerMvpCount(pid);
     const globalRadar = calculatePlayerRadar(pid);
 
     function renderModalTabContent(tabName) {
@@ -6475,7 +6719,10 @@
                 <span class="rating-pill" style="font-size: 12.5px; font-weight: 900; background: linear-gradient(135deg, rgba(234, 179, 8, 0.25), rgba(202, 138, 4, 0.4)); color: #fef08a; border: 1.5px solid #facc15; padding: 3px 9px; border-radius: 999px; display: inline-flex; align-items: center; gap: 4px; width: fit-content;">
                   ⭐ ${overall.rating.toFixed(1)} ${t('overallRating', 'Rating General')}
                 </span>
-                ${streak > 0 ? `<span class="badge" style="background: rgba(249, 115, 22, 0.2); color: #fb923c; border: 1px solid rgba(249, 115, 22, 0.5); font-size: 11px;">🔥 ${streak} ${streak === 1 ? t('streakSessionSingle') : t('streakSessions')}</span>` : ''}
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  ${mvpCount > 0 ? `<span class="badge" style="background: rgba(250, 204, 21, 0.2); color: #fde047; border: 1px solid rgba(250, 204, 21, 0.5); font-weight: 800; font-size: 11px;">⭐ x${mvpCount} MVP</span>` : ''}
+                  ${streak > 0 ? `<span class="badge" style="background: rgba(249, 115, 22, 0.2); color: #fb923c; border: 1px solid rgba(249, 115, 22, 0.5); font-size: 11px;">🔥 ${streak} ${streak === 1 ? t('streakSessionSingle') : t('streakSessions')}</span>` : ''}
+                </div>
               </div>
               <span style="font-size: 10px; font-weight: 800; color: ${overall.mode === 'combined' ? '#38bdf8' : (overall.mode === 'training' ? '#4ade80' : '#facc15')}; margin-left: 6px;">
                 ${overall.mode === 'combined' 
@@ -6560,6 +6807,7 @@
             ovr: ovr,
             team: team,
             streak: streak,
+            mvpCount: mvpCount,
             lang: currentLang
           });
         }

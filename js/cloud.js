@@ -793,6 +793,28 @@
       }
     },
 
+    // Guarda hasta 3 destacados del entrenador para la votación de MVP
+    setMatchCoachPicks: async function (sessionId, coachPicks) {
+      if (!this.init() || !sessionId) return false;
+      try {
+        const docRef = db.collection('clubs').doc(CLUB_ID).collection('mvp_votes').doc(sessionId);
+        await docRef.set({
+          sessionId: sessionId,
+          coachPicks: coachPicks || [],
+          updatedAt: Date.now()
+        }, { merge: true });
+        try {
+          await db.collection('clubs').doc(CLUB_ID).collection('sessions').doc(sessionId).set({
+            coachPicks: coachPicks || []
+          }, { merge: true });
+        } catch (e) {}
+        return true;
+      } catch (e) {
+        console.error('[Cloud] Error guardando coachPicks:', e);
+        return false;
+      }
+    },
+
     // Escucha votos de MVP de un partido
     listenToMatchMvp: function (sessionId, callback) {
       if (!this.init() || !sessionId) return null;
@@ -1692,6 +1714,26 @@
         return true;
       } catch (err) {
         console.error('[Cloud] Error fijando MVP oficial:', err);
+        return false;
+      }
+    },
+
+    setMatchCoachPicks: async function (sessionId, coachPicks) {
+      if (!this.init() || !sessionId) return false;
+      try {
+        const voteRef = db.collection('clubs').doc(CLUB_ID).collection('mvp_votes').doc(sessionId);
+        await voteRef.set({
+          coachPicks: coachPicks || [],
+          coachPicksSetAt: Date.now()
+        }, { merge: true });
+        try {
+          await db.collection('clubs').doc(CLUB_ID).collection('sessions').doc(sessionId).set({
+            coachPicks: coachPicks || []
+          }, { merge: true });
+        } catch (e) {}
+        return true;
+      } catch (err) {
+        console.error('[Cloud] Error fijando coachPicks:', err);
         return false;
       }
     },

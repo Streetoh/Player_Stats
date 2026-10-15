@@ -3570,10 +3570,19 @@
     };
 
     container.querySelector('#tracker-btn-finish').onclick = () => {
-      confirmDialog(t('finishSession', 'Finalizar Sesión'), '¿Deseas finalizar el entrenamiento?', () => {
+      const isMatch = session.type === 'match';
+      confirmDialog(t('finishSession', 'Finalizar Sesión'), isMatch ? '¿Deseas finalizar el partido?' : '¿Deseas finalizar el entrenamiento?', () => {
         if (session.timerStartedAt) Store.toggleTimer(session);
         closeTracker();
+        Store.evaluateAutoWeeklyMissions(Object.keys(session.stats || {}));
         showSessionDetailModal(session.id);
+        if (isMatch && (!session.coachPicks || session.coachPicks.length === 0)) {
+          setTimeout(() => {
+            showMatchCoachPicksModal(session, () => {
+              showSessionDetailModal(session.id);
+            });
+          }, 400);
+        }
       });
     };
 
@@ -7019,6 +7028,24 @@
               </button>
             </div>
 
+            <!-- Panel de Destacados del Entrenador (Coach Picks, máx 3) -->
+            <div class="card" id="card-coach-picks-action" style="margin-bottom: 12px; background: rgba(168, 85, 247, 0.08); border: 1.5px solid rgba(168, 85, 247, 0.35); padding: 12px 14px; border-radius: 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer;">
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 22px;">🌟</span>
+                <div>
+                  <b style="font-size: 13px; color: #c084fc; display: block;">
+                    ${t('mvp_coach_picks_title', 'Destacados por el Míster')}
+                  </b>
+                  <span style="font-size: 11.5px; color: var(--muted); display: block;">
+                    ${(s.coachPicks && s.coachPicks.length > 0) ? `${s.coachPicks.length} nominado${s.coachPicks.length > 1 ? 's' : ''} para la votación de compañeros` : 'Nominar hasta 3 jugadores con comentario para guiar los votos'}
+                  </span>
+                </div>
+              </div>
+              <button type="button" class="btn sm" id="btn-manage-coach-picks" style="background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.5); font-weight: 800; font-size: 11.5px; white-space: nowrap;">
+                🌟 ${(s.coachPicks && s.coachPicks.length > 0) ? 'Editar Destacados' : 'Nominar Top 3'}
+              </button>
+            </div>
+
             ${(mvpMatchPlayer && (mvpMatchRating >= 5.5 || s.mvpOfficialId)) ? `
               <div class="mvp-match-banner" id="banner-match-mvp" style="cursor: pointer;" title="Toca para ver ficha de ${escapeHtml(Store.playerName(mvpMatchPlayer))}">
                 <div style="font-size: 26px;">⭐</div>
@@ -7172,6 +7199,16 @@
         }
         if (btnManageMvp) btnManageMvp.onclick = (e) => { e.stopPropagation(); openMvpManager(); };
         if (cardManageMvp) cardManageMvp.onclick = openMvpManager;
+
+        const btnManageCoachPicks = body.querySelector('#btn-manage-coach-picks');
+        const cardCoachPicks = body.querySelector('#card-coach-picks-action');
+        function openCoachPicksManager() {
+          showMatchCoachPicksModal(s, () => {
+            renderSquadContent();
+          });
+        }
+        if (btnManageCoachPicks) btnManageCoachPicks.onclick = (e) => { e.stopPropagation(); openCoachPicksManager(); };
+        if (cardCoachPicks) cardCoachPicks.onclick = openCoachPicksManager;
 
         // Escucha en tiempo real de votos MVP de compañeros
         if (s.type === 'match' && window.Cloud && window.Cloud.listenToMatchMvp) {
@@ -7490,6 +7527,182 @@
     }
   }
 
+  // 🌟 Modal para Nominar Destacados del Míster ("coachPicks", máx 3)
+  function showMatchCoachPicksModal(session, onUpdated) {
+    if (!session) return;
+    const trackedPlayerIds = new Set([
+      ...Object.keys(session.stats || {}),
+      ...(session.slots || []).filter(Boolean)
+    ]);
+    const players = (Store.state.players || []).filter(p => trackedPlayerIds.has(p.id));
+    if (players.length === 0) {
+      toast('No hay jugadores registrados en este partido para nominar', 'warning');
+      return;
+    }
+
+    const currentPicks = Array.isArray(session.coachPicks) ? session.coachPicks.slice(0, 3) : [];
+    const selectedMap = new Map();
+    currentPicks.forEach(cp => {
+      if (cp && cp.playerId) {
+        selectedMap.set(String(cp.playerId), cp.coachReason || '');
+      }
+    });
+
+    const modal = document.createElement('div');
+    modal.className = 'dialog-overlay';
+    modal.id = 'dialog-coach-picks';
+    modal.style.zIndex = '999999';
+
+    function renderModalHtml() {
+      return `
+        <div class="card dialog-box" style="max-width: 480px; width: 92%; padding: 20px; border-radius: 18px; border: 1.5px solid rgba(168, 85, 247, 0.45); max-height: 90vh; display: flex; flex-direction: column; background: #0f172a; box-shadow: 0 10px 40px rgba(0,0,0,0.8);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 24px;">🌟</span>
+              <div>
+                <h3 style="margin: 0; font-size: 16.5px; font-weight: 900; color: #fff;">
+                  ${t('mvp_coach_picks_title', 'Destacados por el Míster')}
+                </h3>
+                <div style="font-size: 11px; color: var(--muted);">
+                  ${session.rival ? `vs ${escapeHtml(session.rival)}` : escapeHtml(session.title || 'Partido')}
+                </div>
+              </div>
+            </div>
+            <button type="button" class="btn sm ghost" id="btn-close-coach-picks" style="padding: 4px 8px;">✕</button>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <p style="font-size: 12px; color: #cbd5e1; margin: 0; line-height: 1.35;">
+              ${t('coachPicksMax3', 'Selecciona hasta 3 jugadores destacados y escribe por qué brillaron hoy:')}
+            </p>
+            <span id="counter-coach-picks" class="badge" style="background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.5); font-weight: 800; font-size: 11px; white-space: nowrap; margin-left: 6px;">
+              ${selectedMap.size}/3
+            </span>
+          </div>
+
+          <div id="coach-picks-list" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; padding-right: 4px;">
+            ${players.map(p => {
+              const sPid = String(p.id);
+              const isSelected = selectedMap.has(sPid);
+              const reason = selectedMap.get(sPid) || '';
+              const st = (session.stats && session.stats[p.id]) || {};
+              const rating = Store.calculateMatchRating(st, p.mainPosition);
+
+              return `
+                <div class="card coach-pick-item" data-pid="${p.id}" style="padding: 10px 12px; border-radius: 12px; border: 1.5px solid ${isSelected ? '#c084fc' : 'var(--border)'}; background: ${isSelected ? 'rgba(168, 85, 247, 0.12)' : 'var(--surface2)'}; transition: all 0.15s ease;">
+                  <div class="coach-pick-header" style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                      ${renderAvatar(p, 'sm')}
+                      <div>
+                        <b style="font-size: 13.5px; color: #fff;">
+                          #${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(Store.playerName(p))}
+                        </b>
+                        <div style="font-size: 11px; color: var(--muted);">
+                          ${p.mainPosition || 'Jugador'} • Nota: <span style="color: #22c55e; font-weight: 700;">${rating.toFixed(1)}</span>
+                          ${st.goal ? ` • ⚽ ${st.goal}` : ''}
+                        </div>
+                      </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                      <span class="badge" style="background: ${isSelected ? '#a855f7' : 'rgba(255,255,255,0.08)'}; color: #fff; font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 999px;">
+                        ${isSelected ? '✓ ' + t('selected', 'Seleccionado') : '+ ' + t('select', 'Elegir')}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div class="coach-pick-reason-box" style="margin-top: 8px; ${isSelected ? '' : 'display: none;'}">
+                    <input type="text" class="input-coach-reason" data-pid="${p.id}" value="${escapeHtml(reason)}" placeholder="${t('coachReasonPlaceholder', 'Motivo del míster (ej. gran presión tras pérdida, liderazgo...)')}" style="width: 100%; font-size: 12.5px; padding: 7px 10px; border-radius: 8px; background: rgba(0,0,0,0.35); border: 1px solid rgba(168, 85, 247, 0.4); color: #fff;" />
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+
+          <div style="display: flex; gap: 8px; justify-content: flex-end;">
+            <button type="button" class="btn ghost" id="btn-cancel-coach-picks">${t('cancel')}</button>
+            <button type="button" class="btn primary" id="btn-save-coach-picks" style="font-weight: 800; background: #a855f7; border: 1px solid #c084fc;">
+              🌟 ${t('saveCoachPicks', 'Guardar Destacados del Míster')}
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    modal.innerHTML = renderModalHtml();
+    document.body.appendChild(modal);
+
+    function updatePicksUI() {
+      const counter = modal.querySelector('#counter-coach-picks');
+      if (counter) counter.textContent = `${selectedMap.size}/3`;
+
+      modal.querySelectorAll('.coach-pick-item').forEach(item => {
+        const pid = item.getAttribute('data-pid');
+        const isSel = selectedMap.has(pid);
+        item.style.borderColor = isSel ? '#c084fc' : 'var(--border)';
+        item.style.background = isSel ? 'rgba(168, 85, 247, 0.12)' : 'var(--surface2)';
+        const badge = item.querySelector('.coach-pick-header .badge');
+        if (badge) {
+          badge.style.background = isSel ? '#a855f7' : 'rgba(255,255,255,0.08)';
+          badge.textContent = isSel ? '✓ ' + t('selected', 'Seleccionado') : '+ ' + t('select', 'Elegir');
+        }
+        const reasonBox = item.querySelector('.coach-pick-reason-box');
+        if (reasonBox) {
+          reasonBox.style.display = isSel ? 'block' : 'none';
+        }
+      });
+    }
+
+    function bindEvents() {
+      modal.querySelectorAll('.coach-pick-header').forEach(header => {
+        header.onclick = () => {
+          const item = header.closest('.coach-pick-item');
+          const pid = item.getAttribute('data-pid');
+          if (selectedMap.has(pid)) {
+            selectedMap.delete(pid);
+          } else {
+            if (selectedMap.size >= 3) {
+              toast('Solo puedes seleccionar un máximo de 3 destacados', 'warning');
+              return;
+            }
+            selectedMap.set(pid, '');
+          }
+          updatePicksUI();
+          haptic(25);
+        };
+      });
+
+      modal.querySelectorAll('.input-coach-reason').forEach(inp => {
+        inp.oninput = (e) => {
+          const pid = inp.getAttribute('data-pid');
+          if (selectedMap.has(pid)) {
+            selectedMap.set(pid, e.target.value);
+          }
+        };
+      });
+
+      function closeModal() { modal.remove(); }
+      modal.querySelector('#btn-close-coach-picks').onclick = closeModal;
+      modal.querySelector('#btn-cancel-coach-picks').onclick = closeModal;
+
+      modal.querySelector('#btn-save-coach-picks').onclick = () => {
+        const picks = [];
+        selectedMap.forEach((reason, pid) => {
+          picks.push({
+            playerId: pid,
+            coachReason: (reason || '').trim()
+          });
+        });
+
+        Store.setMatchCoachPicks(session.id, picks);
+        toast(`🌟 ${picks.length} destacados del míster guardados para la votación`, 'success');
+        closeModal();
+        if (typeof onUpdated === 'function') onUpdated();
+      };
+    }
+
+    bindEvents();
+  }
+
   // 👑 Modal para Nombrar el MVP Oficial del Partido
   function showSetOfficialMvpModal(session, onUpdated) {
     if (!session) return;
@@ -7545,11 +7758,16 @@
           }).join('')}
         </div>
 
-        <div style="display: flex; gap: 8px; justify-content: flex-end;">
-          <button type="button" class="btn ghost" id="btn-cancel-set-mvp">${t('cancel')}</button>
-          <button type="button" class="btn primary" id="btn-confirm-set-mvp" style="font-weight: 800; background: #eab308; color: #000;">
-            ⭐ Confirmar MVP Oficial
+        <div style="display: flex; gap: 8px; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+          <button type="button" class="btn sm" id="btn-open-coach-picks-from-mvp" style="font-weight: 800; background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4);">
+            🌟 Nominar Top 3 Destacados
           </button>
+          <div style="display: flex; gap: 8px;">
+            <button type="button" class="btn ghost" id="btn-cancel-set-mvp">${t('cancel')}</button>
+            <button type="button" class="btn primary" id="btn-confirm-set-mvp" style="font-weight: 800; background: #eab308; color: #000;">
+              ⭐ Confirmar MVP Oficial
+            </button>
+          </div>
         </div>
       </div>
     `;
@@ -7599,6 +7817,14 @@
     modal.querySelector('#btn-close-set-mvp').onclick = closeModal;
     modal.querySelector('#btn-cancel-set-mvp').onclick = closeModal;
 
+    const btnPicksFromMvp = modal.querySelector('#btn-open-coach-picks-from-mvp');
+    if (btnPicksFromMvp) {
+      btnPicksFromMvp.onclick = () => {
+        closeModal();
+        showMatchCoachPicksModal(session, onUpdated);
+      };
+    }
+
     modal.querySelector('#btn-confirm-set-mvp').onclick = () => {
       if (!selectedPlayerId) {
         toast('Selecciona un jugador para nombrar MVP', 'warning');
@@ -7621,6 +7847,10 @@
         category: 'Táctica',
         icon: '🎯',
         color: '#22d3ee',
+        type: 'auto',
+        metric: 'pass_acc',
+        target: 80,
+        minAttempts: 5,
         text_es: 'Completar al menos el 80% de pases con precisión',
         text_en: 'Complete at least 80% of passes with accuracy',
         text_ee: 'Lõpeta vähemalt 80% söötudest täpselt'
@@ -7630,6 +7860,10 @@
         category: 'Defensa',
         icon: '🛡️',
         color: '#38bdf8',
+        type: 'auto',
+        metric: 'recoveries',
+        target: 3,
+        minAttempts: 0,
         text_es: 'Realizar 3 recuperaciones limpias de balón',
         text_en: 'Make 3 clean ball recoveries',
         text_ee: 'Teha 3 puhast pallivõitu'
@@ -7639,51 +7873,56 @@
         category: 'Duelos 1v1',
         icon: '⚔️',
         color: '#f97316',
-        text_es: 'Ganar al menos el 60% de los duelos 1vs1',
-        text_en: 'Win at least 60% of 1v1 duels',
-        text_ee: 'Võita vähemalt 60% 1vs1 duellidest'
+        type: 'auto',
+        metric: 'duels_won',
+        target: 3,
+        minAttempts: 3,
+        text_es: 'Ganar al menos 3 duelos 1vs1',
+        text_en: 'Win at least 3 1v1 duels',
+        text_ee: 'Võita vähemalt 3 1vs1 duelli'
       },
       {
-        key: 'preset_foot',
-        category: 'Técnica',
-        icon: '👟',
-        color: '#a855f7',
-        text_es: 'Disparar a portería con la pierna menos hábil',
-        text_en: 'Shoot on target using your weaker foot',
-        text_ee: 'Lüüa väravale nõrgema jalaga'
-      },
-      {
-        key: 'preset_assist',
-        category: 'Visión',
+        key: 'preset_goals',
+        category: 'Finalización',
         icon: '⚽',
         color: '#4ade80',
-        text_es: 'Dar al menos 1 asistencia de gol o pase clave',
-        text_en: 'Provide at least 1 goal assist or key pass',
-        text_ee: 'Anda vähemalt 1 väravasööt või võtmesööt'
+        type: 'auto',
+        metric: 'goals',
+        target: 2,
+        minAttempts: 0,
+        text_es: 'Marcar 2 o más goles en la semana',
+        text_en: 'Score 2 or more goals this week',
+        text_ee: 'Lüüa sel nädalal 2 või rohkem väravat'
       },
       {
         key: 'preset_streak',
         category: 'Constancia',
         icon: '⚡',
         color: '#facc15',
-        text_es: 'Asistir al 100% de los entrenamientos de la semana',
-        text_en: "Attend 100% of this week's training sessions",
-        text_ee: 'Osaleda 100% selle nädala treeningutel'
+        type: 'auto',
+        metric: 'attendance_streak',
+        target: 3,
+        minAttempts: 0,
+        text_es: 'Alcanzar una racha de asistencia de 3 sesiones seguidas',
+        text_en: 'Reach an attendance streak of 3 consecutive sessions',
+        text_ee: 'Saavutada järjestikune osalemine 3 trennis'
       },
       {
-        key: 'preset_shots',
-        category: 'Finalización',
-        icon: '🚀',
-        color: '#fb7185',
-        text_es: 'Realizar 2 o más disparos a puerta en cada partido',
-        text_en: 'Take 2 or more shots on target in each match',
-        text_ee: 'Teha igas mängus 2 või rohkem lööki raami'
+        key: 'preset_foot',
+        category: 'Técnica',
+        icon: '👟',
+        color: '#a855f7',
+        type: 'manual',
+        text_es: 'Disparar a portería con la pierna menos hábil',
+        text_en: 'Shoot on target using your weaker foot',
+        text_ee: 'Lüüa väravale nõrgema jalaga'
       },
       {
         key: 'preset_fairplay',
         category: 'Fair Play',
         icon: '🤝',
         color: '#34d399',
+        type: 'manual',
         text_es: 'Cero tarjetas y máxima comunicación de apoyo en el campo',
         text_en: 'Zero cards and maximum supportive communication on the pitch',
         text_ee: 'Null kaarti ja maksimaalne toetav suhtlus väljakul'
@@ -7701,6 +7940,11 @@
       }
       currentComment = currentMission.comment || (!selectedPreset ? currentMission.text : '') || '';
     }
+
+    let currentType = (currentMission && currentMission.type) || (selectedPreset ? selectedPreset.type : 'auto');
+    let currentMetric = (currentMission && currentMission.metric) || (selectedPreset && selectedPreset.metric) || 'pass_acc';
+    let currentTarget = (currentMission && currentMission.target != null) ? currentMission.target : (selectedPreset && selectedPreset.target != null ? selectedPreset.target : 80);
+    let currentMinAttempts = (currentMission && currentMission.minAttempts != null) ? currentMission.minAttempts : (selectedPreset && selectedPreset.minAttempts != null ? selectedPreset.minAttempts : 0);
 
     const modal = document.createElement('div');
     modal.className = 'dialog-overlay';
@@ -7729,7 +7973,7 @@
             <label style="font-size: 11px; font-weight: 800; color: #c084fc; display: block; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">
               ⚡ Objetivos Rápidos (Toca para seleccionar):
             </label>
-            <div id="quick-missions-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; max-height: 220px; overflow-y: auto; padding: 2px;">
+            <div id="quick-missions-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; max-height: 200px; overflow-y: auto; padding: 2px;">
               ${presets.map(pr => {
                 const isCur = selectedPreset && selectedPreset.key === pr.key;
                 const prText = (curLang === 'ee' ? pr.text_ee : (curLang === 'en' ? pr.text_en : pr.text_es));
@@ -7740,7 +7984,7 @@
                       <div style="display: flex; align-items: center; gap: 4px;">
                         <span class="chk-preset" style="font-size: 11px; color: ${pr.color}; font-weight: 900; display: ${isCur ? 'inline-block' : 'none'};">✓</span>
                         <span class="badge" style="font-size: 9.5px; font-weight: 800; background: ${pr.color}22; color: ${pr.color}; border: 1px solid ${pr.color}44; padding: 1px 6px; border-radius: 6px;">
-                          ${pr.category}
+                          ${pr.category} ${pr.type === 'auto' ? '🤖' : '✍️'}
                         </span>
                       </div>
                     </div>
@@ -7750,6 +7994,47 @@
                   </div>
                 `;
               }).join('')}
+            </div>
+          </div>
+
+          <!-- Selector de Validación: Automática vs Manual -->
+          <div style="background: rgba(15, 23, 42, 0.7); border: 1.5px solid rgba(168, 85, 247, 0.35); border-radius: 12px; padding: 12px; margin-bottom: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 11px; font-weight: 800; color: #c084fc; text-transform: uppercase;">
+                ⚙️ Modo de Validación
+              </span>
+              <div class="segmented" style="display: flex; gap: 4px;">
+                <button type="button" class="btn sm ${currentType === 'auto' ? 'active' : ''}" id="btn-type-auto" style="font-size: 10.5px; padding: 3px 8px; font-weight: 800;">
+                  🤖 ${t('autoMissionBadge', 'Automática')}
+                </button>
+                <button type="button" class="btn sm ${currentType === 'manual' ? 'active' : ''}" id="btn-type-manual" style="font-size: 10.5px; padding: 3px 8px; font-weight: 800;">
+                  ✍️ ${t('manualMissionBadge', 'Manual')}
+                </button>
+              </div>
+            </div>
+
+            <div id="mission-auto-controls" style="${currentType === 'auto' ? 'display: block; margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 8px;' : 'display: none;'}">
+              <div style="margin-bottom: 8px;">
+                <label style="font-size: 10.5px; color: var(--muted); font-weight: 700; display: block; margin-bottom: 4px;">Métrica evaluada automáticamente:</label>
+                <select id="mission-metric-select" style="width: 100%; font-size: 12px; padding: 7px 10px; border-radius: 8px; background: var(--surface); color: #fff; border: 1px solid var(--border);">
+                  <option value="pass_acc" ${currentMetric === 'pass_acc' ? 'selected' : ''}>🎯 ${t('metric_pass_acc', 'Precisión de Pase (%)')}</option>
+                  <option value="duels_won" ${currentMetric === 'duels_won' ? 'selected' : ''}>⚔️ ${t('metric_duels_won', 'Duelos 1v1 Ganados')}</option>
+                  <option value="recoveries" ${currentMetric === 'recoveries' ? 'selected' : ''}>🛡️ ${t('metric_recoveries', 'Recuperaciones de Balón')}</option>
+                  <option value="goals" ${currentMetric === 'goals' ? 'selected' : ''}>⚽ ${t('metric_goals', 'Goles Marcados')}</option>
+                  <option value="attendance_streak" ${currentMetric === 'attendance_streak' ? 'selected' : ''}>⚡ ${t('metric_attendance_streak', 'Racha de Asistencia')}</option>
+                </select>
+              </div>
+
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                <div>
+                  <label style="font-size: 10.5px; color: var(--muted); font-weight: 700; display: block; margin-bottom: 4px;">${t('targetLabel', 'Objetivo (Target)')}:</label>
+                  <input type="number" id="mission-target-input" min="1" max="100" value="${currentTarget}" style="width: 100%; font-size: 12.5px; padding: 6px 10px; border-radius: 8px; background: var(--surface); color: #fff; border: 1px solid var(--border);" />
+                </div>
+                <div>
+                  <label style="font-size: 10.5px; color: var(--muted); font-weight: 700; display: block; margin-bottom: 4px;">${t('minAttemptsLabel', 'Intentos mín. (opc.)')}:</label>
+                  <input type="number" id="mission-minattempts-input" min="0" value="${currentMinAttempts}" style="width: 100%; font-size: 12.5px; padding: 6px 10px; border-radius: 8px; background: var(--surface); color: #fff; border: 1px solid var(--border);" />
+                </div>
+              </div>
             </div>
           </div>
 
@@ -7779,7 +8064,7 @@
                 ${selectedPreset ? '💬 ' + t('coachCommentOptional', 'Comentario o Nota adicional (Opcional)') : '✏️ ' + t('customMissionText', 'Misión Personalizada')}
               </label>
             </div>
-            <textarea id="mission-text-input" rows="3" style="width: 100%; font-size: 13.5px; padding: 10px; border-radius: 10px; resize: vertical;" placeholder="${selectedPreset ? 'Ej. Muy atento al perfil corporal antes de recibir el balón... (Opcional)' : 'Escribe un objetivo personalizado para esta semana...'}">${escapeHtml(currentComment)}</textarea>
+            <textarea id="mission-text-input" rows="2" style="width: 100%; font-size: 13.5px; padding: 10px; border-radius: 10px; resize: vertical;" placeholder="${selectedPreset ? 'Ej. Muy atento al perfil corporal antes de recibir el balón... (Opcional)' : 'Escribe un objetivo personalizado para esta semana...'}">${escapeHtml(currentComment)}</textarea>
           </div>
 
           <div style="display: flex; gap: 8px; justify-content: flex-end;">
@@ -7816,6 +8101,14 @@
           }
         }
       });
+
+      const autoBtn = modal.querySelector('#btn-type-auto');
+      const manualBtn = modal.querySelector('#btn-type-manual');
+      const autoBox = modal.querySelector('#mission-auto-controls');
+
+      if (autoBtn) autoBtn.className = `btn sm ${currentType === 'auto' ? 'active primary' : ''}`;
+      if (manualBtn) manualBtn.className = `btn sm ${currentType === 'manual' ? 'active primary' : ''}`;
+      if (autoBox) autoBox.style.display = (currentType === 'auto') ? 'block' : 'none';
 
       const previewEl = modal.querySelector('#mission-selected-preview');
       const txtLabel = modal.querySelector('#mission-textarea-label');
@@ -7869,11 +8162,38 @@
             selectedPreset = null;
           } else {
             selectedPreset = presets.find(p => p.key === k) || null;
+            if (selectedPreset) {
+              currentType = selectedPreset.type || 'auto';
+              if (selectedPreset.metric) currentMetric = selectedPreset.metric;
+              if (selectedPreset.target != null) currentTarget = selectedPreset.target;
+              if (selectedPreset.minAttempts != null) currentMinAttempts = selectedPreset.minAttempts;
+              const metSel = modal.querySelector('#mission-metric-select');
+              if (metSel && selectedPreset.metric) metSel.value = selectedPreset.metric;
+              const tgtInp = modal.querySelector('#mission-target-input');
+              if (tgtInp && selectedPreset.target != null) tgtInp.value = selectedPreset.target;
+              const attInp = modal.querySelector('#mission-minattempts-input');
+              if (attInp && selectedPreset.minAttempts != null) attInp.value = selectedPreset.minAttempts;
+            }
           }
           updateSelectionUI();
           haptic(25);
         };
       });
+
+      const btnAuto = modal.querySelector('#btn-type-auto');
+      if (btnAuto) {
+        btnAuto.onclick = () => {
+          currentType = 'auto';
+          updateSelectionUI();
+        };
+      }
+      const btnManual = modal.querySelector('#btn-type-manual');
+      if (btnManual) {
+        btnManual.onclick = () => {
+          currentType = 'manual';
+          updateSelectionUI();
+        };
+      }
 
       function closeModal() {
         modal.remove();
@@ -7890,33 +8210,35 @@
           return;
         }
 
-        if (selectedPreset) {
-          Store.setPlayerWeeklyMission(player.id, {
-            text: (curLang === 'ee' ? selectedPreset.text_ee : (curLang === 'en' ? selectedPreset.text_en : selectedPreset.text_es)),
-            text_es: selectedPreset.text_es,
-            text_en: selectedPreset.text_en,
-            text_ee: selectedPreset.text_ee,
-            presetKey: selectedPreset.key,
-            category: selectedPreset.category,
-            icon: selectedPreset.icon,
-            comment: typedVal,
-            status: 'pending',
-            assignedAt: Date.now()
-          });
-        } else {
-          Store.setPlayerWeeklyMission(player.id, {
-            text: typedVal,
-            text_es: typedVal,
-            text_en: typedVal,
-            text_ee: typedVal,
-            presetKey: '',
-            category: 'General',
-            icon: '🎯',
-            comment: '',
-            status: 'pending',
-            assignedAt: Date.now()
-          });
-        }
+        const metSel = modal.querySelector('#mission-metric-select');
+        const tgtInp = modal.querySelector('#mission-target-input');
+        const attInp = modal.querySelector('#mission-minattempts-input');
+
+        const finalMetric = metSel ? metSel.value : currentMetric;
+        const finalTarget = tgtInp ? (Number(tgtInp.value) || 0) : Number(currentTarget);
+        const finalMinAttempts = attInp ? (Number(attInp.value) || 0) : Number(currentMinAttempts);
+
+        const missionPayload = {
+          id: (currentMission && currentMission.id) || ('m_' + Date.now()),
+          title: selectedPreset ? selectedPreset.text_es : typedVal,
+          text: selectedPreset ? (curLang === 'ee' ? selectedPreset.text_ee : (curLang === 'en' ? selectedPreset.text_en : selectedPreset.text_es)) : typedVal,
+          text_es: selectedPreset ? selectedPreset.text_es : typedVal,
+          text_en: selectedPreset ? selectedPreset.text_en : typedVal,
+          text_ee: selectedPreset ? selectedPreset.text_ee : typedVal,
+          presetKey: selectedPreset ? selectedPreset.key : '',
+          category: selectedPreset ? selectedPreset.category : 'General',
+          icon: selectedPreset ? selectedPreset.icon : '🎯',
+          type: currentType,
+          metric: currentType === 'auto' ? finalMetric : null,
+          target: currentType === 'auto' ? finalTarget : 0,
+          minAttempts: currentType === 'auto' ? finalMinAttempts : 0,
+          currentProgress: (currentMission && currentMission.currentProgress) || 0,
+          comment: typedVal,
+          status: currentType === 'auto' ? 'in_progress' : 'pending',
+          assignedAt: Date.now()
+        };
+
+        Store.setPlayerWeeklyMission(player.id, missionPayload);
 
         if (window.Cloud && window.Cloud.pushCoachState) {
           window.Cloud.pushCoachState(Store.state, true);
@@ -8823,12 +9145,14 @@
             if (window.FutCard && FutCard.showModal) {
               const streak = Store.calculatePlayerAttendanceStreak ? Store.calculatePlayerAttendanceStreak(p.id) : 0;
               const ovr = FutCard.computeOvr ? FutCard.computeOvr(playerRadar, p.mainPosition) : Math.min(99, Math.max(45, Math.round(matchRating * 10)));
+              const mvpCount = Store.calculatePlayerMvpCount ? Store.calculatePlayerMvpCount(p.id) : (p.mvpCount || 0);
               FutCard.showModal({
                 player: p,
                 radar: playerRadar,
                 ovr: ovr,
                 team: team,
                 streak: streak,
+                mvpCount: mvpCount,
                 lang: (Store.state.settings && Store.state.settings.lang) || 'es'
               });
             } else {

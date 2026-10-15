@@ -419,6 +419,31 @@
     ctx.fillStyle = theme.statLabelColor;
     ctx.fillText(getI18nText('statReg', 'REG'), W / 2 + 6, yReg - 4);
 
+    // 7.5 Contador de MVPs Oficiales: ⭐ x{mvpCount}
+    const mvpCount = (data.player && data.player.mvpCount != null) ? data.player.mvpCount : (data.mvpCount || 0);
+    const mvpY = 665;
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const pillW = 124;
+    const pillH = 32;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+    ctx.strokeStyle = themeId === 'diamond' ? '#38bdf8' : (themeId === 'black' ? '#facc15' : '#eab308');
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    if (typeof ctx.roundRect === 'function') {
+      ctx.roundRect(W / 2 - pillW / 2, mvpY - pillH / 2, pillW, pillH, 16);
+    } else {
+      ctx.rect(W / 2 - pillW / 2, mvpY - pillH / 2, pillW, pillH);
+    }
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.font = '900 19px "Arial Black", sans-serif';
+    ctx.fillStyle = themeId === 'diamond' ? '#38bdf8' : '#fef08a';
+    ctx.fillText(`⭐ x${mvpCount}`, W / 2, mvpY + 1);
+    ctx.restore();
+
     // 8. Insignias en el pie de la carta (Bandera Estonia, Logo EJL, Logo JK Noova) - Ajustado en Y para no rozar borde
     const badgeY = 724;
 
@@ -458,6 +483,7 @@
     const ovr = opts.ovr || computeOvr(radar, playerPos);
     const team = opts.team || null;
     const streak = opts.streak || 0;
+    const mvpCount = opts.mvpCount != null ? opts.mvpCount : ((player && player.mvpCount != null) ? player.mvpCount : 0);
     const lang = getLang();
 
     const existing = document.getElementById('dialog-fut-card-overlay');
@@ -544,6 +570,7 @@
         ovr,
         team,
         streak,
+        mvpCount,
         _avatarImage: avatarImgObj
       }, currentTheme);
 

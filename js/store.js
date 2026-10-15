@@ -211,6 +211,21 @@
       x.score = x.score || { home: 0, away: 0 };
       x.period = x.period || (x.type === 'match' ? '1T' : 'B1');
       x.zones = Array.isArray(x.zones) ? x.zones : [];
+      x.coachPicks = Array.isArray(x.coachPicks) ? x.coachPicks : [];
+    });
+    s.players.forEach(p => {
+      if (p.mvpCount == null) {
+        let count = 0;
+        const sPid = String(p.id);
+        s.sessions.forEach(sess => {
+          if (sess && sess.type === 'match') {
+            if ((sess.mvpOfficialId && String(sess.mvpOfficialId) === sPid) || (sess.mvpWinnerId && String(sess.mvpWinnerId) === sPid)) {
+              count++;
+            }
+          }
+        });
+        p.mvpCount = count;
+      }
     });
     s.app = d.app;
     s.version = d.version;
@@ -375,22 +390,33 @@
     setPlayerWeeklyMission(id, missionData) {
       const p = this.player(id);
       if (!p) return null;
-      if (!missionData || (!missionData.text && !missionData.text_es)) {
+      if (!missionData || (!missionData.text && !missionData.text_es && !missionData.title)) {
         delete p.weeklyMission;
       } else {
+        const isAuto = missionData.type === 'auto';
         p.weeklyMission = {
-          text: missionData.text || missionData.text_es || '',
-          text_es: missionData.text_es || missionData.text || '',
-          text_en: missionData.text_en || missionData.text || '',
-          text_ee: missionData.text_ee || missionData.text || '',
+          id: missionData.id || ('m_' + Date.now()),
+          title: missionData.title || missionData.text || missionData.text_es || '',
+          text: missionData.text || missionData.text_es || missionData.title || '',
+          text_es: missionData.text_es || missionData.text || missionData.title || '',
+          text_en: missionData.text_en || missionData.text || missionData.title || '',
+          text_ee: missionData.text_ee || missionData.text || missionData.title || '',
           presetKey: missionData.presetKey || '',
           category: missionData.category || 'General',
           icon: missionData.icon || '🎯',
+          type: isAuto ? 'auto' : 'manual',
+          metric: isAuto ? (missionData.metric || 'pass_acc') : null,
+          target: isAuto ? (Number(missionData.target) || 0) : 0,
+          minAttempts: isAuto ? (Number(missionData.minAttempts) || 0) : 0,
+          currentProgress: isAuto ? (Number(missionData.currentProgress) || 0) : 0,
           comment: (missionData.comment || '').trim(),
-          status: missionData.status || 'pending',
+          status: missionData.status || (isAuto ? 'in_progress' : 'pending'),
           assignedAt: missionData.assignedAt || Date.now(),
           completedAt: missionData.status === 'completed' ? (missionData.completedAt || Date.now()) : null
         };
+        if (isAuto) {
+          this.evaluateAutoWeeklyMissions([id]);
+        }
       }
       this.save();
       return p;
@@ -417,13 +443,136 @@
       return p;
     },
 
+    evaluateAutoWeeklyMissions(playerIds) {
+      if (!Array.isArray(playerIds) || playerIds.length === 0) return;
+      const now = Date.now();
+      const d = new Date();
+      const day = d.getDay();
+      const diffToMonday = (day === 0 ? -6 : 1) - day;
+      const startOfWeek = new Date(d);
+      startOfWeek.setDate(d.getDate() + diffToMonday);
+      startOfWeek.setHours(0, 0, 0, 0);
+      const weekStartTs = startOfWeek.getTime();
+
+      let modified = false;
+
+      playerIds.forEach(pid => {
+        const p = this.player(pid);
+        if (!p || !p.weeklyMission) return;
+        const m = p.weeklyMission;
+        if (m.type !== 'auto') return;
+        if (m.status === 'completed') return;
+
+        const sinceTs = Math.min(weekStartTs, m.assignedAt || weekStartTs);
+        const recentSessions = (this.state.sessions || []).filter(s => {
+          if (!s) return false;
+          const sDate = s.date ? new Date(s.date).getTime() : 0;
+          return sDate >= sinceTs;
+        });
+
+        let progress = 0;
+        let attemptsMet = true;
+
+        switch (m.metric) {
+          case 'pass_acc': {
+            let totalGood = 0, totalBad = 0;
+            recentSessions.forEach(s => {
+              const st = (s.stats && s.stats[pid]) || {};
+              totalGood += (st.passGood || st.pass || 0);
+              totalBad += (st.passBad || 0);
+            });
+            const totalPasses = totalGood + totalBad;
+            if (m.minAttempts && totalPasses < m.minAttempts) {
+              attemptsMet = false;
+            }
+            progress = totalPasses > 0 ? Math.round((totalGood / totalPasses) * 100) : 0;
+            break;
+          }
+          case 'duels_won': {
+            let duelsWon = 0;
+            let totalDuels = 0;
+            recentSessions.forEach(s => {
+              if (s.duels1v1 && Array.isArray(s.duels1v1.history)) {
+                s.duels1v1.history.forEach(h => {
+                  if (h.player1Id === pid || h.player2Id === pid) {
+                    totalDuels++;
+                    if (h.winnerId === pid) duelsWon++;
+                  }
+                });
+              }
+              const st = (s.stats && s.stats[pid]) || {};
+              duelsWon += (st.duelsWon || st.wonDuel || 0);
+            });
+            if (m.minAttempts && totalDuels < m.minAttempts) {
+              attemptsMet = false;
+            }
+            progress = duelsWon;
+            break;
+          }
+          case 'recoveries': {
+            let recoveries = 0;
+            recentSessions.forEach(s => {
+              const st = (s.stats && s.stats[pid]) || {};
+              recoveries += (st.recovery || st.ballRecovery || 0);
+            });
+            progress = recoveries;
+            break;
+          }
+          case 'goals': {
+            let goals = 0;
+            recentSessions.forEach(s => {
+              const st = (s.stats && s.stats[pid]) || {};
+              goals += (st.goal || 0);
+            });
+            progress = goals;
+            break;
+          }
+          case 'attendance_streak': {
+            progress = this.calculatePlayerAttendanceStreak(pid);
+            break;
+          }
+        }
+
+        m.currentProgress = progress;
+        if (progress >= m.target && attemptsMet) {
+          m.status = 'completed';
+          m.completedAt = now;
+          modified = true;
+        } else {
+          m.status = 'in_progress';
+          modified = true;
+        }
+      });
+
+      if (modified) {
+        this.save();
+        if (window.Cloud && window.Cloud.pushCoachState) {
+          window.Cloud.pushCoachState(this.state, true);
+        }
+      }
+    },
+
     setOfficialMatchMvp(sessionId, playerId) {
       const s = this.session(sessionId);
       if (!s) return null;
+      const prevMvpId = s.mvpOfficialId;
       s.mvpOfficialId = playerId || null;
+      if (prevMvpId) this.calculatePlayerMvpCount(prevMvpId);
+      if (playerId) this.calculatePlayerMvpCount(playerId);
       this.save();
       if (window.Cloud && window.Cloud.setOfficialMatchMvp) {
         window.Cloud.setOfficialMatchMvp(sessionId, playerId);
+      }
+      return s;
+    },
+
+    setMatchCoachPicks(sessionId, coachPicks) {
+      const s = this.session(sessionId);
+      if (!s) return null;
+      s.coachPicks = Array.isArray(coachPicks) ? coachPicks.slice(0, 3) : [];
+      this.save();
+      if (window.Cloud && window.Cloud.setMatchCoachPicks) {
+        window.Cloud.setMatchCoachPicks(sessionId, s.coachPicks);
       }
       return s;
     },
@@ -544,6 +693,7 @@
       s.attendance = replace ? Object.assign({}, attendanceMap) : Object.assign({}, s.attendance || {}, attendanceMap);
       s.updatedAt = Date.now();
       this.save();
+      this.evaluateAutoWeeklyMissions(Object.keys(attendanceMap || {}));
       return s.attendance;
     },
 
@@ -853,7 +1003,7 @@
       const sPid = String(playerId);
       let count = 0;
       (this.state.sessions || []).forEach(s => {
-        if (s.type === 'match') {
+        if (s && s.type === 'match') {
           if (s.mvpOfficialId && String(s.mvpOfficialId) === sPid) {
             count++;
           } else if (s.mvpWinnerId && String(s.mvpWinnerId) === sPid) {
@@ -861,6 +1011,8 @@
           }
         }
       });
+      const p = this.player(playerId);
+      if (p) p.mvpCount = count;
       return count;
     },
 
@@ -1987,4 +2139,11 @@
   window.addEventListener('pagehide', () => Store.flushNative());
 
   window.Store = Store;
+  try {
+    setTimeout(() => {
+      if (Store.evaluateAutoWeeklyMissions && Store.state && Array.isArray(Store.state.players)) {
+        Store.evaluateAutoWeeklyMissions(Store.state.players.map(p => p.id));
+      }
+    }, 600);
+  } catch (e) {}
 })();
