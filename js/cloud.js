@@ -427,21 +427,41 @@
             copy.duel1v1 = Store.getPlayer1v1Stats(copy.id, stateData.sessions);
           }
 
-          // Historial resumido de partidos para este jugador
-          const pMatches = (stateData.sessions || [])
-            .filter(s => s && s.type === 'match' && s.stats && s.stats[copy.id] && Object.values(s.stats[copy.id]).some(v => v > 0))
-            .slice(0, 25)
+          // Historial resumido de sesiones (partidos y entrenamientos) para este jugador
+          const pSessions = (stateData.sessions || [])
+            .filter(s => s && s.stats && s.stats[copy.id] && Object.values(s.stats[copy.id]).some(v => v > 0))
+            .slice(0, 30)
             .map(s => {
               const st = s.stats[copy.id] || {};
               const r = (global.Store && Store.calculateMatchRating) ? Store.calculateMatchRating(st, copy.mainPosition) : 6.0;
               const totP = (st.passOk || 0) + (st.passKo || 0);
               return {
+                id: s.id,
                 sessionId: s.id,
+                type: s.type || 'training',
                 date: s.date || '',
                 title: s.title || '',
                 rival: s.rival || '',
-                score: s.score || '',
+                venue: s.venue || '',
+                score: s.score || null,
                 rating: r,
+                stats: {
+                  goal: st.goal || 0,
+                  assist: st.assist || 0,
+                  passOk: st.passOk || 0,
+                  passKo: st.passKo || 0,
+                  shotOn: st.shotOn || 0,
+                  shotOff: st.shotOff || 0,
+                  recovery: st.recovery || st.recoveries || 0,
+                  recoveries: st.recovery || st.recoveries || 0,
+                  touches: st.touches || 0,
+                  dribbleOk: st.dribbleOk || 0,
+                  duelsWon: st.duelsWon || 0,
+                  duel1v1WonGoal: st.duel1v1WonGoal || 0,
+                  duel1v1WonStop: st.duel1v1WonStop || 0,
+                  duel1v1LostTurnover: st.duel1v1LostTurnover || 0,
+                  duel1v1LostGoal: st.duel1v1LostGoal || 0
+                },
                 goal: st.goal || 0,
                 assist: st.assist || 0,
                 passOk: st.passOk || 0,
@@ -455,7 +475,8 @@
                 dribbleOk: st.dribbleOk || 0
               };
             });
-          copy.matchHistorySummary = pMatches;
+          copy.sessionHistorySummary = pSessions;
+          copy.matchHistorySummary = pSessions.filter(s => s.type === 'match');
 
           return copy;
         }));
@@ -611,6 +632,16 @@
           if (!cleanP.unlinkedAt && global.firebase?.firestore?.FieldValue) {
             cleanP.unlinkedAt = global.firebase.firestore.FieldValue.delete();
           }
+
+          // Si el jugador no tiene misión semanal activa o fue borrada, eliminarla explícitamente en Firestore
+          if (!cleanP.weeklyMission && global.firebase?.firestore?.FieldValue) {
+            cleanP.weeklyMission = global.firebase.firestore.FieldValue.delete();
+          }
+
+          if (p.forceCachePurgeTimestamp) {
+            cleanP.forceCachePurgeTimestamp = p.forceCachePurgeTimestamp;
+          }
+
           const pHash = JSON.stringify(cleanP);
 
           if (syncedHashes.players[p.id] !== pHash) {

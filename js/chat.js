@@ -249,20 +249,99 @@
       allPlayersAlreadyInGroup: 'Kõik mängijad on juba sellesse gruppi lisatud.',
       addSelected: 'Lisa valitud',
       you: 'Sina'
+    },
+    ru: {
+      searchChatOrTeammate: 'Поиск чата или игрока...',
+      searchTeammate: 'Поиск чата или игрока...',
+      newChat: 'Новый чат',
+      newChatOrGroup: 'Новый чат или группа',
+      createGroupChat: 'Создать группу',
+      createGroupSub: 'Выбрать игроков и тренера',
+      sendPrivateMsg: 'Личное сообщение',
+      sendPrivateMsgSub: 'Начать диалог 1 на 1',
+      searchUser: 'Поиск игрока или тренера...',
+      coach: 'Тренер',
+      technicalStaff: 'Тренерский штаб',
+      player: 'Игрок',
+      newGroupChat: 'Новая группа чата',
+      groupName: 'Название группы *',
+      groupNamePlaceholder: 'Напр.: Нападающие, Турнир в субботу...',
+      groupIconAndPhoto: 'Иконка или фото группы',
+      uploadGroupPhoto: 'Загрузить фото группы',
+      groupPhotoSub: 'Можно нажать для увеличения',
+      pickGroupEmoji: 'Или выбери эмодзи для группы:',
+      groupMembers: 'Выбрать участников:',
+      createGroupBtn: 'Создать и открыть группу',
+      loading: 'Загрузка чатов...',
+      loadingChats: 'Загрузка чатов...',
+      loadingMessages: 'Загрузка сообщений...',
+      chatCoachRole: 'Официальный канал тренера',
+      typeMessage: 'Напишите сообщение...',
+      unmuteNotifications: 'Включить уведомления',
+      muteNotifications: 'Отключить звук',
+      deleteChat: 'Удалить диалог',
+      deleteGroup: 'Удалить группу',
+      deleteGroupConfirm: 'Удалить эту группу навсегда для всех участников?',
+      deleteChatConfirm: 'Удалить этот диалог из твоего списка?',
+      deleteForEveryoneConfirm: 'Удалить это сообщение для всех?',
+      chatDeletedForYou: 'Диалог удален из твоего списка',
+      groupDeleted: 'Группа удалена',
+      messageDeletedForMe: 'Сообщение удалено для тебя',
+      removeMember: 'Исключить участника',
+      removeMemberConfirm: 'Исключить этого участника из группы?',
+      squadGeneral: 'Общий чат команды',
+      coachAndTeammates: 'с тренером и товарищами по команде',
+      pinnedPermanently: 'Закреплено клубом навсегда',
+      unpin: 'Открепить диалог',
+      pin: 'Закрепить вверху',
+      chatPinned: '📌 Чат закреплен',
+      chatUnpinned: '📍 Чат откреплен',
+      notifsMuted: '🔕 Звук уведомлений отключен',
+      notifsEnabled: '🔔 Уведомления включены',
+      offline: 'Не в сети',
+      group: 'Группа',
+      online: 'В сети',
+      lastSeen: 'Был(а) в сети',
+      noMessagesYet: 'В этом чате пока нет сообщений. Напиши первым!',
+      today: 'Сегодня',
+      yesterday: 'Вчера',
+      msgDeletedForEveryone: 'Это сообщение было удалено',
+      edited: 'изменено',
+      messageOptions: 'Параметры сообщения',
+      copyMessage: 'Копировать сообщение',
+      editMessage: 'Редактировать',
+      deleteForEveryone: 'Удалить для всех',
+      deleteForMe: 'Удалить для меня',
+      copiedToClipboard: 'Сообщение скопировано в буфер обмена',
+      messageDeleted: 'Сообщение удалено для всех',
+      cancel: 'Отмена',
+      save: 'Сохранить',
+      messageEdited: 'Сообщение изменено',
+      profileInactiveMsg: 'Твой профиль игрока не активен. Отправка сообщений недоступна.',
+      editGroup: 'Изменить название и иконку',
+      leaveGroup: 'Покинуть группу',
+      addParticipants: 'Добавить участников',
+      viewGroupMembers: 'Участники группы',
+      changePhoto: 'Сменить фото',
+      allPlayersAlreadyInGroup: 'Все игроки уже состоят в этой группе.',
+      addSelected: 'Добавить выбранных',
+      you: 'Ты'
     }
   };
 
   function getChatLang() {
     try {
-      if (global.currentLang === 'ee' || global.currentLang === 'es' || global.currentLang === 'en') {
-        return global.currentLang;
+      let l = global.currentLang || (global.I18N && global.I18N.getLang && global.I18N.getLang());
+      if (!l) {
+        l = localStorage.getItem('lang') || localStorage.getItem('preferred_lang');
       }
-      const stored = localStorage.getItem('lang') || localStorage.getItem('preferred_lang');
-      if (stored === 'ee' || stored === 'es' || stored === 'en') return stored;
-      if (global.Store && global.Store.state && global.Store.state.lang) {
-        const sl = global.Store.state.lang;
-        if (sl === 'ee' || sl === 'es' || sl === 'en') return sl;
+      if (!l && global.Store && global.Store.state && global.Store.state.lang) {
+        l = global.Store.state.lang;
       }
+      if (l === 'et' || l === 'ee') return 'ee';
+      if (l === 'ru') return 'ru';
+      if (l === 'es') return 'es';
+      if (l === 'en') return 'en';
     } catch (e) {}
     return 'en';
   }

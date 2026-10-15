@@ -424,6 +424,7 @@
           text_es: missionData.text_es || missionData.text || missionData.title || '',
           text_en: missionData.text_en || missionData.text || missionData.title || '',
           text_ee: missionData.text_ee || missionData.text || missionData.title || '',
+          text_ru: missionData.text_ru || missionData.text || missionData.title || '',
           presetKey: missionData.presetKey || '',
           category: missionData.category || 'General',
           icon: missionData.icon || '🎯',
@@ -461,9 +462,27 @@
     clearPlayerWeeklyMission(id) {
       const p = this.player(id);
       if (!p) return null;
+      p.weeklyMission = null;
       delete p.weeklyMission;
       this.save();
       return p;
+    },
+
+    isSessionFinished(s) {
+      if (!s) return false;
+      return !!(s.finished === true || s.status === 'finished' || s.status === 'completed' || s.endedAt != null);
+    },
+
+    finishSession(sId) {
+      const s = this.session(sId);
+      if (!s) return null;
+      s.status = 'finished';
+      s.finished = true;
+      s.endedAt = s.endedAt || Date.now();
+      s.finishedAt = s.finishedAt || Date.now();
+      if (s.timerStartedAt) this.toggleTimer(s);
+      this.save();
+      return s;
     },
 
     evaluateAutoWeeklyMissions(playerIds) {

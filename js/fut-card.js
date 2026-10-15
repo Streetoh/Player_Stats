@@ -111,7 +111,8 @@
         themeGold: '🟡 Oro Clásico',
         themeBlack: '⚫ TOTW Black',
         themeDiamond: '🔷 Diamante Cyan',
-        statPas: 'PAS', statTir: 'TIR', statReg: 'REG', statFis: 'FIS', statDef: 'DEF', statDis: 'DIS'
+        statPas: 'PAS', statTir: 'TIR', statReg: 'REG', statFis: 'FIS', statDef: 'DEF', statDis: 'DIS',
+        streakWhatsApp: '\n🔥 Racha de asistencias: {streak} seguidas!'
       },
       en: {
         futCardTitle: 'FUT Collectible Card',
@@ -126,7 +127,8 @@
         themeGold: '🟡 Gold Classic',
         themeBlack: '⚫ TOTW Black',
         themeDiamond: '🔷 Diamond Cyan',
-        statPas: 'PAS', statTir: 'SHO', statReg: 'DRI', statFis: 'PHY', statDef: 'DEF', statDis: 'DIS'
+        statPas: 'PAS', statTir: 'SHO', statReg: 'DRI', statFis: 'PHY', statDef: 'DEF', statDis: 'DIS',
+        streakWhatsApp: '\n🔥 Attendance streak: {streak} in a row!'
       },
       et: {
         futCardTitle: 'Kogutav FUT Kaart',
@@ -141,7 +143,8 @@
         themeGold: '🟡 Kuldne Klassika',
         themeBlack: '⚫ Must TOTW',
         themeDiamond: '🔷 Teemant Tsüaan',
-        statPas: 'SÖÖ', statTir: 'LÖÖ', statReg: 'TRI', statFis: 'FÜÜ', statDef: 'KAI', statDis: 'DIS'
+        statPas: 'SÖÖ', statTir: 'LÖÖ', statReg: 'TRI', statFis: 'FÜÜ', statDef: 'KAI', statDis: 'DIS',
+        streakWhatsApp: '\n🔥 Osalemise seeria: {streak} järjest!'
       },
       ee: {
         futCardTitle: 'Kogutav FUT Kaart',
@@ -156,7 +159,8 @@
         themeGold: '🟡 Kuldne Klassika',
         themeBlack: '⚫ Must TOTW',
         themeDiamond: '🔷 Teemant Tsüaan',
-        statPas: 'SÖÖ', statTir: 'LÖÖ', statReg: 'TRI', statFis: 'FÜÜ', statDef: 'KAI', statDis: 'DIS'
+        statPas: 'SÖÖ', statTir: 'LÖÖ', statReg: 'TRI', statFis: 'FÜÜ', statDef: 'KAI', statDis: 'DIS',
+        streakWhatsApp: '\n🔥 Osalemise seeria: {streak} järjest!'
       },
       ru: {
         futCardTitle: 'Коллекционная карточка FUT',
@@ -171,7 +175,8 @@
         themeGold: '🟡 Классическое золото',
         themeBlack: '⚫ Черный TOTW',
         themeDiamond: '🔷 Алмазный циан',
-        statPas: 'ПАС', statTir: 'УДР', statReg: 'ДРБ', statFis: 'ФИЗ', statDef: 'ЗАЩ', statDis: 'ДИС'
+        statPas: 'ПАС', statTir: 'УДР', statReg: 'ДРБ', statFis: 'ФИЗ', statDef: 'ЗАЩ', statDis: 'ДИС',
+        streakWhatsApp: '\n🔥 Серия посещаемости: {streak} подряд!'
       }
     };
     return (dict[lang] && dict[lang][key]) || (dict.en && dict.en[key]) || fallback || key;
@@ -512,6 +517,7 @@
     if (!player) return;
 
     let currentTheme = 'gold';
+    const radar = opts.radar || (player && (player.skills || player.radar)) || { pas: 70, tir: 70, reg: 70, def: 70, fis: 70, dis: 75 };
     const playerPos = opts.position || (player && player.mainPosition) || 'MC';
     const ovr = opts.ovr || computeOvr(radar, playerPos);
     const team = opts.team || null;
@@ -695,7 +701,7 @@
     btnWa.onclick = () => {
       const shareMsg = getI18nText('shareText', '¡Mira mi Carta Oficial de Player Stats con media general de {ovr}!').replace('{ovr}', ovr)
         + `\n⭐ OVR: ${ovr} | PAS ${radar.pas} | TIR ${radar.tir} | REG ${radar.reg} | FIS ${radar.fis} | DEF ${radar.def} | DIS ${radar.dis}`
-        + (streak >= 3 ? `\n🔥 Racha de asistencias: ${streak} seguidas!` : '');
+        + (streak >= 3 ? getI18nText('streakWhatsApp', '\n🔥 Racha de asistencias: {streak} seguidas!').replace('{streak}', streak) : '');
       const filename = `Carta_FUT_${(player.name || 'Player').replace(/\s+/g, '_')}_OVR${ovr}.png`;
       if (window.AndroidBridge && window.AndroidBridge.shareImage) {
         try {
@@ -712,7 +718,7 @@
     btnViber.onclick = () => {
       const shareMsg = getI18nText('shareText', '¡Mira mi Carta Oficial de Player Stats con media general de {ovr}!').replace('{ovr}', ovr)
         + `\n⭐ OVR: ${ovr} | PAS ${radar.pas} | TIR ${radar.tir} | REG ${radar.reg} | FIS ${radar.fis} | DEF ${radar.def} | DIS ${radar.dis}`
-        + (streak >= 3 ? `\n🔥 Racha de asistencias: ${streak} seguidas!` : '');
+        + (streak >= 3 ? getI18nText('streakWhatsApp', '\n🔥 Racha de asistencias: {streak} seguidas!').replace('{streak}', streak) : '');
       const filename = `Carta_FUT_${(player.name || 'Player').replace(/\s+/g, '_')}_OVR${ovr}.png`;
       if (window.AndroidBridge && window.AndroidBridge.shareImage) {
         try {

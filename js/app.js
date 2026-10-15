@@ -422,9 +422,9 @@
           </div>
 
           <div class="calendar-shortcuts">
-            <button type="button" class="calendar-shortcut-btn" id="cal-btn-today">⚡ ${isEn ? 'Today' : 'Hoy'}</button>
-            <button type="button" class="calendar-shortcut-btn" id="cal-btn-tomorrow">⏩ ${isEn ? 'Tomorrow' : 'Mañana'}</button>
-            <button type="button" class="calendar-shortcut-btn" id="cal-btn-yesterday">⏪ ${isEn ? 'Yesterday' : 'Ayer'}</button>
+            <button type="button" class="calendar-shortcut-btn" id="cal-btn-today">⚡ ${t('today', 'Hoy')}</button>
+            <button type="button" class="calendar-shortcut-btn" id="cal-btn-tomorrow">⏩ ${t('tomorrow', 'Mañana')}</button>
+            <button type="button" class="calendar-shortcut-btn" id="cal-btn-yesterday">⏪ ${t('yesterday', 'Ayer')}</button>
           </div>
 
           <div style="margin-top: 12px; display: flex; gap: 8px;">
@@ -3578,9 +3578,12 @@
     container.querySelector('#tracker-btn-finish').onclick = () => {
       const isMatch = session.type === 'match';
       confirmDialog(t('finishSession', 'Finalizar Sesión'), isMatch ? '¿Deseas finalizar el partido?' : '¿Deseas finalizar el entrenamiento?', () => {
-        if (session.timerStartedAt) Store.toggleTimer(session);
+        Store.finishSession(session.id);
         closeTracker();
         Store.evaluateAutoWeeklyMissions(Object.keys(session.stats || {}));
+        if (window.Cloud && window.Cloud.pushCoachState) {
+          window.Cloud.pushCoachState(Store.state, true);
+        }
         showSessionDetailModal(session.id);
         if (isMatch && (!session.coachPicks || session.coachPicks.length === 0)) {
           setTimeout(() => {
@@ -7015,59 +7018,98 @@
           }
         }
 
+        const isMatchFinished = Store.isSessionFinished(s);
+        const todayNormStr = new Date().toISOString().slice(0, 10);
+        const isFutureMatch = (s.date > todayNormStr);
+        const isTodayMatch = (s.date === todayNormStr);
+
         body.innerHTML = `
           <!-- Cabecera del partido o entrenamiento -->
           ${s.type === 'match' ? `
-            <div style="background: linear-gradient(135deg, rgba(250, 204, 21, 0.12), rgba(34, 211, 238, 0.12)); border: 1px solid rgba(250, 204, 21, 0.35); border-radius: 16px; padding: 14px; text-align: center; margin-bottom: 12px;">
-              <span class="badge match" style="font-size: 10.5px; padding: 2px 8px; margin-bottom: 6px;">PARTIDO FINALIZADO</span>
-              <div style="font-size: 34px; font-weight: 900; font-variant-numeric: tabular-nums; margin: 4px 0;">
-                <span>${(s.score && s.score.home) || 0}</span>
-                <span style="color: var(--dim); margin: 0 10px;">:</span>
-                <span>${(s.score && s.score.away) || 0}</span>
-              </div>
-              <div style="font-size: 15px; font-weight: 800; color: var(--text);">
-                ${escapeHtml(Store.sessionTitle(s))}
-              </div>
-              <div class="muted" style="font-size: 12px; margin-top: 4px;">
-                📅 ${formatDateDDMMAAAA(s.date)} • ⏱️ ${Store.fmtTime(Store.elapsed(s), s)} ${s.venue ? '• 📍 ' + escapeHtml(s.venue) : ''}
-              </div>
-            </div>
-
-            <!-- Panel de Gestión y Votación de MVP de Partido -->
-            <div class="card" id="card-match-mvp-action" style="margin-bottom: 12px; background: rgba(250, 204, 21, 0.08); border: 1.5px solid rgba(250, 204, 21, 0.35); padding: 12px 14px; border-radius: 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer;">
-              <div style="display: flex; align-items: center; gap: 10px;">
-                <span style="font-size: 22px;">👑</span>
-                <div>
-                  <b style="font-size: 13px; color: #fde047; display: block;">
-                    ${s.mvpOfficialId ? '⭐ MVP Oficial Confirmado' : 'Votación del MVP del Partido'}
-                  </b>
-                  <span id="label-mvp-votes-tally" style="font-size: 11.5px; color: var(--muted); display: block;">
-                    ${s.mvpOfficialId && Store.player(s.mvpOfficialId) ? `${escapeHtml(Store.playerName(Store.player(s.mvpOfficialId)))} (#${Store.player(s.mvpOfficialId).mainDorsal || ''})` : 'Toca para nombrar el MVP oficial o consultar votos'}
-                  </span>
+            ${isMatchFinished ? `
+              <div style="background: linear-gradient(135deg, rgba(250, 204, 21, 0.12), rgba(34, 211, 238, 0.12)); border: 1px solid rgba(250, 204, 21, 0.35); border-radius: 16px; padding: 14px; text-align: center; margin-bottom: 12px;">
+                <span class="badge match" style="font-size: 10.5px; padding: 2px 8px; margin-bottom: 6px;">PARTIDO FINALIZADO</span>
+                <div style="font-size: 34px; font-weight: 900; font-variant-numeric: tabular-nums; margin: 4px 0;">
+                  <span>${(s.score && s.score.home) || 0}</span>
+                  <span style="color: var(--dim); margin: 0 10px;">:</span>
+                  <span>${(s.score && s.score.away) || 0}</span>
+                </div>
+                <div style="font-size: 15px; font-weight: 800; color: var(--text);">
+                  ${escapeHtml(Store.sessionTitle(s))}
+                </div>
+                <div class="muted" style="font-size: 12px; margin-top: 4px;">
+                  📅 ${formatDateDDMMAAAA(s.date)} • ⏱️ ${Store.fmtTime(Store.elapsed(s), s)} ${s.venue ? '• 📍 ' + escapeHtml(s.venue) : ''}
                 </div>
               </div>
-              <button type="button" class="btn sm" id="btn-manage-match-mvp" style="background: rgba(250, 204, 21, 0.2); color: #fde047; border: 1px solid rgba(250, 204, 21, 0.5); font-weight: 800; font-size: 11.5px; white-space: nowrap;">
-                ⭐ ${s.mvpOfficialId ? 'Cambiar MVP' : 'Nombrar MVP'}
-              </button>
-            </div>
-
-            <!-- Panel de Destacados del Entrenador (Coach Picks, máx 3) -->
-            <div class="card" id="card-coach-picks-action" style="margin-bottom: 12px; background: rgba(168, 85, 247, 0.08); border: 1.5px solid rgba(168, 85, 247, 0.35); padding: 12px 14px; border-radius: 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer;">
-              <div style="display: flex; align-items: center; gap: 10px;">
-                <span style="font-size: 22px;">🌟</span>
-                <div>
-                  <b style="font-size: 13px; color: #c084fc; display: block;">
-                    ${t('mvp_coach_picks_title', 'Destacados por el Míster')}
-                  </b>
-                  <span style="font-size: 11.5px; color: var(--muted); display: block;">
-                    ${(s.coachPicks && s.coachPicks.length > 0) ? `${s.coachPicks.length} nominado${s.coachPicks.length > 1 ? 's' : ''} para la votación de compañeros` : 'Nominar hasta 3 jugadores con comentario para guiar los votos'}
-                  </span>
+            ` : `
+              <div style="background: linear-gradient(135deg, rgba(56, 189, 248, 0.12), rgba(34, 211, 238, 0.12)); border: 1.5px solid rgba(56, 189, 248, 0.35); border-radius: 16px; padding: 14px; text-align: center; margin-bottom: 12px;">
+                <span class="badge" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid #38bdf8; font-size: 10.5px; padding: 2px 8px; margin-bottom: 6px; font-weight: 800;">
+                  ${isFutureMatch ? 'PRÓXIMO PARTIDO' : (isTodayMatch ? 'HOY • PARTIDO PROGRAMADO' : 'PARTIDO PROGRAMADO')}
+                </span>
+                <div style="font-size: 26px; font-weight: 900; color: #38bdf8; margin: 6px 0;">
+                  VS
+                </div>
+                <div style="font-size: 15px; font-weight: 800; color: var(--text);">
+                  ${escapeHtml(Store.sessionTitle(s))}
+                </div>
+                <div class="muted" style="font-size: 12px; margin-top: 4px;">
+                  📅 ${formatDateDDMMAAAA(s.date)} ${s.time ? '• ⏰ ' + s.time : ''} ${s.venue ? '• 📍 ' + escapeHtml(s.venue) : ''}
+                </div>
+                <div style="display: flex; gap: 8px; justify-content: center; margin-top: 10px; flex-wrap: wrap;">
+                  <button type="button" class="btn sm primary" id="btn-start-match-live" style="font-weight: 800; font-size: 12px; border-radius: 8px;">
+                    ▶️ Abrir Tracker en Vivo
+                  </button>
+                  <button type="button" class="btn sm" id="btn-mark-match-finished" style="background: rgba(250, 204, 21, 0.2); color: #facc15; border: 1px solid #facc15; font-weight: 800; font-size: 12px; border-radius: 8px;">
+                    🏁 Marcar como Finalizado
+                  </button>
                 </div>
               </div>
-              <button type="button" class="btn sm" id="btn-manage-coach-picks" style="background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.5); font-weight: 800; font-size: 11.5px; white-space: nowrap;">
-                🌟 ${(s.coachPicks && s.coachPicks.length > 0) ? 'Editar Destacados' : 'Nominar Top 3'}
-              </button>
-            </div>
+            `}
+
+            <!-- Panel de Gestión y Votación de MVP de Partido (Solo visible si finalizado) -->
+            ${isMatchFinished ? `
+              <div class="card" id="card-match-mvp-action" style="margin-bottom: 12px; background: rgba(250, 204, 21, 0.08); border: 1.5px solid rgba(250, 204, 21, 0.35); padding: 12px 14px; border-radius: 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <span style="font-size: 22px;">👑</span>
+                  <div>
+                    <b style="font-size: 13px; color: #fde047; display: block;">
+                      ${s.mvpOfficialId ? '⭐ MVP Oficial Confirmado' : 'Votación del MVP del Partido'}
+                    </b>
+                    <span id="label-mvp-votes-tally" style="font-size: 11.5px; color: var(--muted); display: block;">
+                      ${s.mvpOfficialId && Store.player(s.mvpOfficialId) ? `${escapeHtml(Store.playerName(Store.player(s.mvpOfficialId)))} (#${Store.player(s.mvpOfficialId).mainDorsal || ''})` : 'Toca para nombrar el MVP oficial o consultar votos'}
+                    </span>
+                  </div>
+                </div>
+                <button type="button" class="btn sm" id="btn-manage-match-mvp" style="background: rgba(250, 204, 21, 0.2); color: #fde047; border: 1px solid rgba(250, 204, 21, 0.5); font-weight: 800; font-size: 11.5px; white-space: nowrap;">
+                  ⭐ ${s.mvpOfficialId ? 'Cambiar MVP' : 'Nombrar MVP'}
+                </button>
+              </div>
+
+              <!-- Panel de Destacados del Entrenador (Coach Picks, máx 3) -->
+              <div class="card" id="card-coach-picks-action" style="margin-bottom: 12px; background: rgba(168, 85, 247, 0.08); border: 1.5px solid rgba(168, 85, 247, 0.35); padding: 12px 14px; border-radius: 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <span style="font-size: 22px;">🌟</span>
+                  <div>
+                    <b style="font-size: 13px; color: #c084fc; display: block;">
+                      ${t('mvp_coach_picks_title', 'Destacados por el Míster')}
+                    </b>
+                    <span style="font-size: 11.5px; color: var(--muted); display: block;">
+                      ${(s.coachPicks && s.coachPicks.length > 0) ? `${s.coachPicks.length} nominado${s.coachPicks.length > 1 ? 's' : ''} para la votación de compañeros` : 'Nominar hasta 3 jugadores con comentario para guiar los votos'}
+                    </span>
+                  </div>
+                </div>
+                <button type="button" class="btn sm" id="btn-manage-coach-picks" style="background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.5); font-weight: 800; font-size: 11.5px; white-space: nowrap;">
+                  🌟 ${(s.coachPicks && s.coachPicks.length > 0) ? 'Editar Destacados' : 'Nominar Top 3'}
+                </button>
+              </div>
+            ` : `
+              <div class="card" style="margin-bottom: 12px; background: rgba(255, 255, 255, 0.03); border: 1px dashed rgba(255, 255, 255, 0.15); padding: 10px 14px; border-radius: 12px; display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 20px;">⏳</span>
+                <span style="font-size: 12px; color: var(--muted);">
+                  La votación del MVP y destacados se activarán cuando marques el partido como finalizado.
+                </span>
+              </div>
+            `}
 
             ${(mvpMatchPlayer && (mvpMatchRating >= 5.5 || s.mvpOfficialId)) ? `
               <div class="mvp-match-banner" id="banner-match-mvp" style="cursor: pointer;" title="Toca para ver ficha de ${escapeHtml(Store.playerName(mvpMatchPlayer))}">
@@ -7157,15 +7199,15 @@
           </div>
 
           <div class="section-title">
-            <span>Plantilla de Jugadores (${trackedCount} seguidos / ${filteredPlayers.length} total)</span>
+            <span>${t('matchSquadTitle', 'Plantilla de Jugadores')} (${trackedCount} ${t('trackedCountLabel', 'seguidos')} / ${filteredPlayers.length} ${t('totalCountLabel', 'total')})</span>
           </div>
-          <p class="hint" style="margin-bottom: 10px;">Pulsa en cualquier jugador para consultar su rendimiento específico en este partido:</p>
+          <p class="hint" style="margin-bottom: 10px;">${t('matchSquadHint', 'Pulsa en cualquier jugador para consultar su rendimiento específico en este partido:')}</p>
 
           <!-- Lista de jugadores con destacados interactivos -->
           <div style="max-height: 48vh; overflow-y: auto; padding-right: 2px;">
             ${sortedSquad.length === 0 ? `
               <div class="empty" style="padding: 16px;">
-                <p>No hay jugadores registrados en el equipo seleccionado.</p>
+                <p>${t('noPlayersInTeam', 'No hay jugadores registrados en el equipo seleccionado.')}</p>
               </div>
             ` : sortedSquad.map(p => {
               const isTracked = trackedPlayerIds.has(p.id);
@@ -7210,6 +7252,28 @@
         if (bannerMvp && mvpMatchPlayer) {
           bannerMvp.onclick = () => {
             showPlayerMatchDetailModal(s, mvpMatchPlayer);
+          };
+        }
+
+        const btnStartLive = body.querySelector('#btn-start-match-live');
+        if (btnStartLive) {
+          btnStartLive.onclick = () => {
+            closeSheet();
+            openTracker(s.id);
+          };
+        }
+
+        const btnMarkFin = body.querySelector('#btn-mark-match-finished');
+        if (btnMarkFin) {
+          btnMarkFin.onclick = () => {
+            confirmDialog('Finalizar Partido', '¿Deseas marcar este partido como finalizado?', () => {
+              Store.finishSession(s.id);
+              if (window.Cloud && window.Cloud.pushCoachState) {
+                window.Cloud.pushCoachState(Store.state, true);
+              }
+              toast('Partido marcado como finalizado', 'success');
+              renderSquadContent();
+            });
           };
         }
 
@@ -7825,10 +7889,29 @@
         Object.values(voteData.votes).forEach(targetId => {
           counts[targetId] = (counts[targetId] || 0) + 1;
         });
+        const maxVotes = Math.max(...Object.values(counts), 0);
+        const topCandidateIds = Object.keys(counts).filter(id => counts[id] === maxVotes && maxVotes > 0);
+        const hasTie = topCandidateIds.length > 1;
+
+        let tieNotice = modal.querySelector('#mvp-tie-notice');
+        if (hasTie) {
+          if (!tieNotice) {
+            tieNotice = document.createElement('div');
+            tieNotice.id = 'mvp-tie-notice';
+            tieNotice.style.cssText = 'background: rgba(234, 179, 8, 0.15); border: 1.5px solid #facc15; border-radius: 10px; padding: 8px 12px; font-size: 11.5px; color: #fde047; font-weight: 800; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;';
+            const listEl = modal.querySelector('#mvp-player-options-list');
+            if (listEl && listEl.parentNode) listEl.parentNode.insertBefore(tieNotice, listEl);
+          }
+          tieNotice.innerHTML = `⚖️ <b>Empate en votos comunitarios (${maxVotes} votos):</b> Tu selección como entrenador desempatará al ganador del MVP.`;
+        } else if (tieNotice) {
+          tieNotice.remove();
+        }
+
         modal.querySelectorAll('.mvp-community-tally').forEach(el => {
           const pid = el.getAttribute('data-pid');
           const count = counts[pid] || 0;
-          el.textContent = count > 0 ? `🗳️ ${count} voto${count > 1 ? 's' : ''}` : '';
+          const isTop = (count === maxVotes && maxVotes > 0);
+          el.textContent = count > 0 ? `🗳️ ${count} voto${count > 1 ? 's' : ''}${isTop ? ' 🏆' : ''}` : '';
         });
       });
     }
@@ -7876,7 +7959,8 @@
         minAttempts: 5,
         text_es: 'Completar al menos el 80% de pases con precisión',
         text_en: 'Complete at least 80% of passes with accuracy',
-        text_ee: 'Lõpeta vähemalt 80% söötudest täpselt'
+        text_ee: 'Lõpeta vähemalt 80% söötudest täpselt',
+        text_ru: 'Выполнить не менее 80% точных передач'
       },
       {
         key: 'preset_recov',
@@ -7889,7 +7973,8 @@
         minAttempts: 0,
         text_es: 'Realizar 3 recuperaciones limpias de balón',
         text_en: 'Make 3 clean ball recoveries',
-        text_ee: 'Teha 3 puhast pallivõitu'
+        text_ee: 'Teha 3 puhast pallivõitu',
+        text_ru: 'Совершить 3 чистых отбора/перехвата мяча'
       },
       {
         key: 'preset_duels',
@@ -7902,7 +7987,8 @@
         minAttempts: 3,
         text_es: 'Ganar al menos 3 duelos 1vs1',
         text_en: 'Win at least 3 1v1 duels',
-        text_ee: 'Võita vähemalt 3 1vs1 duelli'
+        text_ee: 'Võita vähemalt 3 1vs1 duelli',
+        text_ru: 'Выиграть как минимум 3 единоборства 1в1'
       },
       {
         key: 'preset_goals',
@@ -7915,7 +8001,8 @@
         minAttempts: 0,
         text_es: 'Marcar 2 o más goles en la semana',
         text_en: 'Score 2 or more goals this week',
-        text_ee: 'Lüüa sel nädalal 2 või rohkem väravat'
+        text_ee: 'Lüüa sel nädalal 2 või rohkem väravat',
+        text_ru: 'Забить 2 или более голов за неделю'
       },
       {
         key: 'preset_streak',
@@ -7928,7 +8015,8 @@
         minAttempts: 0,
         text_es: 'Alcanzar una racha de asistencia de 3 sesiones seguidas',
         text_en: 'Reach an attendance streak of 3 consecutive sessions',
-        text_ee: 'Saavutada järjestikune osalemine 3 trennis'
+        text_ee: 'Saavutada järjestikune osalemine 3 trennis',
+        text_ru: 'Достичь серии посещаемости из 3 тренировок подряд'
       },
       {
         key: 'preset_foot',
@@ -7938,7 +8026,8 @@
         type: 'manual',
         text_es: 'Disparar a portería con la pierna menos hábil',
         text_en: 'Shoot on target using your weaker foot',
-        text_ee: 'Lüüa väravale nõrgema jalaga'
+        text_ee: 'Lüüa väravale nõrgema jalaga',
+        text_ru: 'Пробить по воротам нерабочей ногой'
       },
       {
         key: 'preset_fairplay',
@@ -7948,7 +8037,8 @@
         type: 'manual',
         text_es: 'Cero tarjetas y máxima comunicación de apoyo en el campo',
         text_en: 'Zero cards and maximum supportive communication on the pitch',
-        text_ee: 'Null kaarti ja maksimaalne toetav suhtlus väljakul'
+        text_ee: 'Null kaarti ja maksimaalne toetav suhtlus väljakul',
+        text_ru: 'Без карточек и с максимальной поддержкой партнеров на поле'
       }
     ];
 
@@ -7974,10 +8064,16 @@
     modal.id = 'dialog-assign-mission';
     modal.style.zIndex = '999999';
 
+    function getPresetTextByLang(pr) {
+      if (!pr) return '';
+      if (curLang === 'ru') return pr.text_ru || pr.text_es;
+      if (curLang === 'ee' || curLang === 'et') return pr.text_ee || pr.text_es;
+      if (curLang === 'en') return pr.text_en || pr.text_es;
+      return pr.text_es;
+    }
+
     function renderModalHtml() {
-      const curPresetText = selectedPreset
-        ? (curLang === 'ee' ? selectedPreset.text_ee : (curLang === 'en' ? selectedPreset.text_en : selectedPreset.text_es))
-        : '';
+      const curPresetText = selectedPreset ? getPresetTextByLang(selectedPreset) : '';
 
       return `
         <div class="card dialog-box" style="max-width: 480px; width: 92%; padding: 20px; border-radius: 18px; border: 1.5px solid rgba(168, 85, 247, 0.45); max-height: 90vh; overflow-y: auto;">
@@ -7999,7 +8095,7 @@
             <div id="quick-missions-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; max-height: 200px; overflow-y: auto; padding: 2px;">
               ${presets.map(pr => {
                 const isCur = selectedPreset && selectedPreset.key === pr.key;
-                const prText = (curLang === 'ee' ? pr.text_ee : (curLang === 'en' ? pr.text_en : pr.text_es));
+                const prText = getPresetTextByLang(pr);
                 return `
                   <div class="quick-mission-card ${isCur ? 'active' : ''}" data-mkey="${pr.key}" style="background: ${isCur ? pr.color + '25' : 'var(--surface2)'}; border: ${isCur ? '2px solid ' + pr.color : '1.5px solid rgba(255,255,255,0.08)'}; border-radius: 12px; padding: 10px; cursor: pointer; transition: all .15s ease; display: flex; flex-direction: column; gap: 4px; ${isCur ? `box-shadow: 0 0 14px ${pr.color}60;` : ''}">
                     <div style="display: flex; align-items: center; justify-content: space-between;">
@@ -8138,7 +8234,7 @@
       const txtInput = modal.querySelector('#mission-text-input');
 
       if (selectedPreset) {
-        const prText = (curLang === 'ee' ? selectedPreset.text_ee : (curLang === 'en' ? selectedPreset.text_en : selectedPreset.text_es));
+        const prText = getPresetTextByLang(selectedPreset);
         if (previewEl) {
           previewEl.style.display = 'block';
           previewEl.innerHTML = `
@@ -8148,7 +8244,7 @@
                   🎯 ${t('missionSelected', 'Misión Seleccionada')}:
                 </span>
                 <span style="font-size: 9.5px; font-weight: 800; color: #86efac; background: rgba(34, 197, 94, 0.18); padding: 1px 6px; border-radius: 6px;">
-                  🌐 Auto-traducida (ES / EN / EE)
+                  🌐 Auto-traducida (ES / EN / ET / RU)
                 </span>
               </div>
               <div style="font-size: 13px; font-weight: 800; color: #fff; line-height: 1.35;">
@@ -8244,10 +8340,11 @@
         const missionPayload = {
           id: (currentMission && currentMission.id) || ('m_' + Date.now()),
           title: selectedPreset ? selectedPreset.text_es : typedVal,
-          text: selectedPreset ? (curLang === 'ee' ? selectedPreset.text_ee : (curLang === 'en' ? selectedPreset.text_en : selectedPreset.text_es)) : typedVal,
+          text: selectedPreset ? getPresetTextByLang(selectedPreset) : typedVal,
           text_es: selectedPreset ? selectedPreset.text_es : typedVal,
           text_en: selectedPreset ? selectedPreset.text_en : typedVal,
           text_ee: selectedPreset ? selectedPreset.text_ee : typedVal,
+          text_ru: selectedPreset ? selectedPreset.text_ru : typedVal,
           presetKey: selectedPreset ? selectedPreset.key : '',
           category: selectedPreset ? selectedPreset.category : 'General',
           icon: selectedPreset ? selectedPreset.icon : '🎯',
@@ -8783,9 +8880,12 @@
             🃏 ${t('futCardTitle', 'Carta FUT')}
           </button>
         </div>
-        <div class="btn-row" style="margin-bottom: 12px;">
-          <button class="btn sm grow" id="btn-player-monthly-report" style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(37, 99, 235, 0.3)); color: #60a5fa; border: 1.5px solid #3b82f6; font-weight: 800; width: 100%;">
+        <div class="btn-row" style="margin-bottom: 12px; gap: 8px;">
+          <button class="btn sm grow" id="btn-player-monthly-report" style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(37, 99, 235, 0.3)); color: #60a5fa; border: 1.5px solid #3b82f6; font-weight: 800; flex: 1;">
             📄 ${t('monthlyReport', 'Informe Mensual de Progreso (PDF)')}
+          </button>
+          <button class="btn sm" id="btn-request-player-cache-purge" style="background: rgba(244, 63, 94, 0.15); color: #fb7185; border: 1.5px solid rgba(244, 63, 94, 0.4); font-weight: 800; font-size: 11.5px; white-space: nowrap;" title="Pedir a este jugador que borre la caché de su app para recargar los datos actualizados">
+            🧹 ${t('clearPlayerCacheBtn', 'Borrar Caché Jugador')}
           </button>
         </div>
 
@@ -9193,6 +9293,28 @@
       if (btnReport) {
         btnReport.onclick = () => {
           showMonthlyProgressReportModal(p);
+        };
+      }
+
+      // Orden individual de borrado de caché para este jugador
+      const btnPurgePlayer = body.querySelector('#btn-request-player-cache-purge');
+      if (btnPurgePlayer) {
+        btnPurgePlayer.onclick = () => {
+          confirmDialog(
+            '🧹 Forzar Borrado de Caché para ' + Store.playerName(p),
+            '¿Deseas enviar una orden individual de borrado de caché a ' + Store.playerName(p) + '? La próxima vez que abra su app, se vaciará su caché local para cargar los datos más recientes sin afectar al resto de la plantilla.',
+            () => {
+              p.forceCachePurgeTimestamp = Date.now();
+              Store.save();
+              if (window.Cloud && window.Cloud.pushCoachState) {
+                window.Cloud.pushCoachState(Store.state, true);
+              }
+              toast('🚀 Orden enviada: la app de ' + Store.playerName(p) + ' borrará su caché al abrirse', 'success');
+              haptic(35);
+            },
+            'Pedir Borrado',
+            'warning'
+          );
         };
       }
 

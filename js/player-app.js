@@ -1392,52 +1392,52 @@
       "openInMaps": "Открыть в Google Maps ↗",
       "coachNote": "Заметка тренера",
       "willYouAttend": "Вы придете на эту сессию?",
-      "iWillAttend": "🟢 Asistiré",
-      "iCannotAttend": "❌ No puedo asistir",
+      "iWillAttend": "🟢 Буду / Приду",
+      "iCannotAttend": "❌ Не смогу",
       "attendanceConfirmed": "Присутствие подтверждено",
       "absenceReported": "Причина отсутствия зафиксирована",
-      "pendingResponse": "⏳ Pendiente de responder",
-      "notCalledUp": "ℹ️ No estás convocado para esta cita",
-      "confirmedBadge": "Confirmados",
-      "absentBadge": "Недоступны",
-      "pendingBadge": "Pendientes",
-      "viewAttendees": "👥 Ver lista de asistencia ▾",
-      "attendeesTitle": "Lista de Asistencia",
-      "noAttendeesYet": "Nadie ha confirmado todavía",
-      "noAbsentYet": "Ninguna baja registrada",
+      "pendingResponse": "⏳ Ожидает ответа",
+      "notCalledUp": "ℹ️ Ты не вызван на эту сессию",
+      "confirmedBadge": "Подтвержденные",
+      "absentBadge": "Отсутствующие",
+      "pendingBadge": "Ожидающие",
+      "viewAttendees": "👥 Список присутствующих ▾",
+      "attendeesTitle": "Список посещаемости",
+      "noAttendeesYet": "Пока никто не подтвердил участие",
+      "noAbsentYet": "Отсутствующих нет",
       "allAnswered": "Все вызванные игроки ответили",
-      "emptyConvs": "Sin convocatorias activas",
-      "emptyConvsDesc": "El entrenador aún no ha publicado ninguna convocatoria para los próximos partidos o entrenamientos.",
-      "todayTrainingBadge": "✨ ENTRENAMIENTO DE HOY",
-      "todayMatchBadge": "✨ PARTIDO DE HOY",
-      "upcomingThisWeek": "Próximos esta semana",
-      "noUpcomingThisWeek": "No hay más entrenamientos programados para esta semana",
-      "noUpcomingThisWeekDesc": "Consulta el historial de entrenamientos anteriores en el desplegable inferior.",
-      "pastConvocations": "Entrenamientos anteriores",
-      "pastConvocationsMatches": "Partidos anteriores",
-      "pastConvocationsAll": "Entrenamientos y convocatorias anteriores",
-      "pastSessionBadge": "Finalizado",
+      "emptyConvs": "Нет активных заявок",
+      "emptyConvsDesc": "Тренер пока не опубликовал заявки на ближайшие матчи или тренировки.",
+      "todayTrainingBadge": "✨ СЕГОДНЯШНЯЯ ТРЕНИРОВКА",
+      "todayMatchBadge": "✨ СЕГОДНЯШНИЙ МАТЧ",
+      "upcomingThisWeek": "Предстоящие на этой неделе",
+      "noUpcomingThisWeek": "На этой неделе больше нет запланированных тренировок",
+      "noUpcomingThisWeekDesc": "История предыдущих тренировок доступна в выпадающем списке ниже.",
+      "pastConvocations": "Предыдущие тренировки",
+      "pastConvocationsMatches": "Предыдущие матчи",
+      "pastConvocationsAll": "Предыдущие тренировки и заявки",
+      "pastSessionBadge": "Завершено",
       "chooseIdentityTitle": "Кто ты?",
       "chooseIdentityDesc": "Выбери свой профиль из списка игроков клуба, чтобы просматривать персональную статистику.",
       "confirmIdentityBtn": "Выбрать этот профиль",
-      "reqChangeTitle": "Solicitar Cambio de Perfil",
-      "reqChangeDesc": "Tu perfil está vinculado a {name}. Para evitar confusiones, cambiar a otro jugador requiere autorización del entrenador:",
-      "selectNewPlayer": "Selecciona el jugador correcto:",
-      "reasonPlaceholder": "Motivo (ej. Selección errónea, móvil nuevo...)",
-      "sendReqBtn": "🚀 Enviar Solicitud al Entrenador",
-      "reqSentBanner": "⏳ Solicitud enviada al entrenador para cambiar a {name}. Esperando aprobación...",
-      "reqApprovedToast": "✅ ¡Tu entrenador ha aprobado el cambio de perfil!",
-      "reqRejectedToast": "❌ El entrenador ha rechazado la solicitud de cambio.",
-      "performanceRating": "Nota de Rendimiento",
-      "ratingDesc": "Índice de rendimiento calculado a partir de acciones reales, toques y eficacia táctica.",
-      "matchesAttended": "Partidos Jugados",
-      "trainingsAttended": "Entrenamientos Asistidos",
+      "reqChangeTitle": "Запрос на смену профиля",
+      "reqChangeDesc": "Твой аккаунт привязан к игроку {name}. Для смены профиля требуется подтверждение тренера:",
+      "selectNewPlayer": "Выбери своего игрока из списка:",
+      "reasonPlaceholder": "Причина (напр., ошибся при выборе, новый телефон...)",
+      "sendReqBtn": "🚀 Отправить запрос тренеру",
+      "reqSentBanner": "⏳ Запрос на смену профиля на {name} отправлен тренеру. Ожидание одобрения...",
+      "reqApprovedToast": "✅ Тренер одобрил смену профиля!",
+      "reqRejectedToast": "❌ Тренер отклонил запрос на смену профиля.",
+      "performanceRating": "Оценка игры",
+      "ratingDesc": "Индекс полезности, рассчитанный на основе реальных действий, касаний и точности.",
+      "matchesAttended": "Сыграно матчей",
+      "trainingsAttended": "Посещено тренировок",
       "totalSessions": "Всего сессий",
       "attendanceStreak": "Серия посещаемости",
-      "attendanceStreakDesc": "Sesiones consecutivas asistidas",
-      "streakSessions": "sesiones seguidas",
-      "streakSessionSingle": "sesión",
-      "streakOnFire": "🔥 En racha",
+      "attendanceStreakDesc": "Тренировок и матчей подряд",
+      "streakSessions": "тренировок подряд",
+      "streakSessionSingle": "тренировка",
+      "streakOnFire": "🔥 В ударе",
       "futCardTitle": "Карточка FUT",
       "viewFutCard": "Смотреть карточку FUT",
       "viewMyFutCard": "Моя коллекционная карточка FUT",
@@ -1447,14 +1447,14 @@
       "streakMilestoneDiamond": "Алмазный знак",
       "streakNextMilestone": "{current}/{target} до {nextMilestone}",
       "streakMaster": "👑 Невероятная легендарная серия!",
-      "mvpVotingActive": "Votación Abierta",
-      "voteMatchMvp": "Vota al Jugador del Partido",
-      "chooseBestTeammate": "Elige al compañero más destacado del partido",
+      "mvpVotingActive": "Голосование открыто",
+      "voteMatchMvp": "Голосовать за лучшего игрока (MVP)",
+      "chooseBestTeammate": "Выбери самого полезного партнера по команде в этом матче",
       "cannotVoteSelf": "Нельзя голосовать за себя",
-      "mvpVoteRegistered": "¡Voto de MVP registrado para {name}!",
-      "mvpAlreadyVoted": "Has votado por {name}",
-      "mvpOfficialWinner": "⭐ ¡MVP Oficial: {name}!",
-      "seasonMvpsBadge": "⭐ {count}x MVP del Partido",
+      "mvpVoteRegistered": "Голос за MVP ({name}) успешно записан!",
+      "mvpAlreadyVoted": "Твой голос отдан за: {name}",
+      "mvpOfficialWinner": "⭐ Официальный MVP матча: {name}!",
+      "seasonMvpsBadge": "⭐ {count}x MVP матча",
       "mvpBannerTitle": "⭐ Голосование за лучшего игрока (MVP)!",
       "mvpBannerSub": "Выбери лучшего игрока матча против {match}",
       "weeklyMissionTitle": "Еженедельное задание тренера",
@@ -1464,56 +1464,56 @@
       "missionMotivation": "Сфокусируйся на этой тактической цели на предстоящих тренировках и матчах.",
       "goalsScored": "Забито голов",
       "passAccuracy": "% точных передач",
-      "passesAccurate": "pases acertados",
-      "shotAccuracy": "Tiros a Puerta",
+      "passesAccurate": "точных передач",
+      "shotAccuracy": "Точность ударов",
       "shotsOnTarget": "Удары в створ",
-      "ballTouches": "Toques Balón",
-      "dribblesWon": "Regates con Éxito",
-      "duelsWon": "Duelos Ganados",
+      "ballTouches": "Касания мяча",
+      "dribblesWon": "Успешные обводки",
+      "duelsWon": "Выигранные единоборства",
       "recoveries": "Отборы мяча",
-      "recentMatchesTitle": "Mis Partidos y Acciones Detalladas",
-      "noMatchesYet": "Todavía no hay partidos o sesiones registradas.",
-      "noActionsYet": "Aún no tienes acciones registradas en partidos.",
-      "tapSkillHint": "Pulsa sobre cualquier habilidad del radar para ver su explicación en inglés ℹ️",
+      "recentMatchesTitle": "Мои матчи и детальные действия",
+      "noMatchesYet": "Пока нет сыгранных матчей или тренировок.",
+      "noActionsYet": "В матчах пока не зафиксировано результативных действий.",
+      "tapSkillHint": "Нажми на любое качество на радаре, чтобы прочитать подсказку ℹ️",
       "footRight": "Правая нога",
       "footLeft": "Левая нога",
       "footBoth": "Обе ноги (амбидекстр)",
       "h2hTitle": "Сравнение игроков 1 на 1",
       "h2hDesc": "Сравнивай характеристики, стиль игры и историю очных дуэлей",
-      "player1": "Jugador 1",
-      "player2": "Jugador 2",
-      "choosePlayer": "Elegir Jugador",
-      "fullProfile": "Ficha Completa",
+      "player1": "Игрок 1",
+      "player2": "Игрок 2",
+      "choosePlayer": "Выбрать игрока",
+      "fullProfile": "Полный профиль",
       "close": "Закрыть",
-      "skillsRadar": "Radar de Cualidades Deportivas",
-      "cumulativeStats": "Mis Cifras Acumuladas",
-      "squadTitle": "Plantilla de Jugadores",
-      "squadSubtitle": "Explora la plantilla de todos los equipos del club y toca para ver sus estadísticas completas:",
-      "h2hNeedTwo": "Se necesitan al menos 2 jugadores en la plantilla para comparar.",
+      "skillsRadar": "Радар игровых качеств",
+      "cumulativeStats": "Моя суммарная статистика",
+      "squadTitle": "Состав команды",
+      "squadSubtitle": "Просматривай состав всех команд клуба и нажимай на любого игрока для просмотра его профиля:",
+      "h2hNeedTwo": "Для сравнения в составе должно быть не менее 2 игроков.",
       "locked": "Заблокировано",
-      "reasonLabel": "Motivo / Comentario:",
-      "chooseWhoYouAre": "-- Elige quién eres realmente --",
-      "reqSelectTargetErr": "Por favor selecciona el jugador al que deseas cambiarte",
-      "reqSentSuccess": "¡Solicitud enviada al entrenador! Se actualizará automáticamente en cuanto la apruebe.",
+      "reasonLabel": "Причина / Комментарий:",
+      "chooseWhoYouAre": "-- Выбери свой профиль из списка --",
+      "reqSelectTargetErr": "Пожалуйста, выберите игрока, на которого хотите сменить профиль",
+      "reqSentSuccess": "Запрос отправлен тренеру! Данные обновятся, как только он подтвердит запрос.",
       "sending": "Отправка...",
-      "linkedSuccess": "¡Perfil vinculado con éxito!",
-      "loadingPlayers": "Cargando jugadores desde la nube...",
-      "passesLabel": "PASES",
-      "shotsLabel": "TIROS",
-      "goalsLabel": "GOLES",
-      "dribblesLabel": "REGATES",
-      "recoveriesLabel": "RECUP.",
-      "touchesLabel": "TOQUES",
-      "prob1v1Title": "Probabilidad Victoria 1v1",
-      "favoriteBadge": "Favorito",
-      "veryBalanced": "Muy Equilibrado",
-      "bayesAgeModel": "Datos Bayes + 1v1 + Edad",
-      "sameBioAge": "Misma edad biológica",
-      "reasonDribble": "Mayor desborde / regate",
-      "reasonPhysical": "Superioridad física",
-      "reasonDefense": "Mayor solidez defensiva",
-      "reasonWinRate": "Mejor % victorias 1v1 previo",
-      "reasonAge": "Ventaja por madurez física",
+      "linkedSuccess": "Профиль успешно привязан!",
+      "loadingPlayers": "Загрузка игроков из облака...",
+      "passesLabel": "ПАСЫ",
+      "shotsLabel": "УДАРЫ",
+      "goalsLabel": "ГОЛЫ",
+      "dribblesLabel": "ДРИБЛИНГ",
+      "recoveriesLabel": "ОТБОРЫ",
+      "touchesLabel": "КАСАНИЯ",
+      "prob1v1Title": "Вероятность победы 1в1",
+      "favoriteBadge": "Фаворит",
+      "veryBalanced": "Равный поединок",
+      "bayesAgeModel": "Данные Байеса + 1в1 + Возраст",
+      "sameBioAge": "Одинаковый биологический возраст",
+      "reasonDribble": "Преимущество в дриблинге и обводке",
+      "reasonPhysical": "Физическое превосходство",
+      "reasonDefense": "Надежность в оборонительных действиях",
+      "reasonWinRate": "Лучший % побед в предыдущих дуэлях 1в1",
+      "reasonAge": "Преимущество в физической зрелости",
       "duels1v1Historical": "Дуэли 1 на 1 (История)",
       "duels1v1": "Дуэли 1 на 1",
       "duels1v1WinRate": "% побед 1 на 1",
@@ -1535,140 +1535,140 @@
       "mvp_coach_picks_title": "Выбор тренера",
       "btn_vote_as_mvp": "⭐ Голосовать за MVP",
       "btn_cancel_view_others": "Отмена / Смотреть других",
-      "mvp_coach_reason_label": "Nota del Entrenador",
+      "mvp_coach_reason_label": "Комментарий тренера",
       "autoMissionBadge": "⚡ Авто-миссия",
-      "manualMissionBadge": "Misión Manual",
-      "progressLabel": "Progreso",
-      "matchDetail": "Detalle de la Sesión",
-      "viewSessionDetail": "Ver Detalle del Partido",
-      "loadingSession": "Cargando datos de la sesión...",
-      "won": "Ganados",
-      "lost": "Perdidos",
+      "manualMissionBadge": "Ручное задание",
+      "progressLabel": "Прогресс",
+      "matchDetail": "Детали сессии",
+      "viewSessionDetail": "Смотреть детали матча",
+      "loadingSession": "Загрузка данных сессии...",
+      "won": "Выиграно",
+      "lost": "Проиграно",
       "sessions": "Сессии",
-      "winRate": "VICTORIAS",
-      "stops": "cierres defensivos",
+      "winRate": "ПОБЕДЫ",
+      "stops": "отборов и перехватов",
       "goals": "Голы",
-      "duel1v1Goals": "Goles en 1v1",
-      "duel1v1Stops": "Robos / Cierres",
-      "performanceMetrics": "Métricas de Rendimiento",
+      "duel1v1Goals": "Голы в 1в1",
+      "duel1v1Stops": "Отборы и перехваты в 1в1",
+      "performanceMetrics": "Показатели эффективности",
       "comparativeRadars": "Сравнительные радары",
-      "pitchGoalsTitle": "Mapa Táctico del Campo",
-      "pitchGoalsDesc": "Acciones tácticas geolocalizadas según la zona del campo",
-      "untrackedGoalsHint": "goles contabilizados en partidos anteriores sin zona asignada",
-      "chatWithPlayer": "Chatear con este jugador",
-      "zone_box_opp": "Área rival",
+      "pitchGoalsTitle": "Тактическая карта поля",
+      "pitchGoalsDesc": "Игровые действия с привязкой к секторам поля",
+      "untrackedGoalsHint": "голы в прошлых матчах без указания сектора поля",
+      "chatWithPlayer": "Написать этому игроку",
+      "zone_box_opp": "Штрафная площадь соперника",
       "zone_front": "Атака / Чужая треть",
       "zone_wing_off_l": "Левый фланг атаки",
       "zone_wing_off_r": "Правый фланг атаки",
       "zone_wing_l": "Левый фланг полузащиты",
       "zone_wing_r": "Правый фланг полузащиты",
       "zone_mid": "Центральная зона",
-      "filterAll": "Todos",
-      "filterMatches": "🏆 Partidos",
-      "filterTrainings": "⚽ Entrenamientos",
-      "requestCoachProfile": "➕ ¿No estás en la lista? Solicitar alta al entrenador",
-      "requestCoachProfileTitle": "Solicitar alta de nuevo jugador",
-      "requestCoachProfileDesc": "Envía tus datos al entrenador para que cree tu perfil en el sistema.",
-      "fullNameLabel": "Nombre y Apellidos *",
-      "fullNamePlaceholder": "Ej: Lucas Martínez",
-      "dorsalLabel": "Dorsal habitual",
-      "dorsalPlaceholder": "Ej: 10",
-      "positionLabel": "Posición",
-      "positionPlaceholder": "Ej: Delantero, Portero...",
-      "notesLabel": "Notas / Equipo",
-      "notesPlaceholder": "Ej: Infantil A, nuevo fichaje...",
-      "sendRequest": "Enviar solicitud",
-      "nameRequired": "Por favor introduce tu nombre y apellidos",
-      "requestSent": "Solicitud enviada al entrenador",
-      "coachCardTitle": "Ficha del Entrenador",
-      "viewCoachProfile": "Ver Perfil del Entrenador",
-      "coachProfileSubtitle": "Cuerpo Técnico y Dirección",
-      "chatWithCoach": "Chat con el Entrenador",
-      "confirmPlayerIdentity": "Confirmar Identidad",
-      "areYouPlayer": "¿Eres {name}?",
-      "securityCodeDesc": "Para proteger tu perfil, se ha generado este código de seguridad. Dáselo a tu entrenador para que confirme y autorice tu acceso en tu dispositivo.",
-      "securityCodeTitle": "Código de Seguridad",
-      "waitingCoachApproval": "Esperando autorización del entrenador...",
+      "filterAll": "Все",
+      "filterMatches": "🏟️ Матчи",
+      "filterTrainings": "⚽ Тренировки",
+      "requestCoachProfile": "➕ Тебя нет в списке? Запросить создание профиля у тренера",
+      "requestCoachProfileTitle": "Запрос на добавление нового игрока",
+      "requestCoachProfileDesc": "Отправь свои данные тренеру, чтобы он создал твой профиль в системе клуба.",
+      "fullNameLabel": "Имя и Фамилия *",
+      "fullNamePlaceholder": "Напр., Артем Смирнов",
+      "dorsalLabel": "Игровой номер",
+      "dorsalPlaceholder": "Напр., 10",
+      "positionLabel": "Позиция",
+      "positionPlaceholder": "Напр., Нападающий, Вратарь...",
+      "notesLabel": "Команда / Примечание",
+      "notesPlaceholder": "Напр., Команда 2012, новичок...",
+      "sendRequest": "Отправить заявку",
+      "nameRequired": "Пожалуйста, укажи имя и фамилию",
+      "requestSent": "Заявка отправлена тренеру",
+      "coachCardTitle": "Тренерский штаб",
+      "viewCoachProfile": "Профиль тренера",
+      "coachProfileSubtitle": "Главный тренер и руководство",
+      "chatWithCoach": "💬 Написать тренеру",
+      "confirmPlayerIdentity": "Подтверждение личности",
+      "areYouPlayer": "Ты {name}?",
+      "securityCodeDesc": "Для защиты профиля сгенерирован код безопасности. Назови его тренеру для авторизации на твоем устройстве.",
+      "securityCodeTitle": "Код безопасности",
+      "waitingCoachApproval": "Ожидание подтверждения тренером...",
       "copyCode": "Копировать код",
-      "codeCopied": "✅ ¡Código copiado al portapapeles!",
+      "codeCopied": "✅ Код скопирован в буфер обмена!",
       "sendViaViber": "Отправить через Viber",
-      "cancelSelectOther": "✕ Cancelar y elegir otro jugador",
-      "claimLockedNotice": "Solicitud activa vinculada a este perfil. No puedes cambiar de perfil ni solicitar otro código hasta que el entrenador responda.",
-      "viberShareMsg": "Hola míster, mi código de seguridad es {code} para acceder a mi perfil ({name}) en la app Player Stats.",
+      "cancelSelectOther": "✕ Отмена и выбор другого игрока",
+      "claimLockedNotice": "Запрос на привязку отправлен. Ты не можешь выбрать другой профиль, пока тренер не ответит.",
+      "viberShareMsg": "Здравствуйте! Мой проверочный код: {code} для входа в профиль ({name}) в приложении Player Stats.",
       "player": "Игрок",
       "allPlayers": "Все игроки",
-      "creationApproved": "🎉 ¡El entrenador ha creado tu perfil! Ya puedes ver tus estadísticas.",
-      "creationRejected": "❌ El entrenador ha denegado la solicitud de alta.",
+      "creationApproved": "🎉 Тренер создал твой профиль! Теперь ты можешь смотреть свою статистику.",
+      "creationRejected": "❌ Тренер отклонил заявку на создание профиля.",
       "profileChangeSecurityTitle": "Подтверждение смены профиля",
       "profileChangeSecurityDesc": "Для защиты аккаунта создан код безопасности. Сообщите его тренеру для подтверждения.",
-      "viberProfileChangeMsg": "Hola míster, mi código de verificación es {code} para cambiar mi perfil a {name} en la app Player Stats.",
+      "viberProfileChangeMsg": "Здравствуйте! Мой код подтверждения: {code} для смены профиля на {name} в приложении Player Stats.",
       "birthDate": "Дата рождения",
       "age": "Возраст",
       "secondaryPositions": "Дополнительные позиции",
-      "guardian": "Tutor",
-      "callCoach": "Llamar al Entrenador",
-      "call": "Llamar",
-      "voteReset": "Respuesta cancelada (pendiente)",
+      "guardian": "Родитель / Опекун",
+      "callCoach": "Позвонить тренеру",
+      "call": "Позвонить",
+      "voteReset": "Ответ отменен (ожидание)",
       "absenceReasonTitle": "Причина отсутствия",
       "absenceReasonPrompt": "Укажите причину отсутствия:",
       "absenceReasonPlaceholder": "Напр., болезнь, учеба, семейные обстоятельства...",
-      "confirmAbsence": "Confirmar Baja",
-      "viberCoachContactMsg": "¡Hola míster!",
-      "messageViaViber": "Mensaje por Viber",
-      "contact": "Contacto",
-      "msgDeletedForEveryone": "Este mensaje fue eliminado",
-      "messageOptions": "Opciones del mensaje",
-      "copyMessage": "Copiar mensaje",
-      "editMessage": "Editar mensaje",
-      "deleteForEveryone": "Borrar para todos",
-      "deleteForMe": "Borrar para mí",
-      "deleteForEveryoneConfirm": "¿Eliminar este mensaje para todos?",
-      "messageDeleted": "Mensaje eliminado para todos",
-      "messageDeletedForMe": "Mensaje eliminado para ti",
-      "messageEdited": "Mensaje actualizado",
+      "confirmAbsence": "Подтвердить отсутствие",
+      "viberCoachContactMsg": "Здравствуйте!",
+      "messageViaViber": "Написать в Viber",
+      "contact": "Контакты",
+      "msgDeletedForEveryone": "Это сообщение было удалено",
+      "messageOptions": "Действия с сообщением",
+      "copyMessage": "Копировать сообщение",
+      "editMessage": "Редактировать сообщение",
+      "deleteForEveryone": "Удалить для всех",
+      "deleteForMe": "Удалить для меня",
+      "deleteForEveryoneConfirm": "Удалить это сообщение для всех участников?",
+      "messageDeleted": "Сообщение удалено для всех",
+      "messageDeletedForMe": "Сообщение удалено для вас",
+      "messageEdited": "Сообщение отредактировано",
       "copiedToClipboard": "Код скопирован в буфер обмена!",
-      "stat_touches": "Toques",
-      "stat_passOk": "Pase completado",
-      "stat_passKo": "Pase fallado",
-      "stat_shotOn": "Tiro a puerta",
-      "stat_shotOff": "Tiro fuera",
-      "stat_goal": "Gol",
-      "stat_assist": "Asistencia",
-      "stat_dribbleOk": "Regate exitoso",
-      "stat_dribbleKo": "Regate fallado",
-      "stat_recovery": "Recuperación",
-      "stat_loss": "Balón perdido",
-      "stat_duelWon": "Duelo ganado",
-      "stat_duelLost": "Duelo perdido",
-      "stat_cross": "Centro",
-      "stat_keyPass": "Pase clave",
-      "stat_header": "Remate de cabeza",
-      "stat_foulRecv": "Falta recibida",
-      "stat_foul": "Falta cometida",
-      "stat_save": "Parada",
-      "stat_yellow": "Tarjeta amarilla",
-      "stat_red": "Tarjeta roja",
-      "appUpdateRequired": "Actualización Requerida",
+      "stat_touches": "Касания",
+      "stat_passOk": "Точная передача",
+      "stat_passKo": "Неточная передача",
+      "stat_shotOn": "Удар в створ",
+      "stat_shotOff": "Удар мимо",
+      "stat_goal": "Гол",
+      "stat_assist": "Голевая передача",
+      "stat_dribbleOk": "Успешная обводка",
+      "stat_dribbleKo": "Неудачная обводка",
+      "stat_recovery": "Отбор / перехват",
+      "stat_loss": "Потеря мяча",
+      "stat_duelWon": "Выигранное единоборство",
+      "stat_duelLost": "Проигранное единоборство",
+      "stat_cross": "Навес",
+      "stat_keyPass": "Ключевая передача",
+      "stat_header": "Удар головой",
+      "stat_foulRecv": "Заработанный фол",
+      "stat_foul": "Совершенный фол",
+      "stat_save": "Сэйв вратаря",
+      "stat_yellow": "Желтая карточка",
+      "stat_red": "Красная карточка",
+      "appUpdateRequired": "Требуется обновление",
       "appUpdateDesc": "Доступна новая версия приложения PlayerStats.",
-      "restartApp": "🔄 Reiniciar App",
-      "clearCacheBtn": "🔄 Borrar Caché y Recargar",
-      "careerActionsTitle": "Historial de Acciones en la Carrera",
-      "careerActionsDesc": "Registro completo de todas las acciones y contribuciones a lo largo de su trayectoria",
-      "noCareerActions": "Aún no hay acciones individuales registradas.",
+      "restartApp": "🔄 Перезапустить приложение",
+      "clearCacheBtn": "🔄 Очистить кэш и обновить",
+      "careerActionsTitle": "История действий за карьеру",
+      "careerActionsDesc": "Полный реестр всех действий и игрового вклада за время выступлений",
+      "noCareerActions": "Индивидуальных действий пока не зарегистрировано.",
       "actions": "действий",
-      "matchDate": "Fecha del Partido",
-      "trainingDate": "Fecha de Entrenamiento",
-      "kickoffTime": "Hora de Inicio",
-      "trainingTime": "Hora de Entrenamiento",
-      "meetingTime": "Hora de Convocatoria / Llegada",
-      "pitchAndVenue": "Campo y Lugar",
-      "coachInstructions": "Instrucciones del Entrenador",
-      "kitAndGear": "Equipación y Material",
-      "defaultKitMatch": "Equipación oficial de partido, espinilleras y botella de agua",
-      "defaultKitTraining": "Ropa de entrenamiento, espinilleras, botas y botella de agua",
-      "matchSquad": "Convocatoria del Partido",
-      "trainingSquad": "Convocados al Entrenamiento",
-      "attendanceResponse": "Tu Respuesta de Asistencia:",
+      "matchDate": "Дата матча",
+      "trainingDate": "Дата тренировки",
+      "kickoffTime": "Время начала",
+      "trainingTime": "Время тренировки",
+      "meetingTime": "Время сбора / прибытия",
+      "pitchAndVenue": "Поле и место проведения",
+      "coachInstructions": "Указания тренера",
+      "kitAndGear": "Форма и экипировка",
+      "defaultKitMatch": "Игровая форма, щитки и бутылка с водой",
+      "defaultKitTraining": "Тренировочная форма, щитки, бутсы и бутылка с водой",
+      "matchSquad": "Заявка на матч",
+      "trainingSquad": "Список участников тренировки",
+      "attendanceResponse": "Твой ответ по посещаемости:",
       "tapMatchDetails": "Нажмите для просмотра деталей матча и состава",
       "tapTrainingDetails": "Нажмите для просмотра деталей тренировки и состава",
       "opponentLabel": "Соперник:",
@@ -1692,7 +1692,7 @@
       "startTime": "Начало",
       "endTime": "Конец",
       "duration": "Длительность",
-      "claimCooldownWait": "Por favor, espera {sec}s antes de solicitar otro código de verificación.",
+      "claimCooldownWait": "Пожалуйста, подожди {sec}с перед запросом нового кода.",
       "downloadApk": "Скачать приложение для Android (APK)",
       "apkDownloadTitle": "Загрузка приложения Android",
       "apkDownloadStarted": "Загрузка началась на вашем устройстве!",
@@ -1712,7 +1712,11 @@
       "mvp_btn_cancel": "Отмена и смотреть других",
       "currentProgressLabel": "Прогресс",
       "minAttemptsLabel": "Мин. попыток"
-}
+},
+      "selected": "Выбран",
+      "select": "Выбрать",
+      "saveVote": "Сохранить голос",
+      "saveVoteFor": "Сохранить голос за: {name}"
   };
   DICT.et = DICT.ee;
   DICT.ee = DICT.et;
@@ -2462,13 +2466,29 @@
     const myP = getMyPlayer();
     if (!myP) return;
 
-    const trackedPlayerIds = new Set([
-      ...Object.keys(session.stats || {}),
-      ...(session.slots || []).filter(Boolean),
-      ...(session.trackedPlayerIds || []),
-      ...(session.coachPicks || []).map(cp => cp && (cp.playerId || cp.id)).filter(Boolean)
-    ]);
-    let players = (clubData && clubData.players ? clubData.players : []).filter(p => trackedPlayerIds.has(p.id));
+    // Convocados y presentes / que participaron en este partido
+    const matchPlayerIds = new Set();
+    if (session.stats) Object.keys(session.stats).forEach(id => matchPlayerIds.add(id));
+    if (Array.isArray(session.slots)) session.slots.filter(Boolean).forEach(id => matchPlayerIds.add(id));
+    if (Array.isArray(session.trackedPlayerIds)) session.trackedPlayerIds.forEach(id => matchPlayerIds.add(id));
+    if (Array.isArray(session.coachPicks)) session.coachPicks.forEach(cp => cp && matchPlayerIds.add(cp.playerId || cp.id));
+    if (session.attendance) {
+      Object.entries(session.attendance).forEach(([id, st]) => {
+        if (st === 'present' || st === 'yes' || st === true) matchPlayerIds.add(id);
+      });
+    }
+    if (session.convocationId && clubData.convocations) {
+      const conv = clubData.convocations.find(c => c.id === session.convocationId);
+      if (conv && conv.list) {
+        Object.entries(conv.list).forEach(([id, st]) => {
+          if (st === 'called' || st === 'confirmed' || st === 'attended') matchPlayerIds.add(id);
+        });
+      }
+    }
+    let players = (clubData && clubData.players ? clubData.players : []).filter(p => matchPlayerIds.has(p.id));
+    if (players.length === 0 && session.teamId) {
+      players = (clubData && clubData.players ? clubData.players : []).filter(p => p.teamId === session.teamId);
+    }
     if (players.length === 0) {
       players = clubData && clubData.players ? clubData.players : [];
     }
@@ -2483,6 +2503,9 @@
 
     let currentVoteData = null;
     let unsubMvp = null;
+    let selectedCandidateId = (session.votes && session.votes[myP.id]) ||
+                              (window._myVotedMvpBySession && window._myVotedMvpBySession[session.id]) ||
+                              localStorage.getItem('my_mvp_vote_' + session.id) || null;
 
     async function executeVote(targetId) {
       if (!targetId || targetId === myP.id) return;
@@ -2494,12 +2517,54 @@
         if (!currentVoteData) currentVoteData = { votes: {} };
         if (!currentVoteData.votes) currentVoteData.votes = {};
         currentVoteData.votes[myP.id] = targetId;
+        window._myVotedMvpBySession = window._myVotedMvpBySession || {};
+        window._myVotedMvpBySession[session.id] = targetId;
+        localStorage.setItem('my_mvp_vote_' + session.id, targetId);
 
         toast(t('mvpVoteRegistered', '¡Voto de MVP registrado para {name}!').replace('{name}', (targetPlayer ? targetPlayer.name : '')), 'success');
-        renderModal();
+        updateVoteSelectionUI(targetId);
       } catch (err) {
         console.error('Error al registrar voto de MVP:', err);
         toast('Error al votar: ' + err.message, 'error');
+      }
+    }
+
+    function updateVoteSelectionUI(targetId) {
+      selectedCandidateId = targetId;
+      overlay.querySelectorAll('.teammate-mvp-choice').forEach(card => {
+        const pid = card.getAttribute('data-pid');
+        const isSel = (pid === targetId);
+        const isSelf = (pid === myP.id);
+        if (isSelf) return;
+        card.style.border = isSel ? '2px solid #eab308' : '1.5px solid var(--border)';
+        card.style.background = isSel ? 'rgba(234, 179, 8, 0.22)' : 'var(--surface2)';
+        const btn = card.querySelector('.btn-vote-player');
+        if (btn) {
+          btn.style.background = isSel ? '#16a34a' : '#eab308';
+          btn.style.color = isSel ? '#fff' : '#000';
+          btn.textContent = isSel ? '✓ ' + t('voted', 'Votado') : '⭐ ' + t('select', 'Elegir');
+        }
+      });
+      const saveBtn = overlay.querySelector('#btn-save-mvp-vote');
+      if (saveBtn) {
+        saveBtn.disabled = !targetId || targetId === myP.id;
+        const myVoted = currentVoteData && currentVoteData.votes ? currentVoteData.votes[myP.id] : null;
+        if (targetId === myVoted) {
+          saveBtn.textContent = '✓ ' + t('mvpVotedConfirmed', 'Voto guardado');
+          saveBtn.style.background = '#16a34a';
+          saveBtn.style.color = '#fff';
+        } else {
+          saveBtn.textContent = t('mvp_btn_save_vote', '💾 Guardar voto');
+          saveBtn.style.background = 'linear-gradient(135deg, #eab308, #ca8a04)';
+          saveBtn.style.color = '#000';
+        }
+      }
+      const votedStatusEl = overlay.querySelector('#mvp-voted-status-text');
+      if (votedStatusEl && targetId) {
+        const tp = players.find(p => p.id === targetId);
+        if (tp) {
+          votedStatusEl.textContent = t('mvpYouVotedFor', 'Has votado a {name}').replace('{name}', tp.name || '');
+        }
       }
     }
 
@@ -2610,7 +2675,7 @@
             </div>
           </div>
 
-          <!-- Botones de Acción requeridos -->
+          <!-- Botones de Acción -->
           <div style="display: flex; flex-direction: column; gap: 8px;">
             <button type="button" class="btn primary" id="btn-confirm-vote-pick" ${isSelf ? 'disabled' : ''} style="height: 44px; font-size: 14px; font-weight: 900; background: ${isVotedByMe ? '#16a34a' : 'linear-gradient(135deg, #eab308, #ca8a04)'}; border: none; color: ${isVotedByMe ? '#fff' : '#000'}; border-radius: 12px; display: flex; align-items: center; justify-content: center; gap: 8px;">
               ${isSelf ? `(${t('cannotVoteSelf', 'No puedes votarte a ti mismo')})` : (isVotedByMe ? '✓ ' + t('voted', 'Votado como MVP') : t('mvp_btn_confirm_vote', 'Votar a {name} como MVP').replace('{name}', escapeHtml(player.name || '')))}
@@ -2631,6 +2696,7 @@
       if (voteBtn && !isSelf) {
         voteBtn.onclick = async () => {
           closePickDetail();
+          updateVoteSelectionUI(player.id);
           await executeVote(player.id);
         };
       }
@@ -2639,7 +2705,10 @@
     }
 
     function renderModal() {
-      const myVotedTargetId = currentVoteData && currentVoteData.votes ? currentVoteData.votes[myP.id] : null;
+      const scrollBox = overlay.querySelector('#mvp-players-scroll-list');
+      const prevScroll = scrollBox ? scrollBox.scrollTop : 0;
+
+      const myVotedTargetId = (currentVoteData && currentVoteData.votes ? currentVoteData.votes[myP.id] : null) || selectedCandidateId;
       const officialMvpId = session.mvpOfficialId || (currentVoteData ? currentVoteData.officialMvpId : null);
       const officialMvpPlayer = officialMvpId ? players.find(p => p.id === officialMvpId) : null;
 
@@ -2656,7 +2725,7 @@
 
       overlay.innerHTML = `
         <div class="card dialog-box" style="max-width: 440px; width: 92%; padding: 20px; border-radius: 18px; border: 1.5px solid rgba(234, 179, 8, 0.5); max-height: 90vh; display: flex; flex-direction: column; background: #0f172a; box-shadow: 0 10px 40px rgba(0,0,0,0.7);">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-shrink: 0;">
             <div style="display: flex; align-items: center; gap: 8px;">
               <span style="font-size: 24px;">👑</span>
               <div>
@@ -2672,7 +2741,7 @@
           </div>
 
           ${officialMvpPlayer ? `
-            <div style="background: linear-gradient(135deg, rgba(234, 179, 8, 0.25) 0%, rgba(202, 138, 4, 0.35) 100%); border: 1.5px solid #eab308; border-radius: 12px; padding: 10px 12px; margin-bottom: 12px; display: flex; align-items: center; gap: 10px;">
+            <div style="background: linear-gradient(135deg, rgba(234, 179, 8, 0.25) 0%, rgba(202, 138, 4, 0.35) 100%); border: 1.5px solid #eab308; border-radius: 12px; padding: 10px 12px; margin-bottom: 12px; display: flex; align-items: center; gap: 10px; flex-shrink: 0;">
               ${renderAvatar(officialMvpPlayer, 'sm')}
               <div>
                 <div style="font-size: 10.5px; font-weight: 800; color: #facc15; text-transform: uppercase;">
@@ -2684,14 +2753,14 @@
               </div>
             </div>
           ` : `
-            <p style="font-size: 12.5px; color: #cbd5e1; margin: 0 0 12px; line-height: 1.4;">
+            <p style="font-size: 12.5px; color: #cbd5e1; margin: 0 0 12px; line-height: 1.4; flex-shrink: 0;">
               ${t('chooseBestTeammate', 'Elige al compañero que mejor ha jugado en este partido:')}
             </p>
           `}
 
           <!-- SECCIÓN DESTACADA: 3 ELEGIDOS POR EL MÍSTER -->
           ${coachPicks.length > 0 ? `
-            <div style="margin-bottom: 14px; background: linear-gradient(135deg, rgba(234, 179, 8, 0.15) 0%, rgba(168, 85, 247, 0.15) 100%); border: 1.5px solid #facc15; border-radius: 14px; padding: 12px;">
+            <div style="margin-bottom: 12px; background: linear-gradient(135deg, rgba(234, 179, 8, 0.15) 0%, rgba(168, 85, 247, 0.15) 100%); border: 1.5px solid #facc15; border-radius: 14px; padding: 12px; flex-shrink: 0;">
               <div style="font-size: 11.5px; font-weight: 900; color: #fde047; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;">
                 <span style="display: flex; align-items: center; gap: 6px;">
                   <span>🌟</span>
@@ -2737,22 +2806,22 @@
             </div>
           ` : ''}
 
-          <!-- LISTA COMPLETA DE CONVOCADOS (VOTACIÓN LIBRE) -->
-          <div style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; padding-right: 4px;">
+          <!-- LISTA DE JUGADORES CONVOCADOS Y PRESENTES (VOTACIÓN LIBRE) -->
+          <div id="mvp-players-scroll-list" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; padding-right: 4px;">
             ${players.length === 0 ? `
-              <div style="text-align: center; color: var(--muted); padding: 20px;">No hay jugadores registrados en este partido</div>
+              <div style="text-align: center; color: var(--muted); padding: 20px;">${t('noPlayersInMatch', 'No hay jugadores registrados en este partido')}</div>
             ` : players.map(p => {
               const isSelf = (p.id === myP.id);
               const isVotedByMe = (myVotedTargetId === p.id);
               const count = voteCounts[p.id] || 0;
 
               return `
-                <div class="card teammate-mvp-choice" data-pid="${p.id}" style="padding: 10px 12px; border-radius: 12px; display: flex; align-items: center; justify-content: space-between; border: 1.5px solid ${isVotedByMe ? '#eab308' : (isSelf ? 'rgba(255,255,255,0.06)' : 'var(--border)')}; background: ${isVotedByMe ? 'rgba(234, 179, 8, 0.15)' : (isSelf ? 'rgba(0,0,0,0.2)' : 'var(--surface2)')}; opacity: ${isSelf ? '0.6' : '1'}; cursor: ${isSelf ? 'not-allowed' : 'pointer'};">
+                <div class="card teammate-mvp-choice" data-pid="${p.id}" style="padding: 10px 12px; border-radius: 12px; display: flex; align-items: center; justify-content: space-between; border: 1.5px solid ${isVotedByMe ? '#eab308' : (isSelf ? 'rgba(255,255,255,0.06)' : 'var(--border)')}; background: ${isVotedByMe ? 'rgba(234, 179, 8, 0.18)' : (isSelf ? 'rgba(0,0,0,0.2)' : 'var(--surface2)')}; opacity: ${isSelf ? '0.6' : '1'}; cursor: ${isSelf ? 'not-allowed' : 'pointer'}; transition: all 0.15s ease;">
                   <div style="display: flex; align-items: center; gap: 10px;">
                     ${renderAvatar(p, 'sm')}
                     <div>
                       <b style="font-size: 13.5px; color: #fff;">
-                        ${escapeHtml(p.name || '')} ${escapeHtml(p.lastName || '')} #${p.mainDorsal || ''}
+                        #${p.mainDorsal != null ? p.mainDorsal : '—'} ${escapeHtml(p.name || '')} ${escapeHtml(p.lastName || '')}
                       </b>
                       <div style="font-size: 11px; color: var(--muted);">
                         ${isSelf ? `(${t('cannotVoteSelf', 'No puedes votarte a ti mismo')})` : (formatPosition(p.mainPosition))}
@@ -2762,7 +2831,7 @@
                   <div style="text-align: right; display: flex; align-items: center; gap: 8px;">
                     ${count > 0 ? `<span style="font-size: 11px; color: #facc15; font-weight: 800;">🗳️ ${count}</span>` : ''}
                     <button type="button" class="btn sm btn-vote-player" data-pid="${p.id}" ${isSelf ? 'disabled' : ''} style="font-weight: 800; font-size: 11.5px; padding: 5px 10px; border-radius: 8px; background: ${isVotedByMe ? '#16a34a' : '#eab308'}; color: ${isVotedByMe ? '#fff' : '#000'}; border: none;">
-                      ${isVotedByMe ? '✓ Votado' : '⭐ Votar'}
+                      ${isVotedByMe ? '✓ ' + t('voted', 'Votado') : '⭐ ' + t('select', 'Elegir')}
                     </button>
                   </div>
                 </div>
@@ -2770,18 +2839,30 @@
             }).join('')}
           </div>
 
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <span style="font-size: 11.5px; color: var(--muted);">
-              ${myVotedTargetId ? t('mvpAlreadyVoted').replace('{name}', (players.find(p => p.id === myVotedTargetId) || {}).name || '') : '1 voto por jugador'}
-            </span>
-            <button type="button" class="btn ghost" id="btn-close-mvp-modal">${t('close', 'Cerrar')}</button>
+          <!-- BOTÓN GUARDAR VOTO Y ACCIONES -->
+          <div style="display: flex; flex-direction: column; gap: 6px; flex-shrink: 0;">
+            <button type="button" class="btn primary block" id="btn-save-mvp-vote" ${selectedCandidateId && selectedCandidateId !== myP.id ? '' : 'disabled'} style="height: 44px; font-size: 14px; font-weight: 900; background: ${myVotedTargetId && myVotedTargetId === selectedCandidateId ? '#16a34a' : 'linear-gradient(135deg, #eab308, #ca8a04)'}; color: ${myVotedTargetId && myVotedTargetId === selectedCandidateId ? '#fff' : '#000'}; border: none; border-radius: 12px;">
+              ${myVotedTargetId && myVotedTargetId === selectedCandidateId ? '✓ ' + t('mvpVotedConfirmed', 'Voto guardado') : t('mvp_btn_save_vote', '💾 Guardar voto')}
+            </button>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+              <span id="mvp-voted-status-text" style="font-size: 11.5px; color: var(--muted);">
+                ${myVotedTargetId ? t('mvpYouVotedFor', 'Has votado a {name}').replace('{name}', (players.find(p => p.id === myVotedTargetId) || {}).name || '') : t('oneVotePerPlayer', '1 voto por jugador')}
+              </span>
+              <button type="button" class="btn ghost sm" id="btn-close-mvp-modal">${t('close', 'Cerrar')}</button>
+            </div>
           </div>
         </div>
       `;
 
+      const newScrollBox = overlay.querySelector('#mvp-players-scroll-list');
+      if (newScrollBox && prevScroll > 0) newScrollBox.scrollTop = prevScroll;
+
       function closeVoteModal() {
         if (unsubMvp) { try { unsubMvp(); } catch (e) {} }
         overlay.remove();
+        if (typeof renderConvocationsView === 'function') {
+          renderConvocationsView();
+        }
       }
       overlay.querySelector('#btn-close-mvp-vote').onclick = closeVoteModal;
       overlay.querySelector('#btn-close-mvp-modal').onclick = closeVoteModal;
@@ -2798,23 +2879,34 @@
         };
       });
 
-      overlay.querySelectorAll('.btn-vote-player').forEach(btn => {
-        btn.onclick = async (e) => {
-          e.stopPropagation();
-          const targetId = btn.getAttribute('data-pid');
-          if (!targetId || targetId === myP.id) return;
-          btn.disabled = true;
-          btn.textContent = '...';
-          await executeVote(targetId);
+      // Selección de jugador en la lista (NO resetea el scroll)
+      overlay.querySelectorAll('.teammate-mvp-choice').forEach(card => {
+        card.onclick = () => {
+          const pid = card.getAttribute('data-pid');
+          if (!pid || pid === myP.id) return;
+          updateVoteSelectionUI(pid);
         };
       });
 
-      overlay.querySelectorAll('.teammate-mvp-choice').forEach(card => {
-        card.onclick = () => {
-          const btn = card.querySelector('.btn-vote-player');
-          if (btn && !btn.disabled) btn.click();
+      overlay.querySelectorAll('.btn-vote-player').forEach(btn => {
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          const pid = btn.getAttribute('data-pid');
+          if (!pid || pid === myP.id) return;
+          updateVoteSelectionUI(pid);
         };
       });
+
+      // Botón Guardar Voto
+      const btnSave = overlay.querySelector('#btn-save-mvp-vote');
+      if (btnSave) {
+        btnSave.onclick = async () => {
+          if (!selectedCandidateId || selectedCandidateId === myP.id) return;
+          btnSave.disabled = true;
+          btnSave.textContent = '...';
+          await executeVote(selectedCandidateId);
+        };
+      }
     }
 
     if (window.Cloud && window.Cloud.listenToMatchMvp) {
@@ -3015,7 +3107,9 @@
     const axesLabels = {
       en: { pas: 'PASS', tir: 'SHOT', reg: 'DRIB', fis: 'PHYS', def: 'DEF' },
       ee: { pas: 'SÖÖT', tir: 'LÖÖK', reg: 'TRIB', fis: 'FÜÜS', def: 'KAIT' },
-      es: { pas: 'PASE', tir: 'TIRO', reg: 'REG',  fis: 'FÍS',  def: 'DEF' }
+      et: { pas: 'SÖÖT', tir: 'LÖÖK', reg: 'TRIB', fis: 'FÜÜS', def: 'KAIT' },
+      es: { pas: 'PASE', tir: 'TIRO', reg: 'REG',  fis: 'FÍS',  def: 'DEF' },
+      ru: { pas: 'ПАС',  tir: 'УДАР', reg: 'ДРИБ', fis: 'ФИЗ',  def: 'ЗАЩ' }
     };
     const langLabels = axesLabels[currentLang] || axesLabels.en;
     const axes = [
@@ -4843,7 +4937,7 @@
                 ${isMatch ? t('todayMatchBadge') : t('todayTrainingBadge')}
               </span>
               <span style="font-size: 10.5px; font-weight: 900; color: #fff; background: linear-gradient(135deg, #06b6d4, #3b82f6); padding: 2px 8px; border-radius: 6px; box-shadow: 0 0 8px rgba(6, 182, 212, 0.6);">
-                ${currentLang === 'ee' ? 'TÄNA' : (currentLang === 'es' ? 'HOY' : 'TODAY')}
+                ${t('todayBadge', 'HOY')}
               </span>
             </div>
           ` : ''}
@@ -5027,35 +5121,59 @@
       listContentHtml = sectionsHtml;
     }
 
-    // Buscar si hay un partido reciente (últimos 3 días) para votar MVP
+    // Buscar si hay un partido reciente finalizado (hasta 48h tras finalizar) para votar MVP
     let mvpBannerHtml = '';
     let recentMatchForMvp = null;
     if (clubData && myP) {
       const nowTs = Date.now();
-      if (clubData.latestMatchMvp) {
-        const lm = clubData.latestMatchMvp;
-        const sTime = lm.date ? new Date(lm.date).getTime() : 0;
-        const isRecent = sTime > 0 && Math.abs(nowTs - sTime) < 72 * 3600 * 1000;
-        if (isRecent) {
-          recentMatchForMvp = lm;
-        }
+      const isEligibleMatch = (s) => {
+        if (!s || s.type !== 'match' || !s.date) return false;
+        const isFin = (s.isFinished === true || s.status === 'finished');
+        if (!isFin) return false; // NUNCA se vota en partidos no finalizados o futuros
+        const sTime = new Date(s.date + (s.time ? 'T' + s.time : '')).getTime();
+        const elapsed = nowTs - sTime;
+        if (elapsed < 0 || elapsed > 48 * 3600 * 1000) return false; // Ventana de 0 a 48h tras el partido
+
+        // El botón SÓLO estará visible para los jugadores que formaron parte del partido
+        const participated = (
+          (s.stats && s.stats[myP.id] && Object.values(s.stats[myP.id]).some(v => v > 0)) ||
+          (Array.isArray(s.slots) && s.slots.includes(myP.id)) ||
+          (s.attendance && (s.attendance[myP.id] === 'present' || s.attendance[myP.id] === 'yes' || s.attendance[myP.id] === true)) ||
+          (Array.isArray(s.trackedPlayerIds) && s.trackedPlayerIds.includes(myP.id)) ||
+          (Array.isArray(s.coachPicks) && s.coachPicks.some(cp => cp && (cp.playerId === myP.id || cp.id === myP.id))) ||
+          (s.convocationId && clubData.convocations && (() => {
+            const c = clubData.convocations.find(conv => conv.id === s.convocationId);
+            return c && c.list && (c.list[myP.id] === 'confirmed' || c.list[myP.id] === 'attended' || c.list[myP.id] === 'called');
+          })())
+        );
+        return participated;
+      };
+
+      if (clubData.latestMatchMvp && isEligibleMatch(clubData.latestMatchMvp)) {
+        recentMatchForMvp = clubData.latestMatchMvp;
       }
       if (!recentMatchForMvp && Array.isArray(clubData.sessions)) {
-        recentMatchForMvp = clubData.sessions.find(s => {
-          if (!s || s.type !== 'match' || !s.date) return false;
-          const sTime = new Date(s.date).getTime();
-          const isRecent = Math.abs(nowTs - sTime) < 72 * 3600 * 1000;
-          if (!isRecent) return false;
-          const participated = (s.stats && s.stats[myP.id] && Object.values(s.stats[myP.id]).some(v => v > 0)) ||
-                               (s.slots && s.slots.includes(myP.id)) ||
-                               (s.coachPicks && s.coachPicks.some(cp => cp && (cp.playerId === myP.id || cp.id === myP.id)));
-          return participated;
-        });
+        recentMatchForMvp = clubData.sessions.find(isEligibleMatch);
       }
 
       if (recentMatchForMvp) {
         const isOfficialSet = !!recentMatchForMvp.officialMvpId;
         const officialPlayer = isOfficialSet ? (clubData.players || []).find(p => p.id === recentMatchForMvp.officialMvpId) : null;
+        const myVotedId = (recentMatchForMvp.votes && recentMatchForMvp.votes[myP.id]) ||
+                          (window._myVotedMvpBySession && window._myVotedMvpBySession[recentMatchForMvp.id]) ||
+                          localStorage.getItem('my_mvp_vote_' + recentMatchForMvp.id);
+        const votedPlayer = myVotedId ? (clubData.players || []).find(p => p.id === myVotedId) : null;
+
+        let statusSubtitle = t('chooseBestTeammate', 'Vota al mejor compañero del partido');
+        let btnLabel = `⭐ ${t('voteMatchMvp', 'Votar')}`;
+        if (isOfficialSet && officialPlayer) {
+          statusSubtitle = `⭐ ${t('mvpOfficialWinner', '⭐ MVP Oficial: {name}!').replace('{name}', officialPlayer.name || '')}`;
+          btnLabel = `⭐ ${t('viewMvp', 'Ver MVP')}`;
+        } else if (votedPlayer) {
+          statusSubtitle = `✅ ${t('mvpYouVotedFor', 'Has votado a {name}').replace('{name}', (votedPlayer.name || '') + (votedPlayer.lastName ? ' ' + votedPlayer.lastName : ''))}`;
+          btnLabel = `✏️ ${t('mvpChangeVote', 'Cambiar voto')}`;
+        }
+
         mvpBannerHtml = `
           <div class="card" id="banner-vote-mvp" style="margin-bottom: 12px; background: linear-gradient(135deg, rgba(234, 179, 8, 0.18) 0%, rgba(202, 138, 4, 0.28) 100%); border: 1.5px solid #eab308; border-radius: 16px; padding: 12px 14px; box-shadow: 0 4px 20px rgba(234, 179, 8, 0.2); cursor: pointer;">
             <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
@@ -5069,12 +5187,12 @@
                     ${recentMatchForMvp.rival ? `vs ${escapeHtml(recentMatchForMvp.rival)}` : escapeHtml(recentMatchForMvp.title || 'Partido')}
                   </div>
                   <div style="font-size: 11px; color: #fde047; margin-top: 1px;">
-                    ${isOfficialSet && officialPlayer ? `⭐ ${t('mvpOfficialWinner', '⭐ MVP Oficial: {name}!').replace('{name}', officialPlayer.name || '')}` : t('chooseBestTeammate', 'Vota al mejor compañero del partido')}
+                    ${statusSubtitle}
                   </div>
                 </div>
               </div>
               <button type="button" class="btn sm" style="background: #eab308; color: #000; font-weight: 900; font-size: 11.5px; border-radius: 10px; border: none; padding: 6px 12px; white-space: nowrap;">
-                ⭐ ${isOfficialSet ? 'Ver MVP' : t('voteMatchMvp', 'Votar')}
+                ${btnLabel}
               </button>
             </div>
           </div>
@@ -6516,12 +6634,61 @@
         <!-- MISIÓN SEMANAL DEL MÍSTER -->
         ${(() => {
           if (!myP.weeklyMission) return '';
+          const PRESET_TRANSLATIONS = {
+            preset_pass: {
+              es: 'Completar al menos el 80% de pases con precisión',
+              en: 'Complete at least 80% of passes with accuracy',
+              et: 'Lõpeta vähemalt 80% söötudest täpselt',
+              ru: 'Выполнить не менее 80% точных передач'
+            },
+            preset_recov: {
+              es: 'Realizar 3 recuperaciones limpias de balón',
+              en: 'Make 3 clean ball recoveries',
+              et: 'Teha 3 puhast pallivõitu',
+              ru: 'Совершить 3 чистых отбора/перехвата мяча'
+            },
+            preset_duels: {
+              es: 'Ganar al menos 3 duelos 1vs1',
+              en: 'Win at least 3 1v1 duels',
+              et: 'Võita vähemalt 3 1vs1 duelli',
+              ru: 'Выиграть как минимум 3 единоборства 1в1'
+            },
+            preset_goals: {
+              es: 'Marcar 2 o más goles en la semana',
+              en: 'Score 2 or more goals this week',
+              et: 'Lüüa sel nädalal 2 või rohkem väravat',
+              ru: 'Забить 2 или более голов за неделю'
+            },
+            preset_streak: {
+              es: 'Alcanzar una racha de asistencia de 3 sesiones seguidas',
+              en: 'Reach an attendance streak of 3 consecutive sessions',
+              et: 'Saavutada järjestikune osalemine 3 trennis',
+              ru: 'Достичь серии посещаемости из 3 тренировок подряд'
+            },
+            preset_foot: {
+              es: 'Disparar a portería con la pierna menos hábil',
+              en: 'Shoot on target using your weaker foot',
+              et: 'Lüüa väravale nõrgema jalaga',
+              ru: 'Пробить по воротам нерабочей ногой'
+            },
+            preset_fairplay: {
+              es: 'Cero tarjetas y máxima comunicación de apoyo en el campo',
+              en: 'Zero cards and maximum supportive communication on the pitch',
+              et: 'Null kaarti ja maksimaalne toetav suhtlus väljakul',
+              ru: 'Без карточек и с максимальной поддержкой партнеров на поле'
+            }
+          };
+
           function getPlayerMissionText(mission, lang) {
             if (!mission) return '';
-            if (lang === 'ru' && (mission.text_ru || mission.title_ru)) return mission.text_ru || mission.title_ru;
-            if ((lang === 'ee' || lang === 'et') && (mission.text_ee || mission.text_et || mission.title_et)) return mission.text_ee || mission.text_et || mission.title_et;
-            if (lang === 'en' && (mission.text_en || mission.title_en)) return mission.text_en || mission.title_en;
-            if (lang === 'es' && (mission.text_es || mission.title_es)) return mission.text_es || mission.title_es;
+            const l = (lang === 'ee' || lang === 'et') ? 'et' : (lang === 'ru' ? 'ru' : (lang === 'en' ? 'en' : 'es'));
+            if (mission.presetKey && PRESET_TRANSLATIONS[mission.presetKey]) {
+              return PRESET_TRANSLATIONS[mission.presetKey][l] || PRESET_TRANSLATIONS[mission.presetKey].es;
+            }
+            if (l === 'ru' && (mission.text_ru || mission.title_ru)) return mission.text_ru || mission.title_ru;
+            if (l === 'et' && (mission.text_ee || mission.text_et || mission.title_et)) return mission.text_ee || mission.text_et || mission.title_et;
+            if (l === 'en' && (mission.text_en || mission.title_en)) return mission.text_en || mission.title_en;
+            if (l === 'es' && (mission.text_es || mission.title_es)) return mission.text_es || mission.title_es;
             return mission.text || mission.title || '';
           }
           const mText = getPlayerMissionText(myP.weeklyMission, currentLang);
@@ -7250,14 +7417,14 @@
           </div>
           <div class="grow" style="overflow: hidden;">
             <h2 style="font-size: 18px; font-weight: 900; margin: 0 0 2px; color: #fff;">
-              ${escapeHtml(cp.name || 'Entrenador Principal')}
+              ${escapeHtml(cp.name || t('headCoach', 'Entrenador Principal'))}
             </h2>
             <div style="font-size: 12px; color: var(--cyan); font-weight: 800;">
-              ${escapeHtml(cp.role || cp.title || 'Director Técnico')}
+              ${escapeHtml(cp.role || cp.title || t('headCoachRole', 'Director Técnico'))}
             </div>
             ${cp.license ? `
               <div style="font-size: 11px; color: var(--muted); margin-top: 2px;">
-                🏅 Licencia: ${escapeHtml(cp.license)}
+                🏅 ${t('coachLicense', 'Licencia')}: ${escapeHtml(cp.license)}
               </div>
             ` : ''}
           </div>
@@ -7283,7 +7450,7 @@
         ${(cp.phone || cp.email) ? `
           <div class="card" style="margin-bottom: 12px; padding: 12px; border: 1px solid var(--border); background: var(--bg2); display: flex; flex-direction: column; gap: 6px; font-size: 12.5px;">
             ${cp.phone ? `<div>📞 <b>${t('contact', 'Contacto')}:</b> ${escapeHtml(cp.phone)}</div>` : ''}
-            ${cp.email ? `<div>✉️ <b>Email:</b> ${escapeHtml(cp.email)}</div>` : ''}
+            ${cp.email ? `<div>✉️ <b>${t('email', 'Email')}:</b> ${escapeHtml(cp.email)}</div>` : ''}
           </div>
         ` : ''}
 
@@ -7346,8 +7513,44 @@
 
     const team = clubData.teams ? clubData.teams.find(t => t.id === p.teamId) : null;
     const allSessions = (clubData && clubData.sessions) || [];
-    const trainingSessions = allSessions.filter(s => (s.type || 'training') === 'training');
-    const matchSessions = allSessions.filter(s => (s.type || 'training') === 'match');
+    let effectiveSessions = (allSessions || []).filter(s => s && s.stats && s.stats[pid] && Object.values(s.stats[pid]).some(v => v > 0));
+    if (effectiveSessions.length === 0 && p) {
+      const summaryList = Array.isArray(p.sessionHistorySummary) && p.sessionHistorySummary.length > 0
+        ? p.sessionHistorySummary
+        : (Array.isArray(p.matchHistorySummary) ? p.matchHistorySummary : []);
+      if (summaryList.length > 0) {
+        effectiveSessions = summaryList.map(item => ({
+          id: item.sessionId || item.id,
+          type: item.type || (item.rival ? 'match' : 'training'),
+          date: item.date || '',
+          title: item.title || '',
+          rival: item.rival || '',
+          venue: item.venue || '',
+          score: item.score || null,
+          stats: {
+            [pid]: item.stats || {
+              goal: item.goal || 0,
+              assist: item.assist || 0,
+              passOk: item.passOk || 0,
+              passKo: item.passKo || 0,
+              shotOn: item.shotOn || 0,
+              shotOff: item.shotOff || 0,
+              recovery: item.recovery || item.recoveries || 0,
+              recoveries: item.recovery || item.recoveries || 0,
+              touches: item.touches || 0,
+              dribbleOk: item.dribbleOk || 0,
+              duelsWon: item.duelsWon || 0,
+              duel1v1WonGoal: item.duel1v1WonGoal || 0,
+              duel1v1WonStop: item.duel1v1WonStop || 0,
+              duel1v1LostTurnover: item.duel1v1LostTurnover || 0,
+              duel1v1LostGoal: item.duel1v1LostGoal || 0
+            }
+          }
+        }));
+      }
+    }
+    const trainingSessions = effectiveSessions.filter(s => (s.type || 'training') === 'training');
+    const matchSessions = effectiveSessions.filter(s => (s.type || 'training') === 'match');
     const aggTraining = getPlayerAggregate(pid, trainingSessions);
     const aggMatch = getPlayerAggregate(pid, matchSessions);
     const overall = calculatePlayerOverallRating(pid, p.mainPosition);
@@ -7741,7 +7944,9 @@
     const axesLabels = {
       en: { pas: 'PASS', tir: 'SHOT', reg: 'DRIB', fis: 'PHYS', def: 'DEF' },
       ee: { pas: 'SÖÖT', tir: 'LÖÖK', reg: 'TRIB', fis: 'FÜÜS', def: 'KAIT' },
-      es: { pas: 'PASE', tir: 'TIRO', reg: 'REG',  fis: 'FÍS',  def: 'DEF' }
+      et: { pas: 'SÖÖT', tir: 'LÖÖK', reg: 'TRIB', fis: 'FÜÜS', def: 'KAIT' },
+      es: { pas: 'PASE', tir: 'TIRO', reg: 'REG',  fis: 'FÍS',  def: 'DEF' },
+      ru: { pas: 'ПАС',  tir: 'УДАР', reg: 'ДРИБ', fis: 'ФИЗ',  def: 'ЗАЩ' }
     };
     const langLabels = axesLabels[currentLang] || axesLabels.en;
     const axes = [
@@ -7852,12 +8057,11 @@
     const d1 = getPlayer1v1Stats(p1.id, allSessions);
     const d2 = getPlayer1v1Stats(p2.id, allSessions);
 
-    // Comparativa de atributos pedagógica para jugadores (sin mostrar % de victoria)
-    const attrKeys = ['pas', 'tir', 'reg', 'def', 'fis', 'dis'];
+    // Comparativa de atributos pedagógica para jugadores en 1v1 (sin pases, sin % de victoria)
+    const attrKeys = ['reg', 'tir', 'def', 'fis', 'dis'];
     const attrNames = {
-      pas: t('stat_pas', 'Pase (PAS)'),
-      tir: t('stat_tir', 'Tiro (TIR)'),
       reg: t('stat_reg', 'Regate (REG)'),
+      tir: t('stat_tir', 'Tiro (TIR)'),
       def: t('stat_def', 'Defensa (DEF)'),
       fis: t('stat_fis', 'Físico (FIS)'),
       dis: t('stat_dis', 'Disciplina (DIS)')
@@ -7926,7 +8130,7 @@
               <span>💡</span> <span>${t('h2h_keys_title', 'Claves del Duelo')}</span>
             </span>
             <span class="badge" style="background: rgba(34, 211, 238, 0.15); color: #22d3ee; border: 1px solid rgba(34, 211, 238, 0.4); font-size: 10px; font-weight: 800; padding: 2px 7px;">
-              ${t('h2h_tactical_summary', 'Comparativa 6 Atributos')}
+              ${t('h2h_tactical_summary', 'Comparativa 1v1 (5 Atributos)')}
             </span>
           </div>
 
@@ -7939,9 +8143,9 @@
                     <div style="font-size: 12.5px; font-weight: 800; color: #4ade80; line-height: 1.35;">${t('h2h_your_advantage', 'Tienes ventaja en {stat} (+{diff}). ¡Úsalo a tu favor!').replace('{stat}', escapeHtml(a.name)).replace('{diff}', a.diff)}</div>
                   </div>
                 </div>
-                <div style="text-align: right;">
-                  <span class="badge" style="background: #16a34a; color: #fff; font-weight: 900; font-size: 12px; padding: 2px 8px; border-radius: 999px;">+${a.diff}</span>
-                  <div style="font-size: 10px; color: var(--muted); margin-top: 2px;">${a.val1} vs ${a.val2}</div>
+                <div style="text-align: right; flex-shrink: 0; margin-left: 8px;">
+                  <span class="badge" style="background: #16a34a; color: #fff; font-weight: 900; font-size: 11.5px; padding: 2px 8px; border-radius: 999px;">+${a.diff}</span>
+                  <div style="font-size: 10px; color: var(--muted); margin-top: 3px; font-weight: 700; white-space: nowrap;">${escapeHtml(p1.name.split(' ')[0])} (${a.val1}) vs ${escapeHtml(p2.name.split(' ')[0])} (${a.val2})</div>
                 </div>
               </div>
             `).join('')}
@@ -7954,11 +8158,11 @@
                     <div style="font-size: 12.5px; font-weight: 800; color: #fde047; line-height: 1.35;">${t('h2h_best_weapon', 'Duelo exigente: tu mejor baza hoy es competir desde tu {stat}.').replace('{stat}', escapeHtml(bestWeapon.name))}</div>
                   </div>
                 </div>
-                <div style="text-align: right;">
-                  <span class="badge" style="background: rgba(250, 204, 21, 0.25); color: #fde047; border: 1px solid #facc15; font-weight: 900; font-size: 12px; padding: 2px 8px; border-radius: 999px;">
+                <div style="text-align: right; flex-shrink: 0; margin-left: 8px;">
+                  <span class="badge" style="background: rgba(250, 204, 21, 0.25); color: #fde047; border: 1px solid #facc15; font-weight: 900; font-size: 11.5px; padding: 2px 8px; border-radius: 999px;">
                     ${bestWeapon.diff >= 0 ? '+' + bestWeapon.diff : bestWeapon.diff}
                   </span>
-                  <div style="font-size: 10px; color: var(--muted); margin-top: 2px;">${bestWeapon.val1} vs ${bestWeapon.val2}</div>
+                  <div style="font-size: 10px; color: var(--muted); margin-top: 3px; font-weight: 700; white-space: nowrap;">${escapeHtml(p1.name.split(' ')[0])} (${bestWeapon.val1}) vs ${escapeHtml(p2.name.split(' ')[0])} (${bestWeapon.val2})</div>
                 </div>
               </div>
             ` : ''}
@@ -7971,9 +8175,9 @@
                     <div style="font-size: 12.5px; font-weight: 800; color: #f472b6; line-height: 1.35;">${t('h2h_watch_out', 'Cuidado con su {stat} (-{diff}). Juega rápido y anticipa.').replace('{stat}', escapeHtml(w.name)).replace('{diff}', Math.abs(w.diff))}</div>
                   </div>
                 </div>
-                <div style="text-align: right;">
-                  <span class="badge" style="background: rgba(244, 63, 94, 0.25); color: #fda4af; border: 1px solid #f43f5e; font-weight: 900; font-size: 12px; padding: 2px 8px; border-radius: 999px;">${w.diff}</span>
-                  <div style="font-size: 10px; color: var(--muted); margin-top: 2px;">${w.val1} vs ${w.val2}</div>
+                <div style="text-align: right; flex-shrink: 0; margin-left: 8px;">
+                  <span class="badge" style="background: rgba(244, 63, 94, 0.25); color: #fda4af; border: 1px solid #f43f5e; font-weight: 900; font-size: 11.5px; padding: 2px 8px; border-radius: 999px;">-${Math.abs(w.diff)}</span>
+                  <div style="font-size: 10px; color: var(--muted); margin-top: 3px; font-weight: 700; white-space: nowrap;">${escapeHtml(p1.name.split(' ')[0])} (${w.val1}) vs ${escapeHtml(p2.name.split(' ')[0])} (${w.val2})</div>
                 </div>
               </div>
             `).join('')}
@@ -8082,7 +8286,7 @@
       if (filtered.length === 0) {
         return `
           <div style="padding: 24px; text-align: center; color: var(--muted); font-size: 12.5px;">
-            No se encontraron jugadores
+            ${t('noPlayersFound', 'No se encontraron jugadores')}
           </div>
         `;
       }
@@ -8116,7 +8320,7 @@
           <div style="margin-bottom: 12px;">
             <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px; padding: 0 4px;">
               <span>🛡️</span>
-              <span style="font-size: 12px; font-weight: 800; color: #fff;">General / Otros</span>
+              <span style="font-size: 12px; font-weight: 800; color: #fff;">${t('otherPlayers', 'General / Otros')}</span>
               <span class="badge" style="font-size: 10px; padding: 1px 6px;">${generalPlayers.length}</span>
             </div>
             <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px;">
@@ -8153,12 +8357,12 @@
       <div class="dialog-box" style="max-height: 85vh; width: 94%; max-width: 460px; padding: 18px; display: flex; flex-direction: column;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-shrink: 0;">
           <h3 style="margin: 0; font-size: 16px; font-weight: 800; color: #fff;">
-            ${t('choosePlayer')} ${targetSlot === 1 ? '1 (Izquierda)' : '2 (Derecha)'}
+            ${t('choosePlayer')} ${targetSlot === 1 ? t('slotLeft', '1 (Izquierda)') : t('slotRight', '2 (Derecha)')}
           </h3>
           <button type="button" class="icon-btn ghost" id="dlg-h2h-x" style="width: 32px; height: 32px;">✕</button>
         </div>
 
-        <input type="text" id="h2h-search-player" placeholder="🔍 Buscar por nombre o dorsal..." style="width: 100%; padding: 9px 12px; font-size: 13px; border-radius: 10px; margin-bottom: 12px; flex-shrink: 0;" />
+        <input type="text" id="h2h-search-player" placeholder="${t('searchPlayerDorsalPlaceholder', '🔍 Buscar por nombre o dorsal...')}" style="width: 100%; padding: 9px 12px; font-size: 13px; border-radius: 10px; margin-bottom: 12px; flex-shrink: 0;" />
 
         <div id="h2h-picker-grid-container" style="flex: 1; overflow-y: auto; max-height: 62vh; padding-right: 2px;">
           ${buildGridHtml('')}
@@ -8428,7 +8632,10 @@
     `;
     document.body.appendChild(overlay);
     overlay.querySelector('#btn-force-purge-restart').onclick = () => {
-      try { localStorage.setItem('player_last_cache_purge', String(remotePurgeTime)); } catch (e) {}
+      try { 
+        localStorage.setItem('player_last_cache_purge', String(remotePurgeTime));
+        if (myPlayerId) localStorage.setItem('player_last_indiv_purge_' + myPlayerId, String(remotePurgeTime));
+      } catch (e) {}
       if (typeof window.clearAppCacheAndReload === 'function') {
         window.clearAppCacheAndReload();
       } else {
@@ -8509,12 +8716,24 @@
       window.Cloud.listenToClubState((remoteState) => {
         if (!remoteState) return;
 
-        // Comprobar si el entrenador ha solicitado borrado forzado de caché
+        // Comprobar si el entrenador ha solicitado borrado forzado de caché (global o individual)
         if (remoteState.settings && remoteState.settings.forceCachePurgeTimestamp) {
           const remotePurgeTime = remoteState.settings.forceCachePurgeTimestamp;
           const lastPurged = parseInt(localStorage.getItem('player_last_cache_purge') || '0', 10);
           if (remotePurgeTime > lastPurged) {
             showForceCachePurgeModal(remotePurgeTime);
+            return;
+          }
+        }
+        if (myPlayerId && Array.isArray(remoteState.players)) {
+          const myRemoteP = remoteState.players.find(p => p.id === myPlayerId);
+          if (myRemoteP && myRemoteP.forceCachePurgeTimestamp) {
+            const playerPurgeTime = myRemoteP.forceCachePurgeTimestamp;
+            const lastPlayerPurged = parseInt(localStorage.getItem('player_last_indiv_purge_' + myPlayerId) || '0', 10);
+            if (playerPurgeTime > lastPlayerPurged) {
+              showForceCachePurgeModal(playerPurgeTime);
+              return;
+            }
           }
         }
 
