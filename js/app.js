@@ -1574,17 +1574,23 @@
 
   function renderLangButton() {
     const cur = I18N.getLang();
+    const flags = { es: '🇪🇸 ES', en: '🇬🇧 EN', et: '🇪🇪 ET', ee: '🇪🇪 ET', ru: '🇷🇺 RU' };
+    const label = flags[cur] || cur.toUpperCase();
     return `
       <div style="display: flex; align-items: center; gap: 6px;">
-        <button class="icon-btn" id="btn-toggle-lang" title="${t('appLanguage')}">
-          <span style="font-size: 13px; font-weight: 900; letter-spacing: 0.5px;">${cur.toUpperCase()}</span>
+        <button class="icon-btn" id="btn-toggle-lang" title="${t('appLanguage')}" style="width: auto; padding: 0 10px; border-radius: 10px; font-weight: 900; font-size: 12px; gap: 4px; display: inline-flex; align-items: center; border: 1px solid var(--border); background: var(--surface2); color: #fff;">
+          <span>${label}</span>
         </button>
       </div>
     `;
   }
 
   function toggleLanguage() {
-    const next = I18N.getLang() === 'es' ? 'en' : 'es';
+    const list = ['es', 'en', 'et', 'ru'];
+    const cur = I18N.getLang();
+    const curNorm = (cur === 'ee' ? 'et' : cur);
+    const idx = list.indexOf(curNorm);
+    const next = list[(idx + 1) % list.length];
     I18N.setLang(next);
     renderTabbar();
     navigate(currentTab);
@@ -9449,9 +9455,21 @@
     }
     if (years < 0) return '';
     const curL = (lang || (window.I18N && window.I18N.getLang()) || (Store.state.settings && Store.state.settings.lang) || 'es');
-    if (curL === 'ee') {
+    if (curL === 'ee' || curL === 'et') {
       const yStr = years === 1 ? '1 aasta' : `${years} aastat`;
       const mStr = months === 1 ? '1 kuu' : `${months} kuud`;
+      return `${yStr}, ${mStr}`;
+    } else if (curL === 'ru') {
+      function ruPlural(n, one, few, many) {
+        const mod10 = n % 10;
+        const mod100 = n % 100;
+        if (mod100 >= 11 && mod100 <= 19) return `${n} ${many}`;
+        if (mod10 === 1) return `${n} ${one}`;
+        if (mod10 >= 2 && mod10 <= 4) return `${n} ${few}`;
+        return `${n} ${many}`;
+      }
+      const yStr = ruPlural(years, 'год', 'года', 'лет');
+      const mStr = ruPlural(months, 'месяц', 'месяца', 'месяцев');
       return `${yStr}, ${mStr}`;
     } else if (curL === 'en') {
       const yStr = years === 1 ? '1 year' : `${years} years`;
@@ -10269,7 +10287,12 @@
   }
 
   function formatConvocationWhatsAppText(conv, lang) {
-    const isEn = (lang === 'en' || (lang !== 'es' && Store.state.settings && Store.state.settings.lang === 'en'));
+    const l = (lang || (Store.state.settings && Store.state.settings.lang) || 'es').toLowerCase();
+    const isRu = (l === 'ru');
+    const isEt = (l === 'et' || l === 'ee');
+    const isEn = (l === 'en');
+    const isEs = (!isRu && !isEt && !isEn);
+
     const team = Store.team(conv.teamId);
     const teamName = team ? team.name : '';
     const dateStr = conv.date || '';
@@ -10277,17 +10300,59 @@
       ? (conv.time + (conv.endTime ? ' - ' + conv.endTime : '') + (conv.duration ? ` (${conv.duration} min)` : '')) 
       : '';
     const timeStr = conv.time || '';
-    const venueStr = conv.venue ? (isEn ? `📍 *Venue:* ${conv.venue}\n` : `📍 *Lugar:* ${conv.venue}\n`) : '';
-    const addressStr = conv.address ? (isEn ? `🗺️ *Address:* ${conv.address}\n` : `🗺️ *Dirección:* ${conv.address}\n`) : '';
-    const rivalStr = conv.rival ? (isEn ? `⚔️ *Opponent:* ${conv.rival}\n` : `🆚 *Rival:* ${conv.rival}\n`) : '';
-    const notesStr = conv.notes ? (isEn ? `📝 *Notes:* ${conv.notes}\n` : `📝 *Notas:* ${conv.notes}\n`) : '';
 
-    const defTitle = conv.type === 'match' ? (isEn ? 'MATCH' : 'PARTIDO') : (isEn ? 'TRAINING' : 'ENTRENAMIENTO');
-    let text = isEn 
+    const venueStr = conv.venue ? (
+      isRu ? `📍 *Место:* ${conv.venue}\n` :
+      isEt ? `📍 *Koht:* ${conv.venue}\n` :
+      isEn ? `📍 *Venue:* ${conv.venue}\n` :
+      `📍 *Lugar:* ${conv.venue}\n`
+    ) : '';
+
+    const addressStr = conv.address ? (
+      isRu ? `🗺️ *Адрес:* ${conv.address}\n` :
+      isEt ? `🗺️ *Aadress:* ${conv.address}\n` :
+      isEn ? `🗺️ *Address:* ${conv.address}\n` :
+      `🗺️ *Dirección:* ${conv.address}\n`
+    ) : '';
+
+    const rivalStr = conv.rival ? (
+      isRu ? `⚔️ *Соперник:* ${conv.rival}\n` :
+      isEt ? `⚔️ *Vastane:* ${conv.rival}\n` :
+      isEn ? `⚔️ *Opponent:* ${conv.rival}\n` :
+      `🆚 *Rival:* ${conv.rival}\n`
+    ) : '';
+
+    const notesStr = conv.notes ? (
+      isRu ? `📝 *Примечания:* ${conv.notes}\n` :
+      isEt ? `📝 *Märkmed:* ${conv.notes}\n` :
+      isEn ? `📝 *Notes:* ${conv.notes}\n` :
+      `📝 *Notas:* ${conv.notes}\n`
+    ) : '';
+
+    const defTitle = conv.type === 'match'
+      ? (isRu ? 'МАТЧ' : isEt ? 'MÄNG' : isEn ? 'MATCH' : 'PARTIDO')
+      : (isRu ? 'ТРЕНИРОВКА' : isEt ? 'TREENING' : isEn ? 'TRAINING' : 'ENTRENAMIENTO');
+
+    let text = isRu
+      ? `📋 *ОФИЦИАЛЬНАЯ ЗАЯВКА: ${conv.title || defTitle}*\n`
+      : isEt
+      ? `📋 *AMETLIK KOKKUKUTSE: ${conv.title || defTitle}*\n`
+      : isEn
       ? `📋 *OFFICIAL CALL-UP: ${conv.title || defTitle}*\n`
       : `📋 *CONVOCATORIA: ${conv.title || defTitle}*\n`;
-    if (teamName) text += isEn ? `🛡️ *Team:* ${teamName}\n` : `🛡️ *Equipo:* ${teamName}\n`;
-    text += isEn ? `📅 *Date:* ${dateStr} • ⏰ *Time:* ${timeFormatted}\n` : `📅 *Fecha:* ${dateStr} • ⏰ *Hora:* ${timeFormatted}\n`;
+
+    if (teamName) {
+      text += isRu ? `🛡️ *Команда:* ${teamName}\n` :
+              isEt ? `🛡️ *Võistkond:* ${teamName}\n` :
+              isEn ? `🛡️ *Team:* ${teamName}\n` :
+              `🛡️ *Equipo:* ${teamName}\n`;
+    }
+
+    text += isRu ? `📅 *Дата:* ${dateStr} • ⏰ *Время:* ${timeFormatted}\n` :
+            isEt ? `📅 *Kuupäev:* ${dateStr} • ⏰ *Kellaaeg:* ${timeFormatted}\n` :
+            isEn ? `📅 *Date:* ${dateStr} • ⏰ *Time:* ${timeFormatted}\n` :
+            `📅 *Fecha:* ${dateStr} • ⏰ *Hora:* ${timeFormatted}\n`;
+
     if (rivalStr) text += rivalStr;
     if (venueStr) text += venueStr;
     if (addressStr) text += addressStr;
@@ -10327,7 +10392,9 @@
     const webBaseUrl = (conv.webUrl || (Store.state.settings && Store.state.settings.convocatoriaWebUrl) || 'https://streetoh.github.io/Player_Stats/convocatoria.html').trim();
     if (webBaseUrl) {
       const qParams = new URLSearchParams();
-      const titleVal = conv.title || (conv.type === 'match' ? (isEn ? 'Match' : 'Partido') : (isEn ? 'Training' : 'Entrenamiento'));
+      const titleVal = conv.title || (conv.type === 'match'
+        ? (isRu ? 'Матч' : isEt ? 'Mäng' : isEn ? 'Match' : 'Partido')
+        : (isRu ? 'Тренировка' : isEt ? 'Treening' : isEn ? 'Training' : 'Entrenamiento'));
       qParams.set('t', titleVal);
       if (teamName) qParams.set('tm', teamName);
       if (dateStr) qParams.set('d', dateStr);
@@ -10338,43 +10405,62 @@
       if (calledNamesSimple.length > 0) {
         qParams.set('p', calledNamesSimple.join(','));
       }
-      if (isEn) qParams.set('lang', 'en');
+      qParams.set('lang', isRu ? 'ru' : (isEt ? 'et' : (isEn ? 'en' : 'es')));
 
       const sep = webBaseUrl.includes('?') ? '&' : '?';
-      text += isEn
+      text += isRu
+        ? `\n🌐 *Подтвердить участие онлайн:*\n👉 ${webBaseUrl}${sep}${qParams.toString()}\n`
+        : isEt
+        ? `\n🌐 *Kinnita osalemine veebis:*\n👉 ${webBaseUrl}${sep}${qParams.toString()}\n`
+        : isEn
         ? `\n🌐 *Confirm online attendance:*\n👉 ${webBaseUrl}${sep}${qParams.toString()}\n`
         : `\n🌐 *Confirmar asistencia en enlace web:*\n👉 ${webBaseUrl}${sep}${qParams.toString()}\n`;
     }
 
     if (called.length > 0) {
-      text += isEn ? `\n🟢 *CALLED UP (${called.length}):*\n` : `\n🟢 *CONVOCADOS (${called.length}):*\n`;
+      text += isRu ? `\n🟢 *В ЗАЯВКЕ (${called.length}):*\n` :
+              isEt ? `\n🟢 *KOKKU KUTSUTUD (${called.length}):*\n` :
+              isEn ? `\n🟢 *CALLED UP (${called.length}):*\n` :
+              `\n🟢 *CONVOCADOS (${called.length}):*\n`;
       called.forEach(item => { text += `  • ${item}\n`; });
     } else {
-      text += isEn ? `\n🟢 *CALLED UP (0):*\n  (No players selected yet)\n` : `\n🟢 *CONVOCADOS (0):*\n  (Sin jugadores seleccionados aún)\n`;
+      text += isRu ? `\n🟢 *В ЗАЯВКЕ (0):*\n  (Игроки еще не выбраны)\n` :
+              isEt ? `\n🟢 *KOKKU KUTSUTUD (0):*\n  (Mängijaid pole veel valitud)\n` :
+              isEn ? `\n🟢 *CALLED UP (0):*\n  (No players selected yet)\n` :
+              `\n🟢 *CONVOCADOS (0):*\n  (Sin jugadores seleccionados aún)\n`;
     }
 
     if (bench.length > 0) {
-      text += isEn ? `\n🟡 *BENCH (${bench.length}):*\n` : `\n🟡 *SUPLENTES (${bench.length}):*\n`;
+      text += isRu ? `\n🟡 *ЗАПАСНЫЕ (${bench.length}):*\n` :
+              isEt ? `\n🟡 *PINGIL (${bench.length}):*\n` :
+              isEn ? `\n🟡 *BENCH (${bench.length}):*\n` :
+              `\n🟡 *SUPLENTES (${bench.length}):*\n`;
       bench.forEach(item => { text += `  • ${item}\n`; });
     }
 
     if (injured.length > 0) {
-      text += isEn ? `\n🏥 *INJURED (${injured.length}):*\n` : `\n🏥 *LESIONADOS (${injured.length}):*\n`;
+      text += isRu ? `\n🏥 *ТРАВМИРОВАНЫ (${injured.length}):*\n` :
+              isEt ? `\n🏥 *VIGASTATUD (${injured.length}):*\n` :
+              isEn ? `\n🏥 *INJURED (${injured.length}):*\n` :
+              `\n🏥 *LESIONADOS (${injured.length}):*\n`;
       injured.forEach(item => { text += `  • ${item}\n`; });
     }
 
     if (absent.length > 0) {
-      text += isEn ? `\n❌ *UNAVAILABLE (${absent.length}):*\n` : `\n❌ *NO DISPONIBLES (${absent.length}):*\n`;
+      text += isRu ? `\n❌ *НЕ МОГУТ (${absent.length}):*\n` :
+              isEt ? `\n❌ *PUUDUVAD (${absent.length}):*\n` :
+              isEn ? `\n❌ *UNAVAILABLE (${absent.length}):*\n` :
+              `\n❌ *NO DISPONIBLES (${absent.length}):*\n`;
       absent.forEach(item => { text += `  • ${item}\n`; });
     }
 
-    text += isEn
-      ? `\n📲 *Please confirm attendance by replying via Viber:*
-  👉 Reply: "🟢 ATTENDING" or "❌ CANNOT ATTEND"
-⚽ _Sent from Player Stats_`
-      : `\n📲 *Por favor confirma tu asistencia respondiendo por Viber:*
-  👉 Responde: "🟢 VOY" o "❌ NO PUEDO"
-⚽ _Enviado desde Estadísticas Jugadores_`;
+    text += isRu
+      ? `\n📲 *Пожалуйста, подтвердите участие в Viber:*\n  👉 Ответьте: "🟢 БУДУ" или "❌ НЕ МОГУ"\n⚽ _Отправлено из Player Stats_`
+      : isEt
+      ? `\n📲 *Palun kinnita oma osalemine vastates Viberis:*\n  👉 Vasta: "🟢 TULEN" või "❌ EI SAA"\n⚽ _Saadetud rakendusest Player Stats_`
+      : isEn
+      ? `\n📲 *Please confirm attendance by replying via Viber:*\n  👉 Reply: "🟢 ATTENDING" or "❌ CANNOT ATTEND"\n⚽ _Sent from Player Stats_`
+      : `\n📲 *Por favor confirma tu asistencia respondiendo por Viber:*\n  👉 Responde: "🟢 VOY" o "❌ NO PUEDO"\n⚽ _Enviado desde Estadísticas Jugadores_`;
     return text;
   }
 
@@ -10565,12 +10651,18 @@
           <div style="font-size: 11px; font-weight: 800; color: var(--muted); margin-bottom: 6px; text-transform: uppercase;">
             COMPARTIR CONVOCATORIA:
           </div>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px;">
-            <button type="button" class="btn" id="btn-conv-share-viber-es" style="background: #7c3aed; color: #fff; font-weight: 800; font-size: 12.5px; border-color: #a855f7;">
-              💜 Viber (Español)
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 14px;">
+            <button type="button" class="btn" id="btn-conv-share-viber-es" style="background: #7c3aed; color: #fff; font-weight: 800; font-size: 11.5px; padding: 6px 2px; border-color: #a855f7;">
+              🇪🇸 ES
             </button>
-            <button type="button" class="btn" id="btn-conv-share-viber-en" style="background: #6d28d9; color: #fff; font-weight: 800; font-size: 12.5px; border-color: #9333ea;">
-              💜 Viber (English)
+            <button type="button" class="btn" id="btn-conv-share-viber-en" style="background: #6d28d9; color: #fff; font-weight: 800; font-size: 11.5px; padding: 6px 2px; border-color: #9333ea;">
+              🇬🇧 EN
+            </button>
+            <button type="button" class="btn" id="btn-conv-share-viber-et" style="background: #5b21b6; color: #fff; font-weight: 800; font-size: 11.5px; padding: 6px 2px; border-color: #8b5cf6;">
+              🇪🇪 ET
+            </button>
+            <button type="button" class="btn" id="btn-conv-share-viber-ru" style="background: #4c1d95; color: #fff; font-weight: 800; font-size: 11.5px; padding: 6px 2px; border-color: #7c3aed;">
+              🇷🇺 RU
             </button>
           </div>
 
@@ -10747,6 +10839,12 @@
 
         const btnViberEn = body.querySelector('#btn-conv-share-viber-en');
         if (btnViberEn) btnViberEn.onclick = () => dispatchViberShare(formatConvocationWhatsAppText(conv, 'en'));
+
+        const btnViberEt = body.querySelector('#btn-conv-share-viber-et');
+        if (btnViberEt) btnViberEt.onclick = () => dispatchViberShare(formatConvocationWhatsAppText(conv, 'et'));
+
+        const btnViberRu = body.querySelector('#btn-conv-share-viber-ru');
+        if (btnViberRu) btnViberRu.onclick = () => dispatchViberShare(formatConvocationWhatsAppText(conv, 'ru'));
 
         const btnQuickEdit = body.querySelector('#btn-quick-open-editor');
         if (btnQuickEdit) {
@@ -11523,12 +11621,18 @@
       bindTimePickerField('conv-time', body);
     }, (foot) => {
       foot.innerHTML = `
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
-          <button class="btn" id="btn-conv-share-viber-es" style="background: #7c3aed; color: #fff; border-color: #a855f7; font-weight: 800; font-size: 12.5px;">
-            💜 Viber (ES)
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 8px;">
+          <button class="btn" id="btn-conv-share-viber-es" style="background: #7c3aed; color: #fff; border-color: #a855f7; font-weight: 800; font-size: 11.5px; padding: 6px 2px;">
+            🇪🇸 ES
           </button>
-          <button class="btn" id="btn-conv-share-viber-en" style="background: #6d28d9; color: #fff; border-color: #9333ea; font-weight: 800; font-size: 12.5px;">
-            💜 Viber (EN)
+          <button class="btn" id="btn-conv-share-viber-en" style="background: #6d28d9; color: #fff; border-color: #9333ea; font-weight: 800; font-size: 11.5px; padding: 6px 2px;">
+            🇬🇧 EN
+          </button>
+          <button class="btn" id="btn-conv-share-viber-et" style="background: #5b21b6; color: #fff; border-color: #8b5cf6; font-weight: 800; font-size: 11.5px; padding: 6px 2px;">
+            🇪🇪 ET
+          </button>
+          <button class="btn" id="btn-conv-share-viber-ru" style="background: #4c1d95; color: #fff; border-color: #7c3aed; font-weight: 800; font-size: 11.5px; padding: 6px 2px;">
+            🇷🇺 RU
           </button>
         </div>
         <div class="btn-row">
@@ -11563,6 +11667,8 @@
 
       foot.querySelector('#btn-conv-share-viber-es').onclick = () => triggerViberShare('es');
       foot.querySelector('#btn-conv-share-viber-en').onclick = () => triggerViberShare('en');
+      foot.querySelector('#btn-conv-share-viber-et').onclick = () => triggerViberShare('et');
+      foot.querySelector('#btn-conv-share-viber-ru').onclick = () => triggerViberShare('ru');
 
       foot.querySelector('#btn-conv-cancel').onclick = closeSheet;
 
@@ -13223,9 +13329,11 @@
       <!-- Selector de Idioma -->
       <div class="section-title"><span>${t('appLanguage')}</span></div>
       <div class="card" style="margin-bottom: 14px;">
-        <div class="segmented">
-          <button type="button" class="${I18N.getLang() === 'es' ? 'active' : ''}" id="lang-pick-es">Español 🇪🇸</button>
-          <button type="button" class="${I18N.getLang() === 'en' ? 'active' : ''}" id="lang-pick-en">English 🇬🇧</button>
+        <div class="segmented" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px;">
+          <button type="button" class="${I18N.getLang() === 'es' ? 'active' : ''}" id="lang-pick-es">🇪🇸 ES</button>
+          <button type="button" class="${I18N.getLang() === 'en' ? 'active' : ''}" id="lang-pick-en">🇬🇧 EN</button>
+          <button type="button" class="${(I18N.getLang() === 'et' || I18N.getLang() === 'ee') ? 'active' : ''}" id="lang-pick-et">🇪🇪 ET</button>
+          <button type="button" class="${I18N.getLang() === 'ru' ? 'active' : ''}" id="lang-pick-ru">🇷🇺 RU</button>
         </div>
       </div>
 
@@ -13379,6 +13487,22 @@
       renderTabbar();
       navigate('config');
     };
+    const btnEt = view.querySelector('#lang-pick-et');
+    if (btnEt) {
+      btnEt.onclick = () => {
+        I18N.setLang('et');
+        renderTabbar();
+        navigate('config');
+      };
+    }
+    const btnRu = view.querySelector('#lang-pick-ru');
+    if (btnRu) {
+      btnRu.onclick = () => {
+        I18N.setLang('ru');
+        renderTabbar();
+        navigate('config');
+      };
+    }
 
     view.querySelectorAll('[data-stat]').forEach(sw => {
       sw.onclick = () => {

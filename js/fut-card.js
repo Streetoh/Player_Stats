@@ -38,7 +38,7 @@
   const THEMES = {
     gold: {
       id: 'gold',
-      name: { es: 'Oro Clásico', en: 'Gold Classic', ee: 'Kuldne Klassika' },
+      name: { es: 'Oro Clásico', en: 'Gold Classic', ee: 'Kuldne Klassika', et: 'Kuldne Klassika', ru: 'Классическое золото' },
       bgGrad: ['#3b2d13', '#61481c', '#9e7930', '#fef08a', '#9e7930', '#3b2d13'],
       innerGrad: ['#2b210a', '#453511', '#241a06', '#120d03'],
       cardBorder: '#facc15',
@@ -54,7 +54,7 @@
     },
     black: {
       id: 'black',
-      name: { es: 'TOTW / Black', en: 'TOTW / Black', ee: 'Must TOTW' },
+      name: { es: 'TOTW / Black', en: 'TOTW / Black', ee: 'Must TOTW', et: 'Must TOTW', ru: 'Черный TOTW' },
       bgGrad: ['#18181b', '#27272a', '#52525b', '#facc15', '#27272a', '#09090b'],
       innerGrad: ['#18181b', '#0f172a', '#09090b', '#000000'],
       cardBorder: '#facc15',
@@ -70,7 +70,7 @@
     },
     diamond: {
       id: 'diamond',
-      name: { es: 'Diamante Cyan', en: 'Diamond Cyan', ee: 'Teemant Tsüaan' },
+      name: { es: 'Diamante Cyan', en: 'Diamond Cyan', ee: 'Teemant Tsüaan', et: 'Teemant Tsüaan', ru: 'Алмазный циан' },
       bgGrad: ['#082f49', '#0369a1', '#38bdf8', '#e0f2fe', '#0284c7', '#082f49'],
       innerGrad: ['#0c4a6e', '#075985', '#082f49', '#020617'],
       cardBorder: '#38bdf8',
@@ -88,13 +88,15 @@
 
   function getLang() {
     if (typeof window !== 'undefined') {
-      return window.currentLang || (window.Store && window.Store.state && window.Store.state.settings && window.Store.state.settings.lang) || localStorage.getItem('lang') || 'es';
+      const l = window.currentLang || (window.Store && window.Store.state && window.Store.state.settings && window.Store.state.settings.lang) || localStorage.getItem('lang') || 'es';
+      return (l === 'ee' ? 'et' : l);
     }
     return 'es';
   }
 
   function getI18nText(key, fallback) {
-    const lang = getLang();
+    let lang = getLang();
+    if (lang === 'ee') lang = 'et';
     const dict = {
       es: {
         futCardTitle: 'Carta FUT Coleccionable',
@@ -126,6 +128,21 @@
         themeDiamond: '🔷 Diamond Cyan',
         statPas: 'PAS', statTir: 'SHO', statReg: 'DRI', statFis: 'PHY', statDef: 'DEF', statDis: 'DIS'
       },
+      et: {
+        futCardTitle: 'Kogutav FUT Kaart',
+        futCardSubtitle: 'Ametlik kinnitatud kaart sinu reaalsete oskustega',
+        downloadCard: 'Laadi alla kaart (PNG)',
+        downloading: 'Pildi loomine...',
+        shareWhatsApp: 'Jaga WhatsAppis',
+        shareViber: 'Jaga Viberis',
+        shareText: 'Vaata minu ametlikku Player Stats kaarti üldhinnanguga {ovr}!',
+        close: 'Sulge',
+        selectTheme: 'Vali kaardi stiil:',
+        themeGold: '🟡 Kuldne Klassika',
+        themeBlack: '⚫ Must TOTW',
+        themeDiamond: '🔷 Teemant Tsüaan',
+        statPas: 'SÖÖ', statTir: 'LÖÖ', statReg: 'TRI', statFis: 'FÜÜ', statDef: 'KAI', statDis: 'DIS'
+      },
       ee: {
         futCardTitle: 'Kogutav FUT Kaart',
         futCardSubtitle: 'Ametlik kinnitatud kaart sinu reaalsete oskustega',
@@ -140,6 +157,21 @@
         themeBlack: '⚫ Must TOTW',
         themeDiamond: '🔷 Teemant Tsüaan',
         statPas: 'SÖÖ', statTir: 'LÖÖ', statReg: 'TRI', statFis: 'FÜÜ', statDef: 'KAI', statDis: 'DIS'
+      },
+      ru: {
+        futCardTitle: 'Коллекционная карточка FUT',
+        futCardSubtitle: 'Официальная карточка с твоими реальными показателями',
+        downloadCard: 'Скачать карточку (PNG)',
+        downloading: 'Создание изображения...',
+        shareWhatsApp: 'Поделиться в WhatsApp',
+        shareViber: 'Поделиться в Viber',
+        shareText: 'Посмотри мою официальную карточку Player Stats с общим рейтингом {ovr}!',
+        close: 'Закрыть',
+        selectTheme: 'Выбери дизайн карточки:',
+        themeGold: '🟡 Классическое золото',
+        themeBlack: '⚫ Черный TOTW',
+        themeDiamond: '🔷 Алмазный циан',
+        statPas: 'ПАС', statTir: 'УДР', statReg: 'ДРБ', statFis: 'ФИЗ', statDef: 'ЗАЩ', statDis: 'ДИС'
       }
     };
     return (dict[lang] && dict[lang][key]) || (dict.en && dict.en[key]) || fallback || key;

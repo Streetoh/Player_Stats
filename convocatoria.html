@@ -102,8 +102,34 @@
     const playersParam = params.get('p') || params.get('players') || '';
     const lang = (params.get('lang') || 'es').toLowerCase();
     const isEn = (lang === 'en');
+    const isRu = (lang === 'ru');
+    const isEt = (lang === 'et' || lang === 'ee');
 
-    if (isEn) {
+    if (isRu) {
+      document.getElementById('c-badge').textContent = 'ОФИЦИАЛЬНАЯ ЗАЯВКА';
+      const lblName = document.querySelector('label[for="player-name"]');
+      if (lblName) lblName.textContent = 'Выберите или введите свое имя:';
+      const inpName = document.getElementById('player-name');
+      if (inpName) inpName.placeholder = 'Напр. Иван Петров (#10)';
+      const lblNotes = document.querySelector('label[for="player-notes"]');
+      if (lblNotes) lblNotes.textContent = 'Комментарий / Заметка (необязательно):';
+      const inpNotes = document.getElementById('player-notes');
+      if (inpNotes) inpNotes.placeholder = 'Напр. приеду на 10 мин раньше / свой транспорт...';
+      const foot = document.querySelector('.foot');
+      if (foot) foot.textContent = '⚽ Player Stats • Учет посещаемости игроков';
+    } else if (isEt) {
+      document.getElementById('c-badge').textContent = 'AMETLIK KOKKUKUTSE';
+      const lblName = document.querySelector('label[for="player-name"]');
+      if (lblName) lblName.textContent = 'Vali või sisesta oma nimi:';
+      const inpName = document.getElementById('player-name');
+      if (inpName) inpName.placeholder = 'Nt Karl Tamm (#10)';
+      const lblNotes = document.querySelector('label[for="player-notes"]');
+      if (lblNotes) lblNotes.textContent = 'Märkmed / Kommentaar (valikuline):';
+      const inpNotes = document.getElementById('player-notes');
+      if (inpNotes) inpNotes.placeholder = 'Nt jõuan 10 min varem / oma transport...';
+      const foot = document.querySelector('.foot');
+      if (foot) foot.textContent = '⚽ Player Stats • Mängijate osalemissüsteem';
+    } else if (isEn) {
       document.getElementById('c-badge').textContent = 'OFFICIAL CALL-UP';
       const lblName = document.querySelector('label[for="player-name"]');
       if (lblName) lblName.textContent = 'Select or type your name:';
@@ -213,8 +239,8 @@
       const notes = document.getElementById('player-notes').value.trim();
       const isAttending = currentSelectedStatus === 'yes';
       const statusText = isAttending 
-        ? (isEn ? '🟢 ATTENDING (YES)' : '🟢 CONFIRMO ASISTENCIA (SÍ)') 
-        : (isEn ? '❌ NOT ATTENDING (NO)' : '❌ NO PUEDO ASISTIR (NO)');
+        ? (isRu ? '🟢 БУДУ (ДА)' : (isEt ? '🟢 TULEN (JAH)' : (isEn ? '🟢 ATTENDING (YES)' : '🟢 CONFIRMO ASISTENCIA (SÍ)')))
+        : (isRu ? '❌ НЕ МОГУ (НЕТ)' : (isEt ? '❌ EI SAA (EI)' : (isEn ? '❌ NOT ATTENDING (NO)' : '❌ NO PUEDO ASISTIR (NO)')));
 
       const matchStr = matchDisplay || (rival ? `vs ${rival}` : title);
       const metaItems = [];
@@ -223,13 +249,13 @@
       if (venue) metaItems.push(venue);
       const metaLine = metaItems.join(' • ');
 
-      let msg = (isEn ? `📋 *Match Attendance Confirmation*\n` : `📋 *Confirmación de Convocatoria*\n`);
-      msg += (isEn ? `👤 *Player:* ${name}\n` : `👤 *Jugador:* ${name}\n`);
-      msg += (isEn ? `📢 *Status:* ${statusText}\n` : `📢 *Estado:* ${statusText}\n`);
-      if (matchStr) msg += (isEn ? `🏆 *Match:* ${matchStr}\n` : `🏆 *Partido:* ${matchStr}\n`);
-      if (metaLine) msg += (isEn ? `📅 *Info:* ${metaLine}\n` : `📅 *Datos:* ${metaLine}\n`);
-      if (notes) msg += (isEn ? `📝 *Notes:* ${notes}\n` : `📝 *Notas:* ${notes}\n`);
-      msg += (isEn ? `\n⚽ _Player Stats_` : `\n⚽ _Estadísticas Jugadores_`);
+      let msg = isRu ? `📋 *Подтверждение участия*\n` : (isEt ? `📋 *Osalemise kinnitamine*\n` : (isEn ? `📋 *Match Attendance Confirmation*\n` : `📋 *Confirmación de Convocatoria*\n`));
+      msg += isRu ? `👤 *Игрок:* ${name}\n` : (isEt ? `👤 *Mängija:* ${name}\n` : (isEn ? `👤 *Player:* ${name}\n` : `👤 *Jugador:* ${name}\n`));
+      msg += isRu ? `📢 *Статус:* ${statusText}\n` : (isEt ? `📢 *Staatus:* ${statusText}\n` : (isEn ? `📢 *Status:* ${statusText}\n` : `📢 *Estado:* ${statusText}\n`));
+      if (matchStr) msg += isRu ? `🏆 *Матч:* ${matchStr}\n` : (isEt ? `🏆 *Mäng:* ${matchStr}\n` : (isEn ? `🏆 *Match:* ${matchStr}\n` : `🏆 *Partido:* ${matchStr}\n`));
+      if (metaLine) msg += isRu ? `📅 *Данные:* ${metaLine}\n` : (isEt ? `📅 *Andmed:* ${metaLine}\n` : (isEn ? `📅 *Info:* ${metaLine}\n` : `📅 *Datos:* ${metaLine}\n`));
+      if (notes) msg += isRu ? `📝 *Заметки:* ${notes}\n` : (isEt ? `📝 *Märkmed:* ${notes}\n` : (isEn ? `📝 *Notes:* ${notes}\n` : `📝 *Notas:* ${notes}\n`));
+      msg += `\n⚽ _Player Stats_`;
 
       lastGeneratedMsg = msg;
       return msg;
@@ -239,7 +265,11 @@
       const msg = lastGeneratedMsg || buildConfirmationMessage();
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(msg).then(() => {
-          alert(isEn ? 'Message copied to clipboard! You can paste it into Viber.' : '¡Mensaje copiado al portapapeles! Puedes pegarlo en el grupo de Viber.');
+          const alertMsg = isRu ? 'Сообщение скопировано в буфер обмена! Вы можете вставить его в группу Viber.' :
+                           isEt ? 'Sõnum on kopeeritud lõikelauale! Saad selle kleepida Viberi gruppi.' :
+                           isEn ? 'Message copied to clipboard! You can paste it into Viber.' :
+                           '¡Mensaje copiado al portapapeles! Puedes pegarlo en el grupo de Viber.';
+          alert(alertMsg);
         }).catch(() => {});
       }
     }
@@ -247,7 +277,11 @@
     function handleChoice(status) {
       const name = inputName.value.trim();
       if (!name) {
-        alert(isEn ? 'Please enter or select your name first.' : 'Por favor, selecciona o introduce tu nombre antes de confirmar.');
+        const promptMsg = isRu ? 'Пожалуйста, выберите или введите свое имя перед подтверждением.' :
+                          isEt ? 'Palun vali või sisesta oma nimi enne kinnitamist.' :
+                          isEn ? 'Please enter or select your name first.' :
+                          'Por favor, selecciona o introduce tu nombre antes de confirmar.';
+        alert(promptMsg);
         inputName.focus();
         return;
       }

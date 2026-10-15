@@ -1,0 +1,4112 @@
+{
+  "absenceReasonPlaceholder": {
+    "es": "Escribe aquí el motivo de tu ausencia...",
+    "en": "Write your reason here...",
+    "ee": "Kirjuta oma põhjus siia..."
+  },
+  "absenceReasonPrompt": {
+    "es": "Por favor explica brevemente a tu entrenador el motivo por el que no podrás asistir (ej. lesión, enfermedad, examen, viaje):",
+    "en": "Please briefly explain to your coach why you will not be able to attend (e.g. injury, illness, exam, family):",
+    "ee": "Palun selgita lühidalt treenerile, miks sa ei saa osaleda (nt vigastus, haigus, eksam, reis):"
+  },
+  "absenceReasonTitle": {
+    "es": "Motivo de la Ausencia",
+    "en": "Reason for Absence",
+    "ee": "Puudumise põhjus"
+  },
+  "absenceReported": {
+    "es": "Baja registrada",
+    "en": "Absence recorded",
+    "ee": "❌ Puudumine teatatud"
+  },
+  "absent": {
+    "es": "Ausente",
+    "en": "Absent",
+    "ee": ""
+  },
+  "absentBadge": {
+    "es": "Bajas",
+    "en": "Unavailable",
+    "ee": "Puuduvad"
+  },
+  "absentStatus": {
+    "es": "Ausente",
+    "en": "Absent",
+    "ee": ""
+  },
+  "acceptedBadge": {
+    "es": "Aceptados",
+    "en": "Confirmed",
+    "ee": ""
+  },
+  "actions": {
+    "es": "acciones",
+    "en": "actions",
+    "ee": "tegevust"
+  },
+  "activeBadge": {
+    "es": "Activo",
+    "en": "Active",
+    "ee": "Aktiivne"
+  },
+  "activeButtons": {
+    "es": "Botones en pantalla",
+    "en": "Screen Buttons",
+    "ee": ""
+  },
+  "addDataManually": {
+    "es": "Añadir datos manualmente",
+    "en": "Add Data Manually",
+    "ee": ""
+  },
+  "addManualPlayer": {
+    "es": "Añadir Jugador Puntual",
+    "en": "Add Temporary Player",
+    "ee": ""
+  },
+  "addManualPlayerDesc": {
+    "es": "Introduce los datos del jugador para convocarlo a este evento:",
+    "en": "Enter player details to call them up for this specific event:",
+    "ee": ""
+  },
+  "addParticipants": {
+    "es": "Añadir participantes",
+    "en": "Add participants",
+    "ee": ""
+  },
+  "addParticipantsToGroup": {
+    "es": "Añadir jugadores al grupo",
+    "en": "Add players to group",
+    "ee": ""
+  },
+  "addSelected": {
+    "es": "Añadir Seleccionados",
+    "en": "Add Selected",
+    "ee": ""
+  },
+  "addTemporaryPlayer": {
+    "es": "Añadir jugador temporal",
+    "en": "Add temporary player",
+    "ee": ""
+  },
+  "address": {
+    "es": "Dirección",
+    "en": "Address",
+    "ee": "Aadress"
+  },
+  "adjustDiscipline": {
+    "es": "Ajustar Disciplina",
+    "en": "Adjust Discipline",
+    "ee": ""
+  },
+  "age": {
+    "es": "Edad",
+    "en": "Age",
+    "ee": "Vanus"
+  },
+  "all": {
+    "es": "Todos",
+    "en": "All",
+    "ee": ""
+  },
+  "allAnswered": {
+    "es": "Todos los convocados han respondido",
+    "en": "All called players have responded",
+    "ee": "Kõik kutsutud mängijad on vastanud"
+  },
+  "allPlansDeleted": {
+    "es": "Todos los planes han sido eliminados",
+    "en": "All plans have been deleted",
+    "ee": ""
+  },
+  "allPlayers": {
+    "es": "Todos los jugadores",
+    "en": "All Players",
+    "ee": "Kõik Mängijad"
+  },
+  "allPlayersAlreadyInGroup": {
+    "es": "Todos los jugadores ya forman parte del grupo.",
+    "en": "All players are already in this group.",
+    "ee": ""
+  },
+  "allPlayersAverage": {
+    "es": "Todos los jugadores (Promedio)",
+    "en": "All players (Average)",
+    "ee": ""
+  },
+  "allResponded": {
+    "es": "¡Todos los jugadores ya han confirmado su asistencia!",
+    "en": "All players have already confirmed their attendance!",
+    "ee": ""
+  },
+  "allTeams": {
+    "es": "(Todos los jugadores / General)",
+    "en": "(All players / General)",
+    "ee": "Kõik meeskonnad"
+  },
+  "allTeamsOption": {
+    "es": "Todos los equipos (General)",
+    "en": "All Teams (General Club)",
+    "ee": ""
+  },
+  "allTeamsSelected": {
+    "es": "Todos los equipos",
+    "en": "All teams",
+    "ee": ""
+  },
+  "apkDownloadStarted": {
+    "es": "¡Descarga iniciada en tu dispositivo!",
+    "en": "Download started on your device!",
+    "ee": "Allalaadimine algas sinu seadmes!"
+  },
+  "apkDownloadTitle": {
+    "es": "Descarga de la App Android",
+    "en": "Download Android App",
+    "ee": "Androidi äpi allalaadimine"
+  },
+  "apkFamilyLinkDesc": {
+    "es": "Pide a tus padres que abran Family Link -> Límites de apps -> \"Player stats (Player)\" -> y seleccionen \"Siempre permitida\".",
+    "en": "Ask parents to open Family Link -> App limits -> \"Player stats (Player)\" -> select \"Always allowed\".",
+    "ee": "Palu vanematel avada Family Link -> Rakenduste piirangud -> \"Player stats (Player)\" -> valida \"Alati lubatud\"."
+  },
+  "apkFamilyLinkTitle": {
+    "es": "Para usuarios con Google Family Link:",
+    "en": "For Google Family Link users:",
+    "ee": "Google Family Linki kasutajatele:"
+  },
+  "apkHowToInstallTitle": {
+    "es": "¿Dónde encontrarla y cómo instalarla?",
+    "en": "Where to find it & how to install?",
+    "ee": "Kust seda leida ja kuidas paigaldada?"
+  },
+  "apkStep1Bold": {
+    "es": "Mira la barra de notificaciones:",
+    "en": "Check notification bar:",
+    "ee": "Vaata teavitusriba:"
+  },
+  "apkStep1Desc": {
+    "es": "Desliza hacia abajo desde el borde superior de tu pantalla y pulsa sobre la notificación \"PlayerStats_Player.apk\" cuando termine.",
+    "en": "Swipe down from the top edge of your screen and tap \"PlayerStats_Player.apk\" once completed.",
+    "ee": "Tõmba ekraani ülaservast alla ja puuduta teavitust \"PlayerStats_Player.apk\", kui see on valmis."
+  },
+  "apkStep2Bold": {
+    "es": "O abre tu carpeta Descargas:",
+    "en": "Or open your Downloads folder:",
+    "ee": "Või ava kaust Allalaadimised:"
+  },
+  "apkStep2Desc": {
+    "es": "Abre la aplicación \"Mis Archivos\", \"Archivos\" o \"Descargas\" de tu teléfono y busca \"PlayerStats_Player.apk\". Tócalo para instalar.",
+    "en": "Open your phone's \"Files\", \"My Files\" or \"Downloads\" app to find and tap \"PlayerStats_Player.apk\".",
+    "ee": "Ava oma telefoni rakendus \"Minu failid\", \"Failid\" või \"Allalaadimised\" ja puuduta \"PlayerStats_Player.apk\"."
+  },
+  "appLanguage": {
+    "es": "Idioma / Language",
+    "en": "Language / Idioma",
+    "ee": ""
+  },
+  "appLinked": {
+    "es": "App Vinculada",
+    "en": "App Linked",
+    "ee": ""
+  },
+  "appLinkedDesc": {
+    "es": "Perfil activo en el dispositivo del jugador",
+    "en": "Profile active on player's device",
+    "ee": ""
+  },
+  "appName": {
+    "es": "Player stats (Coach)",
+    "en": "Player stats (Coach)",
+    "ee": "Player stats (Mängija)"
+  },
+  "appNotLinked": {
+    "es": "Sin vincular",
+    "en": "Not Linked",
+    "ee": ""
+  },
+  "appNotLinkedDesc": {
+    "es": "El jugador no tiene este perfil en su dispositivo",
+    "en": "Player has not linked this profile on their device",
+    "ee": ""
+  },
+  "appOnlineNow": {
+    "es": "En línea en la App",
+    "en": "Online in App",
+    "ee": ""
+  },
+  "appSubtitle": {
+    "es": "Seguimiento individual en vivo",
+    "en": "Live individual tracking",
+    "ee": ""
+  },
+  "appUpdateDesc": {
+    "es": "El entrenador ha solicitado una limpieza de caché y actualización para asegurar que tienes los últimos datos y estadísticas.",
+    "en": "The coach has requested a cache and app refresh to ensure all updates, tactical features, and latest stats load properly.",
+    "ee": "Treener on taotlenud vahemälu ja rakenduse värskendamist, et tagada uusimate andmete kuvamine."
+  },
+  "appUpdateRequired": {
+    "es": "Actualización Requerida",
+    "en": "App Update Required",
+    "ee": "Rakenduse uuendus vajalik"
+  },
+  "applyPlayerResponses": {
+    "es": "Cargar votos de la PWA",
+    "en": "Load PWA player RSVPs",
+    "ee": ""
+  },
+  "approve": {
+    "es": "Aprobar",
+    "en": "Approve",
+    "ee": ""
+  },
+  "areYouPlayer": {
+    "es": "¿Eres {name}?",
+    "en": "Are you {name}?",
+    "ee": "Kas oled {name}?"
+  },
+  "askZoneOnShots": {
+    "es": "Preguntar zona en tiros",
+    "en": "Prompt zone on shots",
+    "ee": ""
+  },
+  "askZoneOnShotsDesc": {
+    "es": "Muestra el mini-campo táctico al registrar tiros o goles",
+    "en": "Shows mini-pitch map when recording shots or goals",
+    "ee": ""
+  },
+  "assignMission": {
+    "es": "Asignar Misión",
+    "en": "Assign Mission",
+    "ee": ""
+  },
+  "assignPlayersHint": {
+    "es": "Toca los jugadores para incluirlos o sacarlos de este equipo:",
+    "en": "Tap players to assign or remove them from this team:",
+    "ee": ""
+  },
+  "assignedPlayers": {
+    "es": "Jugadores en este equipo",
+    "en": "Players in this team",
+    "ee": ""
+  },
+  "assignedTeams": {
+    "es": "Equipos Asignados",
+    "en": "Assigned Teams",
+    "ee": ""
+  },
+  "assignedTeamsDesc": {
+    "es": "Selecciona uno o más equipos para este horario",
+    "en": "Select one or multiple teams for this schedule",
+    "ee": ""
+  },
+  "attachFile": {
+    "es": "Adjuntar foto o archivo",
+    "en": "Attach photo or file",
+    "ee": ""
+  },
+  "attendance": {
+    "es": "Asistencia",
+    "en": "Attendance",
+    "ee": ""
+  },
+  "attendanceConfirmed": {
+    "es": "Asistencia confirmada",
+    "en": "Attendance confirmed",
+    "ee": "🟢 Osalemine kinnitatud"
+  },
+  "attendanceResponse": {
+    "es": "Tu Respuesta de Asistencia:",
+    "en": "Your Attendance Response:",
+    "ee": "Sinu Osalemise Vastus:"
+  },
+  "attendanceSaved": {
+    "es": "Asistencia guardada con éxito",
+    "en": "Attendance successfully saved",
+    "ee": ""
+  },
+  "attendanceStreak": {
+    "es": "Racha de asistencia",
+    "en": "Attendance streak",
+    "ee": "Osalemise seeria"
+  },
+  "attendanceStreakCount": {
+    "es": "🔥 {count} seguidos",
+    "en": "🔥 {count} in a row",
+    "ee": ""
+  },
+  "attendanceStreakDesc": {
+    "es": "Sesiones consecutivas asistidas",
+    "en": "Consecutive sessions attended",
+    "ee": "Järjestikust treeningut ja mängu"
+  },
+  "attendanceSummary": {
+    "es": "{present} presentes, {absent} ausentes de {total}",
+    "en": "{present} present, {absent} absent of {total}",
+    "ee": ""
+  },
+  "attendeesTitle": {
+    "es": "Lista de Asistencia",
+    "en": "Call-up Attendance List",
+    "ee": "Kutse Osalejate Nimekiri"
+  },
+  "authorizeAccess": {
+    "es": "✅ Autorizar Acceso",
+    "en": "✅ Authorize Access",
+    "ee": ""
+  },
+  "autoMissionBadge": {
+    "es": "Misión Automática",
+    "en": "Automatic Mission",
+    "ee": "Automaatne missioon"
+  },
+  "autoPair": {
+    "es": "Emparejar al azar",
+    "en": "Auto-pair randomly",
+    "ee": ""
+  },
+  "ballTouches": {
+    "es": "Toques Balón",
+    "en": "Ball Touches",
+    "ee": "Pallipuuted"
+  },
+  "baseRating": {
+    "es": "Valoración Base",
+    "en": "Base Rating",
+    "ee": "Baashinnang"
+  },
+  "bayesAgeModel": {
+    "es": "Datos Bayes + 1v1 + Edad",
+    "en": "Bayes + 1v1 + Age Model",
+    "ee": "Bayes + 1v1 + Vanuse Mudel"
+  },
+  "benchStatus": {
+    "es": "Suplente",
+    "en": "Bench",
+    "ee": ""
+  },
+  "birthDate": {
+    "es": "Fecha de Nacimiento",
+    "en": "Date of Birth",
+    "ee": "Sünniaeg"
+  },
+  "block1": {
+    "es": "Bloque 1",
+    "en": "Block 1",
+    "ee": ""
+  },
+  "block2": {
+    "es": "Bloque 2",
+    "en": "Block 2",
+    "ee": ""
+  },
+  "block3": {
+    "es": "Bloque 3",
+    "en": "Block 3",
+    "ee": ""
+  },
+  "btn_cancel_view_others": {
+    "es": "Cancelar / Ver otros",
+    "en": "Cancel / View others",
+    "ee": "Loobu / Vaata teisi"
+  },
+  "btn_vote_as_mvp": {
+    "es": "Votar como MVP",
+    "en": "Vote as MVP",
+    "ee": "Hääleta MVP-ks"
+  },
+  "calcAgeHint": {
+    "es": "Introduce fecha de nacimiento",
+    "en": "Enter birth date",
+    "ee": ""
+  },
+  "calendar": {
+    "es": "Calendario",
+    "en": "Calendar",
+    "ee": ""
+  },
+  "call": {
+    "es": "Llamar",
+    "en": "Call",
+    "ee": "Helista"
+  },
+  "callCoach": {
+    "es": "Llamar al Entrenador",
+    "en": "Call Coach",
+    "ee": "Helista Treenerile"
+  },
+  "callGuardian": {
+    "es": "📞 Llamar",
+    "en": "📞 Call",
+    "ee": ""
+  },
+  "calledBadge": {
+    "es": "Convocados",
+    "en": "Called",
+    "ee": ""
+  },
+  "calledStatus": {
+    "es": "Convocado",
+    "en": "Selected",
+    "ee": ""
+  },
+  "cancel": {
+    "es": "Cancelar",
+    "en": "Cancel",
+    "ee": ""
+  },
+  "cancelSelectOther": {
+    "es": "✕ Cancelar y elegir otro jugador",
+    "en": "✕ Cancel and select another player",
+    "ee": "✕ Tühista ja vali teine mängija"
+  },
+  "cannotVoteSelf": {
+    "es": "No puedes votarte a ti mismo",
+    "en": "You cannot vote for yourself",
+    "ee": "Sa ei saa hääletada iseenda poolt"
+  },
+  "cardSavedGallery": {
+    "es": "Ficha guardada en la galería",
+    "en": "Player card saved to gallery",
+    "ee": ""
+  },
+  "careerActionsDesc": {
+    "es": "Registro completo de todas las acciones y contribuciones a lo largo de su trayectoria",
+    "en": "Complete record of all tactical contributions and match actions",
+    "ee": "Kõik mängija poolt sooritatud tegevused ja panused läbi karjääri"
+  },
+  "careerActionsTitle": {
+    "es": "Historial de Acciones en la Carrera",
+    "en": "Career Actions Breakdown",
+    "ee": "Karjääri Tegevuste Ülevaade"
+  },
+  "challengeCompleted": {
+    "es": "¡Misión Cumplida! 🎉",
+    "en": "Mission Accomplished! 🎉",
+    "ee": ""
+  },
+  "challengePending": {
+    "es": "En curso ⏳",
+    "en": "In progress ⏳",
+    "ee": ""
+  },
+  "changeGroupNameIcon": {
+    "es": "Cambiar nombre e icono del grupo",
+    "en": "Change group name & icon",
+    "ee": ""
+  },
+  "changePlayer": {
+    "es": "Cambiar jugador",
+    "en": "Change player",
+    "ee": ""
+  },
+  "changeProfile": {
+    "es": "Cambiar ▾",
+    "en": "Change ▾",
+    "ee": "Muuda ▾"
+  },
+  "chat": {
+    "es": "Chat",
+    "en": "Chat",
+    "ee": "Vestlus"
+  },
+  "chatDirect": {
+    "es": "Chat Directo",
+    "en": "Direct Chat",
+    "ee": ""
+  },
+  "chatGroup": {
+    "es": "Chat Grupal",
+    "en": "Group Chat",
+    "ee": ""
+  },
+  "chatTeam": {
+    "es": "Chat de Equipo",
+    "en": "Team Chat",
+    "ee": ""
+  },
+  "chatTitle": {
+    "es": "Chat de Equipo y Jugadores",
+    "en": "Team & Player Chat",
+    "ee": ""
+  },
+  "chatWithCoach": {
+    "es": "Chat con el Entrenador",
+    "en": "Chat with Coach",
+    "ee": "💬 Vestle Treeneriga"
+  },
+  "chatWithPlayer": {
+    "es": "Chatear con este jugador",
+    "en": "Chat with this player",
+    "ee": "💬 Vestle selle mängijaga"
+  },
+  "chooseBestTeammate": {
+    "es": "Elige al compañero más destacado del partido",
+    "en": "Choose the most outstanding teammate of the match",
+    "ee": "Vali meeskonnakaaslane, kes mängis selles mängus kõige paremini:"
+  },
+  "chooseIdentityDesc": {
+    "es": "Selecciona tu nombre para vincular tu ficha a este dispositivo. Una vez elegido, quedará fijado.",
+    "en": "Select your name to link your player profile to this device. Once chosen, it will be locked.",
+    "ee": "Vali oma nimi, et siduda oma profiil selle seadmega. Pärast valimist see lukustatakse."
+  },
+  "chooseIdentityTitle": {
+    "es": "¿Quién eres en el equipo?",
+    "en": "Who are you in the team?",
+    "ee": "Kes sa oled meeskonnas?"
+  },
+  "choosePlayer": {
+    "es": "Elegir Jugador",
+    "en": "Choose Player",
+    "ee": "Vali Mängija"
+  },
+  "chooseWhoYouAre": {
+    "es": "-- Elige quién eres realmente --",
+    "en": "-- Select who you really are --",
+    "ee": "-- Vali, kes sa tegelikult oled --"
+  },
+  "claimCooldownWait": {
+    "es": "Por favor, espera {sec}s antes de solicitar otro código de verificación.",
+    "en": "Please wait {sec}s before requesting another verification code.",
+    "ee": "Palun oota {sec}s enne uue kinnituskoodi taotlemist."
+  },
+  "claimLockedNotice": {
+    "es": "Solicitud activa vinculada a este perfil. No puedes cambiar de perfil ni solicitar otro código hasta que el entrenador responda.",
+    "en": "Active request locked to this profile. You cannot change profile or send a new code until your coach authorizes or denies the request.",
+    "ee": "Aktiivne taotlus on selle profiiliga lukustatud. Te ei saa profiili vahetada ega uut koodi saata enne, kui treener on taotluse kinnitanud või tagasi lükanud."
+  },
+  "clearAllNotifications": {
+    "es": "Limpiar todas",
+    "en": "Clear all",
+    "ee": ""
+  },
+  "clearCacheBtn": {
+    "es": "🔄 Borrar Caché y Recargar",
+    "en": "🔄 Clear App Cache & Refresh",
+    "ee": "🔄 Tühjenda vahemälu ja värskenda"
+  },
+  "clearMission": {
+    "es": "Eliminar Misión",
+    "en": "Clear Mission",
+    "ee": ""
+  },
+  "clearPairs": {
+    "es": "Vaciar parejas",
+    "en": "Clear pairs",
+    "ee": ""
+  },
+  "close": {
+    "es": "Cerrar",
+    "en": "Close",
+    "ee": "Sulge"
+  },
+  "closeMvpVote": {
+    "es": "Cerrar Votación de MVP",
+    "en": "Close MVP Voting",
+    "ee": ""
+  },
+  "cloudMode": {
+    "es": "Nube (Internet 4G/5G)",
+    "en": "Cloud (4G/5G Internet)",
+    "ee": ""
+  },
+  "coachAndTeammates": {
+    "es": "con Entrenador y compañeros",
+    "en": "with Coach & teammates",
+    "ee": ""
+  },
+  "coachBio": {
+    "es": "Biografía / Filosofía",
+    "en": "Bio / Coaching Philosophy",
+    "ee": ""
+  },
+  "coachCardTitle": {
+    "es": "Ficha del Entrenador",
+    "en": "Head Coach Profile",
+    "ee": "Peatreeneri Profiil"
+  },
+  "coachContact": {
+    "es": "Teléfono / Contacto",
+    "en": "Phone / Contact",
+    "ee": ""
+  },
+  "coachInstructions": {
+    "es": "Instrucciones del Entrenador",
+    "en": "Coach's Instructions & Notes",
+    "ee": "Treeneri Juhised ja Märkused"
+  },
+  "coachLicense": {
+    "es": "Licencia Deportiva",
+    "en": "Coaching License",
+    "ee": ""
+  },
+  "coachNote": {
+    "es": "Nota del Míster",
+    "en": "Coach's Note",
+    "ee": "Treeneri märkus"
+  },
+  "coachPicksMax3": {
+    "es": "Selecciona hasta 3 jugadores destacados y escribe por qué brillaron hoy:",
+    "en": "Select up to 3 standout players and explain why they shone today:",
+    "ee": ""
+  },
+  "coachProfile": {
+    "es": "Perfil del Entrenador",
+    "en": "Coach Profile",
+    "ee": ""
+  },
+  "coachProfileSubtitle": {
+    "es": "Cuerpo Técnico y Dirección",
+    "en": "Technical Director & Coaching Staff",
+    "ee": "Tehniline direktor ja treenerite tiim"
+  },
+  "coachQualitativeNotes": {
+    "es": "Observaciones y Evaluación del Entrenador",
+    "en": "Coach's Observations & Qualitative Evaluation",
+    "ee": ""
+  },
+  "coachTitle": {
+    "es": "Cargo / Especialidad",
+    "en": "Job Title / Specialization",
+    "ee": ""
+  },
+  "codeCopied": {
+    "es": "✅ ¡Código copiado al portapapeles!",
+    "en": "✅ Code copied to clipboard!",
+    "ee": "✅ Kood kopeeritud lõikelauale!"
+  },
+  "combinedRating": {
+    "es": "Valoración Combinada",
+    "en": "Combined Rating",
+    "ee": "Kombineeritud hinnang"
+  },
+  "communityMvpVotes": {
+    "es": "Votos de los Compañeros",
+    "en": "Teammates Votes",
+    "ee": ""
+  },
+  "comparativeRadars": {
+    "es": "Radares Comparativos",
+    "en": "Comparative Skill Radars",
+    "ee": "Võrdlevad Oskuste Radarid"
+  },
+  "configSubtitle": {
+    "es": "Personalización y Datos",
+    "en": "Customization & Data",
+    "ee": ""
+  },
+  "configTitle": {
+    "es": "Ajustes",
+    "en": "Settings",
+    "ee": ""
+  },
+  "confirm": {
+    "es": "Confirmar",
+    "en": "Confirm",
+    "ee": ""
+  },
+  "confirmAbsence": {
+    "es": "Confirmar Baja",
+    "en": "Confirm Absence",
+    "ee": "Kinnita Puudumine"
+  },
+  "confirmDeleteAllPlans": {
+    "es": "¿Estás seguro de que deseas eliminar todas las convocatorias y planes registrados? Esta acción no se puede deshacer.",
+    "en": "Are you sure you want to delete all call-up plans and convocations? This action cannot be undone.",
+    "ee": ""
+  },
+  "confirmDeletePlayer": {
+    "es": "¿Estás seguro de eliminar a este jugador?",
+    "en": "Are you sure you want to delete this player?",
+    "ee": ""
+  },
+  "confirmDeleteTeam": {
+    "es": "¿Eliminar este equipo? Los jugadores asignados quedarán sin equipo.",
+    "en": "Delete this team? Assigned players will become unassigned.",
+    "ee": ""
+  },
+  "confirmIdentityBtn": {
+    "es": "Vincular mi perfil",
+    "en": "Link My Profile",
+    "ee": "Seo minu profiil"
+  },
+  "confirmPlayerIdentity": {
+    "es": "Confirmar Identidad",
+    "en": "Confirm Identity",
+    "ee": "Kinnita Isik"
+  },
+  "confirmPosition": {
+    "es": "Confirmar Posición",
+    "en": "Confirm Position",
+    "ee": ""
+  },
+  "confirmedBadge": {
+    "es": "Confirmados",
+    "en": "Confirmed",
+    "ee": "Kinnitatud"
+  },
+  "connectedDevices": {
+    "es": "Dispositivos conectados",
+    "en": "Connected devices",
+    "ee": ""
+  },
+  "contact": {
+    "es": "Contacto",
+    "en": "Contact",
+    "ee": "Kontakt"
+  },
+  "convocationTitle": {
+    "es": "Título de convocatoria",
+    "en": "Call-up title",
+    "ee": ""
+  },
+  "convocationTitlePlaceholder": {
+    "es": "Ej. Partido vs Juvenil B, Entreno táctico...",
+    "en": "e.g. Match vs Youth B, Tactical session...",
+    "ee": ""
+  },
+  "convocations": {
+    "es": "Convocatorias",
+    "en": "Squad Call-ups",
+    "ee": "Kutsed"
+  },
+  "convocationsDesc": {
+    "es": "Gestión de asistencia y plantilla convocada",
+    "en": "Manage attendance and matchday squad",
+    "ee": ""
+  },
+  "convokedToggle": {
+    "es": "Convocado",
+    "en": "Called Up",
+    "ee": ""
+  },
+  "copiedToClipboard": {
+    "es": "¡Código copiado al portapapeles!",
+    "en": "Code copied to clipboard!",
+    "ee": "Sõnum kopeeritud lõikelauale"
+  },
+  "copyCode": {
+    "es": "Copiar código",
+    "en": "Copy code",
+    "ee": "📋 Kopeeri Kood"
+  },
+  "copyMessage": {
+    "es": "Copiar mensaje",
+    "en": "Copy message",
+    "ee": "Kopeeri sõnum"
+  },
+  "createGroupBtn": {
+    "es": "Crear y Abrir Grupo",
+    "en": "Create & Open Group",
+    "ee": ""
+  },
+  "createPlayer": {
+    "es": "Crear Jugador",
+    "en": "Create Player",
+    "ee": ""
+  },
+  "creationApproved": {
+    "es": "🎉 ¡El entrenador ha creado tu perfil! Ya puedes ver tus estadísticas.",
+    "en": "🎉 Your coach approved and created your profile! You can now view your stats.",
+    "ee": "🎉 Treener kinnitas ja lõi sinu profiili! Nüüd saad vaadata oma statistikat."
+  },
+  "creationRejected": {
+    "es": "❌ El entrenador ha denegado la solicitud de alta.",
+    "en": "❌ Your coach declined the registration request.",
+    "ee": "❌ Treener lükkas registreerimistaotluse tagasi."
+  },
+  "cumulativeStats": {
+    "es": "Mis Cifras Acumuladas",
+    "en": "Cumulative Stats",
+    "ee": "Koondstatistika"
+  },
+  "currentMission": {
+    "es": "Misión Actual",
+    "en": "Current Mission",
+    "ee": ""
+  },
+  "currentProfile": {
+    "es": "Perfil Actual",
+    "en": "Current Profile",
+    "ee": ""
+  },
+  "currentProgressLabel": {
+    "es": "Progreso actual",
+    "en": "Current progress",
+    "ee": ""
+  },
+  "customTimePerDay": {
+    "es": "Personaliza cada día",
+    "en": "Customize each day",
+    "ee": ""
+  },
+  "customizeButtons": {
+    "es": "Personalizar botones del contador",
+    "en": "Customize Counter Buttons",
+    "ee": ""
+  },
+  "date": {
+    "es": "Fecha",
+    "en": "Date",
+    "ee": ""
+  },
+  "dayFri": {
+    "es": "Vie",
+    "en": "Fri",
+    "ee": ""
+  },
+  "dayMon": {
+    "es": "Lun",
+    "en": "Mon",
+    "ee": ""
+  },
+  "daySat": {
+    "es": "Sáb",
+    "en": "Sat",
+    "ee": ""
+  },
+  "daySun": {
+    "es": "Dom",
+    "en": "Sun",
+    "ee": ""
+  },
+  "dayThu": {
+    "es": "Jue",
+    "en": "Thu",
+    "ee": ""
+  },
+  "dayTue": {
+    "es": "Mar",
+    "en": "Tue",
+    "ee": ""
+  },
+  "dayWed": {
+    "es": "Mié",
+    "en": "Wed",
+    "ee": ""
+  },
+  "daysOfWeek": {
+    "es": "Días de la semana",
+    "en": "Days of the week",
+    "ee": ""
+  },
+  "declinedBadge": {
+    "es": "Bajas",
+    "en": "Declined",
+    "ee": ""
+  },
+  "defaultDuration": {
+    "es": "Duración habitual",
+    "en": "Default Duration",
+    "ee": ""
+  },
+  "defaultKitMatch": {
+    "es": "Equipación oficial de partido, espinilleras y botella de agua",
+    "en": "Official match kit, shin guards and water bottle",
+    "ee": "Ametlik mänguvorm, säärekaitsmed ja joogipudel"
+  },
+  "defaultKitTraining": {
+    "es": "Ropa de entrenamiento, espinilleras, botas y botella de agua",
+    "en": "Training gear, shin guards, football boots and water bottle",
+    "ee": "Treeningriided, säärekaitsmed, jalgpallisaapad ja joogipudel"
+  },
+  "defense": {
+    "es": "Defensa",
+    "en": "Defense",
+    "ee": ""
+  },
+  "delete": {
+    "es": "Eliminar",
+    "en": "Delete",
+    "ee": ""
+  },
+  "deleteAllPlans": {
+    "es": "Borrar todos los planes",
+    "en": "Delete all plans",
+    "ee": ""
+  },
+  "deleteAllPlansConfirm": {
+    "es": "¿Estás seguro de que deseas eliminar TODOS los planes y convocatorias? Esta acción no se puede deshacer.",
+    "en": "Are you sure you want to delete ALL plans and convocation events? This action cannot be undone.",
+    "ee": ""
+  },
+  "deleteChat": {
+    "es": "Eliminar conversación",
+    "en": "Delete conversation",
+    "ee": ""
+  },
+  "deleteChatConfirm": {
+    "es": "¿Seguro que deseas eliminar esta conversación?",
+    "en": "Are you sure you want to delete this conversation?",
+    "ee": ""
+  },
+  "deleteForEveryone": {
+    "es": "Borrar para todos",
+    "en": "Delete for everyone",
+    "ee": "Kustuta kõigilt"
+  },
+  "deleteForEveryoneConfirm": {
+    "es": "¿Eliminar este mensaje para todos?",
+    "en": "Are you sure you want to delete this message for everyone?",
+    "ee": "Kas soovid kindlasti selle sõnumi kõigilt kustutada?"
+  },
+  "deleteForMe": {
+    "es": "Borrar para mí",
+    "en": "Delete for me",
+    "ee": "Kustuta minu jaoks"
+  },
+  "deleteGroup": {
+    "es": "Eliminar grupo",
+    "en": "Delete group",
+    "ee": ""
+  },
+  "deleteGroupConfirm": {
+    "es": "¿Seguro que deseas eliminar este grupo para todos?",
+    "en": "Are you sure you want to delete this group for everyone?",
+    "ee": ""
+  },
+  "deletePlayer": {
+    "es": "Eliminar Jugador",
+    "en": "Delete Player",
+    "ee": ""
+  },
+  "deleteTeam": {
+    "es": "Eliminar Equipo",
+    "en": "Delete Team",
+    "ee": ""
+  },
+  "denyAccess": {
+    "es": "❌ Denegar",
+    "en": "❌ Deny",
+    "ee": ""
+  },
+  "discipline": {
+    "es": "Disciplina",
+    "en": "Discipline",
+    "ee": ""
+  },
+  "disciplineFairPlay": {
+    "es": "Disciplina y Fair Play",
+    "en": "Discipline & Fair Play",
+    "ee": ""
+  },
+  "disconnect": {
+    "es": "Desconectar",
+    "en": "Disconnect",
+    "ee": ""
+  },
+  "distribution": {
+    "es": "Pase",
+    "en": "Passing",
+    "ee": ""
+  },
+  "doneBtn": {
+    "es": "Listo",
+    "en": "Done",
+    "ee": "Valmis"
+  },
+  "dorsalLabel": {
+    "es": "Dorsal habitual",
+    "en": "Jersey Number",
+    "ee": "Särginumber"
+  },
+  "dorsalNumber": {
+    "es": "Número de Dorsal",
+    "en": "Jersey Number",
+    "ee": ""
+  },
+  "dorsalPlaceholder": {
+    "es": "Ej: 10",
+    "en": "e.g. 10",
+    "ee": "nt 10"
+  },
+  "downloadApk": {
+    "es": "Descargar App Android (APK)",
+    "en": "Download Android App (APK)",
+    "ee": "Laadi alla Androidi äpp (APK)"
+  },
+  "downloadCard": {
+    "es": "Descargar Ficha",
+    "en": "Download Card",
+    "ee": ""
+  },
+  "downloadSkillGuide": {
+    "es": "Descargar Guía de Habilidades (PNG)",
+    "en": "Download Skill Guide (PNG)",
+    "ee": ""
+  },
+  "downloadStartedToast": {
+    "es": "📥 Descargando archivo APK...",
+    "en": "📥 Downloading APK...",
+    "ee": "📥 Faili allalaadimine..."
+  },
+  "dribblesLabel": {
+    "es": "REGATES",
+    "en": "DRIBBLES",
+    "ee": "TRIBLINGUD"
+  },
+  "dribblesWon": {
+    "es": "Regates con Éxito",
+    "en": "Successful Take-ons",
+    "ee": "Edukad Triblingud"
+  },
+  "dribbling": {
+    "es": "Regate",
+    "en": "Dribbling",
+    "ee": ""
+  },
+  "duel1v1Goals": {
+    "es": "Goles en 1v1",
+    "en": "1v1 Goals",
+    "ee": "1v1 Väravad"
+  },
+  "duel1v1Stops": {
+    "es": "Robos / Cierres",
+    "en": "Steals / Stops",
+    "ee": "Vaheltlõiked / Tõrjed"
+  },
+  "duels1v1": {
+    "es": "Duelos 1v1",
+    "en": "1v1 Duels",
+    "ee": "1v1 Duellid"
+  },
+  "duels1v1Historical": {
+    "es": "Duelos 1v1 (Histórico)",
+    "en": "1v1 Duels (History)",
+    "ee": "1v1 Duellid (Ajalugu)"
+  },
+  "duels1v1Lost": {
+    "es": "1v1 Perdidos",
+    "en": "1v1 Lost",
+    "ee": "Kaotatud Duellid"
+  },
+  "duels1v1WinRate": {
+    "es": "% Victoria 1v1",
+    "en": "1v1 Win %",
+    "ee": "1v1 Võiduprotsent"
+  },
+  "duels1v1Won": {
+    "es": "1v1 Ganados",
+    "en": "1v1 Won",
+    "ee": "Võidetud Duellid"
+  },
+  "duelsWon": {
+    "es": "Duelos Ganados",
+    "en": "Duels Won",
+    "ee": "Võidetud Kahevõitlused"
+  },
+  "duration": {
+    "es": "Duración",
+    "en": "Duration",
+    "ee": "Kestus"
+  },
+  "editCoachProfile": {
+    "es": "Editar Perfil de Entrenador",
+    "en": "Edit Coach Profile",
+    "ee": ""
+  },
+  "editMessage": {
+    "es": "Editar mensaje",
+    "en": "Edit message",
+    "ee": "Muuda sõnumit"
+  },
+  "editPlayer": {
+    "es": "Editar Jugador",
+    "en": "Edit Player",
+    "ee": ""
+  },
+  "editTeam": {
+    "es": "Editar Equipo",
+    "en": "Edit Team",
+    "ee": ""
+  },
+  "emailGuardian": {
+    "es": "✉️ Email",
+    "en": "✉️ Email",
+    "ee": ""
+  },
+  "emojis": {
+    "es": "Emojis",
+    "en": "Emojis",
+    "ee": ""
+  },
+  "emptyConvs": {
+    "es": "Sin convocatorias activas",
+    "en": "No active call-ups",
+    "ee": "Aktiivseid kutseid pole"
+  },
+  "emptyConvsDesc": {
+    "es": "El entrenador aún no ha publicado ninguna convocatoria para los próximos partidos o entrenamientos.",
+    "en": "The coach has not published any call-ups for upcoming matches or trainings yet.",
+    "ee": "Treener pole veel avaldanud kutseid eelseisvateks mängudeks või treeninguteks."
+  },
+  "enableNotifications": {
+    "es": "Activar Notificaciones",
+    "en": "Enable Notifications",
+    "ee": ""
+  },
+  "endTime": {
+    "es": "Fin",
+    "en": "End",
+    "ee": "Lõpp"
+  },
+  "enterGroupName": {
+    "es": "Introduce un nombre para el grupo",
+    "en": "Please enter a group name",
+    "ee": ""
+  },
+  "enterRoomCode": {
+    "es": "O escribe el código de 6 letras:",
+    "en": "Or enter 6-letter room code:",
+    "ee": ""
+  },
+  "evolution": {
+    "es": "Evolución Temporal",
+    "en": "Progress Timeline",
+    "ee": ""
+  },
+  "exportCSV": {
+    "es": "Exportar CSV / Excel",
+    "en": "Export CSV / Excel",
+    "ee": ""
+  },
+  "exportJSON": {
+    "es": "Exportar JSON",
+    "en": "Export JSON",
+    "ee": ""
+  },
+  "extraTime": {
+    "es": "Prórroga",
+    "en": "Extra Time",
+    "ee": ""
+  },
+  "favoriteBadge": {
+    "es": "Favorito",
+    "en": "Favorite",
+    "ee": "Favoriit"
+  },
+  "filterAll": {
+    "es": "Todos",
+    "en": "All",
+    "ee": "Kõik"
+  },
+  "filterMatches": {
+    "es": "🏆 Partidos",
+    "en": "🏆 Matches",
+    "ee": "🏆 Mängud"
+  },
+  "filterTrainings": {
+    "es": "⚽ Entrenamientos",
+    "en": "⚽ Trainings",
+    "ee": "⚽ Treeningud"
+  },
+  "finish": {
+    "es": "Fin",
+    "en": "Finish",
+    "ee": ""
+  },
+  "firestoreQuotaExceeded": {
+    "es": "⚠️ Límite de cuota gratuita diaria de Firestore alcanzado (20.000 operaciones). Tus datos locales están seguros y se sincronizarán al restablecerse la cuota (00:00 PST / 10:00 hora local).",
+    "en": "⚠️ Daily free Firestore quota reached (20,000 operations). Your local data is safe and will sync once quota resets (00:00 PST / 10:00 local time).",
+    "ee": ""
+  },
+  "firstHalf": {
+    "es": "1ª Parte",
+    "en": "1st Half",
+    "ee": ""
+  },
+  "firstName": {
+    "es": "Nombre *",
+    "en": "First Name *",
+    "ee": ""
+  },
+  "foot": {
+    "es": "Pie hábil",
+    "en": "Preferred Foot",
+    "ee": ""
+  },
+  "footAmbi": {
+    "es": "Ambidiestro",
+    "en": "Ambidextrous",
+    "ee": ""
+  },
+  "footBoth": {
+    "es": "Ambidiestro",
+    "en": "Ambidextrous",
+    "ee": "Mõlemajalgne"
+  },
+  "footLeft": {
+    "es": "Zurdo",
+    "en": "Left-footed",
+    "ee": "Vasakujalgne"
+  },
+  "footRight": {
+    "es": "Diestro",
+    "en": "Right-footed",
+    "ee": "Paremajalgne"
+  },
+  "fullBackup": {
+    "es": "Copia de Seguridad Completa (JSON)",
+    "en": "Full Backup (JSON)",
+    "ee": ""
+  },
+  "fullBackupDesc": {
+    "es": "Descarga un archivo JSON con todos los jugadores y sesiones",
+    "en": "Download a JSON file with all players and sessions",
+    "ee": ""
+  },
+  "fullNameLabel": {
+    "es": "Nombre y Apellidos *",
+    "en": "Full Name *",
+    "ee": "Ees- ja perekonnanimi *"
+  },
+  "fullNamePlaceholder": {
+    "es": "Ej: Lucas Martínez",
+    "en": "e.g. Lucas Martinez",
+    "ee": "nt Lucas Tamm"
+  },
+  "fullProfile": {
+    "es": "Ficha Completa",
+    "en": "Full Profile",
+    "ee": "Täielik Profiil"
+  },
+  "futCardTitle": {
+    "es": "Carta FUT",
+    "en": "FUT Card",
+    "ee": "Kogutav FUT Kaart"
+  },
+  "futureSessionsTitle": {
+    "es": "Próximas Sesiones",
+    "en": "Upcoming Sessions",
+    "ee": ""
+  },
+  "generateMonthlyReport": {
+    "es": "Generar Informe Mensual (PDF)",
+    "en": "Generate Monthly Report (PDF)",
+    "ee": ""
+  },
+  "generateNextSessions": {
+    "es": "Generar Próximas Sesiones",
+    "en": "Generate Next Sessions",
+    "ee": ""
+  },
+  "generatingCard": {
+    "es": "Generando imagen...",
+    "en": "Generating image...",
+    "ee": ""
+  },
+  "globalStats": {
+    "es": "Estadísticas Globales",
+    "en": "Global Statistics",
+    "ee": ""
+  },
+  "goalConversion": {
+    "es": "Conversión Gol",
+    "en": "Goal Conversion",
+    "ee": ""
+  },
+  "goals": {
+    "es": "goles",
+    "en": "goals",
+    "ee": "väravat"
+  },
+  "goalsByZone": {
+    "es": "Mapa de goles por zona",
+    "en": "Goals by zone map",
+    "ee": ""
+  },
+  "goalsLabel": {
+    "es": "GOLES",
+    "en": "GOALS",
+    "ee": "VÄRAVAD"
+  },
+  "goalsScored": {
+    "es": "Goles Marcados",
+    "en": "Goals Scored",
+    "ee": "Löödud Väravaid"
+  },
+  "groupIconAndPhoto": {
+    "es": "Icono o Foto del Grupo",
+    "en": "Group Icon or Photo",
+    "ee": ""
+  },
+  "groupMembers": {
+    "es": "Miembros del Grupo",
+    "en": "Group Members",
+    "ee": ""
+  },
+  "groupName": {
+    "es": "Nombre del Grupo",
+    "en": "Group Name",
+    "ee": ""
+  },
+  "groupNamePlaceholder": {
+    "es": "Ej: Delanteros, Torneo Sábado...",
+    "en": "e.g. Strikers, Saturday Tournament...",
+    "ee": ""
+  },
+  "groupPhotoSub": {
+    "es": "Se podrá pulsar para ampliarla",
+    "en": "Tap to enlarge",
+    "ee": ""
+  },
+  "guardian": {
+    "es": "Tutor",
+    "en": "Guardian",
+    "ee": "Lapsevanem / Hooldaja"
+  },
+  "guideSavedGallery": {
+    "es": "Guía de habilidades guardada en la galería",
+    "en": "Skill guide saved to gallery",
+    "ee": ""
+  },
+  "h2h": {
+    "es": "Face to Face",
+    "en": "Face to Face",
+    "ee": "Face to Face"
+  },
+  "h2hDesc": {
+    "es": "Selecciona a dos compañeros para comparar sus estadísticas y radares frente a frente:",
+    "en": "Select two teammates to compare their skills and performance metrics head to head:",
+    "ee": "Vali kaks meeskonnakaaslast, et võrrelda nende oskusi ja statistikat:"
+  },
+  "h2hGroupSessions": {
+    "es": "Partidos y Entrenamientos",
+    "en": "Matches & Training Sessions",
+    "ee": ""
+  },
+  "h2hNeedTwo": {
+    "es": "Se necesitan al menos 2 jugadores en la plantilla para comparar.",
+    "en": "At least 2 players are needed in the squad to compare.",
+    "ee": "Võrdlemiseks on vaja vähemalt 2 mängijat koosseisus."
+  },
+  "h2hScopeGlobal": {
+    "es": "Historial Global (Todas las sesiones acumuladas)",
+    "en": "Global Career (All sessions accumulated)",
+    "ee": ""
+  },
+  "h2hScopeLabel": {
+    "es": "Comparar en base a:",
+    "en": "Compare based on:",
+    "ee": ""
+  },
+  "h2hTitle": {
+    "es": "Comparador Face to Face",
+    "en": "Face to Face Comparator",
+    "ee": "Face to Face Võrdlus"
+  },
+  "h2h_balanced_duel": {
+    "es": "¡Duelo muy parejo! Mantén la máxima concentración y disciplina táctica.",
+    "en": "Very balanced duel! Focus on tactical discipline and good positioning.",
+    "ee": "Väga tasavägine duell! Keskendu distsipliinile ja heale positsioneerimisele."
+  },
+  "h2h_best_weapon": {
+    "es": "Tu mejor arma",
+    "en": "Your best weapon",
+    "ee": "Sinu tugevaim relv"
+  },
+  "h2h_pedagogical_title": {
+    "es": "Consejos Tácticos 1v1",
+    "en": "1v1 Tactical Advice",
+    "ee": "1v1 Taktikalised nõuanded"
+  },
+  "h2h_tactical_summary": {
+    "es": "Comparativa 6 Atributos",
+    "en": "6-Skill Breakdown",
+    "ee": "6 oskuse analüüs"
+  },
+  "h2h_watch_out": {
+    "es": "Punto a vigilar",
+    "en": "Point to watch out",
+    "ee": "Tähelepanu vajav"
+  },
+  "h2h_your_advantage": {
+    "es": "Ventaja",
+    "en": "Advantage",
+    "ee": "Sinu eelis"
+  },
+  "halfTime": {
+    "es": "Descanso",
+    "en": "Half Time",
+    "ee": ""
+  },
+  "hapticDesc": {
+    "es": "Respuesta táctil al pulsar los contadores",
+    "en": "Vibrate upon tapping counter buttons",
+    "ee": ""
+  },
+  "hapticVibration": {
+    "es": "Vibración Háptica",
+    "en": "Haptic Vibration",
+    "ee": ""
+  },
+  "headToHead": {
+    "es": "Comparador Cara a Cara",
+    "en": "Head-to-Head Comparison",
+    "ee": ""
+  },
+  "home": {
+    "es": "Inicio",
+    "en": "Home",
+    "ee": ""
+  },
+  "iCannotAttend": {
+    "es": "❌ No puedo asistir",
+    "en": "❌ Cannot attend",
+    "ee": "❌ Ei saa osaleda"
+  },
+  "iWillAttend": {
+    "es": "🟢 Asistiré",
+    "en": "🟢 I will attend",
+    "ee": "🟢 Osalen"
+  },
+  "importNote": {
+    "es": "Puedes importar archivos JSON de otra app, copias de seguridad o archivos de \"Gestión de equipos\". Si el nombre del jugador ya existe, se vincularán los datos sin duplicar el jugador.",
+    "en": "You can import JSON files from another app, backups, or Team Management. If a player name already exists, data is merged without creating duplicates.",
+    "ee": ""
+  },
+  "importPlayers": {
+    "es": "Importar Jugadores",
+    "en": "Import Players",
+    "ee": ""
+  },
+  "importResponses": {
+    "es": "Importar Asistencia",
+    "en": "Import Attendance",
+    "ee": ""
+  },
+  "inOtherSlot": {
+    "es": "En otra ranura",
+    "en": "In other slot",
+    "ee": ""
+  },
+  "injuredStatus": {
+    "es": "Lesionado",
+    "en": "Injured",
+    "ee": ""
+  },
+  "joinLive": {
+    "es": "Unirse en vivo",
+    "en": "Join Live",
+    "ee": ""
+  },
+  "joinLiveTitle": {
+    "es": "Unirse a Sesión en Vivo",
+    "en": "Join Live Session",
+    "ee": ""
+  },
+  "justified": {
+    "es": "Justificado",
+    "en": "Excused",
+    "ee": ""
+  },
+  "keyFactors": {
+    "es": "Factores clave en la puntuación:",
+    "en": "Key scoring factors:",
+    "ee": ""
+  },
+  "kickoffTime": {
+    "es": "Hora de Inicio",
+    "en": "Kick-off Time",
+    "ee": "Algusaeg"
+  },
+  "kitAndGear": {
+    "es": "Equipación y Material",
+    "en": "Kit & Gear",
+    "ee": "Vorm ja Varustus"
+  },
+  "langChangedToast": {
+    "es": "Idioma cambiado a Español",
+    "en": "Language changed to English",
+    "ee": "Keel muudetud: Eesti keel"
+  },
+  "langEnglish": {
+    "es": "Inglés",
+    "en": "English",
+    "ee": "Inglise keel"
+  },
+  "langEstonian": {
+    "es": "Estonio",
+    "en": "Estonian",
+    "ee": "Eesti keel"
+  },
+  "langSpanish": {
+    "es": "Español",
+    "en": "Spanish",
+    "ee": "Hispaania keel"
+  },
+  "lastName": {
+    "es": "Apellido",
+    "en": "Last Name",
+    "ee": ""
+  },
+  "lastSeen": {
+    "es": "Última vez",
+    "en": "Last seen",
+    "ee": ""
+  },
+  "late": {
+    "es": "Tarde",
+    "en": "Late",
+    "ee": ""
+  },
+  "leaveGroup": {
+    "es": "Abandonar grupo",
+    "en": "Leave group",
+    "ee": ""
+  },
+  "leaveGroupConfirm": {
+    "es": "¿Seguro que deseas salir del grupo?",
+    "en": "Are you sure you want to leave the group?",
+    "ee": ""
+  },
+  "leaveSlotEmpty": {
+    "es": "Dejar ranura vacía",
+    "en": "Leave slot empty",
+    "ee": ""
+  },
+  "linkGoalToShot": {
+    "es": "Enlazar Gol con Tiro a Puerta",
+    "en": "Link Goal to Shot on Target",
+    "ee": ""
+  },
+  "linkGoalToShotDesc": {
+    "es": "Al anotar Gol se suma también Tiro a Puerta automáticamente",
+    "en": "Scoring a Goal automatically adds a Shot on Target",
+    "ee": ""
+  },
+  "linkedSuccess": {
+    "es": "¡Perfil vinculado con éxito!",
+    "en": "Profile linked successfully!",
+    "ee": "Profiil edukalt seotud!"
+  },
+  "live": {
+    "es": "En vivo",
+    "en": "Live",
+    "ee": "Otse"
+  },
+  "liveConnected": {
+    "es": "En Directo",
+    "en": "Live Connected",
+    "ee": ""
+  },
+  "loadingPlayers": {
+    "es": "Cargando jugadores desde la nube...",
+    "en": "Loading players from the cloud...",
+    "ee": "Mängijate laadimine pilvest..."
+  },
+  "loadingSession": {
+    "es": "Cargando datos de la sesión...",
+    "en": "Loading session data...",
+    "ee": "Sessiooni andmete laadimine..."
+  },
+  "localMode": {
+    "es": "Red Local / Punto de Acceso",
+    "en": "Local Network / Hotspot",
+    "ee": ""
+  },
+  "locked": {
+    "es": "Bloqueado",
+    "en": "Locked",
+    "ee": "Lukustatud"
+  },
+  "lost": {
+    "es": "Perdidos",
+    "en": "Lost",
+    "ee": "Kaotatud"
+  },
+  "mainDorsal": {
+    "es": "Dorsal (#)",
+    "en": "Squad Number (#)",
+    "ee": ""
+  },
+  "mainPosition": {
+    "es": "Posición Principal",
+    "en": "Main Position",
+    "ee": ""
+  },
+  "manageCoachPicks": {
+    "es": "Nominar Destacados del Míster",
+    "en": "Nominate Coach's Picks",
+    "ee": ""
+  },
+  "manageTeams": {
+    "es": "Gestionar Equipos",
+    "en": "Manage Teams",
+    "ee": ""
+  },
+  "manualDataDesc": {
+    "es": "Copia los datos recogidos en otra app o por un compañero:",
+    "en": "Copy stats recorded in another app or by a friend:",
+    "ee": ""
+  },
+  "manualMissionBadge": {
+    "es": "Misión Manual",
+    "en": "Manual Mission",
+    "ee": "Käsitsi hinnatav"
+  },
+  "markAllPresent": {
+    "es": "Marcar todos presentes",
+    "en": "Mark all present",
+    "ee": ""
+  },
+  "markAllRead": {
+    "es": "Marcar todas como leídas",
+    "en": "Mark all as read",
+    "ee": ""
+  },
+  "markCompleted": {
+    "es": "Marcar como Cumplida",
+    "en": "Mark as Completed",
+    "ee": ""
+  },
+  "match": {
+    "es": "Partido",
+    "en": "Match",
+    "ee": "Mäng"
+  },
+  "matchCard": {
+    "es": "Ficha de Partido",
+    "en": "Match Card",
+    "ee": ""
+  },
+  "matchDate": {
+    "es": "Fecha del Partido",
+    "en": "Match Date",
+    "ee": "Mängu Kuupäev"
+  },
+  "matchDesc": {
+    "es": "Tiros, goles y efectividad",
+    "en": "Shots, goals & accuracy",
+    "ee": ""
+  },
+  "matchDetail": {
+    "es": "Detalle de la Sesión",
+    "en": "Match / Session Detail",
+    "ee": "Mängu / Sessiooni Üksikasjad"
+  },
+  "matchDetails": {
+    "es": "Detalles del Partido",
+    "en": "Match Details",
+    "ee": "Mängu Üksikasjad"
+  },
+  "matchRating": {
+    "es": "Nota de Rendimiento",
+    "en": "Match Rating",
+    "ee": ""
+  },
+  "matchSquad": {
+    "es": "Convocatoria del Partido",
+    "en": "Match Squad",
+    "ee": "Mängu Koosseis"
+  },
+  "matchesAttended": {
+    "es": "Partidos Jugados",
+    "en": "Matches Attended",
+    "ee": "Mängitud Mänge"
+  },
+  "matchesOnly": {
+    "es": "🏟️ Partidos",
+    "en": "🏟️ Matches only",
+    "ee": ""
+  },
+  "matchesPlayedInMonth": {
+    "es": "Partidos Jugados en el Mes",
+    "en": "Matches Played in Month",
+    "ee": ""
+  },
+  "matchesTab": {
+    "es": "Partidos",
+    "en": "Matches",
+    "ee": "Mängud"
+  },
+  "meetingTime": {
+    "es": "Hora de Convocatoria / Llegada",
+    "en": "Meeting / Arrival Time",
+    "ee": "Kogunemisaeg"
+  },
+  "mentionPlayer": {
+    "es": "Mencionar (@)",
+    "en": "Mention (@)",
+    "ee": ""
+  },
+  "messageDeleted": {
+    "es": "Mensaje eliminado para todos",
+    "en": "Message deleted for everyone",
+    "ee": "Sõnum kustutatud kõigilt"
+  },
+  "messageDeletedForMe": {
+    "es": "Mensaje eliminado para ti",
+    "en": "Message removed for you",
+    "ee": "Sõnum eemaldatud sinu jaoks"
+  },
+  "messageEdited": {
+    "es": "Mensaje actualizado",
+    "en": "Message updated",
+    "ee": "Sõnum uuendatud"
+  },
+  "messageOptions": {
+    "es": "Opciones del mensaje",
+    "en": "Message Options",
+    "ee": "Sõnumi valikud"
+  },
+  "messageViaViber": {
+    "es": "Mensaje por Viber",
+    "en": "Message via Viber",
+    "ee": "Saada sõnum Viberis"
+  },
+  "metricTrend": {
+    "es": "Tendencia de Rendimiento",
+    "en": "Performance Trend",
+    "ee": ""
+  },
+  "metric_attendance_streak": {
+    "es": "Racha de Asistencia",
+    "en": "Attendance Streak",
+    "ee": ""
+  },
+  "metric_duels_won": {
+    "es": "Duelos 1v1 Ganados",
+    "en": "1v1 Duels Won",
+    "ee": ""
+  },
+  "metric_goals": {
+    "es": "Goles Marcados",
+    "en": "Goals Scored",
+    "ee": ""
+  },
+  "metric_pass_acc": {
+    "es": "Precisión de Pase (%)",
+    "en": "Pass Accuracy (%)",
+    "ee": ""
+  },
+  "metric_recoveries": {
+    "es": "Recuperaciones de Balón",
+    "en": "Ball Recoveries",
+    "ee": ""
+  },
+  "metrics": {
+    "es": "Métricas",
+    "en": "Metrics",
+    "ee": ""
+  },
+  "minAttemptsLabel": {
+    "es": "Intentos mínimos requeridos",
+    "en": "Minimum attempts required",
+    "ee": ""
+  },
+  "minTwoButtons": {
+    "es": "Debes mantener al menos 1 botón activo",
+    "en": "You must keep at least 1 button active",
+    "ee": ""
+  },
+  "missionMotivation": {
+    "es": "Concéntrate en este objetivo táctico en tus próximos entrenos y partidos.",
+    "en": "Focus on this tactical goal in your upcoming matches and training sessions.",
+    "ee": "Keskendu sellele taktikalisele eesmärgile eelseisvates mängudes ja treeningutel."
+  },
+  "missionStatusCompleted": {
+    "es": "🎉 ¡Misión Cumplida!",
+    "en": "🎉 Mission Accomplished!",
+    "ee": "🎉 Missioon täidetud!"
+  },
+  "missionStatusPending": {
+    "es": "⏳ En curso",
+    "en": "⏳ In Progress",
+    "ee": "⏳ Pooleli"
+  },
+  "modality1v1": {
+    "es": "Duelos 1v1",
+    "en": "1v1 Duels",
+    "ee": ""
+  },
+  "modalityMinifootball": {
+    "es": "Mini-Fútbol (porterías pequeñas)",
+    "en": "Mini-Football (small goals)",
+    "ee": ""
+  },
+  "modalityNormal": {
+    "es": "Entrenamiento Normal",
+    "en": "Normal Training",
+    "ee": ""
+  },
+  "modePair": {
+    "es": "Parejas (2 jugadores)",
+    "en": "Pairs (2 players)",
+    "ee": ""
+  },
+  "modeTrio": {
+    "es": "Tríos (3 jugadores rotando)",
+    "en": "Trios (3 rotating players)",
+    "ee": ""
+  },
+  "monthOld": {
+    "es": "mes",
+    "en": "month",
+    "ee": ""
+  },
+  "monthlyReport": {
+    "es": "Informe Mensual de Progreso",
+    "en": "Monthly Progress Report",
+    "ee": ""
+  },
+  "monthsOld": {
+    "es": "meses",
+    "en": "months",
+    "ee": ""
+  },
+  "mostTouches": {
+    "es": "⚽ Más Toques al Balón",
+    "en": "⚽ Most Touches",
+    "ee": ""
+  },
+  "msgDeletedForEveryone": {
+    "es": "Este mensaje fue eliminado",
+    "en": "This message was deleted",
+    "ee": "See sõnum kustutati"
+  },
+  "mustSelectAtLeastOneDay": {
+    "es": "Debes seleccionar al menos un día",
+    "en": "You must select at least one day",
+    "ee": ""
+  },
+  "muteNotifications": {
+    "es": "Silenciar notificaciones",
+    "en": "Mute notifications",
+    "ee": ""
+  },
+  "mvpAlreadyVoted": {
+    "es": "Has votado por {name}",
+    "en": "You voted for {name}",
+    "ee": "Sa hääletasid mängija {name} poolt"
+  },
+  "mvpBannerSub": {
+    "es": "Vota al jugador más destacado vs {match}",
+    "en": "Vote for the best player vs {match}",
+    "ee": "Hääleta parima mängija poolt vs {match}"
+  },
+  "mvpBannerTitle": {
+    "es": "👑 ¡Votación del MVP del Partido!",
+    "en": "👑 Match MVP Voting!",
+    "ee": "👑 Mängu MVP Hääletus!"
+  },
+  "mvpOfficial": {
+    "es": "MVP Oficial del Partido",
+    "en": "Official Match MVP",
+    "ee": ""
+  },
+  "mvpOfficialWinner": {
+    "es": "⭐ ¡MVP Oficial: {name}!",
+    "en": "⭐ Official MVP: {name}!",
+    "ee": "⭐ Ametlik MVP: {name}!"
+  },
+  "mvpVoteRegistered": {
+    "es": "¡Voto de MVP registrado para {name}!",
+    "en": "MVP vote registered for {name}!",
+    "ee": "MVP hääl antud mängijale {name}!"
+  },
+  "mvpVotingActive": {
+    "es": "Votación Abierta",
+    "en": "MVP Voting Open",
+    "ee": "Mängu MVP hääletus avatud"
+  },
+  "mvp_coach_pick": {
+    "es": "Elegido por el Míster",
+    "en": "Coach's Pick",
+    "ee": "Treeneri Valik"
+  },
+  "mvp_coach_picks_title": {
+    "es": "Destacados por el Míster",
+    "en": "Coach's Nominees",
+    "ee": "Treeneri esiletõstetud"
+  },
+  "mvp_coach_reason_label": {
+    "es": "Nota del Entrenador",
+    "en": "Coach's Reason",
+    "ee": "Treeneri põhjendus"
+  },
+  "myProfile": {
+    "es": "Mi Ficha",
+    "en": "My Profile",
+    "ee": "Minu Profiil"
+  },
+  "nameRequired": {
+    "es": "Por favor introduce tu nombre y apellidos",
+    "en": "Please enter your full name",
+    "ee": "Palun sisesta oma ees- ja perekonnanimi"
+  },
+  "newBadge": {
+    "es": "NUEVO",
+    "en": "NEW",
+    "ee": "UUS"
+  },
+  "newConvocation": {
+    "es": "Nueva Convocatoria",
+    "en": "New Squad Call-up",
+    "ee": ""
+  },
+  "newGroupChat": {
+    "es": "Nuevo Grupo",
+    "en": "New Group",
+    "ee": ""
+  },
+  "newPlayer": {
+    "es": "Nuevo Jugador",
+    "en": "New Player",
+    "ee": ""
+  },
+  "newProfileRequest": {
+    "es": "Nueva solicitud de cambio de perfil",
+    "en": "New profile switch request",
+    "ee": ""
+  },
+  "newRecurring": {
+    "es": "Nuevo Entrenamiento Recurrente",
+    "en": "New Recurring Training",
+    "ee": ""
+  },
+  "newSession": {
+    "es": "Nueva Sesión",
+    "en": "New Session",
+    "ee": ""
+  },
+  "newTeam": {
+    "es": "Nuevo Equipo",
+    "en": "New Team",
+    "ee": ""
+  },
+  "nickname": {
+    "es": "Apodo / Alias (opcional)",
+    "en": "Nickname (optional)",
+    "ee": ""
+  },
+  "noAbsentYet": {
+    "es": "Ninguna baja registrada",
+    "en": "No absences reported",
+    "ee": "Puudumisi pole teatatud"
+  },
+  "noActionsInZone": {
+    "es": "Sin acciones registradas en este sector",
+    "en": "No actions recorded in this sector",
+    "ee": "Selles tsoonis pole tegevusi salvestatud"
+  },
+  "noActionsYet": {
+    "es": "Aún no tienes acciones registradas en partidos.",
+    "en": "No individual actions recorded yet.",
+    "ee": "Individuaalseid tegevusi pole veel salvestatud."
+  },
+  "noActiveMission": {
+    "es": "Sin misión activa esta semana. ¡Sigue entrenando fuerte!",
+    "en": "No active mission this week. Keep training hard!",
+    "ee": "Sel nädalal aktiivset missiooni pole. Treeni usinalt edasi!"
+  },
+  "noAttendeesYet": {
+    "es": "Nadie ha confirmado todavía",
+    "en": "Nobody has confirmed yet",
+    "ee": "Keegi pole veel kinnitanud"
+  },
+  "noCareerActions": {
+    "es": "Aún no hay acciones individuales registradas.",
+    "en": "No individual career actions recorded yet.",
+    "ee": "Ühtegi individuaalset tegevust pole veel salvestatud."
+  },
+  "noMatchesRecordedDesc": {
+    "es": "Este jugador aún no tiene minutos ni estadísticas registradas en partidos de competición.",
+    "en": "This player has no minutes or stats recorded in competitive matches yet.",
+    "ee": "Sellel mängijal pole veel võistlusmängude statistikat salvestatud."
+  },
+  "noMatchesRecordedYet": {
+    "es": "Sin partidos registrados todavía",
+    "en": "No matches recorded yet",
+    "ee": "Ühtegi mängu pole veel salvestatud"
+  },
+  "noMatchesYet": {
+    "es": "Todavía no hay partidos o sesiones registradas.",
+    "en": "No matches or sessions recorded yet.",
+    "ee": "Mänge ega sessioone pole veel salvestatud."
+  },
+  "noMessagesYet": {
+    "es": "Aún no hay mensajes en este chat. ¡Envía el primero!",
+    "en": "No messages yet in this chat. Send the first one!",
+    "ee": ""
+  },
+  "noNotifications": {
+    "es": "No tienes notificaciones pendientes",
+    "en": "No pending notifications",
+    "ee": ""
+  },
+  "noPlayersDesc": {
+    "es": "Pulsa en el botón (+) para crear uno o importa desde Gestión de equipos.",
+    "en": "",
+    "ee": ""
+  },
+  "noPlayersFound": {
+    "es": "No se encontraron jugadores",
+    "en": "No players found",
+    "ee": ""
+  },
+  "noPlayersTitle": {
+    "es": "No hay jugadores",
+    "en": "",
+    "ee": ""
+  },
+  "noProfileRequests": {
+    "es": "Sin solicitudes pendientes",
+    "en": "No pending requests",
+    "ee": ""
+  },
+  "noProfileRequestsDesc": {
+    "es": "Cuando un jugador solicite cambiar de perfil en su app, aparecerá aquí para que puedas autorizarlo o denegarlo.",
+    "en": "When a player requests a profile switch from their app, it will appear here for you to approve or reject.",
+    "ee": ""
+  },
+  "noSessionsDesc": {
+    "es": "Pulsa en Entrenamiento o Partido para empezar a registrar jugadores.",
+    "en": "Tap Training or Match to start tracking players.",
+    "ee": ""
+  },
+  "noSessionsToday": {
+    "es": "No hay sesiones programadas para hoy",
+    "en": "No sessions scheduled for today",
+    "ee": ""
+  },
+  "noSessionsYet": {
+    "es": "Sin sesiones todavía",
+    "en": "No sessions yet",
+    "ee": ""
+  },
+  "noTrainingsRecordedYet": {
+    "es": "Sin entrenamientos registrados todavía",
+    "en": "No training sessions recorded yet",
+    "ee": "Ühtegi treeningut pole veel salvestatud"
+  },
+  "noUpcomingThisWeek": {
+    "es": "No hay más entrenamientos programados para esta semana",
+    "en": "No more trainings scheduled for this week",
+    "ee": "Sel nädalal pole rohkem treeninguid planeeritud"
+  },
+  "noUpcomingThisWeekDesc": {
+    "es": "Consulta el historial de entrenamientos anteriores en el desplegable inferior.",
+    "en": "Check past trainings & sessions in the dropdown below.",
+    "ee": "Vaata varasemate treeningute ajalugu allolevast rippmenüüst."
+  },
+  "notCalledUp": {
+    "es": "ℹ️ No estás convocado para esta cita",
+    "en": "ℹ️ You are not on this call-up list",
+    "ee": "ℹ️ Sind pole sellesse nimekirja kutsutud"
+  },
+  "notConvoked": {
+    "es": "No convocado",
+    "en": "Not called up",
+    "ee": ""
+  },
+  "notePlaceholder": {
+    "es": "Nota opcional (ej. motivo, hora...)",
+    "en": "Optional note (e.g. reason, arrival time...)",
+    "ee": ""
+  },
+  "notesLabel": {
+    "es": "Notas / Equipo",
+    "en": "Notes / Team",
+    "ee": "Märkused / Meeskond"
+  },
+  "notesPlaceholder": {
+    "es": "Ej: Infantil A, nuevo fichaje...",
+    "en": "e.g. U14 Team, new signing...",
+    "ee": "nt U14 Meeskond, uus liituja..."
+  },
+  "notificationCenter": {
+    "es": "Centro de Notificaciones",
+    "en": "Notification Center",
+    "ee": ""
+  },
+  "notifications": {
+    "es": "Notificaciones",
+    "en": "Notifications",
+    "ee": ""
+  },
+  "notificationsEnabled": {
+    "es": "🔔 Notificaciones activadas",
+    "en": "🔔 Notifications enabled",
+    "ee": ""
+  },
+  "officialFixture": {
+    "es": "Partido Oficial",
+    "en": "Official Fixture",
+    "ee": "Ametlik Mäng"
+  },
+  "officialTraining": {
+    "es": "Entrenamiento Oficial",
+    "en": "Official Training",
+    "ee": "Ametlik Treening"
+  },
+  "offline": {
+    "es": "Desconectado",
+    "en": "Offline",
+    "ee": ""
+  },
+  "online": {
+    "es": "En línea",
+    "en": "Online",
+    "ee": ""
+  },
+  "onlyMatchRating": {
+    "es": "Solo Partidos",
+    "en": "Matches Only",
+    "ee": "Ainult mängud"
+  },
+  "onlyTrainingRating": {
+    "es": "Solo Entrenamientos",
+    "en": "Training Only",
+    "ee": "Ainult treeningud"
+  },
+  "openCalendar": {
+    "es": "Abrir calendario",
+    "en": "Open calendar",
+    "ee": ""
+  },
+  "openInBrowserDownload": {
+    "es": "Abrir y descargar en navegador",
+    "en": "Open & download in browser tab",
+    "ee": "Ava ja laadi alla brauseris"
+  },
+  "openInMaps": {
+    "es": "Abrir en Google Maps ↗",
+    "en": "Open in Google Maps ↗",
+    "ee": "Ava Google Mapsis ↗"
+  },
+  "oppHalf": {
+    "es": "Campo Rival (Ataque)",
+    "en": "Opponent Half (Attack)",
+    "ee": ""
+  },
+  "opponentLabel": {
+    "es": "Rival:",
+    "en": "Opponent:",
+    "ee": "Vastane:"
+  },
+  "options": {
+    "es": "Opciones",
+    "en": "Options",
+    "ee": ""
+  },
+  "overallRating": {
+    "es": "Rating General",
+    "en": "Overall Rating",
+    "ee": "Üldhinnang"
+  },
+  "ownHalf": {
+    "es": "Campo Propio (Defensa)",
+    "en": "Own Half (Defense)",
+    "ee": ""
+  },
+  "parentContact": {
+    "es": "Contacto de Padres / Tutores",
+    "en": "Parent / Guardian Contact",
+    "ee": ""
+  },
+  "parentEmail": {
+    "es": "Email del Tutor",
+    "en": "Guardian Email",
+    "ee": ""
+  },
+  "parentName": {
+    "es": "Nombre del Padre/Madre/Tutor",
+    "en": "Parent / Guardian Name",
+    "ee": ""
+  },
+  "parentPhone": {
+    "es": "Teléfono del Tutor",
+    "en": "Guardian Phone",
+    "ee": ""
+  },
+  "participatingTeams": {
+    "es": "Equipos participantes",
+    "en": "Participating teams",
+    "ee": "Osalevad meeskonnad"
+  },
+  "pass": {
+    "es": "Pase",
+    "en": "Pass",
+    "ee": ""
+  },
+  "passAccuracy": {
+    "es": "Precisión Pase",
+    "en": "Pass Accuracy",
+    "ee": "Söödutäpsus"
+  },
+  "passesAccurate": {
+    "es": "pases acertados",
+    "en": "accurate passes",
+    "ee": "täpset söötu"
+  },
+  "passesLabel": {
+    "es": "PASES",
+    "en": "PASSES",
+    "ee": "SÖÖDUD"
+  },
+  "pastConvocations": {
+    "es": "Entrenamientos anteriores",
+    "en": "Past trainings",
+    "ee": "Varasemad treeningud"
+  },
+  "pastConvocationsAll": {
+    "es": "Entrenamientos y convocatorias anteriores",
+    "en": "Past trainings & call-ups",
+    "ee": "Varasemad treeningud ja kutsed"
+  },
+  "pastConvocationsMatches": {
+    "es": "Partidos anteriores",
+    "en": "Past matches",
+    "ee": "Varasemad mängud"
+  },
+  "pastSessionBadge": {
+    "es": "Finalizado",
+    "en": "Completed",
+    "ee": "Lõppenud"
+  },
+  "pastSessionsTitle": {
+    "es": "Sesiones de días anteriores",
+    "en": "Previous days sessions",
+    "ee": ""
+  },
+  "pastTrainings": {
+    "es": "Entrenamientos Pasados",
+    "en": "Past Trainings",
+    "ee": ""
+  },
+  "pastTrainingsDesc": {
+    "es": "Historial de sesiones y convocatorias finalizadas con asistencia registrada.",
+    "en": "History of completed sessions and call-ups with recorded attendance.",
+    "ee": ""
+  },
+  "pasteChatConfirm": {
+    "es": "Pegar confirmaciones de WhatsApp / Viber",
+    "en": "Paste WhatsApp / Viber Responses",
+    "ee": ""
+  },
+  "pasteChatPlaceholder": {
+    "es": "Pega aquí el mensaje copiado de WhatsApp o Viber para registrar la asistencia automáticamente...",
+    "en": "Paste message copied from WhatsApp or Viber to register attendance automatically...",
+    "ee": ""
+  },
+  "pasteConfirmations": {
+    "es": "Pegar respuestas (WhatsApp / Viber)",
+    "en": "Paste replies (WhatsApp / Viber)",
+    "ee": ""
+  },
+  "pasteConfirmationsPrompt": {
+    "es": "Pega aquí el texto del mensaje recibido de WhatsApp o Viber:",
+    "en": "Paste the WhatsApp or Viber attendance confirmation text here:",
+    "ee": ""
+  },
+  "pasteList": {
+    "es": "O pegar lista rápida",
+    "en": "Or paste quick list",
+    "ee": ""
+  },
+  "penalties": {
+    "es": "Penaltis",
+    "en": "Penalties",
+    "ee": ""
+  },
+  "pending": {
+    "es": "Pendiente",
+    "en": "Pending",
+    "ee": ""
+  },
+  "pendingApproval": {
+    "es": "Pendiente de Aprobación",
+    "en": "Pending Approval",
+    "ee": "Ootab kinnitust"
+  },
+  "pendingBadge": {
+    "es": "Pendientes",
+    "en": "Pending",
+    "ee": "Ootel"
+  },
+  "pendingResponse": {
+    "es": "⏳ Pendiente de responder",
+    "en": "⏳ Pending your response",
+    "ee": "⏳ Ootab sinu vastust"
+  },
+  "performanceLeaders": {
+    "es": "Líderes de Rendimiento",
+    "en": "Performance Leaders",
+    "ee": ""
+  },
+  "performanceMetrics": {
+    "es": "Métricas de Rendimiento",
+    "en": "Performance Metrics",
+    "ee": "Sooritusvõime Näitajad"
+  },
+  "performanceRating": {
+    "es": "Nota de Rendimiento",
+    "en": "Performance Rating",
+    "ee": "Esitushinne"
+  },
+  "period": {
+    "es": "Periodo",
+    "en": "Period",
+    "ee": ""
+  },
+  "physical": {
+    "es": "Físico",
+    "en": "Physical",
+    "ee": ""
+  },
+  "pickGroupEmoji": {
+    "es": "O elige un emoji para el grupo:",
+    "en": "Or choose an emoji for the group:",
+    "ee": ""
+  },
+  "pinnedCoachChat": {
+    "es": "Chat con Entrenador",
+    "en": "Chat with Coach",
+    "ee": ""
+  },
+  "pinnedTeamGroup": {
+    "es": "Grupo del Equipo",
+    "en": "Team Group",
+    "ee": ""
+  },
+  "pitchAndVenue": {
+    "es": "Campo y Lugar",
+    "en": "Pitch & Venue",
+    "ee": "Väljak ja Asukoht"
+  },
+  "pitchGoalsDesc": {
+    "es": "Acciones tácticas geolocalizadas según la zona del campo",
+    "en": "Goals scored by field zone",
+    "ee": "Tegevused ja väravad väljaku tsoonide kaupa"
+  },
+  "pitchGoalsTitle": {
+    "es": "Mapa Táctico del Campo",
+    "en": "Tactical Goal Map",
+    "ee": "Taktikaline Väljakukaart"
+  },
+  "pitchPositionPicker": {
+    "es": "Táctico: Seleccionar Posición",
+    "en": "Tactical: Select Position",
+    "ee": ""
+  },
+  "pitchZones": {
+    "es": "Zonas de Campo",
+    "en": "Pitch Zones",
+    "ee": ""
+  },
+  "player": {
+    "es": "Jugador",
+    "en": "Player",
+    "ee": "Mängija"
+  },
+  "player1": {
+    "es": "Jugador 1",
+    "en": "Player 1",
+    "ee": "Mängija 1"
+  },
+  "player2": {
+    "es": "Jugador 2",
+    "en": "Player 2",
+    "ee": "Mängija 2"
+  },
+  "playerCard": {
+    "es": "Ficha de Jugador",
+    "en": "Player Profile",
+    "ee": ""
+  },
+  "playerCardGlobal": {
+    "es": "RENDIMIENTO GENERAL GLOBAL",
+    "en": "GLOBAL OVERALL PERFORMANCE",
+    "ee": ""
+  },
+  "playerCardTitle": {
+    "es": "FICHA DE JUGADOR",
+    "en": "PLAYER REPORT",
+    "ee": ""
+  },
+  "playerLinkedToDevice": {
+    "es": "Perfil vinculado al teléfono",
+    "en": "Profile linked to phone",
+    "ee": ""
+  },
+  "playerMetricsList": {
+    "es": "📊 Desglose de Jugadores (Toca para ver perfil)",
+    "en": "📊 Player Breakdown (Tap to open profile)",
+    "ee": ""
+  },
+  "playerNotLinkedToDevice": {
+    "es": "Perfil no vinculado todavía",
+    "en": "Profile not linked yet",
+    "ee": ""
+  },
+  "playerResponsesApplied": {
+    "es": "Votos de la PWA cargados",
+    "en": "PWA RSVPs loaded",
+    "ee": ""
+  },
+  "playerSquad": {
+    "es": "Plantilla de Jugadores",
+    "en": "Player Squad",
+    "ee": ""
+  },
+  "players": {
+    "es": "Jugadores",
+    "en": "Players",
+    "ee": ""
+  },
+  "playersAdded": {
+    "es": "Jugadores añadidos al grupo",
+    "en": "Players added to group",
+    "ee": ""
+  },
+  "playersInTeam": {
+    "es": "jugadores",
+    "en": "players",
+    "ee": ""
+  },
+  "position": {
+    "es": "Posición",
+    "en": "Position",
+    "ee": ""
+  },
+  "positionLabel": {
+    "es": "Posición",
+    "en": "Position",
+    "ee": "Positsioon"
+  },
+  "positionPlaceholder": {
+    "es": "Ej: Delantero, Portero...",
+    "en": "e.g. Striker, Goalkeeper...",
+    "ee": "nt Ründaja, Väravavaht..."
+  },
+  "present": {
+    "es": "Presente",
+    "en": "Present",
+    "ee": ""
+  },
+  "presetAll": {
+    "es": "Todos",
+    "en": "All",
+    "ee": ""
+  },
+  "presetCustom": {
+    "es": "Personalizado",
+    "en": "Custom",
+    "ee": ""
+  },
+  "presetShots": {
+    "es": "Solo tiros",
+    "en": "Shots only",
+    "ee": ""
+  },
+  "presetTouchesPasses": {
+    "es": "Toques/Pases",
+    "en": "Touches/Passes",
+    "ee": ""
+  },
+  "printPdf": {
+    "es": "Imprimir / Guardar en PDF",
+    "en": "Print / Save as PDF",
+    "ee": ""
+  },
+  "privateWithCoach": {
+    "es": "Chat Privado con el Entrenador",
+    "en": "Private Chat with Coach",
+    "ee": ""
+  },
+  "prob1v1Title": {
+    "es": "Probabilidad Victoria 1v1",
+    "en": "1v1 Win Probability",
+    "ee": "1v1 Võidu Tõenäosus"
+  },
+  "processImport": {
+    "es": "Procesar e Importar",
+    "en": "Process & Import",
+    "ee": ""
+  },
+  "profileAccessApproved": {
+    "es": "¡Acceso autorizado por el entrenador! Ya puedes ver tu perfil.",
+    "en": "Access authorized by coach! You can now view your stats.",
+    "ee": ""
+  },
+  "profileAccessDenied": {
+    "es": "Acceso denegado por el entrenador",
+    "en": "Access denied by coach",
+    "ee": ""
+  },
+  "profileAccessRequested": {
+    "es": "Solicitud de acceso enviada al entrenador con el código {code}",
+    "en": "Access request sent to coach with code {code}",
+    "ee": ""
+  },
+  "profileChangeSecurityDesc": {
+    "es": "Para proteger la cuenta, se ha generado este código de seguridad. Facilita este código a tu entrenador para que autorice el cambio a este perfil.",
+    "en": "To protect the account, this security code has been generated. Give this code to your coach so they can authorize the switch to this profile.",
+    "ee": "Sinu konto kaitsmiseks genereeriti see turvakood. Edasta see kood treenerile, et ta saaks lubada profiili muutmise mängijale {name}."
+  },
+  "profileChangeSecurityTitle": {
+    "es": "Confirmar Cambio de Perfil",
+    "en": "Confirm Profile Change",
+    "ee": "Kinnita Profiili Muutmine"
+  },
+  "profileClaimRequestDesc": {
+    "es": "Un jugador solicita acceder al perfil de {name} (#{dorsal})",
+    "en": "A player is requesting access to {name} (#{dorsal}) profile",
+    "ee": ""
+  },
+  "profileClaimRequestTitle": {
+    "es": "🔐 Solicitud de acceso a perfil",
+    "en": "🔐 Profile Access Request",
+    "ee": ""
+  },
+  "profileLinkedActiveDesc": {
+    "es": "El jugador tiene la app activa en su teléfono",
+    "en": "Player has active app on their phone",
+    "ee": ""
+  },
+  "profileLocked": {
+    "es": "Perfil Bloqueado",
+    "en": "Profile Locked",
+    "ee": "Profiil Lukustatud"
+  },
+  "profileNotLinkedDesc": {
+    "es": "El jugador aún no ha reclamado su perfil en la app",
+    "en": "Player has not claimed their profile on the app yet",
+    "ee": ""
+  },
+  "profileRequests": {
+    "es": "Solicitudes de Perfil",
+    "en": "Profile Requests",
+    "ee": ""
+  },
+  "profileRequestsDesc": {
+    "es": "Los siguientes jugadores solicitan cambiar su perfil en este club:",
+    "en": "The following players are requesting to switch their profile in this club:",
+    "ee": ""
+  },
+  "progressLabel": {
+    "es": "Progreso",
+    "en": "Progress",
+    "ee": "Progress"
+  },
+  "radarTapHint": {
+    "es": "Pulsa en cualquier habilidad para ver su explicación táctica:",
+    "en": "Tap any skill on the radar to see its tactical breakdown:",
+    "ee": ""
+  },
+  "rating": {
+    "es": "Nota",
+    "en": "Rating",
+    "ee": ""
+  },
+  "ratingDesc": {
+    "es": "Índice de rendimiento calculado a partir de acciones reales, toques y eficacia táctica.",
+    "en": "Match Rating calculated from actual tactical contributions, ball actions and efficiency.",
+    "ee": "Mänguhinne arvutatakse tegelike taktikaliste panuste, pallipuudete ja tõhususe põhjal."
+  },
+  "react": {
+    "es": "Reaccionar",
+    "en": "React",
+    "ee": ""
+  },
+  "reasonAge": {
+    "es": "Ventaja por madurez física",
+    "en": "Physical maturity advantage",
+    "ee": "Füüsilise küpsuse eelis"
+  },
+  "reasonDefense": {
+    "es": "Mayor solidez defensiva",
+    "en": "Defensive solidity",
+    "ee": "Kindlam kaitsemäng"
+  },
+  "reasonDribble": {
+    "es": "Mayor desborde / regate",
+    "en": "Higher dribbling / agility",
+    "ee": "Parem tribling / möödamäng"
+  },
+  "reasonLabel": {
+    "es": "Motivo / Comentario:",
+    "en": "Reason / Notes:",
+    "ee": "Põhjus / Märkused:"
+  },
+  "reasonPhysical": {
+    "es": "Superioridad física",
+    "en": "Physical dominance",
+    "ee": "Füüsiline üleolek"
+  },
+  "reasonPlaceholder": {
+    "es": "Motivo (ej. Selección errónea, móvil nuevo...)",
+    "en": "Reason (e.g. Selected by mistake, new phone...)",
+    "ee": "Põhjus (nt valesti valitud, uus telefon...)"
+  },
+  "reasonWinRate": {
+    "es": "Mejor % victorias 1v1 previo",
+    "en": "Better 1v1 record",
+    "ee": "Parem varasem 1v1 näitaja"
+  },
+  "reassignTeam": {
+    "es": "Cambiar de Equipo",
+    "en": "Change Team",
+    "ee": ""
+  },
+  "recentMatchesTitle": {
+    "es": "Mis Partidos y Acciones Detalladas",
+    "en": "Recent Matches & Actions Breakdown",
+    "ee": "Viimased Mängud ja Tegevused"
+  },
+  "recentSessions": {
+    "es": "Sesiones Recientes",
+    "en": "Recent Sessions",
+    "ee": ""
+  },
+  "recoveries": {
+    "es": "Recuperaciones",
+    "en": "Ball Recoveries",
+    "ee": "Palli Tagasivõitmised"
+  },
+  "recoveriesLabel": {
+    "es": "RECUP.",
+    "en": "RECOV.",
+    "ee": "PALLI VÕIDUD"
+  },
+  "recurringDesc": {
+    "es": "Calendario semanal recurrente con invitaciones enviadas a los jugadores 1 día antes.",
+    "en": "Automatic weekly training calendar with invitations sent to players 1 day before.",
+    "ee": ""
+  },
+  "recurringSchedules": {
+    "es": "Entrenamientos Recurrentes",
+    "en": "Recurring Trainings",
+    "ee": ""
+  },
+  "registeredConvs": {
+    "es": "registradas",
+    "en": "registered",
+    "ee": ""
+  },
+  "reject": {
+    "es": "Denegar",
+    "en": "Reject",
+    "ee": ""
+  },
+  "remind": {
+    "es": "Recordar",
+    "en": "Remind",
+    "ee": ""
+  },
+  "removeMember": {
+    "es": "Quitar del grupo",
+    "en": "Remove from group",
+    "ee": ""
+  },
+  "removeMemberConfirm": {
+    "es": "¿Deseas quitar a este participante del grupo?",
+    "en": "Are you sure you want to remove this member from the group?",
+    "ee": ""
+  },
+  "reply": {
+    "es": "Responder",
+    "en": "Reply",
+    "ee": ""
+  },
+  "reportMonth": {
+    "es": "Mes del Informe",
+    "en": "Report Month",
+    "ee": ""
+  },
+  "reqApprovedToast": {
+    "es": "✅ ¡Tu entrenador ha aprobado el cambio de perfil!",
+    "en": "✅ Your coach approved your profile change!",
+    "ee": "✅ Treener kinnitas sinu profiilimuudatuse!"
+  },
+  "reqChange": {
+    "es": "Solicitar Cambio",
+    "en": "Request Change",
+    "ee": "Taotle Muutmist"
+  },
+  "reqChangeDesc": {
+    "es": "Tu perfil está vinculado a {name}. Para evitar confusiones, cambiar a otro jugador requiere autorización del entrenador:",
+    "en": "Your profile is currently locked to {name}. To prevent mistakes, selecting another player sends an authorization request to your coach:",
+    "ee": "Sinu profiil on praegu seotud mängijaga {name}. Vigade vältimiseks saadetakse teise mängija valimisel luba treenerile:"
+  },
+  "reqChangeTitle": {
+    "es": "Solicitar Cambio de Perfil",
+    "en": "Request Profile Change",
+    "ee": "Taotle Profiili Muutmist"
+  },
+  "reqRejectedToast": {
+    "es": "❌ El entrenador ha rechazado la solicitud de cambio.",
+    "en": "❌ Your coach rejected the profile change request.",
+    "ee": "❌ Treener lükkas profiilimuudatuse tagasi."
+  },
+  "reqSelectTargetErr": {
+    "es": "Por favor selecciona el jugador al que deseas cambiarte",
+    "en": "Please select the player you want to switch to",
+    "ee": "Palun vali mängija, kelleks soovid vahetada"
+  },
+  "reqSentBanner": {
+    "es": "⏳ Solicitud enviada al entrenador para cambiar a {name}. Esperando aprobación...",
+    "en": "⏳ Request sent to coach to switch to {name}. Awaiting approval...",
+    "ee": "⏳ Taotlus saadetud treenerile profiili muutmiseks mängijale {name}. Ootab kinnitamist..."
+  },
+  "reqSentSuccess": {
+    "es": "¡Solicitud enviada al entrenador! Se actualizará automáticamente en cuanto la apruebe.",
+    "en": "Request sent to coach! It will update automatically once approved.",
+    "ee": "Taotlus saadetud treenerile! See uueneb kohe pärast kinnitamist."
+  },
+  "requestApproved": {
+    "es": "✅ Solicitud de cambio de perfil aprobada",
+    "en": "✅ Profile switch request approved",
+    "ee": ""
+  },
+  "requestCoachProfile": {
+    "es": "➕ ¿No estás en la lista? Solicitar alta al entrenador",
+    "en": "➕ Not on the list? Request profile from coach",
+    "ee": "➕ Pole nimekirjas? Taotle registreerimist treenerilt"
+  },
+  "requestCoachProfileDesc": {
+    "es": "Envía tus datos al entrenador para que cree tu perfil en el sistema.",
+    "en": "Send your details to the coach so they can create your profile in the system.",
+    "ee": "Saada oma andmed treenerile, et ta saaks luua sinu profiili meeskonna andmebaasis."
+  },
+  "requestCoachProfileTitle": {
+    "es": "Solicitar alta de nuevo jugador",
+    "en": "Request new player profile",
+    "ee": "Taotle Registreerimist Treenerilt"
+  },
+  "requestRejected": {
+    "es": "❌ Solicitud rechazada",
+    "en": "❌ Profile switch request rejected",
+    "ee": ""
+  },
+  "requestSent": {
+    "es": "Solicitud enviada al entrenador",
+    "en": "Request sent to coach",
+    "ee": "Taotlus treenerile saadetud!"
+  },
+  "requestedProfile": {
+    "es": "Nuevo Perfil",
+    "en": "Requested Profile",
+    "ee": ""
+  },
+  "resetAll": {
+    "es": "Borrar Todos los Datos",
+    "en": "Clear All Data",
+    "ee": ""
+  },
+  "resetAllDesc": {
+    "es": "Elimina sesiones y jugadores de la memoria",
+    "en": "Erase all sessions and players from device storage",
+    "ee": ""
+  },
+  "restartApp": {
+    "es": "🔄 Reiniciar App",
+    "en": "🔄 Restart App",
+    "ee": "🔄 Taaskäivita rakendus"
+  },
+  "restoreBackup": {
+    "es": "Restaurar Copia de Seguridad",
+    "en": "Restore Backup",
+    "ee": ""
+  },
+  "restoreBackupDesc": {
+    "es": "Carga un archivo de respaldo previo",
+    "en": "Load a previously saved backup file",
+    "ee": ""
+  },
+  "rests": {
+    "es": "descansa",
+    "en": "rests",
+    "ee": ""
+  },
+  "retryDownload": {
+    "es": "Volver a descargar",
+    "en": "Retry Download",
+    "ee": "Laadi uuesti alla"
+  },
+  "rivalPlaceholder": {
+    "es": "Ej. FC Barcelona, Juvenil B...",
+    "en": "e.g. FC Barcelona, Youth B...",
+    "ee": ""
+  },
+  "rivalTeam": {
+    "es": "Equipo Rival",
+    "en": "Opponent Team",
+    "ee": ""
+  },
+  "rollCallBtn": {
+    "es": "Pasar Lista",
+    "en": "Take Attendance",
+    "ee": ""
+  },
+  "rollCallPending": {
+    "es": "Asistencia pendiente de hoy",
+    "en": "Today's attendance pending",
+    "ee": ""
+  },
+  "rollCallSub": {
+    "es": "Control de asistencia a la sesión",
+    "en": "Session attendance tracking",
+    "ee": ""
+  },
+  "rollCallTitle": {
+    "es": "Pasar Lista / Asistencia",
+    "en": "Roll Call / Attendance",
+    "ee": ""
+  },
+  "roomCode": {
+    "es": "Código de Sala",
+    "en": "Room Code",
+    "ee": ""
+  },
+  "rotateTrio": {
+    "es": "Rotar turno",
+    "en": "Rotate turn",
+    "ee": ""
+  },
+  "sameBioAge": {
+    "es": "Misma edad biológica",
+    "en": "Same biological age",
+    "ee": "Sama bioloogiline vanus"
+  },
+  "saveAttendance": {
+    "es": "Guardar Asistencia",
+    "en": "Save Attendance",
+    "ee": ""
+  },
+  "saveChanges": {
+    "es": "Guardar Cambios",
+    "en": "Save Changes",
+    "ee": ""
+  },
+  "saveCoachPicks": {
+    "es": "Guardar Destacados del Míster",
+    "en": "Save Coach's Picks",
+    "ee": ""
+  },
+  "saveProfile": {
+    "es": "Guardar Perfil",
+    "en": "Save Profile",
+    "ee": ""
+  },
+  "savedSuccess": {
+    "es": "¡Guardado con éxito!",
+    "en": "Saved successfully!",
+    "ee": ""
+  },
+  "scanQR": {
+    "es": "Escanear QR",
+    "en": "Scan QR",
+    "ee": ""
+  },
+  "scoreboard": {
+    "es": "Marcador",
+    "en": "Scoreboard",
+    "ee": ""
+  },
+  "searchChatOrTeammate": {
+    "es": "Buscar chat o compañero...",
+    "en": "Search chat or teammate...",
+    "ee": "Otsi vestlust või meeskonnakaaslast..."
+  },
+  "searchPlayerPlaceholder": {
+    "es": "Buscar por nombre o dorsal...",
+    "en": "Search by name or squad number...",
+    "ee": ""
+  },
+  "searchTeammate": {
+    "es": "Buscar compañero por nombre o dorsal...",
+    "en": "Search teammate by name or number...",
+    "ee": "Otsi meeskonnakaaslast nime või numbri järgi..."
+  },
+  "searchUser": {
+    "es": "Buscar jugador o entrenador...",
+    "en": "Search player or coach...",
+    "ee": ""
+  },
+  "searchUserGrid": {
+    "es": "Buscar jugador por nombre o dorsal...",
+    "en": "Search player by name or jersey...",
+    "ee": ""
+  },
+  "seasonMvps": {
+    "es": "MVPs de la Temporada",
+    "en": "Season MVPs",
+    "ee": ""
+  },
+  "seasonMvpsBadge": {
+    "es": "⭐ {count}x MVP del Partido",
+    "en": "⭐ {count}x Match MVP",
+    "ee": "⭐ {count}x Mängu MVP"
+  },
+  "secondHalf": {
+    "es": "2ª Parte",
+    "en": "2nd Half",
+    "ee": ""
+  },
+  "secondaryPositions": {
+    "es": "Posiciones Secundarias",
+    "en": "Secondary Positions",
+    "ee": "Teisesed Positsioonid"
+  },
+  "securityCodeDesc": {
+    "es": "Para proteger tu perfil, se ha generado este código de seguridad. Dáselo a tu entrenador para que confirme y autorice tu acceso en tu dispositivo.",
+    "en": "To protect your profile, this security code has been generated. Tell this code to your coach to authorize access on your device.",
+    "ee": "Sinu profiili kaitsmiseks genereeriti see turvakood. Edasta see kood treenerile, et ta saaks kinnitada juurdepääsu sinu seadmes."
+  },
+  "securityCodeTitle": {
+    "es": "Código de Seguridad",
+    "en": "Security Code",
+    "ee": "Turvakood"
+  },
+  "seeAll": {
+    "es": "Ver todas",
+    "en": "View all",
+    "ee": ""
+  },
+  "seeAllSessions": {
+    "es": "Ver todas las sesiones en Historial",
+    "en": "View all sessions in History",
+    "ee": ""
+  },
+  "selectAtLeastOneDay": {
+    "es": "Selecciona al menos un día",
+    "en": "Select at least one day",
+    "ee": ""
+  },
+  "selectAtLeastOneMember": {
+    "es": "Selecciona al menos un participante para el grupo",
+    "en": "Select at least one member for the group",
+    "ee": ""
+  },
+  "selectButtonsForView": {
+    "es": "Elige qué botones quieres ver durante el seguimiento:",
+    "en": "Choose which buttons you want to see during tracking:",
+    "ee": ""
+  },
+  "selectFile": {
+    "es": "Seleccionar Archivo (JSON o CSV)",
+    "en": "Select File (JSON or CSV)",
+    "ee": ""
+  },
+  "selectIdentity": {
+    "es": "Seleccionar quién eres...",
+    "en": "Select who you are...",
+    "ee": "Vali, kes sa oled..."
+  },
+  "selectLanguage": {
+    "es": "Seleccionar Idioma",
+    "en": "Select Language",
+    "ee": "Vali Keel"
+  },
+  "selectLanguageDesc": {
+    "es": "Elige el idioma preferido para la aplicación",
+    "en": "Choose your preferred language for the application",
+    "ee": "Vali rakenduse eelistatud keel"
+  },
+  "selectMissionPreset": {
+    "es": "Elegir objetivo recomendado:",
+    "en": "Choose recommended objective:",
+    "ee": ""
+  },
+  "selectMultipleTeams": {
+    "es": "Seleccionar equipos",
+    "en": "Select teams",
+    "ee": ""
+  },
+  "selectNewPlayer": {
+    "es": "Selecciona el jugador correcto:",
+    "en": "Select the correct player:",
+    "ee": "Vali õige mängija:"
+  },
+  "selectOnPitch": {
+    "es": "🏟️ Elegir en el Campo",
+    "en": "🏟️ Pick on Pitch",
+    "ee": ""
+  },
+  "selectPlayer": {
+    "es": "Seleccionar Jugador",
+    "en": "Select Player",
+    "ee": ""
+  },
+  "selectPlayerForMatch": {
+    "es": "Seleccionar Jugador para Convocatoria",
+    "en": "Select Player for Call-up",
+    "ee": ""
+  },
+  "selectTwoPlayers": {
+    "es": "Selecciona 2 jugadores para comparar su rendimiento",
+    "en": "Select 2 players to compare stats side by side",
+    "ee": ""
+  },
+  "selectZone": {
+    "es": "¿En qué zona ocurrió la acción?",
+    "en": "Which zone did this action happen in?",
+    "ee": ""
+  },
+  "selectedPosition": {
+    "es": "Posición seleccionada",
+    "en": "Selected position",
+    "ee": ""
+  },
+  "send": {
+    "es": "Enviar",
+    "en": "Send",
+    "ee": ""
+  },
+  "sendAttendanceReminder": {
+    "es": "Enviar Recordatorio",
+    "en": "Send Attendance Reminder",
+    "ee": ""
+  },
+  "sendReqBtn": {
+    "es": "🚀 Enviar Solicitud al Entrenador",
+    "en": "🚀 Send Request to Coach",
+    "ee": "🚀 Saada Taotlus Treenerile"
+  },
+  "sendRequest": {
+    "es": "Enviar solicitud",
+    "en": "Send request",
+    "ee": "Saada Taotlus Treenerile"
+  },
+  "sendViaViber": {
+    "es": "Enviar por Viber",
+    "en": "Send via Viber",
+    "ee": "📱 Saada Viberi kaudu"
+  },
+  "sending": {
+    "es": "Enviando...",
+    "en": "Sending...",
+    "ee": "Saadan..."
+  },
+  "sessionFinishedByHost": {
+    "es": "El anfitrión ha finalizado la sesión. Guardada en tu historial.",
+    "en": "Host has ended the session. Saved to your history.",
+    "ee": ""
+  },
+  "sessionTitle": {
+    "es": "Título / Enfoque",
+    "en": "Title / Focus",
+    "ee": ""
+  },
+  "sessionTitlePlaceholder": {
+    "es": "Ej. Rondos y posesión, finalización...",
+    "en": "e.g. Rondos & possession, finishing...",
+    "ee": ""
+  },
+  "sessions": {
+    "es": "Sesiones",
+    "en": "Sessions",
+    "ee": "Trennid ja Sessioonid"
+  },
+  "sessionsAnalyzedSuffix": {
+    "es": "sesiones analizadas",
+    "en": "sessions analyzed",
+    "ee": ""
+  },
+  "sessionsGenerated": {
+    "es": "sesiones generadas",
+    "en": "sessions generated",
+    "ee": ""
+  },
+  "setOfficialMvp": {
+    "es": "Nombrar MVP Oficial",
+    "en": "Set Official MVP",
+    "ee": ""
+  },
+  "settings": {
+    "es": "Ajustes",
+    "en": "Settings",
+    "ee": ""
+  },
+  "setup1v1Pairs": {
+    "es": "Configurar Parejas y Tríos 1v1",
+    "en": "Configure 1v1 Pairs & Trios",
+    "ee": ""
+  },
+  "shareGeneric": {
+    "es": "Compartir...",
+    "en": "Share...",
+    "ee": ""
+  },
+  "shareSessionDesc": {
+    "es": "Escanea este QR con la otra app para sincronizar estadísticas en vivo:",
+    "en": "Scan this QR code with the other app to sync stats live:",
+    "ee": ""
+  },
+  "shareSkillGuide": {
+    "es": "Compartir Guía de Habilidades",
+    "en": "Share Skill Guide",
+    "ee": ""
+  },
+  "shareTelegram": {
+    "es": "Compartir en Telegram",
+    "en": "Share on Telegram",
+    "ee": ""
+  },
+  "shareViber": {
+    "es": "Compartir por Viber",
+    "en": "Share via Viber",
+    "ee": ""
+  },
+  "shareWhatsApp": {
+    "es": "Compartir en WhatsApp",
+    "en": "Share on WhatsApp",
+    "ee": ""
+  },
+  "shooting": {
+    "es": "Tiro",
+    "en": "Shooting",
+    "ee": ""
+  },
+  "short_assist": {
+    "es": "Asist.",
+    "en": "Assist",
+    "ee": ""
+  },
+  "short_cross": {
+    "es": "Centro",
+    "en": "Cross",
+    "ee": ""
+  },
+  "short_dribbleKo": {
+    "es": "Regate ✗",
+    "en": "Dribble ✗",
+    "ee": ""
+  },
+  "short_dribbleOk": {
+    "es": "Regate ✓",
+    "en": "Dribble ✓",
+    "ee": ""
+  },
+  "short_duelLost": {
+    "es": "Duelo ✗",
+    "en": "Duel ✗",
+    "ee": ""
+  },
+  "short_duelWon": {
+    "es": "Duelo ✓",
+    "en": "Duel ✓",
+    "ee": ""
+  },
+  "short_foul": {
+    "es": "Falta com.",
+    "en": "Foul com.",
+    "ee": ""
+  },
+  "short_foulRecv": {
+    "es": "Falta rec.",
+    "en": "Foul won",
+    "ee": ""
+  },
+  "short_goal": {
+    "es": "GOL",
+    "en": "GOAL",
+    "ee": ""
+  },
+  "short_header": {
+    "es": "Cabeza",
+    "en": "Header",
+    "ee": ""
+  },
+  "short_keyPass": {
+    "es": "Pase clave",
+    "en": "Key pass",
+    "ee": ""
+  },
+  "short_loss": {
+    "es": "Pérdida",
+    "en": "Lost",
+    "ee": ""
+  },
+  "short_passKo": {
+    "es": "Pase ✗",
+    "en": "Pass ✗",
+    "ee": ""
+  },
+  "short_passOk": {
+    "es": "Pase ✓",
+    "en": "Pass ✓",
+    "ee": ""
+  },
+  "short_recovery": {
+    "es": "Recup.",
+    "en": "Recov.",
+    "ee": ""
+  },
+  "short_red": {
+    "es": "Roja",
+    "en": "Red",
+    "ee": ""
+  },
+  "short_save": {
+    "es": "Parada",
+    "en": "Save",
+    "ee": ""
+  },
+  "short_shotOff": {
+    "es": "Tiro fuera",
+    "en": "Off target",
+    "ee": ""
+  },
+  "short_shotOn": {
+    "es": "Tiro puerta",
+    "en": "On target",
+    "ee": ""
+  },
+  "short_touches": {
+    "es": "Toques",
+    "en": "Touches",
+    "ee": ""
+  },
+  "short_yellow": {
+    "es": "Amarilla",
+    "en": "Yellow",
+    "ee": ""
+  },
+  "shot": {
+    "es": "Tiro",
+    "en": "Shot",
+    "ee": ""
+  },
+  "shotAccuracy": {
+    "es": "Tiros a Puerta",
+    "en": "Shots on Target",
+    "ee": "Löökide Täpsus"
+  },
+  "shotsLabel": {
+    "es": "TIROS",
+    "en": "SHOTS",
+    "ee": "LÖÖGID"
+  },
+  "shotsOnTarget": {
+    "es": "a puerta",
+    "en": "on target",
+    "ee": "raami"
+  },
+  "skillRadar": {
+    "es": "Radar de Habilidades",
+    "en": "Skill Radar",
+    "ee": ""
+  },
+  "skill_def_desc": {
+    "es": "Evalúa el trabajo sin balón, anticipación en líneas de pase, intercepciones, recuperaciones y paradas o despejes bajo palos.",
+    "en": "Evaluates off-ball work, anticipation in passing lanes, interceptions, recoveries, and clearances or saves.",
+    "ee": ""
+  },
+  "skill_def_factors": {
+    "es": "Balones recuperados, duelos defensivos ganados, despejes y atajadas.",
+    "en": "Balls recovered, defensive duels won, clearances and saves.",
+    "ee": ""
+  },
+  "skill_def_name": {
+    "es": "Defensa y Recuperación",
+    "en": "Defense & Recovery",
+    "ee": ""
+  },
+  "skill_dis_desc": {
+    "es": "Evalúa la toma de decisiones reglamentaria, control del temperamento, juego limpio y respeto táctico al rival y árbitro.",
+    "en": "Evaluates in-game decision making, temperament control, fair play and respect for rules and opponent.",
+    "ee": ""
+  },
+  "skill_dis_factors": {
+    "es": "Bajo número de faltas cometidas, ausencia de tarjetas amarillas y rojas.",
+    "en": "Low foul count, avoidance of yellow and red cards.",
+    "ee": ""
+  },
+  "skill_dis_name": {
+    "es": "Disciplina y Fair Play",
+    "en": "Discipline & Fair Play",
+    "ee": ""
+  },
+  "skill_fis_desc": {
+    "es": "Evalúa la intensidad en las disputas de balón, despliegue físico en el campo, participación activa y porcentaje de duelos ganados.",
+    "en": "Evaluates intensity in challenges, stamina across pitch, active involvement and duel win percentage.",
+    "ee": ""
+  },
+  "skill_fis_factors": {
+    "es": "Volumen de toques de balón, balones divididos y duelos aéreos/suelo ganados.",
+    "en": "Total touches, contested 50-50 balls and aerial/ground duels won.",
+    "ee": ""
+  },
+  "skill_fis_name": {
+    "es": "Físico y Duelos",
+    "en": "Physical & Duels",
+    "ee": ""
+  },
+  "skill_pas_desc": {
+    "es": "Evalúa la precisión y calidad en la entrega del balón tanto en corto como en largo, visión espacial, fluidez asociativa y generación de ventajas tácticas para el equipo.",
+    "en": "Evaluates precision and quality in short and long passing, spatial awareness, associative fluidity and tactical advantage generation.",
+    "ee": ""
+  },
+  "skill_pas_factors": {
+    "es": "Pases completados (Ok), bajo índice de pérdidas por pase errado (Ko), pases clave y asistencias.",
+    "en": "Completed passes (Ok), low turnover on errant pass (Ko), key passes and assists.",
+    "ee": ""
+  },
+  "skill_pas_name": {
+    "es": "Pase y Distribución",
+    "en": "Passing & Distribution",
+    "ee": ""
+  },
+  "skill_reg_desc": {
+    "es": "Evalúa el desequilibrio individual, habilidad en el uno contra uno (1vs1), cambios de ritmo y superación de líneas rivales.",
+    "en": "Evaluates individual trickery, one-on-one (1v1) success, pace changes and breaking defensive lines.",
+    "ee": ""
+  },
+  "skill_reg_factors": {
+    "es": "Regates completados con éxito (Ok) frente a intentos interceptados (Ko).",
+    "en": "Completed dribbles (Ok) vs failed attempts (Ko).",
+    "ee": ""
+  },
+  "skill_reg_name": {
+    "es": "Regate y Desborde",
+    "en": "Dribbling & 1v1",
+    "ee": ""
+  },
+  "skill_tir_desc": {
+    "es": "Evalúa la capacidad de remate, puntería hacia portería, porcentaje de acierto de cara a gol y contundencia ofensiva.",
+    "en": "Evaluates finishing ability, accuracy towards goal, shot conversion rate and offensive decisiveness.",
+    "ee": ""
+  },
+  "skill_tir_factors": {
+    "es": "Goles marcados, disparos a portería (On) vs fuera (Off), porcentaje de acierto rematador.",
+    "en": "Goals scored, shots on target (On) vs off target (Off), conversion efficiency.",
+    "ee": ""
+  },
+  "skill_tir_name": {
+    "es": "Tiro y Definición",
+    "en": "Shooting & Finishing",
+    "ee": ""
+  },
+  "skillsDevelopmentSummary": {
+    "es": "Evolución y Resumen de Habilidades",
+    "en": "Skill Evolution & Summary",
+    "ee": ""
+  },
+  "skillsRadar": {
+    "es": "Radar de Cualidades Deportivas",
+    "en": "Athletic Qualities Radar",
+    "ee": "Sportlike Võimete Radar"
+  },
+  "squad": {
+    "es": "Plantilla",
+    "en": "Squad",
+    "ee": "Koosseis"
+  },
+  "squadSubtitle": {
+    "es": "Explora la plantilla de todos los equipos del club y toca para ver sus estadísticas completas:",
+    "en": "Browse teammates across all teams in the club and tap to inspect their full stats:",
+    "ee": "Sirvi klubi meeskondade mängijaid ja puuduta, et näha nende statistikat:"
+  },
+  "squadTitle": {
+    "es": "Plantilla de Jugadores",
+    "en": "Player Squad",
+    "ee": "Mängijate Koosseis"
+  },
+  "startDuels": {
+    "es": "Comenzar Duelos",
+    "en": "Start Duels",
+    "ee": ""
+  },
+  "startSession": {
+    "es": "Empezar Sesión y Seleccionar Jugadores",
+    "en": "Start Session & Select Players",
+    "ee": ""
+  },
+  "startTime": {
+    "es": "Inicio",
+    "en": "Start",
+    "ee": "Algus"
+  },
+  "stat_assist": {
+    "es": "Asistencia",
+    "en": "Assist",
+    "ee": "Väravasöödud"
+  },
+  "stat_cross": {
+    "es": "Centro",
+    "en": "Cross",
+    "ee": "Tsenderdused"
+  },
+  "stat_def": {
+    "es": "Defensa (DEF)",
+    "en": "Defending (DEF)",
+    "ee": "Kaitsetöö (KAI)"
+  },
+  "stat_dis": {
+    "es": "Disciplina (DIS)",
+    "en": "Discipline (DIS)",
+    "ee": "Distsipliin (DIS)"
+  },
+  "stat_dribbleKo": {
+    "es": "Regate fallado",
+    "en": "Failed dribble",
+    "ee": "Ebaõnnestunud Triblingud"
+  },
+  "stat_dribbleOk": {
+    "es": "Regate exitoso",
+    "en": "Successful dribble",
+    "ee": "Edukad Triblingud"
+  },
+  "stat_duelLost": {
+    "es": "Duelo perdido",
+    "en": "Duel lost",
+    "ee": "Kaotatud Kahevõitlused"
+  },
+  "stat_duelWon": {
+    "es": "Duelo ganado",
+    "en": "Duel won",
+    "ee": "Võidetud Kahevõitlused"
+  },
+  "stat_fis": {
+    "es": "Físico (FIS)",
+    "en": "Physical (PHY)",
+    "ee": "Füüsis (FÜÜ)"
+  },
+  "stat_foul": {
+    "es": "Falta cometida",
+    "en": "Foul committed",
+    "ee": "Tehtud Vead"
+  },
+  "stat_foulRecv": {
+    "es": "Falta recibida",
+    "en": "Foul won",
+    "ee": "Teenitud Vead"
+  },
+  "stat_goal": {
+    "es": "Gol",
+    "en": "Goal",
+    "ee": "Löödud Väravad"
+  },
+  "stat_header": {
+    "es": "Remate de cabeza",
+    "en": "Header",
+    "ee": "Pealöögid"
+  },
+  "stat_keyPass": {
+    "es": "Pase clave",
+    "en": "Key pass",
+    "ee": "Võtmesöödud"
+  },
+  "stat_loss": {
+    "es": "Balón perdido",
+    "en": "Ball lost",
+    "ee": "Pallikaotused"
+  },
+  "stat_pas": {
+    "es": "Pase (PAS)",
+    "en": "Passing (PAS)",
+    "ee": "Söötmine (SÖÖ)"
+  },
+  "stat_passKo": {
+    "es": "Pase fallado",
+    "en": "Incomplete pass",
+    "ee": "Ebatäpsed Söödud"
+  },
+  "stat_passOk": {
+    "es": "Pase completado",
+    "en": "Completed pass",
+    "ee": "Täpsed Söödud"
+  },
+  "stat_recovery": {
+    "es": "Recuperación",
+    "en": "Ball recovery",
+    "ee": "Palli Tagasivõitmised"
+  },
+  "stat_red": {
+    "es": "Tarjeta roja",
+    "en": "Red card",
+    "ee": "Punased Kaardid"
+  },
+  "stat_reg": {
+    "es": "Regate (REG)",
+    "en": "Dribbling (DRI)",
+    "ee": "Tribling (TRI)"
+  },
+  "stat_save": {
+    "es": "Parada",
+    "en": "Goalkeeper save",
+    "ee": "Väravavahi Tõrjed"
+  },
+  "stat_shotOff": {
+    "es": "Tiro fuera",
+    "en": "Shot off target",
+    "ee": "Löögid Mööda"
+  },
+  "stat_shotOn": {
+    "es": "Tiro a puerta",
+    "en": "Shot on target",
+    "ee": "Löögid Raami"
+  },
+  "stat_tir": {
+    "es": "Tiro (TIR)",
+    "en": "Shooting (SHO)",
+    "ee": "Löömine (LÖÖ)"
+  },
+  "stat_touches": {
+    "es": "Toques",
+    "en": "Touches",
+    "ee": "Pallipuuted"
+  },
+  "stat_yellow": {
+    "es": "Tarjeta amarilla",
+    "en": "Yellow card",
+    "ee": "Kollased Kaardid"
+  },
+  "stops": {
+    "es": "cierres defensivos",
+    "en": "defensive stops",
+    "ee": "kaitsetõrjed"
+  },
+  "streakMaster": {
+    "es": "👑 ¡Racha Legendaria Imparable!",
+    "en": "👑 Unstoppable Legendary Streak!",
+    "ee": "👑 Peatamatu Legendaarne Seeria!"
+  },
+  "streakMilestoneBronze": {
+    "es": "Medalla de Bronce",
+    "en": "Bronze Medal",
+    "ee": "Pronksmedal"
+  },
+  "streakMilestoneDiamond": {
+    "es": "Insignia Diamante",
+    "en": "Diamond Badge",
+    "ee": "Teemantmärk"
+  },
+  "streakMilestoneGold": {
+    "es": "Medalla de Oro",
+    "en": "Gold Medal",
+    "ee": "Kuldmedal"
+  },
+  "streakMilestoneSilver": {
+    "es": "Medalla de Plata",
+    "en": "Silver Medal",
+    "ee": "Hõbemedal"
+  },
+  "streakNextMilestone": {
+    "es": "{current}/{target} hacia {nextMilestone}",
+    "en": "{current}/{target} towards {nextMilestone}",
+    "ee": "{current}/{target} sihtmärgini {nextMilestone}"
+  },
+  "streakOnFire": {
+    "es": "🔥 En racha",
+    "en": "🔥 On Fire",
+    "ee": "🔥 Hoog sees"
+  },
+  "streakSessionSingle": {
+    "es": "sesión",
+    "en": "session",
+    "ee": "kord"
+  },
+  "streakSessions": {
+    "es": "sesiones seguidas",
+    "en": "sessions in a row",
+    "ee": "korda järjest"
+  },
+  "swap": {
+    "es": "Intercambiar",
+    "en": "Swap",
+    "ee": ""
+  },
+  "syncAllNow": {
+    "es": "Sincronizar Todo a la Nube Ahora",
+    "en": "Sync All to Cloud Now",
+    "ee": ""
+  },
+  "syncError": {
+    "es": "Error al sincronizar",
+    "en": "Sync error",
+    "ee": ""
+  },
+  "syncErrorFallback": {
+    "es": "Error al sincronizar. Comprueba tu conexión a Internet.",
+    "en": "Sync error. Please check your internet connection.",
+    "ee": ""
+  },
+  "syncLive": {
+    "es": "Sincronizar en Vivo (QR)",
+    "en": "Live Sync (QR)",
+    "ee": ""
+  },
+  "syncSuccess": {
+    "es": "¡Datos sincronizados en la nube en tiempo real!",
+    "en": "Live cloud data synchronized!",
+    "ee": ""
+  },
+  "tapMatchDetails": {
+    "es": "Toca para ver detalles del partido y plantilla",
+    "en": "Tap for Match Details & Squad",
+    "ee": "Puuduta mängu detailide ja koosseisu nägemiseks"
+  },
+  "tapSkillHint": {
+    "es": "Pulsa sobre cualquier habilidad del radar para ver su explicación en inglés ℹ️",
+    "en": "Tap any skill on the radar to see its full explanation in English ℹ️",
+    "ee": "Puuduta mis tahes oskust radaril, et näha selle selgitust ℹ️"
+  },
+  "tapToChangePhoto": {
+    "es": "Toca para cambiar la foto",
+    "en": "Tap to change photo",
+    "ee": ""
+  },
+  "tapTrainingDetails": {
+    "es": "Toca para ver detalles del entrenamiento y plantilla",
+    "en": "Tap for Training Details & Squad",
+    "ee": "Puuduta treeningu detailide ja nimekirja nägemiseks"
+  },
+  "targetLabel": {
+    "es": "Objetivo a alcanzar",
+    "en": "Target goal",
+    "ee": ""
+  },
+  "team": {
+    "es": "Equipo",
+    "en": "Team",
+    "ee": ""
+  },
+  "teamColor": {
+    "es": "Color identificativo",
+    "en": "Team Color",
+    "ee": ""
+  },
+  "teamName": {
+    "es": "Nombre del Equipo",
+    "en": "Team Name",
+    "ee": ""
+  },
+  "teamNamePlaceholder": {
+    "es": "Ej. Benjamín A, Juvenil B, U12...",
+    "en": "e.g. U12 Academy, Varsity B...",
+    "ee": ""
+  },
+  "teamShortName": {
+    "es": "Abreviatura / Categoría",
+    "en": "Short Name / Tag",
+    "ee": ""
+  },
+  "teams": {
+    "es": "Equipos",
+    "en": "Teams",
+    "ee": ""
+  },
+  "technicalStaff": {
+    "es": "Cuerpo Técnico Principal",
+    "en": "Head Coaching Staff",
+    "ee": ""
+  },
+  "timePerDay": {
+    "es": "Hora de entrenamiento por cada día",
+    "en": "Training time for each day",
+    "ee": ""
+  },
+  "todayBadge": {
+    "es": "HOY",
+    "en": "TODAY",
+    "ee": "TÄNA"
+  },
+  "todayMatchBadge": {
+    "es": "✨ PARTIDO DE HOY",
+    "en": "✨ TODAY'S MATCH",
+    "ee": "✨ TÄNANE MÄNG"
+  },
+  "todaySessions": {
+    "es": "Sesiones de Hoy",
+    "en": "Today's Sessions",
+    "ee": ""
+  },
+  "todayTrainingBadge": {
+    "es": "✨ ENTRENAMIENTO DE HOY",
+    "en": "✨ TODAY'S TRAINING",
+    "ee": "✨ TÄNANE TREENING"
+  },
+  "top1v1": {
+    "es": "⚔️ Líderes en Duelos 1v1 Ganados",
+    "en": "⚔️ 1v1 Duels Leaders (Won)",
+    "ee": ""
+  },
+  "top1v1Stops": {
+    "es": "🛡️ Más Robos / Cierres en 1v1",
+    "en": "🛡️ Most 1v1 Steals / Stops",
+    "ee": ""
+  },
+  "topPassers": {
+    "es": "🎯 Pases Completados",
+    "en": "🎯 Completed Passes",
+    "ee": ""
+  },
+  "topScorers": {
+    "es": "🥅 Máximos Goleadores",
+    "en": "🥅 Top Scorers",
+    "ee": ""
+  },
+  "totalBench": {
+    "es": "Suplentes",
+    "en": "Bench",
+    "ee": ""
+  },
+  "totalCalled": {
+    "es": "Convocados",
+    "en": "Selected",
+    "ee": ""
+  },
+  "totalGoals": {
+    "es": "Goles Totales",
+    "en": "Total Goals",
+    "ee": ""
+  },
+  "totalInjured": {
+    "es": "Lesionados",
+    "en": "Injured",
+    "ee": ""
+  },
+  "totalPlayersSuffix": {
+    "es": "jugadores en total",
+    "en": "players in total",
+    "ee": ""
+  },
+  "totalSessions": {
+    "es": "Sesiones Totales",
+    "en": "Total Sessions",
+    "ee": "Sessioone Kokku"
+  },
+  "touchesLabel": {
+    "es": "TOQUES",
+    "en": "TOUCHES",
+    "ee": "PUUTED"
+  },
+  "training": {
+    "es": "Entrenamiento",
+    "en": "Training",
+    "ee": "Treening"
+  },
+  "trainingAttendanceRate": {
+    "es": "Tasa de Asistencia a Entrenamientos",
+    "en": "Training Attendance Rate",
+    "ee": ""
+  },
+  "trainingDate": {
+    "es": "Fecha de Entrenamiento",
+    "en": "Training Date",
+    "ee": "Treeningu Kuupäev"
+  },
+  "trainingDesc": {
+    "es": "Rondos, toques y pases",
+    "en": "Rondos, touches & passes",
+    "ee": ""
+  },
+  "trainingDetails": {
+    "es": "Detalles del Entrenamiento",
+    "en": "Training Details",
+    "ee": "Treeningu Üksikasjad"
+  },
+  "trainingDuration": {
+    "es": "Duración del entrenamiento",
+    "en": "Training Duration",
+    "ee": ""
+  },
+  "trainingModality": {
+    "es": "Modalidad de Entrenamiento",
+    "en": "Training Modality",
+    "ee": ""
+  },
+  "trainingSquad": {
+    "es": "Convocados al Entrenamiento",
+    "en": "Training Squad",
+    "ee": "Treeningu Nimekiri"
+  },
+  "trainingTime": {
+    "es": "Hora de Entrenamiento",
+    "en": "Training Time",
+    "ee": "Treeningu Aeg"
+  },
+  "trainingTomorrowNotice": {
+    "es": "⚽ Mañana tienes entrenamiento: ¿asistirás?",
+    "en": "⚽ You have training tomorrow: will you attend?",
+    "ee": ""
+  },
+  "trainingsAttended": {
+    "es": "Entrenamientos Asistidos",
+    "en": "Trainings Attended",
+    "ee": "Osaletud Treeninguid"
+  },
+  "trainingsOnly": {
+    "es": "🏃 Entrenamientos",
+    "en": "🏃 Trainings only",
+    "ee": ""
+  },
+  "trainingsTab": {
+    "es": "Entrenamientos",
+    "en": "Trainings",
+    "ee": "Treeningud"
+  },
+  "typeMessage": {
+    "es": "Escribe un mensaje...",
+    "en": "Type a message...",
+    "ee": ""
+  },
+  "unassignedTeam": {
+    "es": "(Sin asignar)",
+    "en": "(Unassigned)",
+    "ee": ""
+  },
+  "uncalledStatus": {
+    "es": "No convocado",
+    "en": "Not selected",
+    "ee": ""
+  },
+  "undo": {
+    "es": "Deshacer",
+    "en": "Undo",
+    "ee": ""
+  },
+  "unlink": {
+    "es": "Desvincular",
+    "en": "Unlink",
+    "ee": ""
+  },
+  "unlinkProfile": {
+    "es": "Desvincular Perfil",
+    "en": "Unlink Profile",
+    "ee": ""
+  },
+  "unlinkProfileDesc": {
+    "es": "¿Estás seguro de que deseas desvincular el perfil de este jugador? Perderá el acceso en su dispositivo y volverá a la pantalla de selección.",
+    "en": "Are you sure you want to unlink this player's profile? The player will lose access on their device and return to the player selection screen.",
+    "ee": ""
+  },
+  "unlinkSuccessToast": {
+    "es": "✅ Perfil de {name} desvinculado con éxito.",
+    "en": "✅ Profile of {name} successfully unlinked.",
+    "ee": ""
+  },
+  "unmarked": {
+    "es": "Sin marcar",
+    "en": "Unmarked",
+    "ee": ""
+  },
+  "unmuteNotifications": {
+    "es": "Activar notificaciones",
+    "en": "Unmute notifications",
+    "ee": ""
+  },
+  "untrackedGoalsHint": {
+    "es": "goles contabilizados en partidos anteriores sin zona asignada",
+    "en": "goals recorded without specific field zone assigned",
+    "ee": "tsoonita salvestatud tegevused"
+  },
+  "upcomingThisWeek": {
+    "es": "Próximos esta semana",
+    "en": "Upcoming this week",
+    "ee": "Järgmised sel nädalal"
+  },
+  "uploadGroupPhoto": {
+    "es": "Subir foto de grupo",
+    "en": "Upload group photo",
+    "ee": ""
+  },
+  "venue": {
+    "es": "Lugar / Campo (opcional)",
+    "en": "Venue / Pitch (optional)",
+    "ee": "Koht / Väljak"
+  },
+  "venueNotSpecified": {
+    "es": "Ubicación no especificada",
+    "en": "Venue location not specified",
+    "ee": "Asukohta pole määratud"
+  },
+  "venuePlaceholder": {
+    "es": "Ej. Campo 1, Municipal...",
+    "en": "e.g. Pitch 1, Municipal stadium...",
+    "ee": ""
+  },
+  "veryBalanced": {
+    "es": "Muy Equilibrado",
+    "en": "Very Balanced",
+    "ee": "Väga Tasavägine"
+  },
+  "viberCoachContactMsg": {
+    "es": "¡Hola míster!",
+    "en": "Hi Coach!",
+    "ee": "Tere treener!"
+  },
+  "viberGuardian": {
+    "es": "💬 Viber",
+    "en": "💬 Viber",
+    "ee": ""
+  },
+  "viberProfileChangeMsg": {
+    "es": "Hola míster, mi código de verificación es {code} para cambiar mi perfil a {name} en la app Player Stats.",
+    "en": "Hi Coach, my verification code is {code} to change my profile to {name} on Player Stats app.",
+    "ee": "Tere treener, minu kinnituskood on {code}, et muuta profiil mängijale {name} rakenduses Player Stats."
+  },
+  "viberShareMsg": {
+    "es": "Hola míster, mi código de seguridad es {code} para acceder a mi perfil ({name}) en la app Player Stats.",
+    "en": "Hi Coach, my verification security code is {code} to access my profile ({name}) on Player Stats app.",
+    "ee": "Tere treener, minu turvakood on {code}, et pääseda ligi profiilile ({name}) rakenduses Player Stats."
+  },
+  "viewAllPlayers": {
+    "es": "Ver todos",
+    "en": "View all",
+    "ee": ""
+  },
+  "viewAttendees": {
+    "es": "👥 Ver lista de asistencia ▾",
+    "en": "👥 See who is attending ▾",
+    "ee": "👥 Vaata osalejate nimekirja ▾"
+  },
+  "viewCoachProfile": {
+    "es": "Ver Perfil del Entrenador",
+    "en": "View Coach Profile",
+    "ee": "Vaata Treeneri Profiili"
+  },
+  "viewFutCard": {
+    "es": "Ver Carta FUT",
+    "en": "View FUT Card",
+    "ee": "Vaata FUT Kaarti"
+  },
+  "viewMembers": {
+    "es": "Ver miembros del grupo",
+    "en": "View group members",
+    "ee": ""
+  },
+  "viewMyFutCard": {
+    "es": "Ver mi Carta FUT Coleccionable",
+    "en": "View my FUT Collectible Card",
+    "ee": "🃏 Vaata minu FUT Kaarti"
+  },
+  "viewProfile": {
+    "es": "Ver perfil",
+    "en": "View profile",
+    "ee": ""
+  },
+  "viewSessionDetail": {
+    "es": "Ver Detalle del Partido",
+    "en": "View Match Details",
+    "ee": "Vaata Mängu Üksikasju"
+  },
+  "voteMatchMvp": {
+    "es": "Vota al Jugador del Partido",
+    "en": "Vote for Match MVP",
+    "ee": "Hääleta mängu MVP poolt"
+  },
+  "voteReset": {
+    "es": "Respuesta cancelada (pendiente)",
+    "en": "Attendance vote cancelled (pending)",
+    "ee": "Osalemise vastus tühistatud (ootel)"
+  },
+  "waitingCoachApproval": {
+    "es": "Esperando autorización del entrenador...",
+    "en": "Waiting for coach authorization...",
+    "ee": "Ootan treeneri kinnitust koodile..."
+  },
+  "waitingGuest": {
+    "es": "Esperando que el segundo móvil escanee...",
+    "en": "Waiting for second phone to scan...",
+    "ee": ""
+  },
+  "weeklyMissionDesc": {
+    "es": "Objetivo individual de mejora técnica o táctica para esta semana",
+    "en": "Individual technical or tactical development goal for this week",
+    "ee": ""
+  },
+  "weeklyMissionTitle": {
+    "es": "Misión Semanal del Míster",
+    "en": "Coach's Weekly Mission",
+    "ee": "Treeneri nädala missioon"
+  },
+  "whatEvaluates": {
+    "es": "¿Qué evalúa esta cualidad?",
+    "en": "What does this skill evaluate?",
+    "ee": ""
+  },
+  "whatsappGuardian": {
+    "es": "💬 WhatsApp",
+    "en": "💬 WhatsApp",
+    "ee": ""
+  },
+  "willYouAttend": {
+    "es": "¿Asistirás a esta cita?",
+    "en": "Will you attend this session?",
+    "ee": "Kas osaled sellel üritusel?"
+  },
+  "winRate": {
+    "es": "VICTORIAS",
+    "en": "WIN RATE",
+    "ee": "VÕIDUMÄÄR"
+  },
+  "won": {
+    "es": "Ganados",
+    "en": "Won",
+    "ee": "Võidetud"
+  },
+  "yearOld": {
+    "es": "año",
+    "en": "year",
+    "ee": ""
+  },
+  "yearsOld": {
+    "es": "años",
+    "en": "years",
+    "ee": ""
+  },
+  "zoneDetailsTitle": {
+    "es": "Detalle de la Zona del Campo",
+    "en": "Pitch Zone Breakdown",
+    "ee": "Väljakutsooni Ülevaade"
+  },
+  "zone_box_opp": {
+    "es": "Área rival",
+    "en": "Rival box",
+    "ee": "Vastase Karistusala"
+  },
+  "zone_front": {
+    "es": "Frontal del área",
+    "en": "Edge of box",
+    "ee": "Karistusala Esine"
+  },
+  "zone_front_own": {
+    "es": "Frontal área propia",
+    "en": "Own box edge",
+    "ee": ""
+  },
+  "zone_mid": {
+    "es": "Centro del campo",
+    "en": "Midfield center",
+    "ee": "Keskväli / Oma väljakupool"
+  },
+  "zone_own": {
+    "es": "Área de portería",
+    "en": "Goal area",
+    "ee": ""
+  },
+  "zone_wing_def_l": {
+    "es": "Banda defensiva izq.",
+    "en": "Left defending wing",
+    "ee": ""
+  },
+  "zone_wing_def_r": {
+    "es": "Banda defensiva der.",
+    "en": "Right defending wing",
+    "ee": ""
+  },
+  "zone_wing_l": {
+    "es": "Banda izquierda",
+    "en": "Left wing",
+    "ee": "Vasak Äär"
+  },
+  "zone_wing_off_l": {
+    "es": "Banda ofensiva izq.",
+    "en": "Left attacking wing",
+    "ee": "Ründav Vasak Äär"
+  },
+  "zone_wing_off_r": {
+    "es": "Banda ofensiva der.",
+    "en": "Right attacking wing",
+    "ee": "Ründav Parem Äär"
+  },
+  "zone_wing_r": {
+    "es": "Banda derecha",
+    "en": "Right wing",
+    "ee": "Parem Äär"
+  }
+}
