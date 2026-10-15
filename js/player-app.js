@@ -446,6 +446,18 @@
       duels1v1WinRate: '1v1 Win Rate %',
       duels1v1Won: '1v1 Duels Won',
       duels1v1Lost: '1v1 Duels Lost',
+      h2h_pedagogical_title: '1v1 Tactical Advice',
+      h2h_your_advantage: 'Advantage',
+      h2h_watch_out: 'Point to watch out',
+      h2h_best_weapon: 'Your best weapon',
+      h2h_tactical_summary: '6-Skill Breakdown',
+      h2h_balanced_duel: 'Very balanced duel! Focus on tactical discipline and good positioning.',
+      stat_pas: 'Passing (PAS)',
+      stat_tir: 'Shooting (SHO)',
+      stat_reg: 'Dribbling (DRI)',
+      stat_def: 'Defending (DEF)',
+      stat_fis: 'Physical (PHY)',
+      stat_dis: 'Discipline (DIS)',
       won: 'Won',
       lost: 'Lost',
       sessions: 'Trainings & Sessions',
@@ -773,6 +785,18 @@
       duels1v1WinRate: '1v1 Võiduprotsent',
       duels1v1Won: 'Võidetud Duellid',
       duels1v1Lost: 'Kaotatud Duellid',
+      h2h_pedagogical_title: '1v1 Taktikalised nõuanded',
+      h2h_your_advantage: 'Sinu eelis',
+      h2h_watch_out: 'Tähelepanu vajav',
+      h2h_best_weapon: 'Sinu tugevaim relv',
+      h2h_tactical_summary: '6 oskuse analüüs',
+      h2h_balanced_duel: 'Väga tasavägine duell! Keskendu distsipliinile ja heale positsioneerimisele.',
+      stat_pas: 'Söötmine (SÖÖ)',
+      stat_tir: 'Löömine (LÖÖ)',
+      stat_reg: 'Tribling (TRI)',
+      stat_def: 'Kaitsetöö (KAI)',
+      stat_fis: 'Füüsis (FÜÜ)',
+      stat_dis: 'Distsipliin (DIS)',
       won: 'Võidetud',
       lost: 'Kaotatud',
       sessions: 'Trennid ja Sessioonid',
@@ -1100,6 +1124,18 @@
       duels1v1WinRate: '% Victorias 1v1',
       duels1v1Won: 'Duelos Ganados',
       duels1v1Lost: 'Duelos Perdidos',
+      h2h_pedagogical_title: 'Consejos Tácticos 1v1',
+      h2h_your_advantage: 'Ventaja',
+      h2h_watch_out: 'Punto a vigilar',
+      h2h_best_weapon: 'Tu mejor arma',
+      h2h_tactical_summary: 'Comparativa 6 Atributos',
+      h2h_balanced_duel: '¡Duelo muy parejo! Mantén la máxima concentración y disciplina táctica.',
+      stat_pas: 'Pase (PAS)',
+      stat_tir: 'Tiro (TIR)',
+      stat_reg: 'Regate (REG)',
+      stat_def: 'Defensa (DEF)',
+      stat_fis: 'Físico (FIS)',
+      stat_dis: 'Disciplina (DIS)',
       won: 'Ganados',
       lost: 'Perdidos',
       sessions: 'Entrenamientos y Sesiones',
@@ -2156,61 +2192,94 @@
     return legacyPlayerRadar(pid, customSessions);
   }
 
-  /* Fórmula v1 (solo respaldo si skills-engine.js no está cargado) */
+  /* Fórmula EMA asimétrica (escala 50-99) */
   function legacyPlayerRadar(pid, customSessions) {
-    const agg = getPlayerAggregate(pid, customSessions);
-    const st = agg.totals || {};
-    const count = agg.count || 0;
+    const allSess = Array.isArray(customSessions) ? customSessions : ((clubData && clubData.sessions) || []);
     const pl = (clubData && clubData.players) ? clubData.players.find(x => x.id === pid) : null;
+    const pos = (pl && pl.mainPosition) || 'MED';
 
-    const totalActions = Object.values(st).reduce((sum, v) => sum + (typeof v === 'number' ? v : 0), 0);
+    const currentSkills = {
+      pas: 50, tir: 50, reg: 50, def: 50, fis: 50,
+      dis: (pl && pl.disciplineScore !== undefined && pl.disciplineScore !== null && pl.disciplineScore !== '') ? Math.min(99, Math.max(50, Number(pl.disciplineScore))) : 50
+    };
 
-    // Sin sesiones ni acciones trackeadas: empezar todas las habilidades en 50
-    if (count === 0 || totalActions === 0) {
-      return { pas: 50, tir: 50, reg: 50, fis: 50, def: 50, dis: 50 };
-    }
+    const validSessions = allSess.filter(s => s && s.stats && s.stats[pid] && Object.keys(s.stats[pid]).some(k => Number(s.stats[pid][k]) > 0));
+    if (!validSessions.length) return currentSkills;
 
-    const passes = (st.passOk || 0) + (st.passKo || 0);
-    let pas = 50;
-    if (passes > 0) {
-      const passAcc = (st.passOk || 0) / passes;
-      pas = Math.min(99, Math.max(20, Math.round(50 + (passAcc - 0.5) * 40 + Math.min(25, (st.keyPass || 0) * 3 + ((st.passOk || 0) / count) * 1.5))));
-    }
+    const sorted = validSessions.slice().sort((a, b) => ((a.date || '').localeCompare(b.date || '')) || ((a.createdAt || 0) - (b.createdAt || 0)));
 
-    const shots = (st.shotOn || 0) + (st.shotOff || 0);
-    let tir = 50;
-    if (shots > 0 || (st.goal || 0) > 0) {
-      const shotAcc = shots > 0 ? (st.shotOn || 0) / shots : 0.5;
-      tir = Math.min(99, Math.max(20, Math.round(50 + (shotAcc - 0.5) * 30 + Math.min(35, (st.goal || 0) * 8 + (st.shotOn || 0) * 2))));
-    }
+    sorted.forEach(s => {
+      const st = s.stats[pid];
+      const rating = calculateMatchRating(st, pos);
+      const baseSessionScore = Math.min(99, Math.max(50, Math.round(rating * 10)));
 
-    const dribbles = (st.dribbleOk || 0) + (st.dribbleKo || 0);
-    let reg = 50;
-    if (dribbles > 0) {
-      const dribAcc = (st.dribbleOk || 0) / dribbles;
-      reg = Math.min(99, Math.max(20, Math.round(50 + (dribAcc - 0.5) * 35 + Math.min(25, (st.dribbleOk || 0) * 3))));
-    }
+      const S_hoy = {
+        pas: baseSessionScore, tir: baseSessionScore, reg: baseSessionScore,
+        def: baseSessionScore, fis: baseSessionScore,
+        dis: (pl && pl.disciplineScore !== undefined && pl.disciplineScore !== null && pl.disciplineScore !== '') ? Math.min(99, Math.max(50, Number(pl.disciplineScore))) : 85
+      };
 
-    const recoveries = st.recovery || 0;
-    const losses = st.loss || 0;
-    let def = Math.min(99, Math.max(20, Math.round(50 + Math.min(35, ((recoveries / count) * 5) + ((st.save || 0) * 6) - ((losses / count) * 3)))));
+      const passes = (Number(st.passOk) || 0) + (Number(st.passKo) || 0);
+      if (passes > 0) {
+        const passAcc = (Number(st.passOk) || 0) / passes;
+        const pasScore = Math.round(50 + (passAcc - 0.5) * 40 + Math.min(25, (Number(st.keyPass) || 0) * 4 + (Number(st.assist) || 0) * 5 + (Number(st.passOk) || 0) * 1.5));
+        S_hoy.pas = Math.min(99, Math.max(50, Math.round(0.6 * pasScore + 0.4 * baseSessionScore)));
+      }
 
-    const duels = (st.duelWon || 0) + (st.duelLost || 0);
-    let fis = 50;
-    if (duels > 0 || (st.touches || 0) > 0) {
-      const duelAcc = duels > 0 ? (st.duelWon || 0) / duels : 0.5;
-      fis = Math.min(99, Math.max(20, Math.round(50 + (duelAcc - 0.5) * 30 + Math.min(25, ((st.touches || 0) / count) * 1.2))));
-    }
+      const shots = (Number(st.shotOn) || 0) + (Number(st.shotOff) || 0);
+      const goals = Number(st.goal) || 0;
+      const d1v1Goal = Number(st.duel1v1WonGoal) || 0;
+      if (shots > 0 || goals > 0 || d1v1Goal > 0) {
+        const shotAcc = shots > 0 ? (Number(st.shotOn) || 0) / shots : 0.5;
+        const tirScore = Math.round(50 + (shotAcc - 0.5) * 30 + Math.min(35, goals * 10 + (Number(st.shotOn) || 0) * 3 + d1v1Goal * 4));
+        S_hoy.tir = Math.min(99, Math.max(50, Math.round(0.6 * tirScore + 0.4 * baseSessionScore)));
+      }
 
-    let dis = 50;
-    if (pl && pl.disciplineScore !== undefined && pl.disciplineScore !== null) {
-      dis = Number(pl.disciplineScore);
-    } else {
-      const foulDeduction = (st.foul || 0) * 2 + (st.yellow || 0) * 5 + (st.red || 0) * 15;
-      dis = Math.min(99, Math.max(20, Math.round(50 + Math.min(45, count * 5) - (foulDeduction / count))));
-    }
+      const dribbles = (Number(st.dribbleOk) || 0) + (Number(st.dribbleKo) || 0);
+      if (dribbles > 0 || d1v1Goal > 0) {
+        const dribAcc = dribbles > 0 ? (Number(st.dribbleOk) || 0) / dribbles : 0.5;
+        const regScore = Math.round(50 + (dribAcc - 0.5) * 35 + Math.min(25, (Number(st.dribbleOk) || 0) * 4 + d1v1Goal * 3));
+        S_hoy.reg = Math.min(99, Math.max(50, Math.round(0.6 * regScore + 0.4 * baseSessionScore)));
+      }
 
-    return { pas, tir, reg, def, fis, dis };
+      const rec = Number(st.recovery) || 0;
+      const stops = Number(st.duel1v1WonStop) || 0;
+      const saves = Number(st.save) || 0;
+      const losses = Number(st.loss) || 0;
+      if (rec > 0 || stops > 0 || saves > 0 || losses > 0) {
+        const defScore = Math.round(50 + Math.min(35, rec * 4 + stops * 4 + saves * 6 - losses * 2));
+        S_hoy.def = Math.min(99, Math.max(50, Math.round(0.6 * defScore + 0.4 * baseSessionScore)));
+      }
+
+      const duels = (Number(st.duelWon) || 0) + (Number(st.duelLost) || 0);
+      const touches = Number(st.touches) || 0;
+      if (duels > 0 || touches > 0) {
+        const duelAcc = duels > 0 ? (Number(st.duelWon) || 0) / duels : 0.5;
+        const fisScore = Math.round(50 + (duelAcc - 0.5) * 30 + Math.min(25, touches * 0.8 + (Number(st.duelWon) || 0) * 2));
+        S_hoy.fis = Math.min(99, Math.max(50, Math.round(0.6 * fisScore + 0.4 * baseSessionScore)));
+      }
+
+      if (!pl || pl.disciplineScore === undefined || pl.disciplineScore === null || pl.disciplineScore === '') {
+        const foulDeduction = (Number(st.foul) || 0) * 3 + (Number(st.yellow) || 0) * 8 + (Number(st.red) || 0) * 20;
+        S_hoy.dis = Math.min(99, Math.max(50, Math.round(85 - foulDeduction)));
+      }
+
+      ['pas', 'tir', 'reg', 'def', 'fis', 'dis'].forEach(k => {
+        if (k === 'dis' && pl && pl.disciplineScore !== undefined && pl.disciplineScore !== null && pl.disciplineScore !== '') {
+          currentSkills.dis = Math.min(99, Math.max(50, Number(pl.disciplineScore)));
+          return;
+        }
+        const S_val = Math.min(99, Math.max(50, S_hoy[k]));
+        const A_actual = currentSkills[k];
+        if (S_val >= A_actual) {
+          currentSkills[k] = Math.min(99, Math.round(A_actual + 0.20 * (S_val - A_actual)));
+        } else {
+          currentSkills[k] = Math.max(50, A_actual - 1, Math.round(A_actual - 0.04 * (A_actual - S_val)));
+        }
+      });
+    });
+
+    return currentSkills;
   }
 
   /* -------------------------------------------------------------
@@ -5758,7 +5827,7 @@
           <button type="button" class="btn block" id="btn-open-my-fut-card" style="width: 100%; height: 50px; font-size: 14px; font-weight: 900; border-radius: 14px; background: linear-gradient(135deg, #18181b 0%, #27272a 50%, #18181b 100%); color: #facc15; border: 2px solid #eab308; box-shadow: 0 4px 20px rgba(234, 179, 8, 0.25); display: flex; align-items: center; justify-content: center; gap: 10px; cursor: pointer;">
             <span style="font-size: 22px;">🃏</span>
             <span>${t('viewMyFutCard', 'Ver mi Carta FUT Coleccionable')}</span>
-            <span class="badge" style="background: rgba(250, 204, 21, 0.2); color: #fef08a; border: 1px solid #facc15; font-size: 11px; margin-left: 4px;">OVR ${window.FutCard && FutCard.computeOvr ? FutCard.computeOvr(globalRadar) : Math.min(99, Math.max(45, Math.round(overall.rating * 10)))}</span>
+            <span class="badge" style="background: rgba(250, 204, 21, 0.2); color: #fef08a; border: 1px solid #facc15; font-size: 11px; margin-left: 4px;">OVR ${window.FutCard && FutCard.computeOvr ? FutCard.computeOvr(globalRadar, myP.mainPosition) : Math.min(99, Math.max(45, Math.round(overall.rating * 10)))}</span>
           </button>
         </div>
 
@@ -5812,7 +5881,7 @@
     if (btnOpenMyFut) {
       btnOpenMyFut.onclick = () => {
         if (window.FutCard && FutCard.showModal) {
-          const ovr = FutCard.computeOvr ? FutCard.computeOvr(globalRadar) : Math.min(99, Math.max(45, Math.round(overall.rating * 10)));
+          const ovr = FutCard.computeOvr ? FutCard.computeOvr(globalRadar, myP.mainPosition) : Math.min(99, Math.max(45, Math.round(overall.rating * 10)));
           FutCard.showModal({
             player: myP,
             radar: globalRadar,
@@ -6423,7 +6492,7 @@
         <button type="button" class="btn block" id="btn-open-player-fut-card-${pid}" style="height: 44px; font-weight: 900; font-size: 13.5px; margin-bottom: 10px; border-radius: 12px; background: linear-gradient(135deg, #18181b 0%, #27272a 50%, #18181b 100%); color: #facc15; border: 1.5px solid #eab308; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer;">
           <span style="font-size: 18px;">🃏</span>
           <span>${t('viewFutCard', 'Ver Carta FUT')}</span>
-          <span class="badge" style="background: rgba(250, 204, 21, 0.2); color: #fef08a; border: 1px solid #facc15; font-size: 11px;">OVR ${window.FutCard && FutCard.computeOvr ? FutCard.computeOvr(globalRadar) : Math.min(99, Math.max(45, Math.round(overall.rating * 10)))}</span>
+          <span class="badge" style="background: rgba(250, 204, 21, 0.2); color: #fef08a; border: 1px solid #facc15; font-size: 11px;">OVR ${window.FutCard && FutCard.computeOvr ? FutCard.computeOvr(globalRadar, p.mainPosition) : Math.min(99, Math.max(45, Math.round(overall.rating * 10)))}</span>
         </button>
 
         <!-- Botón Chatear con este jugador (Punto 8) -->
@@ -6484,7 +6553,7 @@
     if (btnPlayerFut) {
       btnPlayerFut.onclick = () => {
         if (window.FutCard && FutCard.showModal) {
-          const ovr = FutCard.computeOvr ? FutCard.computeOvr(globalRadar) : Math.min(99, Math.max(45, Math.round(overall.rating * 10)));
+          const ovr = FutCard.computeOvr ? FutCard.computeOvr(globalRadar, p.mainPosition) : Math.min(99, Math.max(45, Math.round(overall.rating * 10)));
           FutCard.showModal({
             player: p,
             radar: globalRadar,
@@ -6742,7 +6811,43 @@
     const allSessions = (clubData && clubData.sessions) || [];
     const d1 = getPlayer1v1Stats(p1.id, allSessions);
     const d2 = getPlayer1v1Stats(p2.id, allSessions);
-    const prob = calculate1v1WinProbability(p1, p2, r1, r2, d1, d2);
+
+    // Comparativa de atributos pedagógica para jugadores (sin mostrar % de victoria)
+    const attrKeys = ['pas', 'tir', 'reg', 'def', 'fis', 'dis'];
+    const attrNames = {
+      pas: t('stat_pas', 'Pase (PAS)'),
+      tir: t('stat_tir', 'Tiro (TIR)'),
+      reg: t('stat_reg', 'Regate (REG)'),
+      def: t('stat_def', 'Defensa (DEF)'),
+      fis: t('stat_fis', 'Físico (FIS)'),
+      dis: t('stat_dis', 'Disciplina (DIS)')
+    };
+
+    const diffs = attrKeys.map(k => {
+      const v1 = Math.round(r1 && r1[k] != null ? r1[k] : 50);
+      const v2 = Math.round(r2 && r2[k] != null ? r2[k] : 50);
+      return {
+        key: k,
+        name: attrNames[k] || k.toUpperCase(),
+        val1: v1,
+        val2: v2,
+        diff: v1 - v2
+      };
+    });
+
+    const advantages = diffs.filter(d => d.diff >= 5);
+    const watchOuts = diffs.filter(d => d.diff <= -5);
+
+    let bestWeapon = null;
+    if (advantages.length === 0) {
+      let maxDiff = -Infinity;
+      diffs.forEach(d => {
+        if (d.diff > maxDiff) {
+          maxDiff = d.diff;
+          bestWeapon = d;
+        }
+      });
+    }
 
     view.innerHTML = `
       <div style="padding: 6px 0;">
@@ -6774,45 +6879,74 @@
           </div>
         </div>
 
-        <!-- 🔮 PREDICCIÓN ANALÍTICA DE VICTORIA EN 1v1 -->
-        <div class="card" style="margin-bottom: 14px; padding: 14px; border: 1.5px solid rgba(168, 85, 247, 0.45); background: linear-gradient(135deg, rgba(168, 85, 247, 0.12) 0%, rgba(15, 23, 42, 0.8) 100%); border-radius: 14px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <span style="font-size: 12px; font-weight: 900; color: #c084fc; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px;">
-              <span>🔮</span> <span>${t('prob1v1Title', 'Probabilidad Victoria 1v1')}</span>
+        <!-- 💡 CONSEJOS TÁCTICOS 1v1 (ENFOQUE PEDAGÓGICO) -->
+        <div class="card" style="margin-bottom: 14px; padding: 14px; border: 1.5px solid rgba(34, 211, 238, 0.4); background: linear-gradient(135deg, rgba(34, 211, 238, 0.1) 0%, rgba(15, 23, 42, 0.85) 100%); border-radius: 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <span style="font-size: 12.5px; font-weight: 900; color: #22d3ee; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px;">
+              <span>💡</span> <span>${t('h2h_pedagogical_title', 'Consejos Tácticos 1v1')}</span>
             </span>
-            ${prob.favorite ? `
-              <span class="badge" style="background: ${prob.favorite === 1 ? 'rgba(34, 211, 238, 0.2)' : 'rgba(244, 114, 182, 0.2)'}; color: ${prob.favorite === 1 ? '#22d3ee' : '#f472b6'}; border: 1px solid ${prob.favorite === 1 ? '#22d3ee' : '#f472b6'}; font-size: 10.5px; font-weight: 800; padding: 2px 7px;">
-                ⭐ ${t('favoriteBadge', 'Favorito')}: ${(prob.favorite === 1 ? p1.name : p2.name).split(' ')[0]}
-              </span>
-            ` : `
-              <span class="badge" style="background: rgba(250, 204, 21, 0.2); color: #fde047; font-size: 10.5px; font-weight: 800; padding: 2px 7px;">
-                ⚖️ ${t('veryBalanced', 'Muy Equilibrado')}
-              </span>
-            `}
+            <span class="badge" style="background: rgba(34, 211, 238, 0.15); color: #22d3ee; border: 1px solid rgba(34, 211, 238, 0.4); font-size: 10px; font-weight: 800; padding: 2px 7px;">
+              ${t('h2h_tactical_summary', 'Comparativa 6 Atributos')}
+            </span>
           </div>
 
-          <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px;">
-            <div style="font-size: 26px; font-weight: 900; color: #22d3ee;">${prob.prob1}%</div>
-            <div style="font-size: 11px; font-weight: 700; color: var(--muted); text-align: center;">
-              ${prob.ageDiffText ? `<span>🎂 ${prob.ageDiffText}</span>` : t('bayesAgeModel', 'Datos Bayes + 1v1 + Edad')}
-            </div>
-            <div style="font-size: 26px; font-weight: 900; color: #f472b6;">${prob.prob2}%</div>
-          </div>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            ${advantages.map(a => `
+              <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(34, 197, 94, 0.12); border: 1px solid rgba(34, 197, 94, 0.35); border-radius: 10px; padding: 8px 12px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="font-size: 16px;">🟢</span>
+                  <div>
+                    <div style="font-size: 10.5px; font-weight: 800; color: #4ade80; text-transform: uppercase; letter-spacing: 0.5px;">${t('h2h_your_advantage', 'Ventaja')}</div>
+                    <div style="font-size: 13px; font-weight: 800; color: #fff;">${escapeHtml(a.name)}</div>
+                  </div>
+                </div>
+                <div style="text-align: right;">
+                  <span class="badge" style="background: #16a34a; color: #fff; font-weight: 900; font-size: 12px; padding: 2px 8px; border-radius: 999px;">+${a.diff}</span>
+                  <div style="font-size: 10px; color: var(--muted); margin-top: 2px;">${a.val1} vs ${a.val2}</div>
+                </div>
+              </div>
+            `).join('')}
 
-          <!-- Barra de Probabilidad 1v1 -->
-          <div style="height: 10px; width: 100%; background: #f472b6; border-radius: 999px; overflow: hidden; display: flex; box-shadow: inset 0 2px 4px rgba(0,0,0,0.4);">
-            <div style="width: ${prob.prob1}%; background: #22d3ee; height: 100%;"></div>
-          </div>
+            ${bestWeapon ? `
+              <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(250, 204, 21, 0.12); border: 1px solid rgba(250, 204, 21, 0.35); border-radius: 10px; padding: 8px 12px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="font-size: 16px;">⭐</span>
+                  <div>
+                    <div style="font-size: 10.5px; font-weight: 800; color: #fde047; text-transform: uppercase; letter-spacing: 0.5px;">${t('h2h_best_weapon', 'Tu mejor arma')}</div>
+                    <div style="font-size: 13px; font-weight: 800; color: #fff;">${escapeHtml(bestWeapon.name)}</div>
+                  </div>
+                </div>
+                <div style="text-align: right;">
+                  <span class="badge" style="background: rgba(250, 204, 21, 0.25); color: #fde047; border: 1px solid #facc15; font-weight: 900; font-size: 12px; padding: 2px 8px; border-radius: 999px;">
+                    ${bestWeapon.diff >= 0 ? '+' + bestWeapon.diff : bestWeapon.diff}
+                  </span>
+                  <div style="font-size: 10px; color: var(--muted); margin-top: 2px;">${bestWeapon.val1} vs ${bestWeapon.val2}</div>
+                </div>
+              </div>
+            ` : ''}
 
-          ${prob.reasons.length > 0 ? `
-            <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px;">
-              ${prob.reasons.map(r => `
-                <span class="badge" style="background: rgba(255,255,255,0.06); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.1); font-size: 10px; font-weight: 700; padding: 2px 6px;">
-                  ✓ ${escapeHtml(r)}
-                </span>
-              `).join('')}
-            </div>
-          ` : ''}
+            ${watchOuts.map(w => `
+              <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(244, 114, 182, 0.12); border: 1px solid rgba(244, 114, 182, 0.35); border-radius: 10px; padding: 8px 12px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="font-size: 16px;">⚠️</span>
+                  <div>
+                    <div style="font-size: 10.5px; font-weight: 800; color: #f472b6; text-transform: uppercase; letter-spacing: 0.5px;">${t('h2h_watch_out', 'Punto a vigilar')}</div>
+                    <div style="font-size: 13px; font-weight: 800; color: #fff;">${escapeHtml(w.name)}</div>
+                  </div>
+                </div>
+                <div style="text-align: right;">
+                  <span class="badge" style="background: rgba(244, 63, 94, 0.25); color: #fda4af; border: 1px solid #f43f5e; font-weight: 900; font-size: 12px; padding: 2px 8px; border-radius: 999px;">${w.diff}</span>
+                  <div style="font-size: 10px; color: var(--muted); margin-top: 2px;">${w.val1} vs ${w.val2}</div>
+                </div>
+              </div>
+            `).join('')}
+
+            ${advantages.length === 0 && !bestWeapon && watchOuts.length === 0 ? `
+              <div style="font-size: 12px; color: var(--muted); text-align: center; padding: 6px;">
+                ${t('h2h_balanced_duel', '¡Duelo muy parejo! Mantén la máxima concentración y disciplina táctica.')}
+              </div>
+            ` : ''}
+          </div>
         </div>
 
         <!-- ⚔️ DUELOS 1v1 HISTÓRICOS -->

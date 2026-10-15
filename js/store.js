@@ -1180,61 +1180,94 @@
       return this._legacyPlayerRadar(playerId, sessions);
     },
 
-    /* Fórmula v1 (solo respaldo si skills-engine.js no está cargado) */
+    /* Fórmula EMA asimétrica (escala 50-99) */
     _legacyPlayerRadar(playerId, sessions) {
-      const agg = this.playerAggregate(playerId, sessions || this.state.sessions);
-      const st = agg.totals || {};
-      const count = agg.count || 0;
+      const allSess = sessions || this.state.sessions || [];
       const pl = this.player(playerId);
+      const pos = (pl && pl.mainPosition) || 'MED';
 
-      const totalActions = Object.values(st).reduce((sum, v) => sum + (typeof v === 'number' ? v : 0), 0);
+      const currentSkills = {
+        pas: 50, tir: 50, reg: 50, def: 50, fis: 50,
+        dis: (pl && pl.disciplineScore !== undefined && pl.disciplineScore !== null && pl.disciplineScore !== '') ? Math.min(99, Math.max(50, Number(pl.disciplineScore))) : 50
+      };
 
-      // Si no tiene sesiones trackeadas ni acciones registradas, empezar en 50 en todas las habilidades
-      if (count === 0 || totalActions === 0) {
-        return { pas: 50, tir: 50, reg: 50, fis: 50, def: 50, dis: 50 };
-      }
+      const validSessions = allSess.filter(s => s && s.stats && s.stats[playerId] && Object.keys(s.stats[playerId]).some(k => Number(s.stats[playerId][k]) > 0));
+      if (!validSessions.length) return currentSkills;
 
-      const passes = (st.passOk || 0) + (st.passKo || 0);
-      let pas = 50;
-      if (passes > 0) {
-        const passAcc = (st.passOk || 0) / passes;
-        pas = Math.min(99, Math.max(20, Math.round(50 + (passAcc - 0.5) * 40 + Math.min(25, (st.keyPass || 0) * 3 + ((st.passOk || 0) / count) * 1.5))));
-      }
+      const sorted = validSessions.slice().sort((a, b) => ((a.date || '').localeCompare(b.date || '')) || ((a.createdAt || 0) - (b.createdAt || 0)));
 
-      const shots = (st.shotOn || 0) + (st.shotOff || 0);
-      let tir = 50;
-      if (shots > 0 || (st.goal || 0) > 0) {
-        const shotAcc = shots > 0 ? (st.shotOn || 0) / shots : 0.5;
-        tir = Math.min(99, Math.max(20, Math.round(50 + (shotAcc - 0.5) * 30 + Math.min(35, (st.goal || 0) * 8 + (st.shotOn || 0) * 2))));
-      }
+      sorted.forEach(s => {
+        const st = s.stats[playerId];
+        const rating = this.calculateMatchRating(st, pos);
+        const baseSessionScore = Math.min(99, Math.max(50, Math.round(rating * 10)));
 
-      const dribbles = (st.dribbleOk || 0) + (st.dribbleKo || 0);
-      let reg = 50;
-      if (dribbles > 0) {
-        const dribAcc = (st.dribbleOk || 0) / dribbles;
-        reg = Math.min(99, Math.max(20, Math.round(50 + (dribAcc - 0.5) * 35 + Math.min(25, (st.dribbleOk || 0) * 3))));
-      }
+        const S_hoy = {
+          pas: baseSessionScore, tir: baseSessionScore, reg: baseSessionScore,
+          def: baseSessionScore, fis: baseSessionScore,
+          dis: (pl && pl.disciplineScore !== undefined && pl.disciplineScore !== null && pl.disciplineScore !== '') ? Math.min(99, Math.max(50, Number(pl.disciplineScore))) : 85
+        };
 
-      const recoveries = st.recovery || 0;
-      const losses = st.loss || 0;
-      let def = Math.min(99, Math.max(20, Math.round(50 + Math.min(35, ((recoveries / count) * 5) + ((st.save || 0) * 6) - ((losses / count) * 3)))));
+        const passes = (Number(st.passOk) || 0) + (Number(st.passKo) || 0);
+        if (passes > 0) {
+          const passAcc = (Number(st.passOk) || 0) / passes;
+          const pasScore = Math.round(50 + (passAcc - 0.5) * 40 + Math.min(25, (Number(st.keyPass) || 0) * 4 + (Number(st.assist) || 0) * 5 + (Number(st.passOk) || 0) * 1.5));
+          S_hoy.pas = Math.min(99, Math.max(50, Math.round(0.6 * pasScore + 0.4 * baseSessionScore)));
+        }
 
-      const duels = (st.duelWon || 0) + (st.duelLost || 0);
-      let fis = 50;
-      if (duels > 0 || (st.touches || 0) > 0) {
-        const duelAcc = duels > 0 ? (st.duelWon || 0) / duels : 0.5;
-        fis = Math.min(99, Math.max(20, Math.round(50 + (duelAcc - 0.5) * 30 + Math.min(25, ((st.touches || 0) / count) * 1.2))));
-      }
+        const shots = (Number(st.shotOn) || 0) + (Number(st.shotOff) || 0);
+        const goals = Number(st.goal) || 0;
+        const d1v1Goal = Number(st.duel1v1WonGoal) || 0;
+        if (shots > 0 || goals > 0 || d1v1Goal > 0) {
+          const shotAcc = shots > 0 ? (Number(st.shotOn) || 0) / shots : 0.5;
+          const tirScore = Math.round(50 + (shotAcc - 0.5) * 30 + Math.min(35, goals * 10 + (Number(st.shotOn) || 0) * 3 + d1v1Goal * 4));
+          S_hoy.tir = Math.min(99, Math.max(50, Math.round(0.6 * tirScore + 0.4 * baseSessionScore)));
+        }
 
-      let dis = 50;
-      if (pl && pl.disciplineScore !== undefined && pl.disciplineScore !== null) {
-        dis = Number(pl.disciplineScore);
-      } else {
-        const foulDeduction = (st.foul || 0) * 2 + (st.yellow || 0) * 5 + (st.red || 0) * 15;
-        dis = Math.min(99, Math.max(20, Math.round(50 + Math.min(45, count * 5) - (foulDeduction / count))));
-      }
+        const dribbles = (Number(st.dribbleOk) || 0) + (Number(st.dribbleKo) || 0);
+        if (dribbles > 0 || d1v1Goal > 0) {
+          const dribAcc = dribbles > 0 ? (Number(st.dribbleOk) || 0) / dribbles : 0.5;
+          const regScore = Math.round(50 + (dribAcc - 0.5) * 35 + Math.min(25, (Number(st.dribbleOk) || 0) * 4 + d1v1Goal * 3));
+          S_hoy.reg = Math.min(99, Math.max(50, Math.round(0.6 * regScore + 0.4 * baseSessionScore)));
+        }
 
-      return { pas, tir, reg, def, fis, dis };
+        const rec = Number(st.recovery) || 0;
+        const stops = Number(st.duel1v1WonStop) || 0;
+        const saves = Number(st.save) || 0;
+        const losses = Number(st.loss) || 0;
+        if (rec > 0 || stops > 0 || saves > 0 || losses > 0) {
+          const defScore = Math.round(50 + Math.min(35, rec * 4 + stops * 4 + saves * 6 - losses * 2));
+          S_hoy.def = Math.min(99, Math.max(50, Math.round(0.6 * defScore + 0.4 * baseSessionScore)));
+        }
+
+        const duels = (Number(st.duelWon) || 0) + (Number(st.duelLost) || 0);
+        const touches = Number(st.touches) || 0;
+        if (duels > 0 || touches > 0) {
+          const duelAcc = duels > 0 ? (Number(st.duelWon) || 0) / duels : 0.5;
+          const fisScore = Math.round(50 + (duelAcc - 0.5) * 30 + Math.min(25, touches * 0.8 + (Number(st.duelWon) || 0) * 2));
+          S_hoy.fis = Math.min(99, Math.max(50, Math.round(0.6 * fisScore + 0.4 * baseSessionScore)));
+        }
+
+        if (!pl || pl.disciplineScore === undefined || pl.disciplineScore === null || pl.disciplineScore === '') {
+          const foulDeduction = (Number(st.foul) || 0) * 3 + (Number(st.yellow) || 0) * 8 + (Number(st.red) || 0) * 20;
+          S_hoy.dis = Math.min(99, Math.max(50, Math.round(85 - foulDeduction)));
+        }
+
+        ['pas', 'tir', 'reg', 'def', 'fis', 'dis'].forEach(k => {
+          if (k === 'dis' && pl && pl.disciplineScore !== undefined && pl.disciplineScore !== null && pl.disciplineScore !== '') {
+            currentSkills.dis = Math.min(99, Math.max(50, Number(pl.disciplineScore)));
+            return;
+          }
+          const S_val = Math.min(99, Math.max(50, S_hoy[k]));
+          const A_actual = currentSkills[k];
+          if (S_val >= A_actual) {
+            currentSkills[k] = Math.min(99, Math.round(A_actual + 0.20 * (S_val - A_actual)));
+          } else {
+            currentSkills[k] = Math.max(50, A_actual - 1, Math.round(A_actual - 0.04 * (A_actual - S_val)));
+          }
+        });
+      });
+
+      return currentSkills;
     },
 
     /* Estadísticas de Duelos 1v1 */

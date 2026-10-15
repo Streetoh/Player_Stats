@@ -8822,7 +8822,7 @@
           try {
             if (window.FutCard && FutCard.showModal) {
               const streak = Store.calculatePlayerAttendanceStreak ? Store.calculatePlayerAttendanceStreak(p.id) : 0;
-              const ovr = FutCard.computeOvr ? FutCard.computeOvr(playerRadar) : Math.min(99, Math.max(45, Math.round(matchRating * 10)));
+              const ovr = FutCard.computeOvr ? FutCard.computeOvr(playerRadar, p.mainPosition) : Math.min(99, Math.max(45, Math.round(matchRating * 10)));
               FutCard.showModal({
                 player: p,
                 radar: playerRadar,

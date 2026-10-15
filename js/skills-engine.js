@@ -342,21 +342,211 @@
     };
   }
 
+  function calculateSessionMatchRating(stats, position) {
+    if (!stats || Object.keys(stats).length === 0) return 6.0;
+    const p = (position || 'Jugador').toUpperCase();
+
+    const passOk = Number(stats.passOk) || 0;
+    const passKo = Number(stats.passKo) || 0;
+    const passes = passOk + passKo;
+    const goal = Number(stats.goal) || 0;
+    const assist = Number(stats.assist) || 0;
+    const shotOn = Number(stats.shotOn) || 0;
+    const shotOff = Number(stats.shotOff) || 0;
+    const keyPass = Number(stats.keyPass) || 0;
+    const dribbleOk = Number(stats.dribbleOk) || 0;
+    const dribbleKo = Number(stats.dribbleKo) || 0;
+    const recovery = Number(stats.recovery) || 0;
+    const loss = Number(stats.loss) || 0;
+    const duelWon = Number(stats.duelWon) || 0;
+    const duelLost = Number(stats.duelLost) || 0;
+    const save = Number(stats.save) || 0;
+    const foul = Number(stats.foul) || 0;
+    const yellow = Number(stats.yellow) || 0;
+    const red = Number(stats.red) || 0;
+    const touches = Number(stats.touches) || 0;
+
+    const d1v1Goal = Number(stats.duel1v1WonGoal) || 0;
+    const d1v1Stop = Number(stats.duel1v1WonStop) || 0;
+    const d1v1Turnover = Number(stats.duel1v1LostTurnover) || 0;
+    const d1v1LostGoal = Number(stats.duel1v1LostGoal) || 0;
+
+    const totalActions = passes + shotOn + shotOff + goal + assist + keyPass + dribbleOk + dribbleKo + recovery + loss + duelWon + duelLost + save + foul + yellow + red + d1v1Goal + d1v1Stop + d1v1Turnover + d1v1LostGoal;
+    if (totalActions === 0 && touches === 0) return 6.0;
+
+    let posScore = 0;
+    if (passes > 0) {
+      const passAcc = passOk / passes;
+      posScore += (passOk * 0.05) + Math.max(0, (passAcc - 0.70) * 1.2);
+    }
+    posScore += goal * 0.95;
+    posScore += assist * 0.65;
+    posScore += shotOn * 0.20;
+    posScore += keyPass * 0.35;
+    posScore += dribbleOk * 0.22;
+    posScore += recovery * 0.28;
+    posScore += duelWon * 0.20;
+    posScore += save * 0.45;
+    posScore += d1v1Goal * 0.35;
+    posScore += d1v1Stop * 0.25;
+
+    if (p.includes('POR') || p.includes('GK')) {
+      posScore += save * 0.30;
+    } else if (p.includes('DC') || p.includes('DEL') || p.includes('ST') || p.includes('EXT')) {
+      posScore += (goal * 0.20) + (shotOn * 0.15);
+    } else if (p.includes('DFC') || p.includes('DEF') || p.includes('MCD')) {
+      posScore += (recovery * 0.20) + (duelWon * 0.15);
+    }
+
+    let negScore = 0;
+    negScore += passKo * 0.06;
+    negScore += shotOff * 0.08;
+    negScore += dribbleKo * 0.14;
+    negScore += loss * 0.20;
+    negScore += duelLost * 0.14;
+    negScore += foul * 0.15;
+    negScore += yellow * 0.75;
+    negScore += red * 2.50;
+    negScore += d1v1Turnover * 0.18;
+    negScore += d1v1LostGoal * 0.30;
+
+    const rawNet = posScore - negScore;
+    const effectiveVolume = totalActions + (touches * 0.3);
+    const volumeFactor = Math.min(1.0, Math.sqrt(effectiveVolume / 22.0));
+
+    let delta = 0;
+    if (rawNet >= 0) {
+      delta = 4.0 * (1 - Math.exp(-rawNet / 7.2)) * volumeFactor;
+    } else {
+      delta = -5.0 * (1 - Math.exp(-Math.abs(rawNet) / 5.5));
+    }
+
+    const finalScore = 6.0 + delta;
+    return Math.min(10.0, Math.max(1.0, Math.round(finalScore * 10) / 10));
+  }
+
   /**
-   * API principal: habilidades de un jugador.
-   * @param {string} playerId
-   * @param {{ players: Player[], sessions: Session[], playerSessions?: Session[], league?: Object }} data
-   *   `sessions` define los priors (toda la historia); `playerSessions` permite filtrar el periodo del jugador.
-   * @returns {SkillSet}
+   * Cálculo de los 6 atributos (PAS, TIR, REG, DEF, FIS, DIS) en la escala 50-99
+   * mediante fórmula EMA asimétrica que amortigua caídas bruscas tras un mal partido.
+   * - Subida rápida: A_nuevo = Math.min(99, Math.round(A_actual + 0.20 * (S_hoy - A_actual)))
+   * - Caída amortiguada: A_nuevo = Math.max(50, A_actual - 1, Math.round(A_actual - 0.04 * (A_actual - S_hoy)))
+   */
+  function computePlayerSkillsEMA(playerId, data) {
+    const players = (data && data.players) || [];
+    const sessions = (data && (data.playerSessions || data.sessions)) || [];
+    const player = players.find(p => p && p.id === playerId);
+    const pos = (player && player.mainPosition) || 'MED';
+
+    // Baseline neutral inicial en escala 50-99
+    const currentSkills = {
+      pas: 50,
+      tir: 50,
+      reg: 50,
+      def: 50,
+      fis: 50,
+      dis: disciplineOverride(player, 50)
+    };
+
+    const validSessions = sessions.filter(s => s && s.stats && hasActivity(s.stats[playerId]));
+    if (!validSessions.length) {
+      return currentSkills;
+    }
+
+    // Ordenar cronológicamente de más antigua a más reciente
+    const sortedSessions = validSessions.slice().sort((a, b) => {
+      const da = a.date || '', db = b.date || '';
+      if (da !== db) return da.localeCompare(db);
+      return (a.createdAt || 0) - (b.createdAt || 0);
+    });
+
+    sortedSessions.forEach(s => {
+      const st = s.stats[playerId];
+      const sessionRating = calculateSessionMatchRating(st, pos);
+      const baseSessionScore = Math.min(99, Math.max(50, Math.round(sessionRating * 10)));
+
+      // S_hoy específico por atributo modulado con la nota de la sesión
+      const S_hoy = {
+        pas: baseSessionScore,
+        tir: baseSessionScore,
+        reg: baseSessionScore,
+        def: baseSessionScore,
+        fis: baseSessionScore,
+        dis: disciplineOverride(player, 85)
+      };
+
+      const passes = (Number(st.passOk) || 0) + (Number(st.passKo) || 0);
+      if (passes > 0) {
+        const passAcc = (Number(st.passOk) || 0) / passes;
+        const pasScore = Math.round(50 + (passAcc - 0.5) * 40 + Math.min(25, (Number(st.keyPass) || 0) * 4 + (Number(st.assist) || 0) * 5 + (Number(st.passOk) || 0) * 1.5));
+        S_hoy.pas = Math.min(99, Math.max(50, Math.round(0.6 * pasScore + 0.4 * baseSessionScore)));
+      }
+
+      const shots = (Number(st.shotOn) || 0) + (Number(st.shotOff) || 0);
+      const goals = Number(st.goal) || 0;
+      const d1v1Goal = Number(st.duel1v1WonGoal) || 0;
+      if (shots > 0 || goals > 0 || d1v1Goal > 0) {
+        const shotAcc = shots > 0 ? (Number(st.shotOn) || 0) / shots : 0.5;
+        const tirScore = Math.round(50 + (shotAcc - 0.5) * 30 + Math.min(35, goals * 10 + (Number(st.shotOn) || 0) * 3 + d1v1Goal * 4));
+        S_hoy.tir = Math.min(99, Math.max(50, Math.round(0.6 * tirScore + 0.4 * baseSessionScore)));
+      }
+
+      const dribbles = (Number(st.dribbleOk) || 0) + (Number(st.dribbleKo) || 0);
+      if (dribbles > 0 || d1v1Goal > 0) {
+        const dribAcc = dribbles > 0 ? (Number(st.dribbleOk) || 0) / dribbles : 0.5;
+        const regScore = Math.round(50 + (dribAcc - 0.5) * 35 + Math.min(25, (Number(st.dribbleOk) || 0) * 4 + d1v1Goal * 3));
+        S_hoy.reg = Math.min(99, Math.max(50, Math.round(0.6 * regScore + 0.4 * baseSessionScore)));
+      }
+
+      const rec = Number(st.recovery) || 0;
+      const stops = Number(st.duel1v1WonStop) || 0;
+      const saves = Number(st.save) || 0;
+      const losses = Number(st.loss) || 0;
+      if (rec > 0 || stops > 0 || saves > 0 || losses > 0) {
+        const defScore = Math.round(50 + Math.min(35, rec * 4 + stops * 4 + saves * 6 - losses * 2));
+        S_hoy.def = Math.min(99, Math.max(50, Math.round(0.6 * defScore + 0.4 * baseSessionScore)));
+      }
+
+      const duels = (Number(st.duelWon) || 0) + (Number(st.duelLost) || 0);
+      const touches = Number(st.touches) || 0;
+      if (duels > 0 || touches > 0) {
+        const duelAcc = duels > 0 ? (Number(st.duelWon) || 0) / duels : 0.5;
+        const fisScore = Math.round(50 + (duelAcc - 0.5) * 30 + Math.min(25, touches * 0.8 + (Number(st.duelWon) || 0) * 2));
+        S_hoy.fis = Math.min(99, Math.max(50, Math.round(0.6 * fisScore + 0.4 * baseSessionScore)));
+      }
+
+      if (!player || player.disciplineScore === undefined || player.disciplineScore === null || player.disciplineScore === '') {
+        const foulDeduction = (Number(st.foul) || 0) * 3 + (Number(st.yellow) || 0) * 8 + (Number(st.red) || 0) * 20;
+        S_hoy.dis = Math.min(99, Math.max(50, Math.round(85 - foulDeduction)));
+      }
+
+      // Aplicar Fórmula EMA Asimétrica para los 6 atributos
+      SKILL_KEYS.forEach(k => {
+        if (k === 'dis' && player && player.disciplineScore !== undefined && player.disciplineScore !== null && player.disciplineScore !== '') {
+          currentSkills.dis = disciplineOverride(player, 50);
+          return;
+        }
+
+        const S_val = clamp(S_hoy[k], 50, 99);
+        const A_actual = currentSkills[k];
+
+        if (S_val >= A_actual) {
+          // Factor de subida rápida del 20%
+          currentSkills[k] = Math.min(99, Math.round(A_actual + 0.20 * (S_val - A_actual)));
+        } else {
+          // Amortigua la caída aplicando solo un 4% y con un suelo que impide bajar más de 1 punto por sesión
+          currentSkills[k] = Math.max(50, A_actual - 1, Math.round(A_actual - 0.04 * (A_actual - S_val)));
+        }
+      });
+    });
+
+    return currentSkills;
+  }
+
+  /**
+   * API principal: habilidades de un jugador (escala 50-99).
    */
   function computePlayerSkills(playerId, data) {
-    const players = (data && data.players) || [];
-    const sessions = (data && data.sessions) || [];
-    const league = (data && data.league) || buildLeagueContext(players, sessions);
-    const agg = aggregatePlayer(playerId, (data && data.playerSessions) || sessions);
-    const player = players.find(p => p && p.id === playerId);
-    const r = computeSkillsFromAggregate(agg, league, player);
-    return { pas: r.pas, tir: r.tir, reg: r.reg, fis: r.fis, def: r.def, dis: r.dis };
+    return computePlayerSkillsEMA(playerId, data);
   }
 
   /**
@@ -393,6 +583,6 @@
     clamp, logit, bayesRate, shrunkPerSession, logRatio, calibrate,
     // pipeline
     aggregatePlayer, derive, buildLeagueContext, computeSkillsFromAggregate,
-    computePlayerSkills, buildPersistedSkills, skillsEqual
+    computePlayerSkills, computePlayerSkillsEMA, buildPersistedSkills, skillsEqual
   });
 });

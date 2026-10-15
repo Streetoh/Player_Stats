@@ -145,15 +145,40 @@
     return (dict[lang] && dict[lang][key]) || (dict.en && dict.en[key]) || fallback || key;
   }
 
-  function computeOvr(radar) {
+  function getPositionCategory(pos) {
+    if (!pos) return 'MED';
+    const p = String(pos).toUpperCase().trim();
+    if (p.includes('POR') || p.includes('GK')) return 'POR';
+    if (p.includes('DFC') || p.includes('DEF') || p.includes('CB') || p.includes('LD') || p.includes('LI') || p.includes('RB') || p.includes('LB') || p.includes('LTD') || p.includes('LTI')) return 'DEF';
+    if (p.includes('DC') || p.includes('DEL') || p.includes('ST') || p.includes('EXT') || p.includes('ED') || p.includes('EI') || p.includes('RW') || p.includes('LW') || p.includes('FW')) return 'DEL';
+    return 'MED';
+  }
+
+  function computeOvr(radar, position) {
     if (!radar) return 75;
-    const p = radar.pas || 50;
-    const t = radar.tir || 50;
-    const r = radar.reg || 50;
-    const f = radar.fis || 50;
-    const d = radar.def || 50;
-    const avg = (p * 0.25 + t * 0.22 + r * 0.22 + f * 0.16 + d * 0.15);
-    return Math.min(99, Math.max(45, Math.round(avg)));
+    const p = Number(radar.pas) || 50;
+    const t = Number(radar.tir) || 50;
+    const r = Number(radar.reg) || 50;
+    const f = Number(radar.fis) || 50;
+    const d = Number(radar.def) || 50;
+    const dis = Number(radar.dis) || 50;
+
+    const cat = getPositionCategory(position);
+    let avg = 0;
+    if (cat === 'DEF') {
+      // Defensa: PAS 15%, TIR 5%, REG 10%, DEF 35%, FIS 20%, DIS 15%
+      avg = p * 0.15 + t * 0.05 + r * 0.10 + d * 0.35 + f * 0.20 + dis * 0.15;
+    } else if (cat === 'DEL') {
+      // Delantero: PAS 15%, TIR 35%, REG 25%, DEF 5%, FIS 5%, DIS 15%
+      avg = p * 0.15 + t * 0.35 + r * 0.25 + d * 0.05 + f * 0.05 + dis * 0.15;
+    } else if (cat === 'POR') {
+      // Portero: PAS 15%, Paradas/TIR 40%, Reflejos/REG 15%, DEF 15%, FIS 0%, DIS 15%
+      avg = p * 0.15 + t * 0.40 + r * 0.15 + d * 0.15 + f * 0.00 + dis * 0.15;
+    } else {
+      // Mediocentro: PAS 30%, TIR 10%, REG 20%, DEF 15%, FIS 10%, DIS 15%
+      avg = p * 0.30 + t * 0.10 + r * 0.20 + d * 0.15 + f * 0.10 + dis * 0.15;
+    }
+    return Math.min(99, Math.max(50, Math.round(avg)));
   }
 
   function drawFutCardCanvas(canvas, data, themeId) {
@@ -236,8 +261,9 @@
       ctx.stroke();
     }
 
-    const ovr = data.ovr || computeOvr(data.radar);
-    const pos = (data.player && data.player.mainPosition) ? data.player.mainPosition.toUpperCase() : 'MC';
+    const playerPos = data.position || (data.player && data.player.mainPosition) || 'MC';
+    const ovr = data.ovr || computeOvr(data.radar, playerPos);
+    const pos = playerPos.toUpperCase();
     const dorsal = (data.player && data.player.mainDorsal != null) ? '#' + data.player.mainDorsal : '';
 
     ctx.textAlign = 'center';
@@ -428,8 +454,8 @@
     if (!player) return;
 
     let currentTheme = 'gold';
-    const radar = opts.radar || { pas: 72, tir: 65, reg: 70, fis: 75, def: 60, dis: 80 };
-    const ovr = opts.ovr || computeOvr(radar);
+    const playerPos = opts.position || (player && player.mainPosition) || 'MC';
+    const ovr = opts.ovr || computeOvr(radar, playerPos);
     const team = opts.team || null;
     const streak = opts.streak || 0;
     const lang = getLang();
