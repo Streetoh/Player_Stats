@@ -372,10 +372,14 @@
       if (data.photo && !data.photoHash) {
         data.photoHash = 'p_' + Date.now().toString(36);
       }
+      const cleanData = Object.assign({}, data);
+      if (cleanData.heightCm !== undefined) {
+        cleanData.heightCm = cleanData.heightCm ? (parseInt(cleanData.heightCm, 10) || null) : null;
+      }
       if (data.id) {
         const i = this.state.players.findIndex(p => p.id === data.id);
         if (i >= 0) {
-          this.state.players[i] = Object.assign({}, this.state.players[i], data);
+          this.state.players[i] = Object.assign({}, this.state.players[i], cleanData);
           if (this.state.players[i].photo && this.state.players[i].photoHash && typeof window !== 'undefined' && window.CacheDB && window.CacheDB.setPhoto) {
             window.CacheDB.setPhoto(this.state.players[i].id, this.state.players[i].photoHash, this.state.players[i].photo);
           }
@@ -388,8 +392,8 @@
         mainDorsal: null, secondaryDorsal: null, foot: 'Diestro', mainPosition: 'Jugador',
         secondaryPosition: '', secondaryPositions: [],
         parentContact: { name: '', phone: '', email: '' },
-        photo: '', photoHash: '', disciplineScore: 100
-      }, data);
+        photo: '', photoHash: '', disciplineScore: 100, heightCm: null
+      }, cleanData);
       if (!p.id) p.id = uid('p');
       if (p.photo && !p.photoHash) {
         p.photoHash = 'p_' + Date.now().toString(36);

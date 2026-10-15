@@ -460,6 +460,26 @@
       "h2h_best_weapon": "Tough duel: your best bet today is competing through your {stat}.",
       "h2h_tactical_summary": "6-Skill Breakdown",
       "h2h_balanced_duel": "Very balanced duel! Focus on tactical discipline and good positioning.",
+      "heightCm": "Height (cm)",
+      "h2h_tip_height_tall_rival": "Watch out for their long legs! Don't try to bump into them. Slide the ball underneath or use quick feints to dizzy them.",
+      "h2h_tip_height_fast_rival": "They are lightning quick! Don't dive in recklessly, hold your ground and wait for them to box themselves in.",
+      "h2h_tip_height_advantage": "Use your longer stride! Shield the ball with your body and keep them from reaching in.",
+      "h2h_tip_tir_rival_high": "They've got a cannon of a shot! Don't give them space to shoot from the edge of the box. Close them down fast.",
+      "h2h_tip_tir_advantage": "You've got the firepower! As soon as you find a gap in the 1v1, open up the angle and fire at goal.",
+      "h2h_tip_tir_rival_low": "They rarely risk shooting from afar. You can drop a step back without worrying about a shot.",
+      "h2h_tip_reg_rival_high": "Great dribbler! Don't dive in on the first move; stay on your feet and wait until they slow down.",
+      "h2h_tip_reg_advantage": "Pure skill! Use quick body feints and pace changes to leave them frozen on the spot.",
+      "h2h_tip_reg_rival_low": "They struggle to control under pressure. Bite in fast and snatch the ball the moment they get it!",
+      "h2h_tip_def_rival_high": "Strong tackler! Don't run straight at them: use a quick fake or catch them off rhythm.",
+      "h2h_tip_def_advantage": "You're a defensive lock! Stay side-on, use your body, and make a clean tackle.",
+      "h2h_tip_def_rival_low": "They struggle to defend 1v1. Attack their blind side or push past with burst of speed!",
+      "h2h_tip_fis_rival_high": "A wall in shoulder-to-shoulder battles. Use agility and avoid direct physical bumps!",
+      "h2h_tip_fis_advantage": "You have plenty of power! Lean in strong and take the ground with authority.",
+      "h2h_tip_fis_rival_low": "Lacking physical strength in contact. Hold your ground and win the ball with sheer strength!",
+      "h2h_best_weapon_tir": "Tough matchup: your best shot is a surprise strike. Pull the trigger quickly as soon as you find an angle!",
+      "h2h_best_weapon_reg": "Tough matchup: your best card is bold dribbling. A sudden shift of pace can throw them off!",
+      "h2h_best_weapon_def": "Tough matchup: your best weapon is patience in defense. Wait for the exact moment to step in!",
+      "h2h_best_weapon_fis": "Tough matchup: your best weapon is physical intensity. Never give up on a ball and press hard!",
       "stat_pas": "Passing (PAS)",
       "stat_tir": "Shooting (SHO)",
       "stat_reg": "Dribbling (DRI)",
@@ -815,6 +835,26 @@
       "h2h_best_weapon": "Raske duell: sinu parim relv täna on {stat}.",
       "h2h_tactical_summary": "6 oskuse analüüs",
       "h2h_balanced_duel": "Väga tasavägine duell! Keskendu distsipliinile ja heale positsioneerimisele.",
+      "heightCm": "Pikkus (cm)",
+      "h2h_tip_height_tall_rival": "Ettevaatust tema pikkade jalgadega! Ära jookse talle kehasse. Lükka pall alt läbi või tee kiireid petteliigutusi!",
+      "h2h_tip_height_fast_rival": "Ta on välkkiire! Ära torma tühja palli peale, hoia oma positsiooni ja oota, kuni ta ise tupikusse jookseb.",
+      "h2h_tip_height_advantage": "Kasuta oma pikemat sammu! Kata palli kehaga ja ära lase tal jalga vahele panna.",
+      "h2h_tip_tir_rival_high": "Tal on tõeline kahur jalas! Ära anna talle kasti äärelt löögiruumi. Survesta kohe peale!",
+      "h2h_tip_tir_advantage": "Sinu löök on terav! Niipea kui näed 1v1 olukorras ruumi, võta nurk lahti ja löö kindlalt peale.",
+      "h2h_tip_tir_rival_low": "Ta ei võta värava ees suuri riske. Võid sammu tagasi tõmmata, ilma et peaks kauglööki kartma.",
+      "h2h_tip_reg_rival_high": "Ta triblab osavalt! Ära siruta jalga esimese liigutuse peale; hoia keha tasakaalus ja oota pausi.",
+      "h2h_tip_reg_advantage": "Puhas triblamisoskus! Kasuta petukaid ja rütmivahetust, et temast hooga mööda minna.",
+      "h2h_tip_reg_rival_low": "Tal on surve all raske palli kontrollida. Mine kohe peale ja napsa pall ära!",
+      "h2h_tip_def_rival_high": "Väga kindel taklaja! Ära mine otse peale: kasuta kiiret petet või muuda rütmi.",
+      "h2h_tip_def_advantage": "Tõeline kaitsemüür! Hoia külgasendit, kasuta keha ja võta pall puhtalt ära.",
+      "h2h_tip_def_rival_low": "Tal on 1v1 kaitses raskusi. Ründa tema seljatagust või möödu kiirusega küljelt!",
+      "h2h_tip_fis_rival_high": "Kehavõitluses nagu müür. Kasuta osavust ja väldi õlg-õla vastu põrkumist!",
+      "h2h_tip_fis_advantage": "Sul on jõudu piisavalt! Pane õlg tugevalt vahele ja võta positsioon kindlalt ära.",
+      "h2h_tip_fis_rival_low": "Tal napib kontaktis füüsilist jõudu. Hoia positsiooni ja võta pall puhta jõuga endale!",
+      "h2h_best_weapon_tir": "Nõudlik duell: sinu parim võimalus on ootamatu kauglöök. Löö kiiresti kohe, kui nurk avaneb!",
+      "h2h_best_weapon_reg": "Nõudlik duell: sinu parim võimalus on julge tribling. Kiire rütmivahetus võib vastase tasakaalust välja viia!",
+      "h2h_best_weapon_def": "Nõudlik duell: sinu parim relv on kannatlikkus kaitses. Oota täpset hetke palli vaheltlõikamiseks!",
+      "h2h_best_weapon_fis": "Nõudlik duell: sinu parim relv on füüsiline intensiivsus. Võitle iga palli eest ja survesta igal puutel!",
       "stat_pas": "Söötmine (SÖÖ)",
       "stat_tir": "Löömine (LÖÖ)",
       "stat_reg": "Tribling (TRI)",
@@ -1170,6 +1210,26 @@
       "h2h_best_weapon": "Duelo exigente: tu mejor baza hoy es competir desde tu {stat}.",
       "h2h_tactical_summary": "Comparativa 6 Atributos",
       "h2h_balanced_duel": "¡Duelo muy parejo! Mantén la máxima concentración y disciplina táctica.",
+      "heightCm": "Estatura (cm)",
+      "h2h_tip_height_tall_rival": "¡Cuidado con sus piernas largas! No intentes chocar con él. Pásale el balón por debajo o haz amagos rápidos para marearle.",
+      "h2h_tip_height_fast_rival": "¡Es una centella! No saltes a robarle a lo loco, aguanta tu sitio y espera a que se encierre solo.",
+      "h2h_tip_height_advantage": "¡Aprovecha tu mayor zancada! Protege el balón con el cuerpo y no le dejes meter la pierna.",
+      "h2h_tip_tir_rival_high": "¡Tiene un cañón en la pierna! No le dejes espacio para chutar desde la frontal. Encímale rápido.",
+      "h2h_tip_tir_advantage": "¡Tienes el cañón preparado! En cuanto veas un hueco en el 1v1, ábrete ángulo y busca portería con decisión.",
+      "h2h_tip_tir_rival_low": "No arriesga mucho de cara a puerta. Puedes esperarle un paso más atrás sin miedo a su disparo.",
+      "h2h_tip_reg_rival_high": "¡Regatea muy bien! No metas la pierna a la primera; aguanta con el cuerpo y espera a que frene.",
+      "h2h_tip_reg_advantage": "¡Puro desborde! Usa tus amagos y cambios de ritmo para dejarle clavado en una baldosa.",
+      "h2h_tip_reg_rival_low": "Le cuesta controlar bajo presión. ¡Muerde rápido y rásgale el balón en cuanto lo reciba!",
+      "h2h_tip_def_rival_high": "Va muy fuerte al suelo y al quite. No vayas de frente: usa un amago rápido o cámbiale el ritmo.",
+      "h2h_tip_def_advantage": "¡Eres un candado defensivo! Aguanta perfilado, usa el cuerpo y roba el balón limpio.",
+      "h2h_tip_def_rival_low": "Le cuesta defender en el 1v1. ¡Búscale la espalda o vete hacia un lado con velocidad!",
+      "h2h_tip_fis_rival_high": "Es un muro en el cuerpo a cuerpo. ¡Usa tu agilidad y evita chocar hombro con hombro!",
+      "h2h_tip_fis_advantage": "¡Tienes potencia de sobra! Mete el hombro con fuerza y gana la posición con determinación.",
+      "h2h_tip_fis_rival_low": "Le falta potencia física en el choque. ¡Aguanta la posición y llévate el balón por pura fuerza!",
+      "h2h_best_weapon_tir": "Duelo exigente: tu mejor baza es el tiro sorpresa. ¡Arma la pierna rápido en cuanto tengas ángulo!",
+      "h2h_best_weapon_reg": "Duelo exigente: tu mejor baza es encarar con descaro. ¡Un cambio de ritmo rápido puede descolocarle!",
+      "h2h_best_weapon_def": "Duelo exigente: tu mejor baza es la paciencia atrás. ¡Espera el momento exacto para meter la pierna!",
+      "h2h_best_weapon_fis": "Duelo exigente: tu mejor baza es la intensidad física. ¡No des un balón por perdido e incomoda cada control!",
       "stat_pas": "Pase (PAS)",
       "stat_tir": "Tiro (TIR)",
       "stat_reg": "Regate (REG)",
@@ -1525,6 +1585,26 @@
       "h2h_best_weapon": "Сложная дуэль: твой лучший козырь сегодня — {stat}.",
       "h2h_tactical_summary": "Сравнение 6 качеств",
       "h2h_balanced_duel": "Очень равная дуэль! Сохраняй максимальную концентрацию и игровую дисциплину.",
+      "heightCm": "Рост (см)",
+      "h2h_tip_height_tall_rival": "Осторожно с его длинными ногами! Не иди в лобовой стык. Пробрасывай мяч низом или крути финтами!",
+      "h2h_tip_height_fast_rival": "Он как молния! Не бросайся отбирать сломя голову, держи позицию и жди, пока он сам закроется.",
+      "h2h_tip_height_advantage": "Используй свой длинный шаг! Укрывай мяч корпусом и не давай ему подобраться к мячу.",
+      "h2h_tip_tir_rival_high": "У него пушечный удар! Не давай ему пространства перед штрафной. Встречай сразу же!",
+      "h2h_tip_tir_advantage": "У тебя отличный удар! Как только появится просвет в 1в1, смещайся под угол и смело бей по воротам.",
+      "h2h_tip_tir_rival_low": "Он редко решается на удар издали. Можешь встречать на шаг глубже, не опасаясь выстрела.",
+      "h2h_tip_reg_rival_high": "Он отлично дриблирует! Не выбрасывайся на первое движение: пласируйся и жди, пока он притормозит.",
+      "h2h_tip_reg_advantage": "Твой дриблинг на высоте! Используй обманные движения и рывки, чтобы оставить его не у дел.",
+      "h2h_tip_reg_rival_low": "Ему тяжело контролировать мяч под прессингом. Атакуй сразу на приёме и забирай мяч!",
+      "h2h_tip_def_rival_high": "Он цепко стелется в подкатах. Не лезь в лоб: качни финтом или смени темп.",
+      "h2h_tip_def_advantage": "Ты надежный замок в защите! Встречай вполоборота, ставь корпус и чисто отбирай.",
+      "h2h_tip_def_rival_low": "Ему сложно защищаться 1в1. Режь угол за спину или уходи в сторону на скорости!",
+      "h2h_tip_fis_rival_high": "Настоящая скала в единоборствах! Включай ловкость и не пытайся толкаться корпус в корпус.",
+      "h2h_tip_fis_advantage": "У тебя отличная мощь! Ставь плечо и уверенно выигрывай позицию.",
+      "h2h_tip_fis_rival_low": "Ему не хватает мощи в стыках. Держи позицию и забирай мяч силой!",
+      "h2h_best_weapon_tir": "Трудная дуэль: твой козырь — неожиданный удар. Бей без замаха, как только появится угол!",
+      "h2h_best_weapon_reg": "Трудная дуэль: твой лучший шанс — смелый дриблинг. Резкая смена темпа может сбить его с толку!",
+      "h2h_best_weapon_def": "Трудная дуэль: твое главное оружие — терпение в обороне. Выжди идеальный момент для отбора!",
+      "h2h_best_weapon_fis": "Трудная дуэль: твой главный козырь — физическая борьба. Не выключайся из эпизода и прессингуй!",
       "stat_pas": "Пас (ПАС)",
       "stat_tir": "Удар (УДР)",
       "stat_reg": "Дриблинг (ДРБ)",
@@ -6594,6 +6674,7 @@
               <span>#${myP.mainDorsal != null ? myP.mainDorsal : '—'}</span>
               <span>•</span>
               <span>${getPlayerFootLabel(myP.foot)}</span>
+              ${myP.heightCm ? `<span>• 📏 ${myP.heightCm} cm</span>` : ''}
             </div>
             ${myP.birthDate ? `
               <div style="font-size: 12px; color: #cbd5e1; margin-top: 5px; display: flex; align-items: center; gap: 5px;">
@@ -7692,6 +7773,7 @@
               ${(p.secondaryPositions && p.secondaryPositions.length) ? `<span class="badge" style="background: rgba(34, 211, 238, 0.15); color: var(--cyan); border: 1px solid rgba(34, 211, 238, 0.4); font-size: 11px;">🔄 ${formatPositionsList(p.secondaryPositions)}</span>` : ''}
               <span>•</span>
               <span>${getPlayerFootLabel(p.foot)}</span>
+              ${p.heightCm ? `<span>• 📏 ${p.heightCm} cm</span>` : ''}
               ${team ? `<span>• 🛡️ ${escapeHtml(team.name)}</span>` : ''}
             </div>
             ${p.birthDate ? `
@@ -8057,14 +8139,50 @@
     const d1 = getPlayer1v1Stats(p1.id, allSessions);
     const d2 = getPlayer1v1Stats(p2.id, allSessions);
 
-    // Comparativa de atributos pedagógica para jugadores en 1v1 (sin pases, sin % de victoria)
-    const attrKeys = ['reg', 'tir', 'def', 'fis', 'dis'];
+    // Comparativa de atributos pedagógica para jugadores en 1v1 (sin disciplina, sin pases, sin % de victoria)
+    function renderDuelChevrons(level, isAdvantage) {
+      const color = isAdvantage ? '#22c55e' : '#ef4444';
+      const bg = isAdvantage ? 'rgba(34, 197, 94, 0.16)' : 'rgba(239, 68, 68, 0.16)';
+      const border = isAdvantage ? 'rgba(34, 197, 94, 0.45)' : 'rgba(239, 68, 68, 0.45)';
+      let poly = '';
+      if (isAdvantage) {
+        if (level === 1) {
+          poly = '<polyline points="5 15 12 8 19 15"></polyline>';
+        } else if (level === 2) {
+          poly = '<polyline points="5 12 12 5 19 12"></polyline><polyline points="5 18 12 11 19 18"></polyline>';
+        } else {
+          poly = '<polyline points="5 10 12 4 19 10"></polyline><polyline points="5 15 12 9 19 15"></polyline><polyline points="5 20 12 14 19 20"></polyline>';
+        }
+      } else {
+        if (level === 1) {
+          poly = '<polyline points="5 9 12 16 19 9"></polyline>';
+        } else if (level === 2) {
+          poly = '<polyline points="5 6 12 13 19 6"></polyline><polyline points="5 12 12 19 19 12"></polyline>';
+        } else {
+          poly = '<polyline points="5 4 12 10 19 4"></polyline><polyline points="5 9 12 15 19 9"></polyline><polyline points="5 14 12 20 19 14"></polyline>';
+        }
+      }
+      return `
+        <div style="background: ${bg}; border: 1.5px solid ${border}; border-radius: 10px; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 2px 5px ${isAdvantage ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)'};">
+          <svg viewBox="0 0 24 24" width="22" height="22" stroke="${color}" fill="none" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="display: block;">
+            ${poly}
+          </svg>
+        </div>
+      `;
+    }
+
+    function getDuelLevel(absDiff) {
+      if (absDiff >= 13) return 3;
+      if (absDiff >= 7) return 2;
+      return 1;
+    }
+
+    const attrKeys = ['reg', 'tir', 'def', 'fis'];
     const attrNames = {
       reg: t('stat_reg', 'Regate (REG)'),
       tir: t('stat_tir', 'Tiro (TIR)'),
       def: t('stat_def', 'Defensa (DEF)'),
-      fis: t('stat_fis', 'Físico (FIS)'),
-      dis: t('stat_dis', 'Disciplina (DIS)')
+      fis: t('stat_fis', 'Físico (FIS)')
     };
 
     const diffs = attrKeys.map(k => {
@@ -8079,8 +8197,76 @@
       };
     });
 
-    const advantages = diffs.filter(d => d.diff >= 5);
-    const watchOuts = diffs.filter(d => d.diff <= -5);
+    const advantages = [];
+    diffs.filter(d => d.diff >= 4).forEach(d => {
+      const level = getDuelLevel(d.diff);
+      let tip = '';
+      if (d.key === 'tir') tip = t('h2h_tip_tir_advantage');
+      else if (d.key === 'reg') tip = t('h2h_tip_reg_advantage');
+      else if (d.key === 'def') tip = t('h2h_tip_def_advantage');
+      else if (d.key === 'fis') tip = t('h2h_tip_fis_advantage');
+      else tip = t('h2h_your_advantage', 'Tienes ventaja en {stat}.').replace('{stat}', escapeHtml(d.name));
+      advantages.push({ ...d, level, tip });
+    });
+
+    const watchOuts = [];
+    diffs.filter(d => d.diff <= -4).forEach(d => {
+      const level = getDuelLevel(Math.abs(d.diff));
+      let tip = '';
+      if (d.key === 'tir') tip = t('h2h_tip_tir_rival_high');
+      else if (d.key === 'reg') tip = t('h2h_tip_reg_rival_high');
+      else if (d.key === 'def') tip = t('h2h_tip_def_rival_high');
+      else if (d.key === 'fis') tip = t('h2h_tip_fis_rival_high');
+      else tip = t('h2h_watch_out', 'Cuidado con su {stat}.').replace('{stat}', escapeHtml(d.name));
+      watchOuts.push({ ...d, level, tip });
+    });
+
+    // Evaluación de estatura y envergadura física
+    const h1 = p1.heightCm ? parseInt(p1.heightCm, 10) : 0;
+    const h2 = p2.heightCm ? parseInt(p2.heightCm, 10) : 0;
+    if (h1 > 0 && h2 > 0) {
+      const hDiff = h1 - h2;
+      if (hDiff >= 6) {
+        advantages.unshift({
+          key: 'height',
+          name: t('heightCm', 'Estatura (cm)'),
+          diff: hDiff,
+          level: getDuelLevel(hDiff),
+          tip: t('h2h_tip_height_advantage')
+        });
+      } else if (hDiff <= -6) {
+        watchOuts.unshift({
+          key: 'height',
+          name: t('heightCm', 'Estatura (cm)'),
+          diff: hDiff,
+          level: getDuelLevel(Math.abs(hDiff)),
+          tip: t('h2h_tip_height_tall_rival')
+        });
+      }
+    } else if (p1.birthDate && p2.birthDate) {
+      const b1 = new Date(p1.birthDate);
+      const b2 = new Date(p2.birthDate);
+      if (!isNaN(b1.getTime()) && !isNaN(b2.getTime())) {
+        const diffMonths = (b2.getFullYear() - b1.getFullYear()) * 12 + (b2.getMonth() - b1.getMonth());
+        if (diffMonths >= 18) {
+          advantages.push({
+            key: 'age',
+            name: t('age'),
+            diff: Math.round(diffMonths / 12),
+            level: 1,
+            tip: t('h2h_tip_height_advantage')
+          });
+        } else if (diffMonths <= -18) {
+          watchOuts.push({
+            key: 'age',
+            name: t('age'),
+            diff: Math.round(diffMonths / 12),
+            level: 1,
+            tip: t('h2h_tip_height_tall_rival')
+          });
+        }
+      }
+    }
 
     let bestWeapon = null;
     if (advantages.length === 0) {
@@ -8091,6 +8277,15 @@
           bestWeapon = d;
         }
       });
+      if (bestWeapon) {
+        let bestTip = '';
+        if (bestWeapon.key === 'tir') bestTip = t('h2h_best_weapon_tir');
+        else if (bestWeapon.key === 'reg') bestTip = t('h2h_best_weapon_reg');
+        else if (bestWeapon.key === 'def') bestTip = t('h2h_best_weapon_def');
+        else if (bestWeapon.key === 'fis') bestTip = t('h2h_best_weapon_fis');
+        else bestTip = t('h2h_best_weapon', 'Duelo exigente: tu mejor baza hoy es competir desde tu {stat}.').replace('{stat}', escapeHtml(bestWeapon.name));
+        bestWeapon.tip = bestTip;
+      }
     }
 
     view.innerHTML = `
@@ -8130,61 +8325,44 @@
               <span>💡</span> <span>${t('h2h_keys_title', 'Claves del Duelo')}</span>
             </span>
             <span class="badge" style="background: rgba(34, 211, 238, 0.15); color: #22d3ee; border: 1px solid rgba(34, 211, 238, 0.4); font-size: 10px; font-weight: 800; padding: 2px 7px;">
-              ${t('h2h_tactical_summary', 'Comparativa 1v1 (5 Atributos)')}
+              ${t('h2h_tactical_summary', 'Claves 1v1 (Duelo Táctico)')}
             </span>
           </div>
 
           <div style="display: flex; flex-direction: column; gap: 8px;">
             ${advantages.map(a => `
-              <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(34, 197, 94, 0.12); border: 1px solid rgba(34, 197, 94, 0.35); border-radius: 10px; padding: 8px 12px;">
-                <div style="display: flex; align-items: center; gap: 8px;">
-                  <span style="font-size: 16px;">🟢</span>
-                  <div>
-                    <div style="font-size: 12.5px; font-weight: 800; color: #4ade80; line-height: 1.35;">${t('h2h_your_advantage', 'Tienes ventaja en {stat} (+{diff}). ¡Úsalo a tu favor!').replace('{stat}', escapeHtml(a.name)).replace('{diff}', a.diff)}</div>
-                  </div>
+              <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(34, 197, 94, 0.12); border: 1px solid rgba(34, 197, 94, 0.35); border-radius: 12px; padding: 10px 14px; gap: 12px;">
+                <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
+                  <span style="font-size: 18px; flex-shrink: 0;">🟢</span>
+                  <div style="font-size: 12.5px; font-weight: 800; color: #4ade80; line-height: 1.4;">${escapeHtml(a.tip)}</div>
                 </div>
-                <div style="text-align: right; flex-shrink: 0; margin-left: 8px;">
-                  <span class="badge" style="background: #16a34a; color: #fff; font-weight: 900; font-size: 11.5px; padding: 2px 8px; border-radius: 999px;">+${a.diff}</span>
-                  <div style="font-size: 10px; color: var(--muted); margin-top: 3px; font-weight: 700; white-space: nowrap;">${escapeHtml(p1.name.split(' ')[0])} (${a.val1}) vs ${escapeHtml(p2.name.split(' ')[0])} (${a.val2})</div>
-                </div>
+                ${renderDuelChevrons(a.level, true)}
               </div>
             `).join('')}
 
             ${bestWeapon ? `
-              <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(250, 204, 21, 0.12); border: 1px solid rgba(250, 204, 21, 0.35); border-radius: 10px; padding: 8px 12px;">
-                <div style="display: flex; align-items: center; gap: 8px;">
-                  <span style="font-size: 16px;">⭐</span>
-                  <div>
-                    <div style="font-size: 12.5px; font-weight: 800; color: #fde047; line-height: 1.35;">${t('h2h_best_weapon', 'Duelo exigente: tu mejor baza hoy es competir desde tu {stat}.').replace('{stat}', escapeHtml(bestWeapon.name))}</div>
-                  </div>
+              <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(250, 204, 21, 0.12); border: 1px solid rgba(250, 204, 21, 0.35); border-radius: 12px; padding: 10px 14px; gap: 12px;">
+                <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
+                  <span style="font-size: 18px; flex-shrink: 0;">⭐</span>
+                  <div style="font-size: 12.5px; font-weight: 800; color: #fde047; line-height: 1.4;">${escapeHtml(bestWeapon.tip)}</div>
                 </div>
-                <div style="text-align: right; flex-shrink: 0; margin-left: 8px;">
-                  <span class="badge" style="background: rgba(250, 204, 21, 0.25); color: #fde047; border: 1px solid #facc15; font-weight: 900; font-size: 11.5px; padding: 2px 8px; border-radius: 999px;">
-                    ${bestWeapon.diff >= 0 ? '+' + bestWeapon.diff : bestWeapon.diff}
-                  </span>
-                  <div style="font-size: 10px; color: var(--muted); margin-top: 3px; font-weight: 700; white-space: nowrap;">${escapeHtml(p1.name.split(' ')[0])} (${bestWeapon.val1}) vs ${escapeHtml(p2.name.split(' ')[0])} (${bestWeapon.val2})</div>
-                </div>
+                ${renderDuelChevrons(1, bestWeapon.diff >= 0)}
               </div>
             ` : ''}
 
             ${watchOuts.map(w => `
-              <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(244, 114, 182, 0.12); border: 1px solid rgba(244, 114, 182, 0.35); border-radius: 10px; padding: 8px 12px;">
-                <div style="display: flex; align-items: center; gap: 8px;">
-                  <span style="font-size: 16px;">⚠️</span>
-                  <div>
-                    <div style="font-size: 12.5px; font-weight: 800; color: #f472b6; line-height: 1.35;">${t('h2h_watch_out', 'Cuidado con su {stat} (-{diff}). Juega rápido y anticipa.').replace('{stat}', escapeHtml(w.name)).replace('{diff}', Math.abs(w.diff))}</div>
-                  </div>
+              <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.35); border-radius: 12px; padding: 10px 14px; gap: 12px;">
+                <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
+                  <span style="font-size: 18px; flex-shrink: 0;">⚠️</span>
+                  <div style="font-size: 12.5px; font-weight: 800; color: #fca5a5; line-height: 1.4;">${escapeHtml(w.tip)}</div>
                 </div>
-                <div style="text-align: right; flex-shrink: 0; margin-left: 8px;">
-                  <span class="badge" style="background: rgba(244, 63, 94, 0.25); color: #fda4af; border: 1px solid #f43f5e; font-weight: 900; font-size: 11.5px; padding: 2px 8px; border-radius: 999px;">-${Math.abs(w.diff)}</span>
-                  <div style="font-size: 10px; color: var(--muted); margin-top: 3px; font-weight: 700; white-space: nowrap;">${escapeHtml(p1.name.split(' ')[0])} (${w.val1}) vs ${escapeHtml(p2.name.split(' ')[0])} (${w.val2})</div>
-                </div>
+                ${renderDuelChevrons(w.level, false)}
               </div>
             `).join('')}
 
             ${advantages.length === 0 && !bestWeapon && watchOuts.length === 0 ? `
-              <div style="font-size: 12px; color: var(--muted); text-align: center; padding: 6px;">
-                ${t('h2h_balanced_duel', '¡Duelo muy parejo! Mantén la máxima concentración y disciplina táctica.')}
+              <div style="font-size: 12.5px; color: #cbd5e1; text-align: center; padding: 10px 12px; background: rgba(255,255,255,0.04); border-radius: 10px; border: 1px dashed var(--border); font-weight: 700; line-height: 1.4;">
+                ⚽ ${t('h2h_balanced_duel', '¡Duelo muy parejo! Mantén la máxima concentración y disciplina táctica.')}
               </div>
             ` : ''}
           </div>

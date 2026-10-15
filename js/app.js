@@ -8748,6 +8748,7 @@
               ${secPositions.length ? `<span class="badge" style="background: rgba(34, 211, 238, 0.15); color: var(--cyan); border: 1px solid rgba(34, 211, 238, 0.4); font-size: 11px;">🔄 ${secPositions.join(', ')}</span>` : ''}
               <span>#${p.mainDorsal != null ? p.mainDorsal : '—'}</span>
               <span>${footText}</span>
+              ${p.heightCm ? `<span>📏 ${p.heightCm} cm</span>` : ''}
             </div>
             ${p.birthDate ? `
               <div style="font-size: 12px; color: #cbd5e1; margin-top: 5px; display: flex; align-items: center; gap: 5px;">
@@ -9804,6 +9805,10 @@
             <input type="number" id="p-dorsal" value="${isEdit && player.mainDorsal != null ? player.mainDorsal : ''}" placeholder="10" />
           </div>
           <div class="field">
+            <label>📏 ${t('heightCm', 'Estatura (cm)')}</label>
+            <input type="number" id="p-height" value="${isEdit && player.heightCm ? player.heightCm : ''}" placeholder="145" min="50" max="230" />
+          </div>
+          <div class="field">
             <label>${t('foot')}</label>
             <select id="p-foot">
               <option value="Diestro" ${isEdit && player.foot === 'Diestro' ? 'selected' : ''}>${t('footRight')}</option>
@@ -9998,6 +10003,8 @@
         const parentName = (document.getElementById('p-parent-name') ? document.getElementById('p-parent-name').value : '').trim();
         const parentPhone = (document.getElementById('p-parent-phone') ? document.getElementById('p-parent-phone').value : '').trim();
         const parentEmail = (document.getElementById('p-parent-email') ? document.getElementById('p-parent-email').value : '').trim();
+        const heightStr = (document.getElementById('p-height') ? document.getElementById('p-height').value : '').trim();
+        const heightCm = heightStr ? parseInt(heightStr, 10) : null;
 
         if (!name && !nickname) {
           toast('Introduce al menos el nombre o apodo', 'error');
@@ -10013,6 +10020,7 @@
           nickname,
           birthDate,
           mainDorsal,
+          heightCm: heightCm && !isNaN(heightCm) ? heightCm : null,
           mainPosition,
           secondaryPositions: selectedSecondary,
           secondaryPosition: selectedSecondary[0] || '',
