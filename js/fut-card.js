@@ -180,9 +180,10 @@
   function getPositionCategory(pos) {
     if (!pos) return 'MED';
     const p = String(pos).toUpperCase().trim();
-    if (p.includes('POR') || p.includes('GK')) return 'POR';
-    if (p.includes('DFC') || p.includes('DEF') || p.includes('CB') || p.includes('LD') || p.includes('LI') || p.includes('RB') || p.includes('LB') || p.includes('LTD') || p.includes('LTI')) return 'DEF';
-    if (p.includes('DC') || p.includes('DEL') || p.includes('ST') || p.includes('EXT') || p.includes('ED') || p.includes('EI') || p.includes('RW') || p.includes('LW') || p.includes('FW')) return 'DEL';
+    if (p.includes('POR') || p.includes('GK') || p.includes('VÄRAVA') || p.includes('ВРАТАР')) return 'POR';
+    if (p.includes('MED') || p.includes('MC') || p.includes('MID') || p.includes('CENTRO') || p.includes('POOL') || p.includes('ПОЛУЗАЩ')) return 'MED';
+    if (p.includes('DFC') || p.includes('DEF') || p.includes('CB') || p.includes('LD') || p.includes('LI') || p.includes('RB') || p.includes('LB') || p.includes('LTD') || p.includes('LTI') || p.includes('KAITS') || p.includes('ЗАЩИТ')) return 'DEF';
+    if (p.includes('DC') || p.includes('DEL') || p.includes('ST') || p.includes('EXT') || p.includes('ED') || p.includes('EI') || p.includes('RW') || p.includes('LW') || p.includes('FW') || p.includes('RÜND') || p.includes('НАПАД')) return 'DEL';
     return 'MED';
   }
 
@@ -728,6 +729,8 @@
   global.FutCard = {
     showModal,
     computeOvr,
+    drawFutCardCanvas,
+    draw: drawFutCardCanvas,
     THEMES
   };
 

@@ -2158,8 +2158,12 @@
     }
   };
 
-  document.addEventListener('visibilitychange', () => { if (document.hidden) Store.flushNative(); });
-  window.addEventListener('pagehide', () => Store.flushNative());
+  if (typeof document !== 'undefined' && document.addEventListener) {
+    document.addEventListener('visibilitychange', () => { if (document.hidden) Store.flushNative(); });
+  }
+  if (typeof window !== 'undefined' && window.addEventListener) {
+    window.addEventListener('pagehide', () => Store.flushNative());
+  }
 
   window.Store = Store;
   try {
