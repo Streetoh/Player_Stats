@@ -214,6 +214,13 @@
       x.coachPicks = Array.isArray(x.coachPicks) ? x.coachPicks : [];
     });
     s.players.forEach(p => {
+      p.photoHash = p.photoHash || '';
+      if (p.photo && !p.photoHash) {
+        p.photoHash = 'p_' + Date.now().toString(36);
+      }
+      if (p.photo && p.photoHash && typeof window !== 'undefined' && window.CacheDB && window.CacheDB.setPhoto) {
+        window.CacheDB.setPhoto(p.id, p.photoHash, p.photo);
+      }
       if (p.mvpCount == null) {
         let count = 0;
         const sPid = String(p.id);
@@ -362,18 +369,34 @@
     },
 
     upsertPlayer(data) {
+      if (data.photo && !data.photoHash) {
+        data.photoHash = 'p_' + Date.now().toString(36);
+      }
       if (data.id) {
         const i = this.state.players.findIndex(p => p.id === data.id);
-        if (i >= 0) { this.state.players[i] = Object.assign({}, this.state.players[i], data); this.save(); return this.state.players[i]; }
+        if (i >= 0) {
+          this.state.players[i] = Object.assign({}, this.state.players[i], data);
+          if (this.state.players[i].photo && this.state.players[i].photoHash && typeof window !== 'undefined' && window.CacheDB && window.CacheDB.setPhoto) {
+            window.CacheDB.setPhoto(this.state.players[i].id, this.state.players[i].photoHash, this.state.players[i].photo);
+          }
+          this.save();
+          return this.state.players[i];
+        }
       }
       const p = Object.assign({
         id: uid('p'), name: '', lastName: '', nickname: '', birthDate: '', teamId: '',
         mainDorsal: null, secondaryDorsal: null, foot: 'Diestro', mainPosition: 'Jugador',
         secondaryPosition: '', secondaryPositions: [],
         parentContact: { name: '', phone: '', email: '' },
-        photo: '', disciplineScore: 100
+        photo: '', photoHash: '', disciplineScore: 100
       }, data);
       if (!p.id) p.id = uid('p');
+      if (p.photo && !p.photoHash) {
+        p.photoHash = 'p_' + Date.now().toString(36);
+      }
+      if (p.photo && p.photoHash && typeof window !== 'undefined' && window.CacheDB && window.CacheDB.setPhoto) {
+        window.CacheDB.setPhoto(p.id, p.photoHash, p.photo);
+      }
       this.state.players.push(p);
       this.save();
       return p;

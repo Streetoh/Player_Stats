@@ -593,6 +593,14 @@
 
     if (player.photo) {
       assetPromises.push(loadImage(player.photo).then(img => { avatarImgObj = img; return img; }));
+    } else if (player.photoHash && typeof window !== 'undefined' && window.CacheDB && window.CacheDB.getPhoto) {
+      assetPromises.push(window.CacheDB.getPhoto(player.id).then(cached => {
+        if (cached && cached.dataUrl) {
+          player.photo = cached.dataUrl;
+          return loadImage(player.photo).then(img => { avatarImgObj = img; return img; });
+        }
+        return null;
+      }).catch(() => null));
     }
 
     Promise.all(assetPromises).then(() => {

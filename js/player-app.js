@@ -466,6 +466,9 @@
       autoMissionBadge: 'Automatic Mission',
       manualMissionBadge: 'Manual Mission',
       progressLabel: 'Progress',
+      matchDetail: 'Match / Session Detail',
+      viewSessionDetail: 'View Match Details',
+      loadingSession: 'Loading session data...',
       won: 'Won',
       lost: 'Lost',
       sessions: 'Trainings & Sessions',
@@ -813,6 +816,9 @@
       autoMissionBadge: 'Automaatne missioon',
       manualMissionBadge: 'Käsitsi hinnatav',
       progressLabel: 'Progress',
+      matchDetail: 'Mängu / Sessiooni Üksikasjad',
+      viewSessionDetail: 'Vaata Mängu Üksikasju',
+      loadingSession: 'Sessiooni andmete laadimine...',
       won: 'Võidetud',
       lost: 'Kaotatud',
       sessions: 'Trennid ja Sessioonid',
@@ -1160,6 +1166,9 @@
       autoMissionBadge: 'Misión Automática',
       manualMissionBadge: 'Misión Manual',
       progressLabel: 'Progreso',
+      matchDetail: 'Detalle de la Sesión',
+      viewSessionDetail: 'Ver Detalle del Partido',
+      loadingSession: 'Cargando datos de la sesión...',
       won: 'Ganados',
       lost: 'Perdidos',
       sessions: 'Entrenamientos y Sesiones',
@@ -1770,11 +1779,34 @@
     const perSession = [];
     const sessList = Array.isArray(customSessions) ? customSessions : ((clubData && clubData.sessions) ? clubData.sessions : []);
     sessList.forEach(s => {
-      const st = (s.stats || {})[pid];
+      const st = (s && s.stats) ? s.stats[pid] : null;
       if (!st || !Object.keys(st).some(k => st[k] > 0)) return;
       perSession.push({ session: s, stats: st });
       Object.keys(st).forEach(k => { totals[k] = (totals[k] || 0) + (st[k] || 0); });
     });
+
+    if (perSession.length === 0 && clubData && clubData.players) {
+      const p = clubData.players.find(x => x.id === pid);
+      if (p && p.statsSummary) {
+        const isMatchFilter = Array.isArray(customSessions) && customSessions.length > 0 && customSessions.every(s => (s.type || 'match') === 'match');
+        const isTrainFilter = Array.isArray(customSessions) && customSessions.length > 0 && customSessions.every(s => (s.type || 'training') === 'training');
+        let count = 0;
+        if (isMatchFilter) count = p.statsSummary.matchesAttended || 0;
+        else if (isTrainFilter) count = p.statsSummary.trainingsAttended || 0;
+        else count = p.statsSummary.totalSessions || ((p.statsSummary.matchesAttended || 0) + (p.statsSummary.trainingsAttended || 0));
+
+        if (count > 0) {
+          return {
+            totals: Object.assign({}, p.statsSummary.totals || {}),
+            sessions: [],
+            count,
+            ratingsSum: (p.ovr ? p.ovr / 10 : 6.0) * count,
+            ratingsCount: count
+          };
+        }
+      }
+    }
+
     return { totals, sessions: perSession, count: perSession.length };
   }
 
@@ -1816,6 +1848,11 @@
     const pos = p ? p.mainPosition : 'Jugador';
 
     const sessions = Array.isArray(customSessions) ? customSessions : ((clubData && clubData.sessions) || []);
+    const hasDetailedSessions = sessions && sessions.some(s => s && s.stats && Object.keys(s.stats).length > 0);
+
+    if ((!customSessions || customSessions.length === 0) && !hasDetailedSessions && p && p.statsSummary) {
+      return Object.assign({}, res, p.statsSummary);
+    }
     if (sessions) {
       sessions.forEach(s => {
         const sType = s.type === 'match' ? 'match' : 'training';
@@ -1882,7 +1919,22 @@
   }
 
   function calculatePlayerOverallRating(pid, position) {
+    const p = clubData && clubData.players ? clubData.players.find(x => x.id === pid) : null;
     const allSessions = (clubData && clubData.sessions) || [];
+    const hasDetailedSessions = allSessions.some(s => s && s.stats && Object.keys(s.stats).length > 0);
+
+    if (!hasDetailedSessions && p && typeof p.ovr === 'number') {
+      const r = Number((p.ovr / 10).toFixed(1));
+      return {
+        rating: r,
+        mode: p.overallMode || 'combined',
+        hasTrain: true,
+        hasMatch: true,
+        rTrain: r,
+        rMatch: r
+      };
+    }
+
     const trainingSessions = allSessions.filter(s => (s.type || 'training') === 'training');
     const matchSessions = allSessions.filter(s => (s.type || 'training') === 'match');
 
@@ -1925,8 +1977,16 @@
   }
 
   function calculatePlayerAttendanceStreak(pid) {
-    if (!pid || !clubData || !Array.isArray(clubData.sessions)) return 0;
-    const allSessions = clubData.sessions
+    if (!pid || !clubData) return 0;
+    const p = (clubData.players || []).find(x => String(x.id) === String(pid));
+    const allSessions = Array.isArray(clubData.sessions) ? clubData.sessions : [];
+    const hasDetailedSessions = allSessions.some(s => s && ((s.attendance && Object.keys(s.attendance).length > 0) || (s.stats && Object.keys(s.stats).length > 0)));
+
+    if (!hasDetailedSessions && p && typeof p.streak === 'number') {
+      return p.streak;
+    }
+
+    const filtered = allSessions
       .slice()
       .filter(s => {
         if (!s) return false;
@@ -1935,7 +1995,7 @@
       .sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.createdAt || 0) - (a.createdAt || 0));
 
     let streak = 0;
-    for (const s of allSessions) {
+    for (const s of filtered) {
       const att = s.attendance ? s.attendance[pid] : null;
       const st = (typeof att === 'object' && att !== null) ? att.status : att;
       const hasAction = s.stats && s.stats[pid] && Object.values(s.stats[pid]).some(v => v > 0);
@@ -1952,10 +2012,18 @@
   }
 
   function calculatePlayerMvpCount(pid) {
-    if (!pid || !clubData || !Array.isArray(clubData.sessions)) return 0;
+    if (!pid || !clubData) return 0;
     const sPid = String(pid);
+    const p = (clubData && clubData.players ? clubData.players : []).find(x => String(x.id) === sPid);
+    const allSessions = Array.isArray(clubData.sessions) ? clubData.sessions : [];
+    const hasDetailedSessions = allSessions.some(s => s && (s.officialMvpId || s.mvpWinnerId));
+
+    if (!hasDetailedSessions && p && typeof p.mvpCount === 'number') {
+      return p.mvpCount;
+    }
+
     let count = 0;
-    clubData.sessions.forEach(s => {
+    allSessions.forEach(s => {
       if (s && s.type === 'match') {
         if (s.officialMvpId && String(s.officialMvpId) === sPid) {
           count++;
@@ -1964,7 +2032,6 @@
         }
       }
     });
-    const p = (clubData && clubData.players ? clubData.players : []).find(x => String(x.id) === sPid);
     if (p) p.mvpCount = count;
     return count;
   }
@@ -1977,9 +2044,14 @@
 
     const trackedPlayerIds = new Set([
       ...Object.keys(session.stats || {}),
-      ...(session.slots || []).filter(Boolean)
+      ...(session.slots || []).filter(Boolean),
+      ...(session.trackedPlayerIds || []),
+      ...(session.coachPicks || []).map(cp => cp && (cp.playerId || cp.id)).filter(Boolean)
     ]);
-    const players = (clubData && clubData.players ? clubData.players : []).filter(p => trackedPlayerIds.has(p.id));
+    let players = (clubData && clubData.players ? clubData.players : []).filter(p => trackedPlayerIds.has(p.id));
+    if (players.length === 0) {
+      players = clubData && clubData.players ? clubData.players : [];
+    }
 
     const existing = document.getElementById('dialog-match-mvp-vote');
     if (existing) existing.remove();
@@ -2011,7 +2083,18 @@
       }
     }
 
-    function showCoachPickDetailModal(pick, player, isVotedByMe) {
+    async function showCoachPickDetailModal(pick, player, isVotedByMe) {
+      if ((!session.stats || Object.keys(session.stats).length === 0) && session.id && window.Cloud && window.Cloud.fetchSessionDetail) {
+        try {
+          const fullSess = await window.Cloud.fetchSessionDetail(session.id);
+          if (fullSess && fullSess.stats) {
+            session.stats = fullSess.stats;
+          }
+        } catch (e) {
+          console.warn('Could not lazy fetch session detail for coach pick modal:', e);
+        }
+      }
+
       const existing = document.getElementById('dialog-coach-pick-detail');
       if (existing) existing.remove();
 
@@ -2398,7 +2481,13 @@
   }
 
   function calculatePlayerRadar(pid, customSessions) {
+    const pl = (clubData && clubData.players) ? clubData.players.find(x => x.id === pid) : null;
     const sessions = Array.isArray(customSessions) ? customSessions : ((clubData && clubData.sessions) || []);
+    const hasDetailedSessions = sessions && sessions.some(s => s && s.stats && Object.keys(s.stats).length > 0);
+
+    if ((!customSessions || customSessions.length === 0) && !hasDetailedSessions && pl && pl.radar) {
+      return Object.assign({}, pl.radar);
+    }
     if (window.SkillsEngine) {
       return window.SkillsEngine.computePlayerSkills(pid, {
         players: (clubData && clubData.players) || [],
@@ -4521,17 +4610,28 @@
     // Buscar si hay un partido reciente (últimos 3 días) para votar MVP
     let mvpBannerHtml = '';
     let recentMatchForMvp = null;
-    if (clubData && Array.isArray(clubData.sessions) && myP) {
+    if (clubData && myP) {
       const nowTs = Date.now();
-      recentMatchForMvp = clubData.sessions.find(s => {
-        if (!s || s.type !== 'match' || !s.date) return false;
-        const sTime = new Date(s.date).getTime();
-        const isRecent = Math.abs(nowTs - sTime) < 72 * 3600 * 1000;
-        if (!isRecent) return false;
-        const participated = (s.stats && s.stats[myP.id] && Object.values(s.stats[myP.id]).some(v => v > 0)) ||
-                             (s.slots && s.slots.includes(myP.id));
-        return participated;
-      });
+      if (clubData.latestMatchMvp) {
+        const lm = clubData.latestMatchMvp;
+        const sTime = lm.date ? new Date(lm.date).getTime() : 0;
+        const isRecent = sTime > 0 && Math.abs(nowTs - sTime) < 72 * 3600 * 1000;
+        if (isRecent) {
+          recentMatchForMvp = lm;
+        }
+      }
+      if (!recentMatchForMvp && Array.isArray(clubData.sessions)) {
+        recentMatchForMvp = clubData.sessions.find(s => {
+          if (!s || s.type !== 'match' || !s.date) return false;
+          const sTime = new Date(s.date).getTime();
+          const isRecent = Math.abs(nowTs - sTime) < 72 * 3600 * 1000;
+          if (!isRecent) return false;
+          const participated = (s.stats && s.stats[myP.id] && Object.values(s.stats[myP.id]).some(v => v > 0)) ||
+                               (s.slots && s.slots.includes(myP.id)) ||
+                               (s.coachPicks && s.coachPicks.some(cp => cp && (cp.playerId === myP.id || cp.id === myP.id)));
+          return participated;
+        });
+      }
 
       if (recentMatchForMvp) {
         const isOfficialSet = !!recentMatchForMvp.officialMvpId;
@@ -5618,7 +5718,7 @@
     let grandTotal = 0;
     const sessions = Array.isArray(customSessions) ? customSessions : ((clubData && clubData.sessions) || []);
     sessions.forEach(s => {
-      const pStats = (s.stats && s.stats[pid]) ? s.stats[pid] : null;
+      const pStats = (s && s.stats) ? s.stats[pid] : null;
       if (pStats) {
         Object.entries(pStats).forEach(([k, cnt]) => {
           if (cnt && typeof cnt === 'number' && cnt > 0) {
@@ -5628,6 +5728,19 @@
         });
       }
     });
+
+    if (grandTotal === 0 && clubData && clubData.players) {
+      const p = clubData.players.find(x => x.id === pid);
+      if (p && p.statsSummary && p.statsSummary.totals) {
+        Object.entries(p.statsSummary.totals).forEach(([k, cnt]) => {
+          if (cnt && typeof cnt === 'number' && cnt > 0) {
+            totals[k] = (totals[k] || 0) + cnt;
+            grandTotal += cnt;
+          }
+        });
+      }
+    }
+
     return { totals, grandTotal };
   }
 
@@ -6140,29 +6253,98 @@
 
   function renderPlayerMatchHistory(pid, customSessions) {
     const sessions = Array.isArray(customSessions) ? customSessions : ((clubData && clubData.sessions) || []);
-    if (!sessions || sessions.length === 0) {
+    const p = (clubData && clubData.players || []).find(x => x.id === pid);
+    const pos = p ? p.mainPosition : 'Jugador';
+
+    // 1. Intentar con sesiones detalladas en memoria si las hay
+    let matches = (sessions || []).filter(s => {
+      const st = s && s.stats && s.stats[pid];
+      return st && Object.values(st).some(v => v > 0);
+    }).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+    // 2. Si no hay detalladas en memoria (capa fría desacoplada), usar matchHistorySummary de Capa Caliente
+    if (matches.length === 0 && p && Array.isArray(p.matchHistorySummary) && p.matchHistorySummary.length > 0) {
+      return p.matchHistorySummary.map(item => {
+        const st = item.stats || {};
+        const isMatch = item.type === 'match';
+        const title = item.title || (isMatch ? (item.rival ? 'vs ' + item.rival : t('match')) : t('training'));
+        const scoreStr = (item.score && (item.score.home != null || item.score.away != null))
+          ? `${item.score.home || 0} - ${item.score.away || 0}`
+          : '';
+
+        const totalP = (st.passOk || 0) + (st.passKo || 0);
+        const passPct = totalP > 0 ? Math.round(((st.passOk || 0) / totalP) * 100) : null;
+        const totalShots = (st.shotOn || 0) + (st.shotOff || 0);
+
+        return `
+          <div class="card" style="padding: 14px; border: 1px solid var(--border); background: var(--surface2);">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+              <div>
+                <span class="badge" style="background: ${isMatch ? 'rgba(34, 197, 94, 0.15)' : 'rgba(56, 189, 248, 0.15)'}; color: ${isMatch ? '#86efac' : '#38bdf8'}; font-size: 10px; font-weight: 800;">
+                  ${isMatch ? '🏟️ ' + t('match').toUpperCase() : '🏃‍♂️ ' + t('training').toUpperCase()}
+                </span>
+                <h4 style="margin: 4px 0 2px; font-size: 15px; font-weight: 900; color: #fff;">
+                  ${escapeHtml(title)}
+                </h4>
+                <div style="font-size: 11.5px; color: var(--muted);">
+                  📅 ${item.date || ''} ${item.venue ? '• 📍 ' + escapeHtml(item.venue) : ''}
+                </div>
+              </div>
+              <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+                ${scoreStr ? `
+                  <div style="font-size: 14px; font-weight: 900; background: var(--bg2); padding: 3px 8px; border-radius: 8px; border: 1px solid var(--border); color: #fff;">
+                    ${scoreStr}
+                  </div>
+                ` : ''}
+                <div style="font-size: 12px; font-weight: 900; color: #22d3ee; background: rgba(34, 211, 238, 0.15); padding: 2px 7px; border-radius: 6px;">
+                  ⭐ ${item.rating || 6.0}
+                </div>
+              </div>
+            </div>
+
+            <!-- Acciones de este partido -->
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; font-size: 11.5px; text-align: center; margin-top: 8px;">
+              <div style="background: var(--bg2); padding: 6px 4px; border-radius: 8px; border: 1px solid var(--border);">
+                <div style="color: var(--muted); font-size: 9.5px; font-weight: 700;">${t('passesLabel')}</div>
+                <div style="font-weight: 800; color: #fff;">${st.passOk || 0}/${totalP} ${passPct !== null ? `<span style="font-size: 9.5px; color: var(--cyan);">(${passPct}%)</span>` : ''}</div>
+              </div>
+              <div style="background: var(--bg2); padding: 6px 4px; border-radius: 8px; border: 1px solid var(--border);">
+                <div style="color: var(--muted); font-size: 9.5px; font-weight: 700;">${t('shotsLabel')}</div>
+                <div style="font-weight: 800; color: #fff;">${st.shotOn || 0} ${t('shotsOnTarget')} <span style="font-size: 9.5px; color: var(--muted);">(${totalShots})</span></div>
+              </div>
+              <div style="background: var(--bg2); padding: 6px 4px; border-radius: 8px; border: 1px solid var(--border);">
+                <div style="color: var(--muted); font-size: 9.5px; font-weight: 700;">${t('goalsLabel')}</div>
+                <div style="font-weight: 800; color: #86efac;">⚽ ${st.goal || 0}</div>
+              </div>
+              <div style="background: var(--bg2); padding: 6px 4px; border-radius: 8px; border: 1px solid var(--border);">
+                <div style="color: var(--muted); font-size: 9.5px; font-weight: 700;">${t('dribblesLabel')}</div>
+                <div style="font-weight: 800; color: #fff;">${st.dribbleOk || 0}</div>
+              </div>
+              <div style="background: var(--bg2); padding: 6px 4px; border-radius: 8px; border: 1px solid var(--border);">
+                <div style="color: var(--muted); font-size: 9.5px; font-weight: 700;">${t('recoveriesLabel')}</div>
+                <div style="font-weight: 800; color: #fff;">${st.recovery || 0}</div>
+              </div>
+              <div style="background: var(--bg2); padding: 6px 4px; border-radius: 8px; border: 1px solid var(--border);">
+                <div style="color: var(--muted); font-size: 9.5px; font-weight: 700;">${t('touchesLabel')}</div>
+                <div style="font-weight: 800; color: #c084fc;">${st.touches || 0}</div>
+              </div>
+            </div>
+
+            <button type="button" class="btn sm secondary btn-view-session-detail" data-session-id="${escapeHtml(item.sessionId)}" style="margin-top: 10px; width: 100%; border-radius: 8px; font-weight: 800; font-size: 11px; display: flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--border);">
+              🔍 ${t('viewSessionDetail', 'Ver Detalle del Partido')}
+            </button>
+          </div>
+        `;
+      }).join('');
+    }
+
+    if (matches.length === 0) {
       return `
         <div class="card" style="padding: 16px; text-align: center; border: 1px dashed var(--border); color: var(--muted); font-size: 13px;">
           ${t('noMatchesYet')}
         </div>
       `;
     }
-
-    const matches = sessions.filter(s => {
-      const st = s.stats && s.stats[pid];
-      return st && Object.values(st).some(v => v > 0);
-    }).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-
-    if (matches.length === 0) {
-      return `
-        <div class="card" style="padding: 16px; text-align: center; border: 1px dashed var(--border); color: var(--muted); font-size: 13px;">
-          ${t('noActionsYet')}
-        </div>
-      `;
-    }
-
-    const p = (clubData.players || []).find(x => x.id === pid);
-    const pos = p ? p.mainPosition : 'Jugador';
 
     return matches.map(s => {
       const st = s.stats[pid] || {};
@@ -6230,10 +6412,179 @@
               <div style="font-weight: 800; color: #c084fc;">${st.touches || 0}</div>
             </div>
           </div>
+
+          <button type="button" class="btn sm secondary btn-view-session-detail" data-session-id="${escapeHtml(s.id)}" style="margin-top: 10px; width: 100%; border-radius: 8px; font-weight: 800; font-size: 11px; display: flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--border);">
+            🔍 ${t('viewSessionDetail', 'Ver Detalle del Partido')}
+          </button>
         </div>
       `;
     }).join('');
   }
+
+  // ❄️ Modal de Carga Bajo Demanda de Sesión Detallada (Capa Fría de Firestore)
+  async function showSessionDetailModal(sessionId) {
+    if (!sessionId) return;
+    const existing = document.getElementById('dialog-session-detail-modal');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.className = 'dialog-overlay';
+    overlay.id = 'dialog-session-detail-modal';
+    overlay.style.zIndex = '999999';
+    overlay.innerHTML = `
+      <div class="card dialog-box" style="max-width: 480px; width: 92%; padding: 20px; border-radius: 18px; border: 1.5px solid var(--border); background: #0b1329; max-height: 90vh; overflow-y: auto;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+          <h3 style="margin: 0; font-size: 16px; font-weight: 900; color: #fff;">${t('matchDetail', 'Detalle de la Sesión')}</h3>
+          <button type="button" class="btn sm ghost" id="btn-close-session-detail-x" style="padding: 4px 8px;">✕</button>
+        </div>
+        <div id="session-detail-content" style="text-align: center; padding: 20px; color: var(--muted);">
+          <div class="spinner" style="margin: 0 auto 10px;"></div>
+          <span>${t('loadingSession', 'Cargando datos de la sesión...')}</span>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    overlay.querySelector('#btn-close-session-detail-x').onclick = () => overlay.remove();
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+
+    try {
+      let sess = null;
+      if (window.Cloud && window.Cloud.fetchSessionDetail) {
+        sess = await window.Cloud.fetchSessionDetail(sessionId);
+      } else if (clubData && clubData.sessions) {
+        sess = clubData.sessions.find(s => s.id === sessionId);
+      }
+
+      const contentEl = overlay.querySelector('#session-detail-content');
+      if (!contentEl) return;
+
+      if (!sess) {
+        contentEl.innerHTML = `<div style="color: #ef4444; font-weight: 700;">No se pudo cargar la sesión.</div>`;
+        return;
+      }
+
+      const isMatch = sess.type === 'match';
+      const myP = getMyPlayer();
+      const myPid = myP ? myP.id : null;
+      const myStats = (myPid && sess.stats) ? sess.stats[myPid] : null;
+      const title = sess.title || (isMatch ? (sess.rival ? 'vs ' + sess.rival : t('match')) : t('training'));
+      const scoreStr = (sess.score && (sess.score.home != null || sess.score.away != null))
+        ? `${sess.score.home || 0} - ${sess.score.away || 0}`
+        : '';
+
+      let myStatsHtml = '';
+      if (myStats) {
+        const pos = myP ? myP.mainPosition : 'Jugador';
+        const rating = calculateMatchRating(myStats, pos);
+        const totalP = (myStats.passOk || 0) + (myStats.passKo || 0);
+        const passPct = totalP > 0 ? Math.round(((myStats.passOk || 0) / totalP) * 100) : null;
+        const totalShots = (myStats.shotOn || 0) + (myStats.shotOff || 0);
+
+        myStatsHtml = `
+          <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin-bottom: 14px; text-align: left;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span style="font-weight: 900; font-size: 13px; color: var(--cyan);">👤 Tus Estadísticas en este partido</span>
+              <span class="badge" style="background: rgba(34, 211, 238, 0.2); color: #fff; font-weight: 900; font-size: 11px;">⭐ ${rating}</span>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; font-size: 11px; text-align: center;">
+              <div style="background: var(--bg2); padding: 5px; border-radius: 6px; border: 1px solid var(--border);">
+                <div style="color: var(--muted); font-size: 9px;">Pases</div>
+                <div style="font-weight: 800; color: #fff;">${myStats.passOk || 0}/${totalP} ${passPct !== null ? `(${passPct}%)` : ''}</div>
+              </div>
+              <div style="background: var(--bg2); padding: 5px; border-radius: 6px; border: 1px solid var(--border);">
+                <div style="color: var(--muted); font-size: 9px;">Tiros</div>
+                <div style="font-weight: 800; color: #fff;">${myStats.shotOn || 0} puerta (${totalShots})</div>
+              </div>
+              <div style="background: var(--bg2); padding: 5px; border-radius: 6px; border: 1px solid var(--border);">
+                <div style="color: var(--muted); font-size: 9px;">Goles</div>
+                <div style="font-weight: 800; color: #86efac;">⚽ ${myStats.goal || 0}</div>
+              </div>
+              <div style="background: var(--bg2); padding: 5px; border-radius: 6px; border: 1px solid var(--border);">
+                <div style="color: var(--muted); font-size: 9px;">Regates</div>
+                <div style="font-weight: 800; color: #fff;">${myStats.dribbleOk || 0}</div>
+              </div>
+              <div style="background: var(--bg2); padding: 5px; border-radius: 6px; border: 1px solid var(--border);">
+                <div style="color: var(--muted); font-size: 9px;">Recuperaciones</div>
+                <div style="font-weight: 800; color: #fff;">${myStats.recovery || 0}</div>
+              </div>
+              <div style="background: var(--bg2); padding: 5px; border-radius: 6px; border: 1px solid var(--border);">
+                <div style="color: var(--muted); font-size: 9px;">Duelos</div>
+                <div style="font-weight: 800; color: #fff;">${(myStats.duel1v1WonGoal || 0) + (myStats.duel1v1WonStop || 0)}</div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      let coachPicksHtml = '';
+      if (Array.isArray(sess.coachPicks) && sess.coachPicks.length > 0) {
+        coachPicksHtml = `
+          <div style="margin-bottom: 14px; text-align: left;">
+            <div style="font-size: 12px; font-weight: 900; color: #facc15; margin-bottom: 6px; display: flex; align-items: center; gap: 5px;">
+              <span>🌟 Nominados por el Entrenador</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              ${sess.coachPicks.map(cp => {
+                const cPlayer = (clubData.players || []).find(p => p.id === (cp.playerId || cp.id));
+                const pName = cPlayer ? (cPlayer.name + ' ' + (cPlayer.lastName || '')).trim() : (cp.playerName || 'Jugador');
+                return `
+                  <div style="background: rgba(234, 179, 8, 0.1); border: 1px solid rgba(234, 179, 8, 0.3); border-radius: 8px; padding: 8px 10px;">
+                    <div style="font-weight: 800; font-size: 12px; color: #fde047;">${escapeHtml(pName)}</div>
+                    ${cp.reason ? `<div style="font-size: 11px; color: #e2e8f0; margin-top: 2px; font-style: italic;">"${escapeHtml(cp.reason)}"</div>` : ''}
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        `;
+      }
+
+      contentEl.innerHTML = `
+        <div style="text-align: left;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+            <div>
+              <span class="badge" style="background: ${isMatch ? 'rgba(34, 197, 94, 0.15)' : 'rgba(56, 189, 248, 0.15)'}; color: ${isMatch ? '#86efac' : '#38bdf8'}; font-size: 11px; font-weight: 800;">
+                ${isMatch ? '🏟️ ' + t('match').toUpperCase() : '🏃‍♂️ ' + t('training').toUpperCase()}
+              </span>
+              <h3 style="margin: 4px 0 2px; font-size: 17px; font-weight: 900; color: #fff;">${escapeHtml(title)}</h3>
+              <div style="font-size: 11.5px; color: var(--muted);">📅 ${sess.date || ''} ${sess.venue ? '• 📍 ' + escapeHtml(sess.venue) : ''}</div>
+            </div>
+            ${scoreStr ? `
+              <div style="font-size: 18px; font-weight: 900; background: var(--bg2); padding: 4px 10px; border-radius: 8px; border: 1px solid var(--border); color: #fff;">
+                ${scoreStr}
+              </div>
+            ` : ''}
+          </div>
+
+          ${myStatsHtml}
+          ${coachPicksHtml}
+
+          <button type="button" class="btn primary block" id="btn-close-session-detail" style="margin-top: 10px; height: 38px;">
+            ${t('close', 'Cerrar')}
+          </button>
+        </div>
+      `;
+
+      contentEl.querySelector('#btn-close-session-detail').onclick = () => overlay.remove();
+
+    } catch (err) {
+      console.error('Error fetching session detail:', err);
+      const contentEl = overlay.querySelector('#session-detail-content');
+      if (contentEl) {
+        contentEl.innerHTML = `<div style="color: #ef4444; font-weight: 700;">Error al cargar detalle: ${err.message}</div>`;
+      }
+    }
+  }
+
+  // Delegación de clic para botones de ver detalle de sesión
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.btn-view-session-detail');
+    if (btn) {
+      const sId = btn.getAttribute('data-session-id');
+      if (sId) showSessionDetailModal(sId);
+    }
+  });
 
   function hasApprovedProfile() {
     if (!myPlayerId) return false;
@@ -6841,8 +7192,16 @@
   let h2hPlayer2Id = null;
 
   function getPlayer1v1Stats(pid, sessions) {
+    const p = clubData && clubData.players ? clubData.players.find(x => x.id === pid) : null;
+    const sessList = sessions || ((clubData && clubData.sessions) || []);
+    const hasDetailedSessions = sessList.some(s => s && s.stats && Object.keys(s.stats).length > 0);
+
+    if (!hasDetailedSessions && p && p.duel1v1) {
+      return Object.assign({}, p.duel1v1);
+    }
+
     let wonGoal = 0, wonStop = 0, lostTurnover = 0, lostGoal = 0;
-    (sessions || []).forEach(s => {
+    sessList.forEach(s => {
       const st = (s && s.stats && s.stats[pid]) ? s.stats[pid] : {};
       wonGoal += st.duel1v1WonGoal || 0;
       wonStop += st.duel1v1WonStop || 0;
@@ -7674,6 +8033,12 @@
           }
         }
         updateHeaderIdentity();
+        if (window.Cloud && window.Cloud.hydratePlayerPhotos && clubData && Array.isArray(clubData.players)) {
+          window.Cloud.hydratePlayerPhotos(clubData.players, () => {
+            updateHeaderIdentity();
+            renderCurrentTab();
+          });
+        }
       }
     } catch (e) {}
 
@@ -7777,6 +8142,13 @@
 
         updateHeaderIdentity();
         renderCurrentTab();
+
+        if (window.Cloud && window.Cloud.hydratePlayerPhotos && clubData && Array.isArray(clubData.players)) {
+          window.Cloud.hydratePlayerPhotos(clubData.players, () => {
+            updateHeaderIdentity();
+            renderCurrentTab();
+          });
+        }
 
         // Si el modal de carga o no hay perfil aprobado, gestionar selector de identidad
         if (!hasApprovedProfile() && !localStorage.getItem('portal_pending_claim')) {

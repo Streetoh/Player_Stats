@@ -39,6 +39,7 @@
   let syncedHashes = {
     root: '',
     players: {},
+    photos: {},
     convocations: {},
     sessions: {}
   };
@@ -46,6 +47,142 @@
   let cachedLinkedPlayersMap = null;
   let lastLinkedPlayersFetchTime = 0;
   const LINKED_PLAYERS_CACHE_TTL = 20 * 60 * 1000; // 20 minutos de caché estricto para proteger la cuota Spark
+
+  /* =========================================================
+     IndexedDB Local Cache (PlayerStatsCacheDB)
+     - 'photos': { playerId, photoHash, dataUrl, updatedAt }
+     - 'sessions': { sessionId, data, updatedAt }
+     ========================================================= */
+  const DB_NAME = 'PlayerStatsCacheDB';
+  const DB_VERSION = 1;
+  let idbInstance = null;
+
+  function openIndexedDB() {
+    if (idbInstance) return Promise.resolve(idbInstance);
+    return new Promise((resolve) => {
+      if (typeof window === 'undefined' || !window.indexedDB) {
+        return resolve(null);
+      }
+      try {
+        const req = window.indexedDB.open(DB_NAME, DB_VERSION);
+        req.onupgradeneeded = (e) => {
+          const idb = e.target.result;
+          if (!idb.objectStoreNames.contains('photos')) {
+            idb.createObjectStore('photos', { keyPath: 'playerId' });
+          }
+          if (!idb.objectStoreNames.contains('sessions')) {
+            idb.createObjectStore('sessions', { keyPath: 'sessionId' });
+          }
+        };
+        req.onsuccess = (e) => {
+          idbInstance = e.target.result;
+          resolve(idbInstance);
+        };
+        req.onerror = () => {
+          console.warn('[CacheDB] Error abriendo IndexedDB');
+          resolve(null);
+        };
+      } catch (err) {
+        console.warn('[CacheDB] Excepción abriendo IndexedDB:', err);
+        resolve(null);
+      }
+    });
+  }
+
+  const CacheDB = {
+    getPhoto: async function (playerId) {
+      if (!playerId) return null;
+      try {
+        const idb = await openIndexedDB();
+        if (idb) {
+          return new Promise((res) => {
+            const tx = idb.transaction('photos', 'readonly');
+            const store = tx.objectStore('photos');
+            const req = store.get(playerId);
+            req.onsuccess = () => res(req.result || null);
+            req.onerror = () => res(null);
+          });
+        }
+      } catch (e) {}
+      try {
+        const raw = localStorage.getItem('photo_cache_' + playerId);
+        return raw ? JSON.parse(raw) : null;
+      } catch (e) { return null; }
+    },
+
+    setPhoto: async function (playerId, photoHash, dataUrl) {
+      if (!playerId || !dataUrl) return false;
+      const record = {
+        playerId,
+        photoHash: photoHash || '',
+        dataUrl,
+        updatedAt: Date.now()
+      };
+      try {
+        const idb = await openIndexedDB();
+        if (idb) {
+          return new Promise((res) => {
+            const tx = idb.transaction('photos', 'readwrite');
+            const store = tx.objectStore('photos');
+            store.put(record);
+            tx.oncomplete = () => res(true);
+            tx.onerror = () => res(false);
+          });
+        }
+      } catch (e) {}
+      try {
+        localStorage.setItem('photo_cache_' + playerId, JSON.stringify(record));
+        return true;
+      } catch (e) { return false; }
+    },
+
+    getSession: async function (sessionId) {
+      if (!sessionId) return null;
+      try {
+        const idb = await openIndexedDB();
+        if (idb) {
+          return new Promise((res) => {
+            const tx = idb.transaction('sessions', 'readonly');
+            const store = tx.objectStore('sessions');
+            const req = store.get(sessionId);
+            req.onsuccess = () => res(req.result ? req.result.data : null);
+            req.onerror = () => res(null);
+          });
+        }
+      } catch (e) {}
+      try {
+        const raw = localStorage.getItem('session_cache_' + sessionId);
+        return raw ? JSON.parse(raw) : null;
+      } catch (e) { return null; }
+    },
+
+    setSession: async function (sessionId, sessionData) {
+      if (!sessionId || !sessionData) return false;
+      const record = {
+        sessionId,
+        data: sessionData,
+        updatedAt: Date.now()
+      };
+      try {
+        const idb = await openIndexedDB();
+        if (idb) {
+          return new Promise((res) => {
+            const tx = idb.transaction('sessions', 'readwrite');
+            const store = tx.objectStore('sessions');
+            store.put(record);
+            tx.oncomplete = () => res(true);
+            tx.onerror = () => res(false);
+          });
+        }
+      } catch (e) {}
+      try {
+        localStorage.setItem('session_cache_' + sessionId, JSON.stringify(sessionData));
+        return true;
+      } catch (e) { return false; }
+    }
+  };
+
+  global.CacheDB = CacheDB;
 
   function loadPersistedSyncState() {
     try {
@@ -57,6 +194,7 @@
           syncedHashes = {
             root: parsed.root || '',
             players: parsed.players || {},
+            photos: parsed.photos || {},
             convocations: parsed.convocations || {},
             sessions: parsed.sessions || {}
           };
@@ -250,14 +388,75 @@
         isSyncing = true;
         this._notifyStatus('syncing');
 
-        // Optimizar y comprimir fotos de jugadores
+        // 1. Capa Caliente: Pre-computar estadísticas agregadas y desacoplar fotos
         const sanitizedPlayers = await Promise.all((stateData.players || []).map(async (p) => {
           const copy = Object.assign({}, p);
           delete copy.originalPhoto;
           delete copy.cropSettings;
-          if (copy.photo && copy.photo.length > 8000) {
-            copy.photo = await Cloud._compressPhotoForCloud(copy.photo, 128, 0.68);
+
+          // Si tiene foto y no tiene photoHash, generarlo
+          if (copy.photo && !copy.photoHash) {
+            copy.photoHash = 'p_' + Date.now().toString(36);
           }
+
+          // Guardar en IndexedDB localmente de inmediato
+          if (copy.photo && copy.photoHash) {
+            CacheDB.setPhoto(copy.id, copy.photoHash, copy.photo);
+          }
+
+          // Pre-computar Capa Caliente (los 6 atributos actuales, OVR, mvpCount, streak, etc.)
+          if (global.Store && Store.calculatePlayerRadar) {
+            copy.radar = Store.calculatePlayerRadar(copy.id, stateData.sessions);
+          }
+          if (global.FutCard && FutCard.computeOvr && copy.radar) {
+            copy.ovr = FutCard.computeOvr(copy.radar, copy.mainPosition);
+          }
+          if (global.Store && Store.calculatePlayerMvpCount) {
+            copy.mvpCount = Store.calculatePlayerMvpCount(copy.id);
+          }
+          if (global.Store && Store.calculatePlayerAttendanceStreak) {
+            copy.streak = Store.calculatePlayerAttendanceStreak(copy.id);
+          }
+          if (global.Store && Store.getPlayerStreakMilestone) {
+            copy.medals = Store.getPlayerStreakMilestone(copy.streak);
+          }
+          if (global.Store && Store.calculatePlayerStats) {
+            copy.statsSummary = Store.calculatePlayerStats(copy.id, stateData.sessions);
+          }
+          if (global.Store && Store.getPlayer1v1Stats) {
+            copy.duel1v1 = Store.getPlayer1v1Stats(copy.id, stateData.sessions);
+          }
+
+          // Historial resumido de partidos para este jugador
+          const pMatches = (stateData.sessions || [])
+            .filter(s => s && s.type === 'match' && s.stats && s.stats[copy.id] && Object.values(s.stats[copy.id]).some(v => v > 0))
+            .slice(0, 25)
+            .map(s => {
+              const st = s.stats[copy.id] || {};
+              const r = (global.Store && Store.calculateMatchRating) ? Store.calculateMatchRating(st, copy.mainPosition) : 6.0;
+              const totP = (st.passOk || 0) + (st.passKo || 0);
+              return {
+                sessionId: s.id,
+                date: s.date || '',
+                title: s.title || '',
+                rival: s.rival || '',
+                score: s.score || '',
+                rating: r,
+                goal: st.goal || 0,
+                assist: st.assist || 0,
+                passOk: st.passOk || 0,
+                passKo: st.passKo || 0,
+                totalPass: totP,
+                passPct: totP > 0 ? Math.round(((st.passOk || 0) / totP) * 100) : null,
+                shotOn: st.shotOn || 0,
+                shotOff: st.shotOff || 0,
+                recovery: st.recovery || st.recoveries || 0,
+                touches: st.touches || 0,
+                dribbleOk: st.dribbleOk || 0
+              };
+            });
+          copy.matchHistorySummary = pMatches;
+
           return copy;
         }));
 
@@ -294,8 +493,33 @@
 
         const clubRef = db.collection('clubs').doc(CLUB_ID);
 
-        // 1. Guardar documento raíz (configuración, perfil, equipos, horarios recurrentes y metadatos)
-        // Se purgan 'players', 'convocations', 'sessions' del doc raíz para evitar superar el límite de 1MB de Firestore
+        // 1. Guardar documento raíz (Capa Caliente: configuración, perfil, equipos, horarios, latestMatchMvp y sessionsSummary)
+        const matchSessions = (stateData.sessions || [])
+          .filter(s => s && s.type === 'match' && s.date)
+          .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        const latestMatch = matchSessions[0] || null;
+        const latestMatchMvp = latestMatch ? {
+          id: latestMatch.id,
+          title: latestMatch.title || 'Partido',
+          rival: latestMatch.rival || '',
+          date: latestMatch.date,
+          coachPicks: latestMatch.coachPicks || [],
+          officialMvpId: latestMatch.officialMvpId || latestMatch.mvpWinnerId || null,
+          stats: latestMatch.stats || {}
+        } : null;
+
+        const sessionsSummary = (stateData.sessions || []).map(s => ({
+          id: s.id,
+          type: s.type || 'training',
+          date: s.date || '',
+          time: s.time || '',
+          title: s.title || '',
+          rival: s.rival || '',
+          score: s.score || '',
+          coachPicks: s.coachPicks || [],
+          officialMvpId: s.officialMvpId || s.mvpWinnerId || null
+        })).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
         const rootPayload = {
           teams: stateData.teams || [],
           recurringSchedules: stateData.recurringSchedules || [],
@@ -306,6 +530,8 @@
             convocatoriaWebUrl: (stateData.settings && stateData.settings.convocatoriaWebUrl) || '',
             forceCachePurgeTimestamp: (stateData.settings && stateData.settings.forceCachePurgeTimestamp) || 0
           },
+          latestMatchMvp: latestMatchMvp,
+          sessionsSummary: sessionsSummary,
           schemaVersion: 2,
           updatedAt: global.firebase.firestore.FieldValue.serverTimestamp(),
           clientTime: now,
@@ -318,7 +544,9 @@
           teams: rootPayload.teams,
           recurringSchedules: rootPayload.recurringSchedules,
           coachProfile: rootPayload.coachProfile,
-          settings: rootPayload.settings
+          settings: rootPayload.settings,
+          latestMatchMvp: rootPayload.latestMatchMvp,
+          sessionsSummary: rootPayload.sessionsSummary
         });
 
         // Solo escribe el doc raíz si ha cambiado o si se fuerza la primera sincronización
@@ -353,14 +581,32 @@
 
         const batchOps = [];
 
-        // 3. Subcolección de Jugadores (clubs/default_club/players/{playerId}) - DELTA SYNC
+        // 3. Subcolección de Jugadores (clubs/default_club/players/{playerId}) - DELTA SYNC + FOTOS DESACOPLADAS
         const activePlayerIds = new Set();
         sanitizedPlayers.forEach(p => {
           if (!p || !p.id) return;
           activePlayerIds.add(p.id);
           knownRemotePlayerIds.add(p.id);
 
+          // Si el jugador tiene foto, sincronizarla en la subcolección desacoplada player_photos
+          if (p.photo && p.photoHash) {
+            if (syncedHashes.photos[p.id] !== p.photoHash) {
+              const photoRef = clubRef.collection('player_photos').doc(p.id);
+              batchOps.push(batch => batch.set(photoRef, {
+                playerId: p.id,
+                photo: p.photo,
+                photoHash: p.photoHash,
+                updatedAt: global.firebase.firestore.FieldValue.serverTimestamp()
+              }, { merge: true }));
+              syncedHashes.photos[p.id] = p.photoHash;
+            }
+          }
+
           const cleanP = cleanUndefined(p);
+          // DESACOPLAR FOTO: Quitar string Base64 del documento de estadísticas del jugador
+          cleanP.photo = '';
+          cleanP.photoHash = p.photoHash || '';
+
           // Si el jugador ya no está desvinculado, eliminar la propiedad unlinkedAt de Firestore
           if (!cleanP.unlinkedAt && global.firebase?.firestore?.FieldValue) {
             cleanP.unlinkedAt = global.firebase.firestore.FieldValue.delete();
@@ -377,8 +623,11 @@
           if (!activePlayerIds.has(id)) {
             const pRef = clubRef.collection('players').doc(id);
             batchOps.push(batch => batch.delete(pRef));
+            const photoRef = clubRef.collection('player_photos').doc(id);
+            batchOps.push(batch => batch.delete(photoRef));
             knownRemotePlayerIds.delete(id);
             delete syncedHashes.players[id];
+            delete syncedHashes.photos[id];
           }
         });
 
@@ -588,9 +837,12 @@
             finalConvs = root.convocations;
           }
 
-          let finalSessions = currentSessions;
-          if (!hasSubSessions && !hasReceivedSessionsSnapshot && Array.isArray(root.sessions) && root.sessions.length > 0) {
-            finalSessions = root.sessions;
+          let finalSessions = [];
+          if (root.sessionsSummary && Array.isArray(root.sessionsSummary)) {
+            finalSessions = root.sessionsSummary.slice();
+          }
+          if (root.latestMatchMvp && !finalSessions.some(s => s.id === root.latestMatchMvp.id)) {
+            finalSessions.unshift(root.latestMatchMvp);
           }
 
           const combined = {
@@ -606,6 +858,7 @@
             players: finalPlayers !== null ? finalPlayers : (root.players || []),
             convocations: finalConvs,
             sessions: finalSessions,
+            latestMatchMvp: root.latestMatchMvp || null,
             updatedAt: root.updatedAt || null,
             clientTime: root.clientTime || Date.now(),
             schemaVersion: 2,
@@ -615,7 +868,7 @@
           onStateUpdate(combined);
         }
 
-        // 1. Listener del Documento Raíz (Configuraciones, Perfil, Equipos y Horarios)
+        // 1. Listener del Documento Raíz (Capa Caliente: Configuraciones, Perfil, Equipos, Horarios, latestMatchMvp, sessionsSummary)
         const rootUnsub = clubRef.onSnapshot((doc) => {
           if (doc.exists) {
             currentRootData = doc.data();
@@ -625,7 +878,7 @@
           console.error('[Cloud] Error escuchando doc raíz del club:', err);
         });
 
-        // 2. Listener de la Subcolección de Jugadores
+        // 2. Listener de la Subcolección de Jugadores (Capa Caliente ligera sin fotos pesadas)
         const playersUnsub = clubRef.collection('players').onSnapshot((snapshot) => {
           hasReceivedPlayersSnapshot = true;
           const list = [];
@@ -654,26 +907,13 @@
           console.warn('[Cloud] Error escuchando subcolección convocations:', err);
         });
 
-        // 4. Listener de la Subcolección de Sesiones (Partidos y Entrenamientos)
-        const sessionsUnsub = clubRef.collection('sessions').limit(25).onSnapshot((snapshot) => {
-          hasReceivedSessionsSnapshot = true;
-          const list = [];
-          snapshot.forEach(doc => {
-            const data = doc.data();
-            if (data && data.id) list.push(data);
-          });
-          list.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.createdAt || 0) - (a.createdAt || 0));
-          currentSessions = list;
-          emitCombinedState();
-        }, (err) => {
-          console.warn('[Cloud] Error escuchando subcolección sessions:', err);
-        });
+        // Nota: Las sesiones brutas (Capa Fría) NO se descargan en masa al abrir la app.
+        // Se cargan bajo demanda con Cloud.fetchSessionDetail(sessionId) y se cachean en IndexedDB/localStorage.
 
         stateUnsubscribe = function unsubscribeAll() {
           try { if (rootUnsub) rootUnsub(); } catch (e) {}
           try { if (playersUnsub) playersUnsub(); } catch (e) {}
           try { if (convsUnsub) convsUnsub(); } catch (e) {}
-          try { if (sessionsUnsub) sessionsUnsub(); } catch (e) {}
         };
 
         return stateUnsubscribe;
@@ -681,6 +921,118 @@
         console.error('[Cloud] Error configurando listeners de estado modular:', err);
         return null;
       }
+    },
+
+    // Descarga/hidrata fotos de jugadores desde IndexedDB con descarga bajo demanda de Firestore si photoHash cambió
+    hydratePlayerPhotos: async function (players, onPhotoLoaded) {
+      if (!Array.isArray(players) || players.length === 0) return;
+      await Promise.all(players.map(async (p) => {
+        if (!p || !p.id || !p.photoHash) return;
+        // 1. Intentar cargar desde IndexedDB
+        try {
+          const cached = await CacheDB.getPhoto(p.id);
+          if (cached && cached.photoHash === p.photoHash && cached.dataUrl) {
+            p.photo = cached.dataUrl;
+            if (typeof onPhotoLoaded === 'function') onPhotoLoaded(p);
+            return;
+          }
+        } catch (e) {}
+
+        // 2. Si no está en IndexedDB o photoHash cambió, descargar de Firestore
+        try {
+          if (!this.init()) return;
+          const photoDoc = await db.collection('clubs').doc(CLUB_ID).collection('player_photos').doc(p.id).get();
+          if (photoDoc.exists) {
+            const data = photoDoc.data();
+            if (data && data.photo) {
+              p.photo = data.photo;
+              p.photoHash = data.photoHash || p.photoHash;
+              await CacheDB.setPhoto(p.id, p.photoHash, p.photo);
+              if (typeof onPhotoLoaded === 'function') onPhotoLoaded(p);
+            }
+          }
+        } catch (err) {
+          console.warn('[Cloud] Error descargando foto para jugador', p.id, err);
+        }
+      }));
+    },
+
+    // Capa Fría: Carga bajo demanda el detalle bruto de una sesión específica cacheando en IndexedDB/localStorage
+    fetchSessionDetail: async function (sessionId) {
+      if (!sessionId) return null;
+      // 1. Comprobar en IndexedDB / localStorage
+      try {
+        const cached = await CacheDB.getSession(sessionId);
+        if (cached && typeof cached === 'object' && cached.stats) {
+          return cached;
+        }
+      } catch (e) {}
+
+      // 2. Si no está en caché, descargar de Firestore
+      try {
+        if (!this.init()) return null;
+        const sDoc = await db.collection('clubs').doc(CLUB_ID).collection('sessions').doc(sessionId).get();
+        if (sDoc.exists) {
+          const data = sDoc.data();
+          await CacheDB.setSession(sessionId, data);
+          return data;
+        }
+      } catch (err) {
+        console.warn('[Cloud] Error cargando detalle de sesión de Capa Fría:', sessionId, err);
+      }
+      return null;
+    },
+
+    // Procesa y recorta fotos a WebP (400x400) en el cliente
+    processPlayerPhotoWebp: function (fileOrDataUrl) {
+      if (global.IO && IO.processPlayerPhotoWebp) {
+        return IO.processPlayerPhotoWebp(fileOrDataUrl);
+      }
+      return new Promise((resolve) => {
+        function processImgData(dataUrl) {
+          if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image')) {
+            return resolve({ dataUrl: '', photoHash: '' });
+          }
+          const img = new Image();
+          img.onload = () => {
+            try {
+              const canvas = document.createElement('canvas');
+              canvas.width = 400;
+              canvas.height = 400;
+              const ctx = canvas.getContext('2d');
+              ctx.imageSmoothingEnabled = true;
+              ctx.imageSmoothingQuality = 'high';
+
+              const s = Math.min(img.width, img.height);
+              const sx = (img.width - s) / 2;
+              const sy = (img.height - s) / 2;
+              ctx.drawImage(img, sx, sy, s, s, 0, 0, 400, 400);
+
+              let webpUrl = canvas.toDataURL('image/webp', 0.80);
+              if (!webpUrl || !webpUrl.startsWith('data:image/webp')) {
+                webpUrl = canvas.toDataURL('image/jpeg', 0.80);
+              }
+              const photoHash = 'p_' + Date.now().toString(36);
+              resolve({ dataUrl: webpUrl, photoHash });
+            } catch (e) {
+              resolve({ dataUrl, photoHash: 'p_' + Date.now().toString(36) });
+            }
+          };
+          img.onerror = () => resolve({ dataUrl: '', photoHash: '' });
+          img.src = dataUrl;
+        }
+
+        if (typeof fileOrDataUrl === 'string') {
+          processImgData(fileOrDataUrl);
+        } else if (fileOrDataUrl instanceof Blob || fileOrDataUrl instanceof File) {
+          const reader = new FileReader();
+          reader.onload = () => processImgData(reader.result);
+          reader.onerror = () => resolve({ dataUrl: '', photoHash: '' });
+          reader.readAsDataURL(fileOrDataUrl);
+        } else {
+          resolve({ dataUrl: '', photoHash: '' });
+        }
+      });
     },
 
     // Envía el voto de asistencia de un jugador (Asiste / Baja / Pendiente restablecido)
@@ -1752,8 +2104,10 @@
       } catch (err) {
         return null;
       }
-    }
+    },
+    CacheDB: CacheDB
   };
 
   global.Cloud = Cloud;
+  global.CacheDB = CacheDB;
 })(typeof window !== 'undefined' ? window : this);

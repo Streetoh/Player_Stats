@@ -6320,15 +6320,32 @@
           body.querySelector('#btn-share-guide').onclick = () => showSkillGuideModal();
         };
 
-        // Si el jugador tiene foto, cargarla como imagen HTML antes de pintar
+        // Si el jugador tiene foto, cargarla como imagen HTML antes de pintar (con soporte para caché IndexedDB)
+        const prepareAndRender = (photoSrc) => {
+          if (photoSrc) {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => renderCanvasContent(img);
+            img.onerror = () => renderCanvasContent(null);
+            img.src = photoSrc;
+          } else {
+            renderCanvasContent(null);
+          }
+        };
+
         if (player.photo) {
-          const img = new Image();
-          img.crossOrigin = 'anonymous';
-          img.onload = () => renderCanvasContent(img);
-          img.onerror = () => renderCanvasContent(null);
-          img.src = player.photo;
+          prepareAndRender(player.photo);
+        } else if (player.photoHash && window.CacheDB && window.CacheDB.getPhoto) {
+          window.CacheDB.getPhoto(player.id).then(cached => {
+            if (cached && cached.dataUrl) {
+              player.photo = cached.dataUrl;
+              prepareAndRender(player.photo);
+            } else {
+              prepareAndRender(null);
+            }
+          }).catch(() => prepareAndRender(null));
         } else {
-          renderCanvasContent(null);
+          prepareAndRender(null);
         }
       }, 50);
     });
@@ -9581,6 +9598,7 @@
   function showEditPlayerModal(player, onSaved) {
     const isEdit = !!player;
     let photoData = player ? player.photo || '' : '';
+    let photoHash = player ? player.photoHash || '' : '';
     const parentContact = (player && player.parentContact) || { name: '', phone: '', email: '' };
     let selectedSecondary = (player && Array.isArray(player.secondaryPositions)) 
       ? [...player.secondaryPositions] 
@@ -9591,6 +9609,20 @@
     const initialAge = player && player.birthDate ? calculateAgeYearsMonths(player.birthDate, curLang) : '';
 
     openSheet(isEdit ? t('editPlayer') : t('newPlayer'), (body) => {
+      // Si la foto no está en memoria pero existe en caché IndexedDB, hidratarla
+      if (!photoData && player && player.id && window.CacheDB && window.CacheDB.getPhoto) {
+        window.CacheDB.getPhoto(player.id).then(cached => {
+          if (cached && cached.dataUrl) {
+            photoData = cached.dataUrl;
+            player.photo = cached.dataUrl;
+            const preview = body.querySelector('#photo-preview');
+            if (preview) {
+              preview.innerHTML = `<img src="${photoData}" alt="" /><div class="cam">${icon('camera', 16)}</div>`;
+            }
+          }
+        }).catch(() => {});
+      }
+
       body.innerHTML = `
         <div class="photo-pick">
           <div class="avatar lg" id="photo-preview">
@@ -9790,10 +9822,21 @@
       photoInput.onchange = async () => {
         if (!photoInput.files || !photoInput.files[0]) return;
         const file = photoInput.files[0];
-        const dataUrl = await IO.readFileDataURL(file);
-        const shrunken = await IO.shrinkPhoto(dataUrl, 180);
-        photoData = shrunken;
-        photoPreview.innerHTML = `<img src="${shrunken}" alt="" /><div class="cam">${icon('camera', 16)}</div>`;
+        try {
+          if (window.IO && window.IO.processPlayerPhotoWebp) {
+            const res = await window.IO.processPlayerPhotoWebp(file);
+            photoData = res.dataUrl;
+            photoHash = res.photoHash;
+          } else {
+            const dataUrl = await IO.readFileDataURL(file);
+            const shrunken = await IO.shrinkPhoto(dataUrl, 180);
+            photoData = shrunken;
+            photoHash = 'p_' + Date.now().toString(36);
+          }
+          photoPreview.innerHTML = `<img src="${photoData}" alt="" /><div class="cam">${icon('camera', 16)}</div>`;
+        } catch (err) {
+          console.error("Error al procesar foto WebP:", err);
+        }
       };
     }, (foot) => {
       foot.innerHTML = `
@@ -9840,8 +9883,13 @@
           },
           foot,
           teamId,
-          photo: photoData
+          photo: photoData,
+          photoHash: photoHash
         });
+
+        if (photoData && photoHash && window.CacheDB && window.CacheDB.setPhoto) {
+          window.CacheDB.setPhoto(saved.id, photoHash, photoData);
+        }
 
         if (window.Cloud && window.Cloud.pushCoachState) {
           window.Cloud.pushCoachState(Store.state, true);

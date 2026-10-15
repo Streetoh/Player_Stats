@@ -38,6 +38,54 @@
     });
   }
 
+  function processPlayerPhotoWebp(fileOrDataUrl) {
+    return new Promise((resolve) => {
+      function processImgData(dataUrl) {
+        if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image')) {
+          return resolve({ dataUrl: '', photoHash: '' });
+        }
+        const img = new Image();
+        img.onload = () => {
+          try {
+            const canvas = document.createElement('canvas');
+            canvas.width = 400;
+            canvas.height = 400;
+            const ctx = canvas.getContext('2d');
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+
+            // Recorte cuadrado centrado (400x400px, estilo object-fit: cover)
+            const s = Math.min(img.width, img.height);
+            const sx = (img.width - s) / 2;
+            const sy = (img.height - s) / 2;
+
+            ctx.drawImage(img, sx, sy, s, s, 0, 0, 400, 400);
+
+            let webpUrl = canvas.toDataURL('image/webp', 0.80);
+            if (!webpUrl || !webpUrl.startsWith('data:image/webp')) {
+              webpUrl = canvas.toDataURL('image/jpeg', 0.80);
+            }
+            const photoHash = 'p_' + Date.now().toString(36);
+            resolve({ dataUrl: webpUrl, photoHash });
+          } catch (e) {
+            console.error('[IO] Error procesando imagen WebP:', e);
+            resolve({ dataUrl, photoHash: 'p_' + Date.now().toString(36) });
+          }
+        };
+        img.onerror = () => resolve({ dataUrl: '', photoHash: '' });
+        img.src = dataUrl;
+      }
+
+      if (typeof fileOrDataUrl === 'string') {
+        processImgData(fileOrDataUrl);
+      } else if (fileOrDataUrl instanceof Blob || fileOrDataUrl instanceof File) {
+        readFileDataURL(fileOrDataUrl).then(processImgData).catch(() => resolve({ dataUrl: '', photoHash: '' }));
+      } else {
+        resolve({ dataUrl: '', photoHash: '' });
+      }
+    });
+  }
+
   function shrinkPhoto(dataUrl, size) {
     size = size || 192;
     return new Promise(resolve => {
@@ -351,6 +399,7 @@
     exportSessionJSON,
     exportStatsCSV,
     shrinkPhoto,
+    processPlayerPhotoWebp,
     readFileDataURL
   };
 })();
