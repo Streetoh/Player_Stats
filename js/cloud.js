@@ -1425,7 +1425,7 @@
         if (!preview && payload.file) preview = '📎 Archivo: ' + (payload.file.name || 'documento');
 
         // 2. Actualizar último mensaje en la cabecera del chat (restaurando si estaba borrado)
-        await chatRef.set({
+        const headerUpdate = {
           id: chatId,
           deleted: false,
           isDeleted: false,
@@ -1433,7 +1433,18 @@
           lastMessageTime: payload.timestamp,
           lastSenderName: payload.senderName,
           lastSenderId: payload.senderId
-        }, { merge: true });
+        };
+        if (chatId.startsWith('team_')) {
+          headerUpdate.type = 'team';
+          headerUpdate.teamId = chatId.replace(/^team_/, '');
+        } else if (chatId.startsWith('direct_')) {
+          headerUpdate.type = 'direct';
+          headerUpdate.participants = chatId.replace(/^direct_/, '').split('_');
+        } else if (chatId.startsWith('coach_')) {
+          headerUpdate.type = 'coach';
+          headerUpdate.participants = [chatId.replace(/^coach_/, ''), 'coach'];
+        }
+        await chatRef.set(headerUpdate, { merge: true });
 
         return true;
       } catch (err) {

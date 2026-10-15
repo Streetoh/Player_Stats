@@ -10597,7 +10597,7 @@
   /* =========================================================
      ENVÍO DE RECORDATORIOS DE ASISTENCIA A JUGADORES PENDIENTES
      ========================================================= */
-  async function sendConvocationAttendanceReminder(conv) {
+  async function sendConvocationAttendanceReminder(conv, singlePlayerId = null) {
     if (!conv) return;
     const allPlayersMap = {};
     Store.sortedPlayers().forEach(p => { allPlayersMap[p.id] = p; });
@@ -10605,7 +10605,7 @@
     const calledPlayerIds = Object.keys(conv.list || {}).filter(pid => conv.list[pid] && conv.list[pid] !== 'uncalled');
     const responses = conv.responses || {};
 
-    const pendingPlayers = [];
+    let pendingPlayers = [];
     calledPlayerIds.forEach(pid => {
       const resp = responses[pid];
       const st = conv.list[pid];
@@ -10615,9 +10615,17 @@
       pendingPlayers.push(p);
     });
 
-    if (pendingPlayers.length === 0) {
-      toast(t('allResponded', '¡Todos los jugadores ya han confirmado su asistencia para este evento!'), 'info');
-      return;
+    if (singlePlayerId) {
+      pendingPlayers = pendingPlayers.filter(p => String(p.id) === String(singlePlayerId));
+      if (pendingPlayers.length === 0) {
+        toast(t('playerAlreadyResponded', 'Este jugador ya ha respondido o no está pendiente.'), 'info');
+        return;
+      }
+    } else {
+      if (pendingPlayers.length === 0) {
+        toast(t('allResponded', '¡Todos los jugadores ya han confirmado su asistencia para este evento!'), 'info');
+        return;
+      }
     }
 
     const coachName = (Store.state.coachProfile && Store.state.coachProfile.name) ? Store.state.coachProfile.name : 'Daniel Requena';
@@ -10626,7 +10634,7 @@
     const pendingPids = pendingPlayers.map(p => p.id);
 
     const reminderData = {
-      id: 'rem_' + conv.id + '_' + Date.now(),
+      id: 'rem_' + conv.id + '_' + (singlePlayerId ? singlePlayerId + '_' : '') + Date.now(),
       convId: conv.id,
       eventTitle: eventTitle,
       eventDate: eventDate,
@@ -10641,48 +10649,73 @@
       await window.Cloud.sendConvocationReminder(reminderData);
     }
 
-    // Broadcast al chat de los equipos convocados con menciones @ de todos los pendientes
-    const mentionsText = pendingPlayers.map(p => {
-      const pName = Store.playerName ? Store.playerName(p) : (p.name || 'Player');
-      const dorsal = p.mainDorsal != null ? ` #${p.mainDorsal}` : '';
-      return `@${pName}${dorsal}`;
-    }).join('\n');
-
-    const chatMessageText = `🔔 [Attendance reminder] Coach ${coachName} is waiting for your attendance response for "${eventTitle}" (${eventDate}):\n${mentionsText}\n[event:${conv.id}]`;
-
-    const targetTeamIds = (conv.teamIds && conv.teamIds.length)
-      ? conv.teamIds
-      : (conv.teamId ? [conv.teamId] : []);
-
     if (window.Cloud && window.Cloud.sendChatMessage) {
-      const chatPayload = {
-        senderId: 'coach',
-        senderName: `(Coach) ${coachName}`,
-        text: chatMessageText,
-        convId: conv.id,
-        eventTitle: eventTitle,
-        type: 'attendance_reminder'
-      };
+      if (singlePlayerId) {
+        // Enviar EXCLUSIVAMENTE al chat directo con ese jugador, nunca a chats de equipo
+        const singleP = pendingPlayers[0];
+        const pName = Store.playerName ? Store.playerName(singleP) : (singleP.name || 'Player');
+        const chatPayload = {
+          senderId: 'coach',
+          senderName: `(Coach) ${coachName}`,
+          text: `🔔 [Attendance reminder] Coach ${coachName} is waiting for your attendance response for "${eventTitle}" (${eventDate}):\n@${pName}\n[event:${conv.id}]`,
+          convId: conv.id,
+          eventTitle: eventTitle,
+          type: 'attendance_reminder'
+        };
+        try {
+          await window.Cloud.sendChatMessage(`coach_${singlePlayerId}`, chatPayload);
+        } catch (e) {
+          console.error('Error sending single attendance reminder to coach chat:', e);
+        }
+      } else {
+        // Broadcast al chat de los equipos convocados con menciones @ de todos los pendientes
+        const mentionsText = pendingPlayers.map(p => {
+          const pName = Store.playerName ? Store.playerName(p) : (p.name || 'Player');
+          const dorsal = p.mainDorsal != null ? ` #${p.mainDorsal}` : '';
+          return `@${pName}${dorsal}`;
+        }).join('\n');
 
-      if (targetTeamIds.length > 0) {
-        for (const tid of targetTeamIds) {
+        const chatMessageText = `🔔 [Attendance reminder] Coach ${coachName} is waiting for your attendance response for "${eventTitle}" (${eventDate}):\n${mentionsText}\n[event:${conv.id}]`;
+
+        const chatPayload = {
+          senderId: 'coach',
+          senderName: `(Coach) ${coachName}`,
+          text: chatMessageText,
+          convId: conv.id,
+          eventTitle: eventTitle,
+          type: 'attendance_reminder'
+        };
+
+        // Extraer equipos destinatarios ÚNICAMENTE de la convocatoria y de los jugadores convocados pendientes
+        const targetTeamSet = new Set();
+        if (conv.teamIds && Array.isArray(conv.teamIds)) {
+          conv.teamIds.forEach(tid => tid && targetTeamSet.add(tid));
+        }
+        if (conv.teamId) {
+          targetTeamSet.add(conv.teamId);
+        }
+        pendingPlayers.forEach(p => {
+          if (p.teamId) targetTeamSet.add(p.teamId);
+        });
+
+        // NUNCA hacer fallback a todos los equipos del club
+        for (const tid of targetTeamSet) {
           try {
             await window.Cloud.sendChatMessage(`team_${tid}`, chatPayload);
           } catch (e) {
             console.error('Error sending attendance reminder to team chat:', e);
           }
         }
-      } else {
-        const allTeams = Store.state.teams || [];
-        for (const tm of allTeams) {
-          try {
-            await window.Cloud.sendChatMessage(`team_${tm.id}`, chatPayload);
-          } catch (e) {}
-        }
       }
     }
 
-    toast(`🔔 Recordatorio enviado a ${pendingPids.length} jugador(es) pendiente(s)`, 'success');
+    if (singlePlayerId) {
+      const p = pendingPlayers[0];
+      const pName = Store.playerName ? Store.playerName(p) : (p.name || 'Player');
+      toast(`🔔 ${t('reminderSentToPlayer', 'Recordatorio enviado a')} ${pName}`, 'success');
+    } else {
+      toast(`🔔 Recordatorio enviado a ${pendingPids.length} jugador(es) pendiente(s)`, 'success');
+    }
   }
 
   // Navegar y abrir convocatoria directamente en el Coach App
@@ -10897,12 +10930,15 @@
                             <small style="display: block; color: var(--muted); font-size: 11px;">${p.mainPosition || 'Jugador'}</small>
                           </div>
                         </div>
-                        <div style="display: flex; gap: 6px;">
+                        <div style="display: flex; gap: 6px; align-items: center;">
+                          <button type="button" class="btn sm" data-single-remind="${p.id}" title="${t('sendReminderToPlayer', 'Enviar recordatorio a este jugador')}" style="background: rgba(245, 158, 11, 0.2); color: #fcd34d; border: 1px solid rgba(245, 158, 11, 0.5); padding: 4px 8px; font-size: 13px; font-weight: 700; border-radius: 6px; cursor: pointer;">
+                            🔔
+                          </button>
                           <button type="button" class="btn sm" data-quick-confirm="${p.id}" style="background: rgba(34, 197, 94, 0.2); color: #86efac; border: 1px solid rgba(34, 197, 94, 0.5); padding: 4px 8px; font-size: 11px; font-weight: 700;">
-                            ✓ Asiste
+                            ✓ ${t('attendanceShortYes', 'Asiste')}
                           </button>
                           <button type="button" class="btn sm" data-quick-decline="${p.id}" style="background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.5); padding: 4px 8px; font-size: 11px; font-weight: 700;">
-                            ✕ Baja
+                            ✕ ${t('attendanceShortNo', 'Baja')}
                           </button>
                         </div>
                       </div>
@@ -10983,6 +11019,23 @@
             showEditConvocationModal(conv.id, onDone);
           };
         }
+
+        body.querySelectorAll('[data-single-remind]').forEach(b => {
+          b.onclick = async (e) => {
+            e.stopPropagation();
+            const pid = b.getAttribute('data-single-remind');
+            b.disabled = true;
+            b.style.opacity = '0.5';
+            try {
+              await sendConvocationAttendanceReminder(conv, pid);
+            } finally {
+              setTimeout(() => {
+                b.disabled = false;
+                b.style.opacity = '1';
+              }, 2000);
+            }
+          };
+        });
 
         body.querySelectorAll('[data-quick-confirm]').forEach(b => {
           b.onclick = () => {

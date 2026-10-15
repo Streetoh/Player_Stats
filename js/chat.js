@@ -721,11 +721,25 @@
               isParticipant = true;
             }
           } else {
-            isParticipant =
-              (c.id === 'coach_' + sCurUserId) ||
-              (c.id.startsWith('direct_') && c.id.split('_').slice(1).map(String).includes(sCurUserId)) ||
-              ((c.type === 'team' || c.id.startsWith('team_')) && (!c.teamId || !myTeamId || c.teamId === myTeamId || c.id === 'team_' + myTeamId)) ||
-              (Array.isArray(c.participants) && c.participants.some(p => String(p) === sCurUserId));
+            if (c.id === 'general') {
+              isParticipant = true;
+            } else if (c.id === 'coach_' + sCurUserId) {
+              isParticipant = true;
+            } else if (c.id.startsWith('direct_')) {
+              isParticipant = Array.isArray(c.participants)
+                ? c.participants.map(String).includes(sCurUserId)
+                : c.id.split('_').slice(1).map(String).includes(sCurUserId);
+            } else if (c.type === 'team' || c.id.startsWith('team_')) {
+              const chatTeamId = c.teamId || c.id.replace(/^team_/, '');
+              if (chatTeamId === 'general') {
+                isParticipant = true;
+              } else {
+                const effectiveTeamId = myTeamId || (typeof localStorage !== 'undefined' ? localStorage.getItem('portal_player_team_id') : null);
+                isParticipant = !!(effectiveTeamId && chatTeamId && String(chatTeamId) === String(effectiveTeamId));
+              }
+            } else if (Array.isArray(c.participants)) {
+              isParticipant = c.participants.some(p => String(p) === sCurUserId);
+            }
           }
 
           if (!isParticipant) return;
@@ -858,11 +872,12 @@
 
         // Identificar equipo del jugador si no es coach
         const myP = allPlayers.find(p => p.id === curId);
-        const myTeamId = myP ? myP.teamId : null;
+        const myTeamId = (myP ? myP.teamId : null) || (typeof localStorage !== 'undefined' ? localStorage.getItem('portal_player_team_id') : null);
         const myTeam = allTeams.find(t => t.id === myTeamId);
 
-        // Chats del sistema
-        const defaultTeamChats = allTeams.map(tm => ({
+        // Chats del sistema (coach ve todos, jugador solo el de su equipo)
+        const teamsToMap = isCoach ? allTeams : (myTeamId ? allTeams.filter(tm => String(tm.id) === String(myTeamId)) : []);
+        const defaultTeamChats = teamsToMap.map(tm => ({
           id: `team_${tm.id}`,
           type: 'team',
           name: `🛡️ ${tm.name}`,
@@ -986,9 +1001,19 @@
               if (!parts.includes('coach')) return false;
             }
           } else {
-            if (c.type === 'team') {
-              if (c.teamId && myTeamId && c.teamId !== myTeamId) return false;
-            } else if (c.participants && !c.participants.includes(curId)) {
+            const chatTeamId = c.teamId || (c.id && c.id.startsWith('team_') ? c.id.replace(/^team_/, '') : null);
+            if (chatTeamId) {
+              if (chatTeamId === 'general') {
+                // Chat general del club si existe
+              } else if (!myTeamId || String(chatTeamId) !== String(myTeamId)) {
+                return false;
+              }
+            } else if (c.type === 'direct' || c.id.startsWith('direct_') || c.type === 'coach' || c.id.startsWith('coach_')) {
+              const parts = Array.isArray(c.participants)
+                ? c.participants.map(String)
+                : c.id.split('_').slice(1).map(String);
+              if (!parts.includes(String(curId))) return false;
+            } else if (c.participants && !c.participants.map(String).includes(String(curId))) {
               return false;
             }
           }

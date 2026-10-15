@@ -331,6 +331,16 @@
       "iCannotAttend": "❌ Cannot attend",
       "attendanceConfirmed": "🟢 Attendance confirmed",
       "absenceReported": "❌ Absent reported",
+      "sendReminderToPlayer": "Send reminder to this player",
+      "attendanceShortYes": "Attending",
+      "attendanceShortNo": "Absent",
+      "convocationReminderTitle": "Call-up Attendance Reminder",
+      "convocationReminderMsg": "The coach is waiting for your attendance response. Please respond now!",
+      "confirmAttendanceYes": "🟢 Confirm Attendance (Yes)",
+      "cannotAttendNo": "❌ Can't Attend (No)",
+      "dismiss": "Dismiss",
+      "playerAlreadyResponded": "This player has already responded or is not pending.",
+      "reminderSentToPlayer": "Reminder sent to",
       "pendingResponse": "⏳ Pending your response",
       "notCalledUp": "ℹ️ You are not on this call-up list",
       "confirmedBadge": "Confirmed",
@@ -706,6 +716,16 @@
       "iCannotAttend": "❌ Ei saa osaleda",
       "attendanceConfirmed": "🟢 Osalemine kinnitatud",
       "absenceReported": "❌ Puudumine teatatud",
+      "sendReminderToPlayer": "Saada meeldetuletus sellele mängijale",
+      "attendanceShortYes": "Osaleb",
+      "attendanceShortNo": "Puudub",
+      "convocationReminderTitle": "Kutse osalemise meeldetuletus",
+      "convocationReminderMsg": "Treener ootab sinu osalemise kinnitust. Palun vasta kohe!",
+      "confirmAttendanceYes": "🟢 Kinnita osalemine (Jah)",
+      "cannotAttendNo": "❌ Ei saa osaleda (Puudun)",
+      "dismiss": "Sulge",
+      "playerAlreadyResponded": "See mängija on juba vastanud või ei ole ootel.",
+      "reminderSentToPlayer": "Meeldetuletus saadetud mängijale",
       "pendingResponse": "⏳ Ootab sinu vastust",
       "notCalledUp": "ℹ️ Sind pole sellesse nimekirja kutsutud",
       "confirmedBadge": "Kinnitatud",
@@ -1081,6 +1101,16 @@
       "iCannotAttend": "❌ No puedo asistir",
       "attendanceConfirmed": "🟢 Asistencia confirmada",
       "absenceReported": "❌ Baja notificada",
+      "sendReminderToPlayer": "Enviar recordatorio a este jugador",
+      "attendanceShortYes": "Asiste",
+      "attendanceShortNo": "Baja",
+      "convocationReminderTitle": "Recordatorio de convocatoria",
+      "convocationReminderMsg": "El entrenador espera tu respuesta de asistencia. ¡Por favor responde ahora!",
+      "confirmAttendanceYes": "🟢 Confirmar Asistencia (Sí)",
+      "cannotAttendNo": "❌ No puedo asistir (Baja)",
+      "dismiss": "Descartar",
+      "playerAlreadyResponded": "Este jugador ya ha respondido o no está pendiente.",
+      "reminderSentToPlayer": "Recordatorio enviado a",
       "pendingResponse": "⏳ Pendiente de responder",
       "notCalledUp": "ℹ️ No estás convocado para esta cita",
       "confirmedBadge": "Confirmados",
@@ -1456,6 +1486,16 @@
       "iCannotAttend": "❌ Не смогу",
       "attendanceConfirmed": "Присутствие подтверждено",
       "absenceReported": "Причина отсутствия зафиксирована",
+      "sendReminderToPlayer": "Отправить напоминание этому игроку",
+      "attendanceShortYes": "Придет",
+      "attendanceShortNo": "Не придет",
+      "convocationReminderTitle": "Напоминание о вызове на игру",
+      "convocationReminderMsg": "Тренер ждет вашего ответа по посещаемости. Пожалуйста, ответьте прямо сейчас!",
+      "confirmAttendanceYes": "🟢 Подтвердить участие (Да)",
+      "cannotAttendNo": "❌ Не смогу прийти (Пропуск)",
+      "dismiss": "Закрыть",
+      "playerAlreadyResponded": "Этот игрок уже ответил или не находится в ожидании.",
+      "reminderSentToPlayer": "Напоминание отправлено игроку",
       "pendingResponse": "⏳ Ожидает ответа",
       "notCalledUp": "ℹ️ Ты не вызван на эту сессию",
       "confirmedBadge": "Подтвержденные",
@@ -3322,6 +3362,9 @@
     const isApproved = hasApprovedProfile();
 
     if (myP && isApproved) {
+      if (myP.teamId) {
+        try { localStorage.setItem('portal_player_team_id', myP.teamId); } catch (e) {}
+      }
       if (idContainer) idContainer.classList.remove('attention-glow');
       if (nameEl) nameEl.textContent = `#${myP.mainDorsal != null ? myP.mainDorsal : '-'} ${myP.name || ''} ${myP.lastName || ''}`.trim();
       if (avatarEl) {
@@ -3508,6 +3551,7 @@
       localStorage.removeItem('portal_pending_creation_dorsal');
       localStorage.removeItem('portal_pending_creation_pos');
       localStorage.removeItem('portal_pending_req_id');
+      localStorage.removeItem('portal_player_team_id');
       localStorage.removeItem('cached_club_state');
     } catch (e) {}
     myPlayerId = null;
@@ -4362,11 +4406,11 @@
             window.Cloud.deleteProfileClaimRequest(claimReqId);
           }
           listenToMyUnlink(pId);
-          haptic(50);
-          if (window.ChatUI && window.ChatUI.initGlobalUnreadListener) {
-            window.ChatUI.initGlobalUnreadListener(myPlayerId);
-          }
           updateHeaderIdentity();
+          const targetP = getMyPlayer();
+          if (window.ChatUI && window.ChatUI.initGlobalUnreadListener) {
+            window.ChatUI.initGlobalUnreadListener(myPlayerId, targetP ? targetP.teamId : (localStorage.getItem('portal_player_team_id') || null));
+          }
           toast(t('profileAccessApproved', '🎉 ¡Acceso autorizado por el entrenador! Ya puedes ver tu perfil.'), 'success');
           renderCurrentTab();
         } else if (data.status === 'rejected') {
@@ -8696,20 +8740,52 @@
      ------------------------------------------------------------- */
   function handleIncomingConvocationReminder(reminder) {
     if (!reminder || !reminder.id) return;
-    const seenKey = 'reminder_seen_' + reminder.id;
-    if (localStorage.getItem(seenKey)) return;
-    try { localStorage.setItem(seenKey, 'true'); } catch (e) {}
+    if (!myPlayerId) return;
 
-    const convId = reminder.convId;
-    if (convId && liveVotes[convId] && liveVotes[convId][myPlayerId]) {
-      const existingStatus = liveVotes[convId][myPlayerId].status;
-      if (existingStatus === 'called' || existingStatus === 'attending' || existingStatus === 'yes' || existingStatus === 'absent' || existingStatus === 'no') {
+    // 1. Filtrar si este recordatorio va dirigido a una lista de IDs concreta y yo NO estoy incluido
+    if (Array.isArray(reminder.targetPlayerIds) && reminder.targetPlayerIds.length > 0) {
+      if (!reminder.targetPlayerIds.map(String).includes(String(myPlayerId))) {
         return;
       }
     }
 
-    const title = reminder.title || 'Call-up Attendance Reminder';
-    const message = reminder.message || 'Coach Daniel Requena is waiting for your attendance response. Please respond now!';
+    // 2. Comprobar si el jugador realmente está convocado en este evento
+    const convId = reminder.convId;
+    if (convId && clubData && Array.isArray(clubData.convocations)) {
+      const conv = clubData.convocations.find(c => c.id === convId);
+      if (conv) {
+        // Si no está convocado o está marcado como 'uncalled' o 'absent', ignorar
+        if (!conv.list || !conv.list[myPlayerId] || conv.list[myPlayerId] === 'uncalled' || conv.list[myPlayerId] === 'absent') {
+          return;
+        }
+      }
+    }
+
+    // 3. Comprobar si ya ha respondido
+    if (convId) {
+      if (liveVotes[convId] && liveVotes[convId][myPlayerId]) {
+        const existingStatus = liveVotes[convId][myPlayerId].status;
+        if (existingStatus === 'called' || existingStatus === 'attending' || existingStatus === 'yes' || existingStatus === 'absent' || existingStatus === 'no') {
+          return;
+        }
+      }
+      if (clubData && Array.isArray(clubData.convocations)) {
+        const conv = clubData.convocations.find(c => c.id === convId);
+        if (conv && conv.responses && conv.responses[myPlayerId]) {
+          const resp = conv.responses[myPlayerId].status;
+          if (resp === 'called' || resp === 'attending' || resp === 'yes' || resp === 'absent' || resp === 'no') {
+            return;
+          }
+        }
+      }
+    }
+
+    const seenKey = 'reminder_seen_' + reminder.id + '_' + myPlayerId;
+    if (localStorage.getItem(seenKey)) return;
+    try { localStorage.setItem(seenKey, 'true'); } catch (e) {}
+
+    const title = reminder.title || t('convocationReminderTitle', 'Recordatorio de convocatoria');
+    const message = reminder.message || t('convocationReminderMsg', 'El entrenador espera tu respuesta de asistencia. ¡Por favor responde ahora!');
 
     if (window.AndroidBridge && window.AndroidBridge.showSystemNotification) {
       try { window.AndroidBridge.showSystemNotification(title, message); } catch (e) {}
@@ -8732,13 +8808,13 @@
         </p>
         <div style="display: flex; flex-direction: column; gap: 8px;">
           <button type="button" class="btn block" id="btn-remind-yes" style="height: 44px; background: linear-gradient(135deg, #10b981, #059669); color: #fff; font-weight: 900; font-size: 14px; border: none; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);">
-            🟢 Confirm Attendance (Yes)
+            ${t('confirmAttendanceYes', '🟢 Confirmar Asistencia (Sí)')}
           </button>
           <button type="button" class="btn block" id="btn-remind-no" style="height: 44px; background: rgba(239, 68, 68, 0.18); color: #fca5a5; font-weight: 800; font-size: 13.5px; border: 1.5px solid rgba(239, 68, 68, 0.4);">
-            ❌ Can't Attend (No)
+            ${t('cannotAttendNo', '❌ No puedo asistir (Baja)')}
           </button>
           <button type="button" class="btn ghost block" id="btn-remind-dismiss" style="height: 38px; color: var(--muted); font-size: 12.5px;">
-            Dismiss
+            ${t('dismiss', 'Descartar')}
           </button>
         </div>
       </div>
@@ -8864,7 +8940,9 @@
 
     // Iniciar escucha global de mensajes no leídos para el jugador si ya tiene perfil
     if (myPlayerId && window.ChatUI && window.ChatUI.initGlobalUnreadListener) {
-      window.ChatUI.initGlobalUnreadListener(myPlayerId);
+      const curP = getMyPlayer();
+      const effTeamId = (curP ? curP.teamId : null) || (typeof localStorage !== 'undefined' ? localStorage.getItem('portal_player_team_id') : null);
+      window.ChatUI.initGlobalUnreadListener(myPlayerId, effTeamId);
     }
 
     // Solicitar activación de notificaciones nativas de Android / PWA
