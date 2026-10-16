@@ -7158,33 +7158,35 @@
     if (!s) return;
 
     const allPlayers = Store.state.players || [];
-    // Determinar equipo de la sesión o de los jugadores seguidos
+    // Determinar equipo de la sesión o de los jugadores seguidos/asistentes
     const trackedPlayerIds = new Set([
-      ...Object.keys(s.stats || {}),
+      ...Object.keys(s.stats || {}).filter(pid => s.stats[pid] && Object.keys(s.stats[pid]).some(k => Number(s.stats[pid][k]) > 0)),
       ...(s.slots || []).filter(Boolean)
     ]);
+    const attendedPlayerIds = new Set(
+      Object.keys(s.attendance || {}).filter(pid => Store.hasPlayerAttended(s, pid))
+    );
 
     const sessionTeams = Array.isArray(s.teamIds) && s.teamIds.length > 0
       ? s.teamIds
       : (s.teamId ? [s.teamId] : []);
 
     let defaultTeamFilter = sessionTeams.length > 1 ? 'session_teams' : (sessionTeams[0] || 'all');
-    if (defaultTeamFilter === 'all' && trackedPlayerIds.size > 0) {
-      for (const pid of trackedPlayerIds) {
+    if (defaultTeamFilter === 'all' && (trackedPlayerIds.size > 0 || attendedPlayerIds.size > 0)) {
+      for (const pid of [...trackedPlayerIds, ...attendedPlayerIds]) {
         const p = Store.player(pid);
         if (p && p.teamId) { defaultTeamFilter = p.teamId; break; }
       }
     }
-
     let selectedTeamFilter = defaultTeamFilter;
 
     let participatingTeams = [];
     if (sessionTeams.length > 0) {
       participatingTeams = sessionTeams.map(tid => Store.team(tid)).filter(Boolean);
     }
-    if (participatingTeams.length === 0 && trackedPlayerIds.size > 0) {
+    if (participatingTeams.length === 0 && (trackedPlayerIds.size > 0 || attendedPlayerIds.size > 0)) {
       const seen = new Set();
-      trackedPlayerIds.forEach(pid => {
+      [...trackedPlayerIds, ...attendedPlayerIds].forEach(pid => {
         const pl = Store.player(pid);
         if (pl && pl.teamId && !seen.has(pl.teamId)) {
           seen.add(pl.teamId);
@@ -7205,12 +7207,12 @@
           return p.teamId === selectedTeamFilter;
         });
         const sortedSquad = filteredPlayers.slice().sort((a, b) => {
-          const aTracked = trackedPlayerIds.has(a.id) ? 1 : 0;
-          const bTracked = trackedPlayerIds.has(b.id) ? 1 : 0;
-          if (bTracked !== aTracked) return bTracked - aTracked;
+          const aScore = (trackedPlayerIds.has(a.id) ? 2 : 0) + (Store.hasPlayerAttended(s, a.id) ? 1 : 0);
+          const bScore = (trackedPlayerIds.has(b.id) ? 2 : 0) + (Store.hasPlayerAttended(s, b.id) ? 1 : 0);
+          if (bScore !== aScore) return bScore - aScore;
           return (a.name || '').localeCompare(b.name || '');
         });
-        const trackedCount = sortedSquad.filter(p => trackedPlayerIds.has(p.id)).length;
+        const trackedCount = sortedSquad.filter(p => trackedPlayerIds.has(p.id) || Store.hasPlayerAttended(s, p.id)).length;
 
         // Calcular MVP del partido con volumen de juego o MVP Oficial fijado
         let mvpMatchPlayer = null;
@@ -7444,22 +7446,36 @@
               </div>
             ` : sortedSquad.map(p => {
               const isTracked = trackedPlayerIds.has(p.id);
+              const attStatus = Store.getPlayerAttendanceStatus(s, p.id);
+              const isPresent = (attStatus === 'present' || attStatus === 'late');
               const pStats = (s.stats && s.stats[p.id]) || {};
               const rating = Store.calculateMatchRating(pStats, p.mainPosition);
 
+              let attBadgeHtml = '';
+              if (attStatus === 'present') {
+                attBadgeHtml = `<span class="badge" style="background: rgba(34, 197, 94, 0.2); color: #86efac; border: 1px solid rgba(34, 197, 94, 0.45); font-size: 10px; font-weight: 800; padding: 1px 6px;">🟢 ${t('attPresent', 'Presente')}</span>`;
+              } else if (attStatus === 'late') {
+                attBadgeHtml = `<span class="badge" style="background: rgba(250, 204, 21, 0.2); color: #fde047; border: 1px solid rgba(250, 204, 21, 0.45); font-size: 10px; font-weight: 800; padding: 1px 6px;">⏰ ${t('attLate', 'Retraso')}</span>`;
+              } else if (attStatus === 'justified') {
+                attBadgeHtml = `<span class="badge" style="background: rgba(56, 189, 248, 0.2); color: #7dd3fc; border: 1px solid rgba(56, 189, 248, 0.45); font-size: 10px; font-weight: 800; padding: 1px 6px;">🟡 ${t('attJustified', 'Justificado')}</span>`;
+              } else if (attStatus === 'absent') {
+                attBadgeHtml = `<span class="badge" style="background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.45); font-size: 10px; font-weight: 800; padding: 1px 6px;">❌ ${t('attAbsent', 'Ausente')}</span>`;
+              }
+
               return `
-                <div class="player-match-row ${isTracked ? 'tracked' : ''}" data-player-id="${p.id}">
+                <div class="player-match-row ${(isTracked || isPresent) ? 'tracked' : ''}" data-player-id="${p.id}">
                   ${renderAvatar(p, 'sm')}
                   <div class="grow ellipsis">
-                    <div style="display: flex; align-items: center; gap: 6px;">
+                    <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
                       <b style="font-size: 14px;">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(Store.playerName(p))}</b>
-                      ${isTracked ? '<span class="tracked-badge">🟢 Seguido</span>' : ''}
+                      ${isTracked ? '<span class="tracked-badge">📊 Seguido</span>' : ''}
+                      ${attBadgeHtml}
                     </div>
                     <small style="color: var(--muted); font-size: 11.5px; display: block; margin-top: 1px;">
-                      ${p.mainPosition || 'Jugador'} ${isTracked ? `• ⭐ ${rating.toFixed(1)} nota` : '• (No registrado / Suplente)'}
+                      ${p.mainPosition || 'Jugador'} ${isTracked ? `• ⭐ ${rating.toFixed(1)} nota` : (isPresent ? '• ✅ Asistencia guardada (Sin seguimiento)' : '• (No registrado / Suplente)')}
                     </small>
                   </div>
-                  ${isTracked ? `
+                  ${(isTracked || isPresent) ? `
                     <div style="font-size: 12px; font-weight: 800; text-align: right; color: var(--cyan);">
                       <div>${pStats.goal ? `⚽ ${pStats.goal} ` : ''}${pStats.shotOn ? `🎯 ${pStats.shotOn} ` : ''}</div>
                       <div style="color: var(--dim); font-size: 11px;">Ver ficha ></div>
@@ -9231,8 +9247,8 @@
         const tabTimeline = Store.playerTimeline(p.id, 'rating', sessList);
 
         return `
-          <!-- Tarjeta de Valoración del Contexto -->
-          <div class="card" style="padding: 12px 14px; margin-bottom: 12px; border: 1px solid ${isMatch ? 'rgba(250, 204, 21, 0.35)' : 'rgba(34, 211, 238, 0.35)'}; background: ${isMatch ? 'linear-gradient(135deg, rgba(250, 204, 21, 0.12), rgba(15, 23, 42, 0.8))' : 'linear-gradient(135deg, rgba(34, 211, 238, 0.12), rgba(15, 23, 42, 0.8))'}; border-radius: 14px; display: flex; align-items: center; justify-content: space-between;">
+          <!-- Tarjeta de Valoración y Asistencia del Contexto -->
+          <div class="card" style="padding: 12px 14px; margin-bottom: 12px; border: 1px solid ${isMatch ? 'rgba(250, 204, 21, 0.35)' : 'rgba(34, 211, 238, 0.35)'}; background: ${isMatch ? 'linear-gradient(135deg, rgba(250, 204, 21, 0.12), rgba(15, 23, 42, 0.8))' : 'linear-gradient(135deg, rgba(34, 211, 238, 0.12), rgba(15, 23, 42, 0.8))'}; border-radius: 14px; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
             <div>
               <div style="font-size: 11px; font-weight: 800; color: ${isMatch ? '#fde047' : '#38bdf8'}; text-transform: uppercase;">
                 ${isMatch ? '🏆 ' + t('match') : '⚽ ' + t('training')} • ${t('performanceRating', 'Nota de Rendimiento')}
@@ -9241,9 +9257,14 @@
                 ${tabRating.toFixed(1)} <span style="font-size: 14px; color: var(--muted); font-weight: 700;">/ 10</span>
               </div>
             </div>
-            <span class="badge ${isMatch ? 'match' : 'training'}" style="font-size: 11px; font-weight: 900; padding: 4px 10px;">
-              ${agg.count} ${isMatch ? t('matchesTab', 'Partidos') : t('trainingsTab', 'Entrenamientos')}
-            </span>
+            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+              <span class="badge ${isMatch ? 'match' : 'training'}" style="font-size: 11px; font-weight: 900; padding: 4px 10px;">
+                🟢 ${agg.count} ${isMatch ? t('matchesTab', 'Partidos') : t('trainingsTab', 'Entrenamientos')}
+              </span>
+              <small style="font-size: 10.5px; color: #86efac; font-weight: 800;">
+                📋 ${t('attendance', 'Asistencia')}: ${agg.attendedCount != null ? agg.attendedCount : agg.count}
+              </small>
+            </div>
           </div>
 
           <!-- Estadísticas clave en porcentaje: % Pase, % Puntería, % Conversión -->
@@ -9410,20 +9431,28 @@
             <span>Sesiones registradas (${agg.count})</span>
           </div>
 
-          ${agg.sessions.slice(-5).reverse().map(item => `
-            <div class="session-line">
-              <div class="sl-head">
-                <span class="badge ${item.session.type}">${item.session.type === 'match' ? t('match') : t('training')}</span>
-                <b>${escapeHtml(Store.sessionTitle(item.session))}</b>
-                <span class="muted" style="font-size: 11px;">${item.session.date}</span>
+          ${agg.sessions.slice(-10).reverse().map(item => {
+            const activeStats = Store.STATS.filter(x => (item.stats[x.key] || 0) > 0);
+            const attSt = item.attendanceStatus || Store.getPlayerAttendanceStatus(item.session, p.id);
+            const attLabel = attSt === 'late'
+              ? `⏰ ${t('attLate', 'Retraso')}`
+              : `🟢 ${t('attPresent', 'Presente')}`;
+            return `
+              <div class="session-line">
+                <div class="sl-head" style="flex-wrap: wrap;">
+                  <span class="badge ${item.session.type}">${item.session.type === 'match' ? t('match') : t('training')}</span>
+                  <b>${escapeHtml(Store.sessionTitle(item.session))}</b>
+                  <span class="badge" style="background: rgba(34, 197, 94, 0.16); color: #86efac; border: 1px solid rgba(34, 197, 94, 0.38); font-size: 10px; font-weight: 800; padding: 1px 6px;">${attLabel}</span>
+                  <span class="muted" style="font-size: 11px;">${item.session.date}</span>
+                </div>
+                <div class="mini-stats">
+                  ${activeStats.length > 0 ? activeStats.map(x => `
+                    <span>${x.emoji} ${x.short}: <b>${item.stats[x.key]}</b></span>
+                  `).join('') : `<span style="color: #86efac; font-weight: 700;">✅ ${t('attendanceRecordedNoTracking', 'Asistencia registrada (Sin seguimiento individual)')}</span>`}
+                </div>
               </div>
-              <div class="mini-stats">
-                ${Store.STATS.filter(x => (item.stats[x.key] || 0) > 0).map(x => `
-                  <span>${x.emoji} ${x.short}: <b>${item.stats[x.key]}</b></span>
-                `).join('')}
-              </div>
-            </div>
-          `).join('')}
+            `;
+          }).join('')}
         `;
       }
 
@@ -13183,10 +13212,43 @@
             t('deleteAllPlans', 'Borrar todos los planes'),
             t('confirmDeleteAllPlans', '¿Estás seguro de que deseas eliminar todas las convocatorias y planes registrados? Esta acción no se puede deshacer.'),
             () => {
+              const oldConvs = (Store.state.convocations || []).slice();
+              const convIdsSet = new Set(oldConvs.map(c => c && c.id).filter(Boolean));
+              const linkedSessIdsSet = new Set(oldConvs.map(c => c && c.sessionId).filter(Boolean));
+              oldConvs.forEach(c => {
+                if (c) Store.markRecurringDeleted(c);
+              });
               Store.state.convocations = [];
+              Store.state.recurringSchedules = [];
+
+              const sessionsToDelete = [];
+              Store.state.sessions = (Store.state.sessions || []).filter(s => {
+                if (!s) return false;
+                const isLinked = (s.convocationId && convIdsSet.has(s.convocationId)) || linkedSessIdsSet.has(s.id) || !!s.scheduleId;
+                if (!isLinked) return true;
+                const hasData = (s.elapsedMs > 0) ||
+                                (s.stats && Object.keys(s.stats).length > 0) ||
+                                (s.log && s.log.length > 0) ||
+                                (s.status === 'completed');
+                if (!hasData) {
+                  Store.markRecurringDeleted(s);
+                  sessionsToDelete.push(s);
+                  return false;
+                }
+                return true;
+              });
+
               Store.save();
-              if (window.Cloud && window.Cloud.pushCoachState) {
-                window.Cloud.pushCoachState(Store.state, true);
+              if (window.Cloud) {
+                if (typeof window.Cloud.deleteConvocationFromCloud === 'function') {
+                  oldConvs.forEach(c => { if (c && c.id) window.Cloud.deleteConvocationFromCloud(c.id); });
+                }
+                if (typeof window.Cloud.deleteSessionFromCloud === 'function') {
+                  sessionsToDelete.forEach(s => { if (s && s.id) window.Cloud.deleteSessionFromCloud(s.id); });
+                }
+                if (typeof window.Cloud.pushCoachState === 'function') {
+                  window.Cloud.pushCoachState(Store.state, true);
+                }
               }
               toast(t('allPlansDeleted', 'Todos los planes han sido eliminados'), 'info');
               build();

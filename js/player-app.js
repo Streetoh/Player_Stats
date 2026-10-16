@@ -2322,15 +2322,76 @@
   /* -------------------------------------------------------------
      CÁLCULO DE MÉTRICAS DEL JUGADOR (SIN MINUTOS, CON ASISTENCIAS SEPARADAS)
      ------------------------------------------------------------- */
+  function getPlayerEffectiveSessions(pid) {
+    const allSessions = (clubData && clubData.sessions) || [];
+    const p = (clubData && clubData.players || []).find(x => x.id === pid);
+    let effective = (allSessions || []).filter(s => {
+      if (!s) return false;
+      const st = s.stats && s.stats[pid];
+      const hasStats = st && Object.values(st).some(v => Number(v) > 0);
+      const att = s.attendance && s.attendance[pid];
+      const attSt = (typeof att === 'object' && att !== null) ? att.status : att;
+      const attended = (attSt === 'present' || attSt === 'late') || (s.attended === true);
+      return hasStats || attended;
+    });
+    if (effective.length === 0 && p) {
+      const summaryList = Array.isArray(p.sessionHistorySummary) && p.sessionHistorySummary.length > 0
+        ? p.sessionHistorySummary
+        : (Array.isArray(p.matchHistorySummary) ? p.matchHistorySummary : []);
+      if (summaryList.length > 0) {
+        effective = summaryList.map(item => ({
+          id: item.sessionId || item.id,
+          type: item.type || (item.rival ? 'match' : 'training'),
+          date: item.date || '',
+          title: item.title || '',
+          rival: item.rival || '',
+          venue: item.venue || '',
+          score: item.score || null,
+          attended: item.attended !== undefined ? item.attended : true,
+          attendanceStatus: item.attendanceStatus || 'present',
+          hasStats: item.hasStats,
+          attendance: { [pid]: item.attendanceStatus || 'present' },
+          stats: {
+            [pid]: item.stats || {
+              goal: item.goal || 0,
+              assist: item.assist || 0,
+              passOk: item.passOk || 0,
+              passKo: item.passKo || 0,
+              shotOn: item.shotOn || 0,
+              shotOff: item.shotOff || 0,
+              recovery: item.recovery || item.recoveries || 0,
+              recoveries: item.recovery || item.recoveries || 0,
+              touches: item.touches || 0,
+              dribbleOk: item.dribbleOk || 0,
+              duelsWon: item.duelsWon || 0,
+              duel1v1WonGoal: item.duel1v1WonGoal || 0,
+              duel1v1WonStop: item.duel1v1WonStop || 0,
+              duel1v1LostTurnover: item.duel1v1LostTurnover || 0,
+              duel1v1LostGoal: item.duel1v1LostGoal || 0
+            }
+          }
+        }));
+      }
+    }
+    return effective;
+  }
+
   function getPlayerAggregate(pid, customSessions) {
     const totals = {};
     const perSession = [];
     const sessList = Array.isArray(customSessions) ? customSessions : ((clubData && clubData.sessions) ? clubData.sessions : []);
     sessList.forEach(s => {
-      const st = (s && s.stats) ? s.stats[pid] : null;
-      if (!st || !Object.keys(st).some(k => st[k] > 0)) return;
-      perSession.push({ session: s, stats: st });
-      Object.keys(st).forEach(k => { totals[k] = (totals[k] || 0) + (st[k] || 0); });
+      if (!s) return;
+      const st = (s.stats && s.stats[pid]) ? s.stats[pid] : {};
+      const hasStats = Object.keys(st).some(k => Number(st[k]) > 0);
+      const att = s.attendance && s.attendance[pid];
+      const attSt = (typeof att === 'object' && att !== null) ? att.status : att;
+      const attended = (attSt === 'present' || attSt === 'late') || (s.attended === true);
+      if (!hasStats && !attended) return;
+      perSession.push({ session: s, stats: st, hasStats, attended: attended || (hasStats && attSt !== 'absent'), attendanceStatus: attSt || s.attendanceStatus || (hasStats ? 'present' : null) });
+      if (hasStats) {
+        Object.keys(st).forEach(k => { totals[k] = (totals[k] || 0) + (st[k] || 0); });
+      }
     });
 
     if (perSession.length === 0 && clubData && clubData.players) {
@@ -2396,7 +2457,7 @@
     const pos = p ? p.mainPosition : 'Jugador';
 
     const sessions = Array.isArray(customSessions) ? customSessions : ((clubData && clubData.sessions) || []);
-    const hasDetailedSessions = sessions && sessions.some(s => s && s.stats && Object.keys(s.stats).length > 0);
+    const hasDetailedSessions = sessions && sessions.some(s => s && ((s.stats && Object.keys(s.stats).length > 0) || s.attended));
 
     if ((!customSessions || customSessions.length === 0) && !hasDetailedSessions && p && p.statsSummary) {
       return Object.assign({}, res, p.statsSummary);
@@ -2406,7 +2467,7 @@
         const sType = s.type === 'match' ? 'match' : 'training';
         const pStats = s.stats && s.stats[pid];
         const hasActions = pStats && Object.values(pStats).some(v => v > 0);
-        let wasPresent = hasActions || (s.list && s.list[pid] === 'called');
+        let wasPresent = hasActions || s.attended === true || (s.list && s.list[pid] === 'called');
         if (s.attendance && s.attendance[pid]) {
           const att = s.attendance[pid];
           const st = (typeof att === 'object' && att !== null) ? att.status : att;
@@ -6597,9 +6658,9 @@
     }
 
     const team = clubData.teams ? clubData.teams.find(t => t.id === myP.teamId) : null;
-    const allSessions = (clubData && clubData.sessions) || [];
-    const trainingSessions = allSessions.filter(s => (s.type || 'training') === 'training');
-    const matchSessions = allSessions.filter(s => (s.type || 'training') === 'match');
+    const effectiveSessions = getPlayerEffectiveSessions(myP.id);
+    const trainingSessions = effectiveSessions.filter(s => (s.type || 'training') === 'training');
+    const matchSessions = effectiveSessions.filter(s => (s.type || 'training') === 'match');
     const aggTraining = getPlayerAggregate(myP.id, trainingSessions);
     const aggMatch = getPlayerAggregate(myP.id, matchSessions);
     const overall = calculatePlayerOverallRating(myP.id, myP.mainPosition);
@@ -7026,86 +7087,109 @@
     const p = (clubData && clubData.players || []).find(x => x.id === pid);
     const pos = p ? p.mainPosition : 'Jugador';
 
-    // 1. Intentar con sesiones detalladas en memoria si las hay
+    // 1. Intentar con sesiones detalladas o reconstruidas en memoria si las hay
     let matches = (sessions || []).filter(s => {
-      const st = s && s.stats && s.stats[pid];
-      return st && Object.values(st).some(v => v > 0);
+      if (!s) return false;
+      const st = s.stats && s.stats[pid];
+      const hasStats = st && Object.values(st).some(v => Number(v) > 0);
+      const att = s.attendance && s.attendance[pid];
+      const attSt = (typeof att === 'object' && att !== null) ? att.status : att;
+      const attended = (attSt === 'present' || attSt === 'late') || (s.attended === true);
+      return hasStats || attended;
     }).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
-    // 2. Si no hay detalladas en memoria (capa fría desacoplada), usar matchHistorySummary de Capa Caliente
-    if (matches.length === 0 && p && Array.isArray(p.matchHistorySummary) && p.matchHistorySummary.length > 0) {
-      return p.matchHistorySummary.map(item => {
-        const st = item.stats || {};
-        const isMatch = item.type === 'match';
-        const title = item.title || (isMatch ? (item.rival ? 'vs ' + item.rival : t('match')) : t('training'));
-        const scoreStr = (item.score && (item.score.home != null || item.score.away != null))
-          ? `${item.score.home || 0} - ${item.score.away || 0}`
-          : '';
+    // 2. Si no hay detalladas en memoria (capa fría desacoplada), usar sessionHistorySummary / matchHistorySummary de Capa Caliente
+    if (matches.length === 0 && p) {
+      const summaryList = (Array.isArray(p.sessionHistorySummary) && p.sessionHistorySummary.length > 0)
+        ? p.sessionHistorySummary
+        : (Array.isArray(p.matchHistorySummary) ? p.matchHistorySummary : []);
+      if (summaryList.length > 0) {
+        return summaryList.map(item => {
+          const st = item.stats || {};
+          const hasStats = item.hasStats !== undefined ? item.hasStats : Object.values(st).some(v => Number(v) > 0);
+          const isMatch = item.type === 'match';
+          const title = item.title || (isMatch ? (item.rival ? 'vs ' + item.rival : t('match')) : t('training'));
+          const scoreStr = (item.score && (item.score.home != null || item.score.away != null))
+            ? `${item.score.home || 0} - ${item.score.away || 0}`
+            : '';
 
-        const totalP = (st.passOk || 0) + (st.passKo || 0);
-        const passPct = totalP > 0 ? Math.round(((st.passOk || 0) / totalP) * 100) : null;
-        const totalShots = (st.shotOn || 0) + (st.shotOff || 0);
+          const totalP = (st.passOk || 0) + (st.passKo || 0);
+          const passPct = totalP > 0 ? Math.round(((st.passOk || 0) / totalP) * 100) : null;
+          const totalShots = (st.shotOn || 0) + (st.shotOff || 0);
 
-        return `
-          <div class="card" style="padding: 14px; border: 1px solid var(--border); background: var(--surface2);">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
-              <div>
-                <span class="badge" style="background: ${isMatch ? 'rgba(34, 197, 94, 0.15)' : 'rgba(56, 189, 248, 0.15)'}; color: ${isMatch ? '#86efac' : '#38bdf8'}; font-size: 10px; font-weight: 800;">
-                  ${isMatch ? '🏟️ ' + t('match').toUpperCase() : '🏃‍♂️ ' + t('training').toUpperCase()}
-                </span>
-                <h4 style="margin: 4px 0 2px; font-size: 15px; font-weight: 900; color: #fff;">
-                  ${escapeHtml(title)}
-                </h4>
-                <div style="font-size: 11.5px; color: var(--muted);">
-                  📅 ${item.date || ''} ${item.venue ? '• 📍 ' + escapeHtml(item.venue) : ''}
-                </div>
-              </div>
-              <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
-                ${scoreStr ? `
-                  <div style="font-size: 14px; font-weight: 900; background: var(--bg2); padding: 3px 8px; border-radius: 8px; border: 1px solid var(--border); color: #fff;">
-                    ${scoreStr}
+          return `
+            <div class="card" style="padding: 14px; border: 1px solid var(--border); background: var(--surface2);">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                <div>
+                  <span class="badge" style="background: ${isMatch ? 'rgba(34, 197, 94, 0.15)' : 'rgba(56, 189, 248, 0.15)'}; color: ${isMatch ? '#86efac' : '#38bdf8'}; font-size: 10px; font-weight: 800;">
+                    ${isMatch ? '🏟️ ' + t('match').toUpperCase() : '🏃‍♂️ ' + t('training').toUpperCase()}
+                  </span>
+                  <h4 style="margin: 4px 0 2px; font-size: 15px; font-weight: 900; color: #fff;">
+                    ${escapeHtml(title)}
+                  </h4>
+                  <div style="font-size: 11.5px; color: var(--muted);">
+                    📅 ${item.date || ''} ${item.venue ? '• 📍 ' + escapeHtml(item.venue) : ''}
                   </div>
-                ` : ''}
-                <div style="font-size: 12px; font-weight: 900; color: #22d3ee; background: rgba(34, 211, 238, 0.15); padding: 2px 7px; border-radius: 6px;">
-                  ⭐ ${item.rating || 6.0}
+                </div>
+                <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+                  ${scoreStr ? `
+                    <div style="font-size: 14px; font-weight: 900; background: var(--bg2); padding: 3px 8px; border-radius: 8px; border: 1px solid var(--border); color: #fff;">
+                      ${scoreStr}
+                    </div>
+                  ` : ''}
+                  ${hasStats ? `
+                    <div style="font-size: 12px; font-weight: 900; color: #22d3ee; background: rgba(34, 211, 238, 0.15); padding: 2px 7px; border-radius: 6px;">
+                      ⭐ ${item.rating || 6.0}
+                    </div>
+                  ` : `
+                    <div style="font-size: 11px; font-weight: 800; color: #86efac; background: rgba(34, 197, 94, 0.16); padding: 2px 7px; border-radius: 6px; border: 1px solid rgba(34, 197, 94, 0.35);">
+                      ${item.attendanceStatus === 'late' ? '⏰ ' + t('late', 'Retraso') : '🟢 ' + t('present', 'Presente')}
+                    </div>
+                  `}
                 </div>
               </div>
-            </div>
 
-            <!-- Acciones de este partido -->
-            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; font-size: 11.5px; text-align: center; margin-top: 8px;">
-              <div style="background: var(--bg2); padding: 6px 4px; border-radius: 8px; border: 1px solid var(--border);">
-                <div style="color: var(--muted); font-size: 9.5px; font-weight: 700;">${t('passesLabel')}</div>
-                <div style="font-weight: 800; color: #fff;">${st.passOk || 0}/${totalP} ${passPct !== null ? `<span style="font-size: 9.5px; color: var(--cyan);">(${passPct}%)</span>` : ''}</div>
-              </div>
-              <div style="background: var(--bg2); padding: 6px 4px; border-radius: 8px; border: 1px solid var(--border);">
-                <div style="color: var(--muted); font-size: 9.5px; font-weight: 700;">${t('shotsLabel')}</div>
-                <div style="font-weight: 800; color: #fff;">${st.shotOn || 0} ${t('shotsOnTarget')} <span style="font-size: 9.5px; color: var(--muted);">(${totalShots})</span></div>
-              </div>
-              <div style="background: var(--bg2); padding: 6px 4px; border-radius: 8px; border: 1px solid var(--border);">
-                <div style="color: var(--muted); font-size: 9.5px; font-weight: 700;">${t('goalsLabel')}</div>
-                <div style="font-weight: 800; color: #86efac;">⚽ ${st.goal || 0}</div>
-              </div>
-              <div style="background: var(--bg2); padding: 6px 4px; border-radius: 8px; border: 1px solid var(--border);">
-                <div style="color: var(--muted); font-size: 9.5px; font-weight: 700;">${t('dribblesLabel')}</div>
-                <div style="font-weight: 800; color: #fff;">${st.dribbleOk || 0}</div>
-              </div>
-              <div style="background: var(--bg2); padding: 6px 4px; border-radius: 8px; border: 1px solid var(--border);">
-                <div style="color: var(--muted); font-size: 9.5px; font-weight: 700;">${t('recoveriesLabel')}</div>
-                <div style="font-weight: 800; color: #fff;">${st.recovery || 0}</div>
-              </div>
-              <div style="background: var(--bg2); padding: 6px 4px; border-radius: 8px; border: 1px solid var(--border);">
-                <div style="color: var(--muted); font-size: 9.5px; font-weight: 700;">${t('touchesLabel')}</div>
-                <div style="font-weight: 800; color: #c084fc;">${st.touches || 0}</div>
-              </div>
-            </div>
+              ${hasStats ? `
+                <!-- Acciones de esta sesión -->
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; font-size: 11.5px; text-align: center; margin-top: 8px;">
+                  <div style="background: var(--bg2); padding: 6px 4px; border-radius: 8px; border: 1px solid var(--border);">
+                    <div style="color: var(--muted); font-size: 9.5px; font-weight: 700;">${t('passesLabel')}</div>
+                    <div style="font-weight: 800; color: #fff;">${st.passOk || 0}/${totalP} ${passPct !== null ? `<span style="font-size: 9.5px; color: var(--cyan);">(${passPct}%)</span>` : ''}</div>
+                  </div>
+                  <div style="background: var(--bg2); padding: 6px 4px; border-radius: 8px; border: 1px solid var(--border);">
+                    <div style="color: var(--muted); font-size: 9.5px; font-weight: 700;">${t('shotsLabel')}</div>
+                    <div style="font-weight: 800; color: #fff;">${st.shotOn || 0} ${t('shotsOnTarget')} <span style="font-size: 9.5px; color: var(--muted);">(${totalShots})</span></div>
+                  </div>
+                  <div style="background: var(--bg2); padding: 6px 4px; border-radius: 8px; border: 1px solid var(--border);">
+                    <div style="color: var(--muted); font-size: 9.5px; font-weight: 700;">${t('goalsLabel')}</div>
+                    <div style="font-weight: 800; color: #86efac;">⚽ ${st.goal || 0}</div>
+                  </div>
+                  <div style="background: var(--bg2); padding: 6px 4px; border-radius: 8px; border: 1px solid var(--border);">
+                    <div style="color: var(--muted); font-size: 9.5px; font-weight: 700;">${t('dribblesLabel')}</div>
+                    <div style="font-weight: 800; color: #fff;">${st.dribbleOk || 0}</div>
+                  </div>
+                  <div style="background: var(--bg2); padding: 6px 4px; border-radius: 8px; border: 1px solid var(--border);">
+                    <div style="color: var(--muted); font-size: 9.5px; font-weight: 700;">${t('recoveriesLabel')}</div>
+                    <div style="font-weight: 800; color: #fff;">${st.recovery || 0}</div>
+                  </div>
+                  <div style="background: var(--bg2); padding: 6px 4px; border-radius: 8px; border: 1px solid var(--border);">
+                    <div style="color: var(--muted); font-size: 9.5px; font-weight: 700;">${t('touchesLabel')}</div>
+                    <div style="font-weight: 800; color: #c084fc;">${st.touches || 0}</div>
+                  </div>
+                </div>
+              ` : `
+                <div style="margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: rgba(34, 197, 94, 0.08); border: 1px dashed rgba(34, 197, 94, 0.3); font-size: 12px; color: #86efac; font-weight: 700;">
+                  ✅ ${t('attendanceRecordedNoTracking', 'Asistencia registrada (Sin seguimiento individual)')}
+                </div>
+              `}
 
-            <button type="button" class="btn sm secondary btn-view-session-detail" data-session-id="${escapeHtml(item.sessionId)}" style="margin-top: 10px; width: 100%; border-radius: 8px; font-weight: 800; font-size: 11px; display: flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--border);">
-              🔍 ${t('viewSessionDetail', 'Ver Detalle del Partido')}
-            </button>
-          </div>
-        `;
-      }).join('');
+              <button type="button" class="btn sm secondary btn-view-session-detail" data-session-id="${escapeHtml(item.sessionId)}" style="margin-top: 10px; width: 100%; border-radius: 8px; font-weight: 800; font-size: 11px; display: flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--border);">
+                🔍 ${t('viewSessionDetail', 'Ver Detalle del Partido')}
+              </button>
+            </div>
+          `;
+        }).join('');
+      }
     }
 
     if (matches.length === 0) {
@@ -7117,7 +7201,10 @@
     }
 
     return matches.map(s => {
-      const st = s.stats[pid] || {};
+      const st = (s.stats && s.stats[pid]) || {};
+      const hasStats = s.hasStats !== undefined ? s.hasStats : Object.values(st).some(v => Number(v) > 0);
+      const att = s.attendance && s.attendance[pid];
+      const attSt = (typeof att === 'object' && att !== null) ? att.status : (att || s.attendanceStatus);
       const isMatch = s.type === 'match';
       const title = s.title || (isMatch ? (s.rival ? 'vs ' + s.rival : t('match')) : t('training'));
       const scoreStr = (s.score && (s.score.home != null || s.score.away != null))
@@ -7149,39 +7236,51 @@
                   ${scoreStr}
                 </div>
               ` : ''}
-              <div style="font-size: 12px; font-weight: 900; color: #22d3ee; background: rgba(34, 211, 238, 0.15); padding: 2px 7px; border-radius: 6px;">
-                ⭐ ${matchRating}
-              </div>
+              ${hasStats ? `
+                <div style="font-size: 12px; font-weight: 900; color: #22d3ee; background: rgba(34, 211, 238, 0.15); padding: 2px 7px; border-radius: 6px;">
+                  ⭐ ${matchRating}
+                </div>
+              ` : `
+                <div style="font-size: 11px; font-weight: 800; color: #86efac; background: rgba(34, 197, 94, 0.16); padding: 2px 7px; border-radius: 6px; border: 1px solid rgba(34, 197, 94, 0.35);">
+                  ${attSt === 'late' ? '⏰ ' + t('late', 'Retraso') : '🟢 ' + t('present', 'Presente')}
+                </div>
+              `}
             </div>
           </div>
 
-          <!-- Acciones de este partido -->
-          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; font-size: 11.5px; text-align: center; margin-top: 8px;">
-            <div style="background: var(--bg2); padding: 6px 4px; border-radius: 8px; border: 1px solid var(--border);">
-              <div style="color: var(--muted); font-size: 9.5px; font-weight: 700;">${t('passesLabel')}</div>
-              <div style="font-weight: 800; color: #fff;">${st.passOk || 0}/${totalP} ${passPct !== null ? `<span style="font-size: 9.5px; color: var(--cyan);">(${passPct}%)</span>` : ''}</div>
+          ${hasStats ? `
+            <!-- Acciones de esta sesión -->
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; font-size: 11.5px; text-align: center; margin-top: 8px;">
+              <div style="background: var(--bg2); padding: 6px 4px; border-radius: 8px; border: 1px solid var(--border);">
+                <div style="color: var(--muted); font-size: 9.5px; font-weight: 700;">${t('passesLabel')}</div>
+                <div style="font-weight: 800; color: #fff;">${st.passOk || 0}/${totalP} ${passPct !== null ? `<span style="font-size: 9.5px; color: var(--cyan);">(${passPct}%)</span>` : ''}</div>
+              </div>
+              <div style="background: var(--bg2); padding: 6px 4px; border-radius: 8px; border: 1px solid var(--border);">
+                <div style="color: var(--muted); font-size: 9.5px; font-weight: 700;">${t('shotsLabel')}</div>
+                <div style="font-weight: 800; color: #fff;">${st.shotOn || 0} ${t('shotsOnTarget')} <span style="font-size: 9.5px; color: var(--muted);">(${totalShots})</span></div>
+              </div>
+              <div style="background: var(--bg2); padding: 6px 4px; border-radius: 8px; border: 1px solid var(--border);">
+                <div style="color: var(--muted); font-size: 9.5px; font-weight: 700;">${t('goalsLabel')}</div>
+                <div style="font-weight: 800; color: #86efac;">⚽ ${st.goal || 0}</div>
+              </div>
+              <div style="background: var(--bg2); padding: 6px 4px; border-radius: 8px; border: 1px solid var(--border);">
+                <div style="color: var(--muted); font-size: 9.5px; font-weight: 700;">${t('dribblesLabel')}</div>
+                <div style="font-weight: 800; color: #fff;">${st.dribbleOk || 0}</div>
+              </div>
+              <div style="background: var(--bg2); padding: 6px 4px; border-radius: 8px; border: 1px solid var(--border);">
+                <div style="color: var(--muted); font-size: 9.5px; font-weight: 700;">${t('recoveriesLabel')}</div>
+                <div style="font-weight: 800; color: #fff;">${st.recovery || 0}</div>
+              </div>
+              <div style="background: var(--bg2); padding: 6px 4px; border-radius: 8px; border: 1px solid var(--border);">
+                <div style="color: var(--muted); font-size: 9.5px; font-weight: 700;">${t('touchesLabel')}</div>
+                <div style="font-weight: 800; color: #c084fc;">${st.touches || 0}</div>
+              </div>
             </div>
-            <div style="background: var(--bg2); padding: 6px 4px; border-radius: 8px; border: 1px solid var(--border);">
-              <div style="color: var(--muted); font-size: 9.5px; font-weight: 700;">${t('shotsLabel')}</div>
-              <div style="font-weight: 800; color: #fff;">${st.shotOn || 0} ${t('shotsOnTarget')} <span style="font-size: 9.5px; color: var(--muted);">(${totalShots})</span></div>
+          ` : `
+            <div style="margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: rgba(34, 197, 94, 0.08); border: 1px dashed rgba(34, 197, 94, 0.3); font-size: 12px; color: #86efac; font-weight: 700;">
+              ✅ ${t('attendanceRecordedNoTracking', 'Asistencia registrada (Sin seguimiento individual)')}
             </div>
-            <div style="background: var(--bg2); padding: 6px 4px; border-radius: 8px; border: 1px solid var(--border);">
-              <div style="color: var(--muted); font-size: 9.5px; font-weight: 700;">${t('goalsLabel')}</div>
-              <div style="font-weight: 800; color: #86efac;">⚽ ${st.goal || 0}</div>
-            </div>
-            <div style="background: var(--bg2); padding: 6px 4px; border-radius: 8px; border: 1px solid var(--border);">
-              <div style="color: var(--muted); font-size: 9.5px; font-weight: 700;">${t('dribblesLabel')}</div>
-              <div style="font-weight: 800; color: #fff;">${st.dribbleOk || 0}</div>
-            </div>
-            <div style="background: var(--bg2); padding: 6px 4px; border-radius: 8px; border: 1px solid var(--border);">
-              <div style="color: var(--muted); font-size: 9.5px; font-weight: 700;">${t('recoveriesLabel')}</div>
-              <div style="font-weight: 800; color: #fff;">${st.recovery || 0}</div>
-            </div>
-            <div style="background: var(--bg2); padding: 6px 4px; border-radius: 8px; border: 1px solid var(--border);">
-              <div style="color: var(--muted); font-size: 9.5px; font-weight: 700;">${t('touchesLabel')}</div>
-              <div style="font-weight: 800; color: #c084fc;">${st.touches || 0}</div>
-            </div>
-          </div>
+          `}
 
           <button type="button" class="btn sm secondary btn-view-session-detail" data-session-id="${escapeHtml(s.id)}" style="margin-top: 10px; width: 100%; border-radius: 8px; font-weight: 800; font-size: 11px; display: flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--border);">
             🔍 ${t('viewSessionDetail', 'Ver Detalle del Partido')}
@@ -7682,43 +7781,7 @@
     if (!p) return;
 
     const team = clubData.teams ? clubData.teams.find(t => t.id === p.teamId) : null;
-    const allSessions = (clubData && clubData.sessions) || [];
-    let effectiveSessions = (allSessions || []).filter(s => s && s.stats && s.stats[pid] && Object.values(s.stats[pid]).some(v => v > 0));
-    if (effectiveSessions.length === 0 && p) {
-      const summaryList = Array.isArray(p.sessionHistorySummary) && p.sessionHistorySummary.length > 0
-        ? p.sessionHistorySummary
-        : (Array.isArray(p.matchHistorySummary) ? p.matchHistorySummary : []);
-      if (summaryList.length > 0) {
-        effectiveSessions = summaryList.map(item => ({
-          id: item.sessionId || item.id,
-          type: item.type || (item.rival ? 'match' : 'training'),
-          date: item.date || '',
-          title: item.title || '',
-          rival: item.rival || '',
-          venue: item.venue || '',
-          score: item.score || null,
-          stats: {
-            [pid]: item.stats || {
-              goal: item.goal || 0,
-              assist: item.assist || 0,
-              passOk: item.passOk || 0,
-              passKo: item.passKo || 0,
-              shotOn: item.shotOn || 0,
-              shotOff: item.shotOff || 0,
-              recovery: item.recovery || item.recoveries || 0,
-              recoveries: item.recovery || item.recoveries || 0,
-              touches: item.touches || 0,
-              dribbleOk: item.dribbleOk || 0,
-              duelsWon: item.duelsWon || 0,
-              duel1v1WonGoal: item.duel1v1WonGoal || 0,
-              duel1v1WonStop: item.duel1v1WonStop || 0,
-              duel1v1LostTurnover: item.duel1v1LostTurnover || 0,
-              duel1v1LostGoal: item.duel1v1LostGoal || 0
-            }
-          }
-        }));
-      }
-    }
+    const effectiveSessions = getPlayerEffectiveSessions(pid);
     const trainingSessions = effectiveSessions.filter(s => (s.type || 'training') === 'training');
     const matchSessions = effectiveSessions.filter(s => (s.type || 'training') === 'match');
     const aggTraining = getPlayerAggregate(pid, trainingSessions);

@@ -427,12 +427,24 @@
             copy.duel1v1 = Store.getPlayer1v1Stats(copy.id, stateData.sessions);
           }
 
-          // Historial resumido de sesiones (partidos y entrenamientos) para este jugador
+          // Historial resumido de sesiones (partidos y entrenamientos) para este jugador (incluyendo asistencias sin seguimiento individual)
           const pSessions = (stateData.sessions || [])
-            .filter(s => s && s.stats && s.stats[copy.id] && Object.values(s.stats[copy.id]).some(v => v > 0))
+            .filter(s => {
+              if (!s) return false;
+              const st = s.stats && s.stats[copy.id];
+              const hasStats = !!(st && Object.values(st).some(v => Number(v) > 0));
+              const att = s.attendance && s.attendance[copy.id];
+              const attSt = (typeof att === 'object' && att !== null) ? att.status : att;
+              const attended = (attSt === 'present' || attSt === 'late');
+              return hasStats || attended;
+            })
             .slice(0, 30)
             .map(s => {
-              const st = s.stats[copy.id] || {};
+              const st = (s.stats && s.stats[copy.id]) || {};
+              const hasStats = Object.values(st).some(v => Number(v) > 0);
+              const att = s.attendance && s.attendance[copy.id];
+              const attSt = (typeof att === 'object' && att !== null) ? att.status : att;
+              const attended = (attSt === 'present' || attSt === 'late') || (hasStats && attSt !== 'absent');
               const r = (global.Store && Store.calculateMatchRating) ? Store.calculateMatchRating(st, copy.mainPosition) : 6.0;
               const totP = (st.passOk || 0) + (st.passKo || 0);
               return {
@@ -445,6 +457,9 @@
                 venue: s.venue || '',
                 score: s.score || null,
                 rating: r,
+                hasStats: hasStats,
+                attended: attended,
+                attendanceStatus: attSt || (hasStats ? 'present' : null),
                 stats: {
                   goal: st.goal || 0,
                   assist: st.assist || 0,
@@ -544,6 +559,7 @@
         const rootPayload = {
           teams: stateData.teams || [],
           recurringSchedules: stateData.recurringSchedules || [],
+          deletedRecurringIds: stateData.deletedRecurringIds || [],
           coachProfile: sanitizedCoachProfile,
           settings: {
             lang: (stateData.settings && stateData.settings.lang) || 'es',
@@ -564,6 +580,7 @@
         const rootHash = JSON.stringify({
           teams: rootPayload.teams,
           recurringSchedules: rootPayload.recurringSchedules,
+          deletedRecurringIds: rootPayload.deletedRecurringIds,
           coachProfile: rootPayload.coachProfile,
           settings: rootPayload.settings,
           latestMatchMvp: rootPayload.latestMatchMvp,
@@ -820,6 +837,26 @@
       }
     },
 
+    // Elimina una convocatoria específica de la subcolección de Firestore y limpia el estado local de sincronización
+    deleteConvocationFromCloud: async function (convId) {
+      if (!convId) return;
+      if (!this.init()) return;
+      try {
+        const clubRef = db.collection('clubs').doc(CLUB_ID);
+        await clubRef.collection('convocations').doc(convId).delete();
+        if (knownRemoteConvIds) {
+          knownRemoteConvIds.delete(convId);
+        }
+        if (syncedHashes && syncedHashes.convocations) {
+          delete syncedHashes.convocations[convId];
+        }
+        savePersistedSyncState();
+        console.log('[Cloud] Convocatoria eliminada definitivamente de Firestore:', convId);
+      } catch (err) {
+        console.error('[Cloud] Error eliminando convocatoria de Firestore:', err);
+      }
+    },
+
     /* -------------------------------------------------------------
        2. FUNCIONES PARA LOS JUGADORES (PORTAL JUGADOR / PWA)
        ------------------------------------------------------------- */
@@ -847,6 +884,7 @@
         function emitCombinedState() {
           if (typeof onStateUpdate !== 'function') return;
           const root = currentRootData || {};
+          const deletedSet = new Set(Array.isArray(root.deletedRecurringIds) ? root.deletedRecurringIds : []);
           const hasSubPlayers = Array.isArray(currentPlayers) && currentPlayers.length > 0;
           const hasSubConvs = Array.isArray(currentConvocations) && currentConvocations.length > 0;
           const hasSubSessions = Array.isArray(currentSessions) && currentSessions.length > 0;
@@ -867,6 +905,14 @@
           if (!hasSubConvs && !hasReceivedConvsSnapshot && Array.isArray(root.convocations) && root.convocations.length > 0) {
             finalConvs = root.convocations;
           }
+          if (deletedSet.size > 0 && Array.isArray(finalConvs)) {
+            finalConvs = finalConvs.filter(c => {
+              if (!c || !c.id) return false;
+              if (deletedSet.has(c.id)) return false;
+              if (c.scheduleId && c.date && deletedSet.has(`rec_${c.scheduleId}_${String(c.date).replace(/-/g, '')}`)) return false;
+              return true;
+            });
+          }
 
           let finalSessions = [];
           if (root.sessionsSummary && Array.isArray(root.sessionsSummary)) {
@@ -874,6 +920,9 @@
           }
           if (root.latestMatchMvp && !finalSessions.some(s => s.id === root.latestMatchMvp.id)) {
             finalSessions.unshift(root.latestMatchMvp);
+          }
+          if (deletedSet.size > 0 && Array.isArray(finalSessions)) {
+            finalSessions = finalSessions.filter(s => s && !deletedSet.has(s.id));
           }
 
           const combined = {
@@ -886,6 +935,7 @@
             coachProfile: root.coachProfile || {},
             teams: root.teams || [],
             recurringSchedules: root.recurringSchedules || [],
+            deletedRecurringIds: root.deletedRecurringIds || [],
             players: finalPlayers !== null ? finalPlayers : (root.players || []),
             convocations: finalConvs,
             sessions: finalSessions,

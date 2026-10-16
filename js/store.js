@@ -113,6 +113,7 @@
       sessions: [],
       convocations: [],
       recurringSchedules: [],
+      deletedRecurringIds: [],
       coachProfile: {
         name: 'Entrenador Principal',
         title: 'Director Técnico / Head Coach',
@@ -141,12 +142,22 @@
     s.teams = Array.isArray(s.teams) ? s.teams : [];
     s.sessions = Array.isArray(s.sessions) ? s.sessions : [];
     s.convocations = Array.isArray(s.convocations) ? s.convocations : [];
-    // Limpieza de convocatorias recurrentes vacías generadas a más de 21 días en el futuro (cuota Spark)
+    s.deletedRecurringIds = Array.isArray(s.deletedRecurringIds)
+      ? Array.from(new Set(s.deletedRecurringIds.filter(Boolean)))
+      : [];
+    const deletedRecSet = new Set(s.deletedRecurringIds);
+
+    // Limpieza de convocatorias recurrentes vacías generadas a más de 21 días en el futuro (cuota Spark) y tombstones eliminados
     const maxFutureLimit = new Date();
     maxFutureLimit.setDate(maxFutureLimit.getDate() + 21);
     const maxFutureStr = maxFutureLimit.toISOString().slice(0, 10);
     s.convocations = s.convocations.filter(c => {
       if (!c || !c.id) return false;
+      if (deletedRecSet.has(c.id)) return false;
+      if (c.scheduleId && c.date) {
+        const recKey = `rec_${c.scheduleId}_${String(c.date).replace(/-/g, '')}`;
+        if (deletedRecSet.has(recKey)) return false;
+      }
       if (c.id.startsWith('rec_') && (!c.responses || Object.keys(c.responses).length === 0)) {
         if (c.date && c.date > maxFutureStr) return false;
       }
@@ -173,9 +184,15 @@
       return true;
     });
 
-    // Limpieza de sesiones huérfanas de horarios recurrentes eliminados (hoy, futuras o sin datos jugados)
+    // Limpieza de sesiones huérfanas de horarios recurrentes eliminados o tombstones
     s.sessions = s.sessions.filter(sess => {
       if (!sess) return false;
+      if (sess.id && deletedRecSet.has(sess.id)) return false;
+      if (sess.convocationId && deletedRecSet.has(sess.convocationId)) return false;
+      if (sess.scheduleId && sess.date) {
+        const recKey = `rec_${sess.scheduleId}_${String(sess.date).replace(/-/g, '')}`;
+        if (deletedRecSet.has(recKey)) return false;
+      }
       const hasSchedId = !!sess.scheduleId;
       const isRecConv = !!(sess.convocationId && sess.convocationId.startsWith('rec_'));
       if (!hasSchedId && !isRecConv) return true;
@@ -710,18 +727,75 @@
       return s;
     },
 
+    markRecurringDeleted(item) {
+      if (!item) return;
+      this.state.deletedRecurringIds = Array.isArray(this.state.deletedRecurringIds)
+        ? this.state.deletedRecurringIds
+        : [];
+      const set = new Set(this.state.deletedRecurringIds);
+      if (typeof item === 'string') {
+        set.add(item);
+      } else if (typeof item === 'object') {
+        if (item.id) set.add(String(item.id));
+        if (item.convocationId) set.add(String(item.convocationId));
+        if (item.sessionId) set.add(String(item.sessionId));
+        if (item.scheduleId && item.date) {
+          set.add(`rec_${item.scheduleId}_${String(item.date).replace(/-/g, '')}`);
+        }
+      }
+      this.state.deletedRecurringIds = Array.from(set);
+    },
+
     deleteSession(id) {
-      this.state.sessions = this.state.sessions.filter(s => s.id !== id);
+      const targetSess = (this.state.sessions || []).find(s => s && s.id === id) || null;
+      if (targetSess) {
+        this.markRecurringDeleted(targetSess);
+      } else if (id) {
+        this.markRecurringDeleted(id);
+      }
+
+      this.state.sessions = (this.state.sessions || []).filter(s => s && s.id !== id);
+
+      const convsToDelete = [];
       if (Array.isArray(this.state.convocations)) {
-        this.state.convocations.forEach(c => {
-          if (c && c.sessionId === id) c.sessionId = null;
+        const sTeams = targetSess
+          ? ((Array.isArray(targetSess.teamIds) && targetSess.teamIds.length > 0) ? targetSess.teamIds : (targetSess.teamId ? [targetSess.teamId] : []))
+          : [];
+        const sTeamsSorted = sTeams.slice().map(String).sort().join(',');
+
+        this.state.convocations = this.state.convocations.filter(c => {
+          if (!c) return false;
+          const isDirectMatch = (c.sessionId === id) ||
+                                (targetSess && targetSess.convocationId && c.id === targetSess.convocationId) ||
+                                (c.id === 'conv_' + id) ||
+                                (targetSess && targetSess.scheduleId && c.scheduleId && c.scheduleId === targetSess.scheduleId && c.date === targetSess.date);
+          let isSameTrainingMatch = false;
+          if (!isDirectMatch && targetSess && targetSess.type === 'training' && c.type === 'training' && c.date === targetSess.date) {
+            const cTeams = (Array.isArray(c.teamIds) && c.teamIds.length > 0) ? c.teamIds : (c.teamId ? [c.teamId] : []);
+            const cTeamsSorted = cTeams.slice().map(String).sort().join(',');
+            if (sTeamsSorted === cTeamsSorted && (!c.sessionId || c.sessionId === id)) {
+              isSameTrainingMatch = true;
+            }
+          }
+          if (isDirectMatch || isSameTrainingMatch) {
+            this.markRecurringDeleted(c);
+            convsToDelete.push(c);
+            return false;
+          }
+          return true;
         });
       }
+
       this.save();
       if (typeof window !== 'undefined' && window.Cloud) {
         try {
           if (typeof window.Cloud.deleteSessionFromCloud === 'function') {
             window.Cloud.deleteSessionFromCloud(id);
+          }
+          if (typeof window.Cloud.deleteConvocationFromCloud === 'function') {
+            convsToDelete.forEach(c => {
+              if (c && c.id) window.Cloud.deleteConvocationFromCloud(c.id);
+            });
           }
           if (typeof window.Cloud.pushCoachState === 'function') {
             window.Cloud.pushCoachState(this.state, true);
@@ -746,6 +820,24 @@
     getSessionAttendance(sessionId) {
       const s = this.session(sessionId);
       return (s && s.attendance) || {};
+    },
+
+    getPlayerAttendanceStatus(s, playerId) {
+      if (!s || !playerId || !s.attendance) return null;
+      const att = s.attendance[playerId];
+      if (!att) return null;
+      return (typeof att === 'object' && att !== null) ? (att.status || null) : att;
+    },
+
+    hasPlayerAttended(s, playerId) {
+      const st = this.getPlayerAttendanceStatus(s, playerId);
+      return st === 'present' || st === 'late';
+    },
+
+    hasPlayerStats(s, playerId) {
+      if (!s || !playerId || !s.stats || !s.stats[playerId]) return false;
+      const st = s.stats[playerId];
+      return Object.keys(st).some(k => Number(st[k]) > 0);
     },
 
     getSessionPlayersForAttendance(sessionId) {
@@ -803,14 +895,19 @@
     calculateAttendanceStreak(playerId, sessions) {
       if (!playerId) return 0;
       const allSessions = (sessions || this.state.sessions || [])
-        .filter(s => s && s.attendance && s.attendance[playerId])
+        .filter(s => {
+          if (!s) return false;
+          const hasAtt = s.attendance && s.attendance[playerId] != null;
+          const hasAct = this.hasPlayerStats(s, playerId);
+          return hasAtt || hasAct;
+        })
         .sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.createdAt || 0) - (a.createdAt || 0));
 
       let streak = 0;
       for (const s of allSessions) {
-        const att = s.attendance[playerId];
-        const st = (typeof att === 'object' && att !== null) ? att.status : att;
-        if (st === 'present' || st === 'late') {
+        const st = this.getPlayerAttendanceStatus(s, playerId);
+        const hasAct = this.hasPlayerStats(s, playerId);
+        if (st === 'present' || st === 'late' || (st == null && hasAct)) {
           streak++;
         } else if (st === 'justified') {
           continue; // Justificado no rompe la racha
@@ -819,6 +916,10 @@
         }
       }
       return streak;
+    },
+
+    calculatePlayerAttendanceStreak(playerId, sessions) {
+      return this.calculateAttendanceStreak(playerId, sessions);
     },
 
     sessionTitle(s) {
@@ -1118,10 +1219,16 @@
 
     /* Agregados */
     sessionPlayerIds(s) {
-      return Object.keys(s.stats || {}).filter(pid => {
+      if (!s) return [];
+      const ids = new Set();
+      Object.keys(s.stats || {}).forEach(pid => {
         const st = s.stats[pid];
-        return st && Object.keys(st).some(k => st[k] > 0);
+        if (st && Object.keys(st).some(k => Number(st[k]) > 0)) ids.add(pid);
       });
+      Object.keys(s.attendance || {}).forEach(pid => {
+        if (this.hasPlayerAttended(s, pid)) ids.add(pid);
+      });
+      return Array.from(ids);
     },
 
     ratio(stats, r) {
@@ -1154,14 +1261,116 @@
       const sessList = Array.isArray(sessions) ? sessions : ((this.state && this.state.sessions) || []);
       const totals = {};
       const perSession = [];
+      let attendedCount = 0;
+      let trackedCount = 0;
       sessList.forEach(s => {
-        const st = (s.stats || {})[playerId];
-        if (!st || !Object.keys(st).some(k => st[k] > 0)) return;
-        perSession.push({ session: s, stats: st });
-        Object.keys(st).forEach(k => { totals[k] = (totals[k] || 0) + (st[k] || 0); });
+        if (!s) return;
+        const st = (s.stats || {})[playerId] || {};
+        const hasStats = Object.keys(st).some(k => Number(st[k]) > 0);
+        const attStatus = this.getPlayerAttendanceStatus(s, playerId);
+        const attended = (attStatus === 'present' || attStatus === 'late');
+        if (!hasStats && !attended) return;
+        if (attended || (hasStats && attStatus !== 'absent')) attendedCount++;
+        if (hasStats) trackedCount++;
+        perSession.push({
+          session: s,
+          stats: st,
+          hasStats,
+          attended: attended || (hasStats && attStatus !== 'absent'),
+          attendanceStatus: attStatus || (hasStats ? 'present' : null)
+        });
+        if (hasStats) {
+          Object.keys(st).forEach(k => { totals[k] = (totals[k] || 0) + (st[k] || 0); });
+        }
       });
-      perSession.sort((a, b) => (a.session.date + a.session.createdAt).localeCompare(b.session.date + b.session.createdAt));
-      return { totals, sessions: perSession, count: perSession.length };
+      perSession.sort((a, b) => ((a.session.date || '') + (a.session.createdAt || '')).localeCompare((b.session.date || '') + (b.session.createdAt || '')));
+      return { totals, sessions: perSession, count: perSession.length, attendedCount, trackedCount };
+    },
+
+    calculatePlayerStats(playerId, sessions) {
+      const sessList = Array.isArray(sessions) ? sessions : ((this.state && this.state.sessions) || []);
+      const p = this.player(playerId);
+      const pos = p ? p.mainPosition : 'Jugador';
+      const res = {
+        matchesAttended: 0,
+        trainingsAttended: 0,
+        totalSessions: 0,
+        goals: 0,
+        shotsOn: 0,
+        shotsOff: 0,
+        passOk: 0,
+        passKo: 0,
+        touches: 0,
+        dribbleOk: 0,
+        dribbleKo: 0,
+        duelWon: 0,
+        duelLost: 0,
+        recoveries: 0,
+        losses: 0,
+        keyPass: 0,
+        assists: 0,
+        saves: 0,
+        fouls: 0,
+        foulsRecv: 0,
+        yellows: 0,
+        reds: 0,
+        crosses: 0,
+        headers: 0,
+        totals: {},
+        aggregatedRating: '6.0',
+        ratingsSum: 0,
+        ratingsCount: 0
+      };
+      sessList.forEach(s => {
+        if (!s) return;
+        const sType = s.type === 'match' ? 'match' : 'training';
+        const pStats = (s.stats && s.stats[playerId]) || {};
+        const hasActions = Object.keys(pStats).some(k => Number(pStats[k]) > 0);
+        const attSt = this.getPlayerAttendanceStatus(s, playerId);
+        let wasPresent = (attSt === 'present' || attSt === 'late') || (hasActions && attSt !== 'absent');
+        if (wasPresent) {
+          if (sType === 'match') res.matchesAttended++;
+          else res.trainingsAttended++;
+        }
+        if (hasActions) {
+          res.goals += pStats.goal || 0;
+          res.shotsOn += pStats.shotOn || 0;
+          res.shotsOff += pStats.shotOff || 0;
+          res.passOk += pStats.passOk || 0;
+          res.passKo += pStats.passKo || 0;
+          res.touches += pStats.touches || 0;
+          res.dribbleOk += pStats.dribbleOk || 0;
+          res.dribbleKo += pStats.dribbleKo || 0;
+          res.duelWon += pStats.duelWon || 0;
+          res.duelLost += pStats.duelLost || 0;
+          res.recoveries += pStats.recovery || 0;
+          res.losses += pStats.loss || 0;
+          res.keyPass += pStats.keyPass || 0;
+          res.assists += pStats.assist || 0;
+          res.saves += pStats.save || 0;
+          res.fouls += pStats.foul || 0;
+          res.foulsRecv += pStats.foulRecv || 0;
+          res.yellows += pStats.yellow || 0;
+          res.reds += pStats.red || 0;
+          res.crosses += pStats.cross || 0;
+          res.headers += pStats.header || 0;
+          Object.keys(pStats).forEach(k => {
+            res.totals[k] = (res.totals[k] || 0) + (pStats[k] || 0);
+          });
+          const matchRat = this.calculateMatchRating(pStats, pos);
+          res.ratingsSum += matchRat;
+          res.ratingsCount++;
+        }
+      });
+      res.totalSessions = res.matchesAttended + res.trainingsAttended;
+      const totalPass = res.passOk + res.passKo;
+      res.passAcc = totalPass > 0 ? Math.round((res.passOk / totalPass) * 100) : 0;
+      const totalShots = res.shotsOn + res.shotsOff;
+      res.shotAcc = totalShots > 0 ? Math.round((res.shotsOn / totalShots) * 100) : 0;
+      res.aggregatedRating = res.ratingsCount > 0
+        ? (Math.round((res.ratingsSum / res.ratingsCount) * 10) / 10).toFixed(1)
+        : '6.0';
+      return res;
     },
 
     /* Marcador y Periodo */
@@ -1314,21 +1523,36 @@
       const hasMatch = aggMatch.count > 0;
 
       let rTrain = null;
-      if (hasTrain) {
-        const trainRatings = aggTrain.sessions.map(item => this.calculateMatchRating(item.stats, position));
+      const trackedTrain = aggTrain.sessions.filter(item => item.hasStats);
+      if (trackedTrain.length > 0) {
+        const trainRatings = trackedTrain.map(item => this.calculateMatchRating(item.stats, position));
         rTrain = trainRatings.reduce((a, b) => a + b, 0) / trainRatings.length;
+      } else if (hasTrain) {
+        rTrain = 6.0;
       }
 
       let rMatch = null;
-      if (hasMatch) {
-        const matchRatings = aggMatch.sessions.map(item => this.calculateMatchRating(item.stats, position));
+      const trackedMatch = aggMatch.sessions.filter(item => item.hasStats);
+      if (trackedMatch.length > 0) {
+        const matchRatings = trackedMatch.map(item => this.calculateMatchRating(item.stats, position));
         rMatch = matchRatings.reduce((a, b) => a + b, 0) / matchRatings.length;
+      } else if (hasMatch) {
+        rMatch = 6.0;
       }
 
       let rating = 6.0;
       let mode = 'none'; // 'combined' | 'training' | 'match' | 'none'
 
-      if (rTrain != null && rMatch != null) {
+      if (trackedTrain.length > 0 && trackedMatch.length > 0) {
+        rating = (rTrain + rMatch) / 2;
+        mode = 'combined';
+      } else if (trackedTrain.length > 0) {
+        rating = rTrain;
+        mode = 'training';
+      } else if (trackedMatch.length > 0) {
+        rating = rMatch;
+        mode = 'match';
+      } else if (rTrain != null && rMatch != null) {
         rating = (rTrain + rMatch) / 2;
         mode = 'combined';
       } else if (rTrain != null) {
@@ -1692,19 +1916,42 @@
     },
 
     deleteConvocation(id) {
-      const conv = (this.state.convocations || []).find(c => c.id === id);
+      const conv = (this.state.convocations || []).find(c => c && c.id === id) || null;
       const linkedSessionId = conv ? conv.sessionId : null;
 
-      this.state.convocations = (this.state.convocations || []).filter(c => c.id !== id);
+      if (conv) {
+        this.markRecurringDeleted(conv);
+      } else if (id) {
+        this.markRecurringDeleted(id);
+      }
+
+      this.state.convocations = (this.state.convocations || []).filter(c => c && c.id !== id);
 
       const now = new Date();
       const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
-      // Eliminar también la sesión asociada si no fue jugada / sin datos
+      const cTeams = conv
+        ? ((Array.isArray(conv.teamIds) && conv.teamIds.length > 0) ? conv.teamIds : (conv.teamId ? [conv.teamId] : []))
+        : [];
+      const cTeamsSorted = cTeams.slice().map(String).sort().join(',');
+
+      // Eliminar también la sesión asociada (en Inicio y Sesiones)
       const sessionsToDelete = [];
       this.state.sessions = (this.state.sessions || []).filter(s => {
-        const isLinked = (s.convocationId === id) || (linkedSessionId && s.id === linkedSessionId);
-        if (!isLinked) return true;
+        if (!s) return false;
+        const isDirectLink = (s.convocationId === id) ||
+                             (linkedSessionId && s.id === linkedSessionId) ||
+                             ('conv_' + s.id === id) ||
+                             (conv && conv.scheduleId && s.scheduleId === conv.scheduleId && s.date === conv.date);
+        let isSameTraining = false;
+        if (!isDirectLink && conv && conv.type === 'training' && s.type === 'training' && s.date === conv.date) {
+          const sTeams = (Array.isArray(s.teamIds) && s.teamIds.length > 0) ? s.teamIds : (s.teamId ? [s.teamId] : []);
+          const sTeamsSorted = sTeams.slice().map(String).sort().join(',');
+          if (cTeamsSorted === sTeamsSorted) {
+            isSameTraining = true;
+          }
+        }
+        if (!isDirectLink && !isSameTraining) return true;
 
         const isTodayOrFuture = (s.date >= todayStr);
         const hasData = (s.elapsedMs > 0) ||
@@ -1712,26 +1959,33 @@
                         (s.log && s.log.length > 0) ||
                         (s.status === 'completed');
 
-        if (isTodayOrFuture || !hasData) {
+        if (isDirectLink || isTodayOrFuture || !hasData) {
+          this.markRecurringDeleted(s);
           sessionsToDelete.push(s);
           return false;
         }
         return true;
       });
 
+      this.save();
+
       if (typeof window !== 'undefined' && window.Cloud) {
-        sessionsToDelete.forEach(s => {
-          try {
+        try {
+          if (typeof window.Cloud.deleteConvocationFromCloud === 'function') {
+            window.Cloud.deleteConvocationFromCloud(id);
+          }
+          sessionsToDelete.forEach(s => {
             if (typeof window.Cloud.deleteSessionFromCloud === 'function') {
               window.Cloud.deleteSessionFromCloud(s.id);
             }
-          } catch (e) {
-            console.warn('[Store] Error borrando sesión vinculada a convocatoria de la nube:', e);
+          });
+          if (typeof window.Cloud.pushCoachState === 'function') {
+            window.Cloud.pushCoachState(this.state, true);
           }
-        });
+        } catch (e) {
+          console.warn('[Store] Error borrando convocatoria/sesión vinculada de la nube:', e);
+        }
       }
-
-      this.save();
     },
 
     recurringSchedule(id) {
@@ -1796,10 +2050,15 @@
       const schedConvSessionIds = new Set(schedConvs.map(c => c.sessionId).filter(Boolean));
 
       // 2. Eliminar convocatorias de hoy y futuras generadas por este plan recurrente
+      const convsToDelete = [];
       this.state.convocations = (this.state.convocations || []).filter(c => {
         if (!isConvFromSchedule(c)) return true;
         const isTodayOrFuture = c.date >= todayStr;
-        return !isTodayOrFuture;
+        if (isTodayOrFuture) {
+          convsToDelete.push(c);
+          return false;
+        }
+        return true;
       });
 
       // 3. Identificar y eliminar sesiones asociadas a este plan recurrente
@@ -1829,8 +2088,15 @@
         return true;
       });
 
-      // 4. Notificar a la nube el borrado de las sesiones individuales
+      // 4. Notificar a la nube el borrado de las sesiones y convocatorias individuales
       if (typeof window !== 'undefined' && window.Cloud) {
+        convsToDelete.forEach(c => {
+          try {
+            if (typeof window.Cloud.deleteConvocationFromCloud === 'function') {
+              window.Cloud.deleteConvocationFromCloud(c.id);
+            }
+          } catch (e) {}
+        });
         sessionsToDelete.forEach(s => {
           try {
             if (typeof window.Cloud.deleteSessionFromCloud === 'function') {
@@ -1848,14 +2114,23 @@
     cleanupOrphanRecurring() {
       const schedules = this.state.recurringSchedules || [];
       const validScheduleIds = new Set(schedules.map(r => r.id));
+      const deletedSet = new Set(this.state.deletedRecurringIds || []);
 
       const now = new Date();
       const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
-      // 1. Limpiar convocatorias huérfanas de horarios recurrentes que ya no existen
-      let convsChanged = false;
+      // 1. Limpiar convocatorias huérfanas de horarios recurrentes que ya no existen o que están en deletedRecurringIds
+      const convsToDelete = [];
       this.state.convocations = (this.state.convocations || []).filter(c => {
         if (!c) return false;
+        if (c.id && deletedSet.has(c.id)) {
+          convsToDelete.push(c);
+          return false;
+        }
+        if (c.scheduleId && c.date && deletedSet.has(`rec_${c.scheduleId}_${String(c.date).replace(/-/g, '')}`)) {
+          convsToDelete.push(c);
+          return false;
+        }
         const isRec = !!(c.isRecurring || (c.id && c.id.startsWith('rec_')) || c.scheduleId);
         if (!isRec) return true;
 
@@ -1867,18 +2142,24 @@
 
         if (schedId && !validScheduleIds.has(schedId)) {
           if (c.date >= todayStr) {
-            convsChanged = true;
+            convsToDelete.push(c);
             return false;
           }
         }
         return true;
       });
 
-      // 2. Limpiar sesiones huérfanas de horarios recurrentes que ya no existen
+      // 2. Limpiar sesiones huérfanas de horarios recurrentes que ya no existen o están en deletedRecurringIds
       const sessionsToDelete = [];
       const remainingSessions = [];
       (this.state.sessions || []).forEach(s => {
         if (!s) return;
+        if ((s.id && deletedSet.has(s.id)) ||
+            (s.convocationId && deletedSet.has(s.convocationId)) ||
+            (s.scheduleId && s.date && deletedSet.has(`rec_${s.scheduleId}_${String(s.date).replace(/-/g, '')}`))) {
+          sessionsToDelete.push(s);
+          return;
+        }
         const hasScheduleId = !!s.scheduleId;
         const isRecConv = !!(s.convocationId && s.convocationId.startsWith('rec_'));
 
@@ -1908,10 +2189,17 @@
         remainingSessions.push(s);
       });
 
-      if (sessionsToDelete.length > 0 || convsChanged) {
+      if (sessionsToDelete.length > 0 || convsToDelete.length > 0) {
         this.state.sessions = remainingSessions;
         this.save();
         if (typeof window !== 'undefined' && window.Cloud) {
+          convsToDelete.forEach(c => {
+            try {
+              if (typeof window.Cloud.deleteConvocationFromCloud === 'function') {
+                window.Cloud.deleteConvocationFromCloud(c.id);
+              }
+            } catch (e) {}
+          });
           sessionsToDelete.forEach(s => {
             try {
               if (typeof window.Cloud.deleteSessionFromCloud === 'function') {
@@ -1933,6 +2221,7 @@
       const activeSchedules = this.state.recurringSchedules.filter(r => r.active !== false);
       if (!activeSchedules.length) return 0;
 
+      const deletedSet = new Set(this.state.deletedRecurringIds || []);
       let generatedCount = 0;
 
       function formatLocalDate(dt) {
@@ -1989,6 +2278,13 @@
           if (targetDays.includes(dayOfWeek)) {
             const dateStr = formatLocalDate(curD);
             const targetId = `rec_${sched.id}_${dateStr.replace(/-/g, '')}`;
+
+            // Si el entrenador borró explícitamente este entrenamiento recurrente, no volver a generarlo
+            if (deletedSet.has(targetId)) {
+              curD.setDate(curD.getDate() + 1);
+              continue;
+            }
+
             const targetTime = (sched.dayTimes && sched.dayTimes[dayOfWeek]) ? sched.dayTimes[dayOfWeek] : (sched.time || '18:00');
             const targetEndTime = (sched.dayEndTimes && sched.dayEndTimes[dayOfWeek]) ? sched.dayEndTimes[dayOfWeek] : (sched.endTime || '');
             const targetDuration = (sched.dayDurations && sched.dayDurations[dayOfWeek]) ? sched.dayDurations[dayOfWeek] : (sched.duration || 90);
@@ -2086,7 +2382,13 @@
         this.generateRecurringConvocations(30);
       }
 
-      const todayTrainings = this.state.convocations.filter(c => c.date === todayStr && c.type === 'training');
+      const deletedSet = new Set(this.state.deletedRecurringIds || []);
+      const todayTrainings = this.state.convocations.filter(c => {
+        if (!c || c.date !== todayStr || c.type !== 'training') return false;
+        if (c.id && deletedSet.has(c.id)) return false;
+        if (c.scheduleId && deletedSet.has(`rec_${c.scheduleId}_${todayStr.replace(/-/g, '')}`)) return false;
+        return true;
+      });
       if (!todayTrainings.length) return 0;
 
       let createdCount = 0;
