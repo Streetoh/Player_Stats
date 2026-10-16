@@ -2320,6 +2320,164 @@
   }
 
   /* -------------------------------------------------------------
+     ESTILOS DINÁMICOS DE TARJETA SEGÚN COLOR DE EQUIPO Y PARTIDOS DORADOS
+     ------------------------------------------------------------- */
+  function hexToRgba(hex, alpha) {
+    if (!hex) return `rgba(34, 197, 94, ${alpha})`;
+    let c = String(hex).trim();
+    if (c.startsWith('#')) c = c.slice(1);
+    if (c.length === 3) {
+      c = c.split('').map(x => x + x).join('');
+    }
+    if (c.length === 6 || c.length === 8) {
+      const r = parseInt(c.slice(0, 2), 16);
+      const g = parseInt(c.slice(2, 4), 16);
+      const b = parseInt(c.slice(4, 6), 16);
+      if (!isNaN(r) && !isNaN(g) && !isNaN(b)) {
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+      }
+    }
+    if (c.startsWith('rgb(')) {
+      return c.replace('rgb(', 'rgba(').replace(')', `, ${alpha})`);
+    }
+    return hex;
+  }
+
+  function resolveEventTeams(item, fallbackPlayerId) {
+    if (!item) return [];
+    const teamIdSet = new Set();
+    const allTeams = (clubData && clubData.teams) || [];
+    const allPlayers = (clubData && clubData.players) || [];
+
+    if (Array.isArray(item.teamIds)) {
+      item.teamIds.forEach(id => { if (id) teamIdSet.add(String(id)); });
+    }
+    if (item.teamId) {
+      teamIdSet.add(String(item.teamId));
+    }
+
+    // Fallback para sesiones si no tienen teamId explícito
+    if (teamIdSet.size === 0) {
+      const pids = item.playerIds || (Array.isArray(item.players) ? item.players.map(p => typeof p === 'object' ? p.id : p) : []);
+      if (Array.isArray(pids) && pids.length > 0) {
+        pids.forEach(pid => {
+          const pl = allPlayers.find(p => String(p.id) === String(pid));
+          if (pl && pl.teamId) teamIdSet.add(String(pl.teamId));
+        });
+      }
+    }
+
+    // Fallback para convocatorias basadas en lista de convocados (item.list)
+    if (teamIdSet.size === 0 && item.list && typeof item.list === 'object') {
+      Object.keys(item.list).forEach(pid => {
+        const pl = allPlayers.find(p => String(p.id) === String(pid));
+        if (pl && pl.teamId) teamIdSet.add(String(pl.teamId));
+      });
+    }
+
+    // Fallback si item tiene attendance o stats
+    if (teamIdSet.size === 0 && item.stats && typeof item.stats === 'object') {
+      Object.keys(item.stats).forEach(pid => {
+        const pl = allPlayers.find(p => String(p.id) === String(pid));
+        if (pl && pl.teamId) teamIdSet.add(String(pl.teamId));
+      });
+    }
+
+    if (teamIdSet.size === 0 && item.attendance && typeof item.attendance === 'object') {
+      Object.keys(item.attendance).forEach(pid => {
+        const pl = allPlayers.find(p => String(p.id) === String(pid));
+        if (pl && pl.teamId) teamIdSet.add(String(pl.teamId));
+      });
+    }
+
+    const teams = [];
+    teamIdSet.forEach(tid => {
+      const tm = allTeams.find(t => String(t.id) === String(tid));
+      if (tm) teams.push(tm);
+    });
+
+    // Fallback al jugador específico o al jugador logueado
+    if (teams.length === 0) {
+      const targetPid = fallbackPlayerId || (typeof getMyPlayer === 'function' ? (getMyPlayer() || {}).id : null);
+      if (targetPid) {
+        const pl = allPlayers.find(p => String(p.id) === String(targetPid));
+        if (pl && pl.teamId) {
+          const tm = allTeams.find(t => String(t.id) === String(pl.teamId));
+          if (tm) teams.push(tm);
+        }
+      }
+    }
+
+    // Fallback al primer equipo registrado si sigue sin identificar
+    if (teams.length === 0 && allTeams.length > 0) {
+      teams.push(allTeams[0]);
+    }
+
+    return teams;
+  }
+
+  function getEventCardStyle(item, options = {}) {
+    const isMatch = options.isMatch != null ? options.isMatch : (item && item.type === 'match');
+    const isPast = options.isPast != null ? options.isPast : false;
+    const isToday = options.isToday != null ? options.isToday : false;
+    const fallbackPlayerId = options.fallbackPlayerId || null;
+
+    const teams = resolveEventTeams(item, fallbackPlayerId);
+    const colors = teams.map(tm => tm.color || '#22c55e').filter(Boolean);
+
+    let background = '';
+    let border = '';
+    let boxShadow = '';
+
+    const alphaMain = isPast ? 0.32 : 0.48;
+    const alphaMid = isPast ? 0.18 : 0.28;
+    const darkStop = isPast ? 'rgba(15, 23, 42, 0.94)' : 'rgba(15, 23, 42, 0.86)';
+
+    if (colors.length === 0) {
+      background = isPast ? 'rgba(15, 23, 42, 0.65)' : 'rgba(30, 41, 59, 0.7)';
+    } else if (colors.length === 1) {
+      background = `linear-gradient(135deg, ${hexToRgba(colors[0], alphaMain)} 0%, ${hexToRgba(colors[0], alphaMid)} 55%, ${darkStop} 100%)`;
+    } else if (colors.length === 2) {
+      background = `linear-gradient(135deg, ${hexToRgba(colors[0], alphaMain)} 0%, rgba(15, 23, 42, 0.60) 50%, ${hexToRgba(colors[1], alphaMain)} 100%)`;
+    } else {
+      const stops = colors.map((col, idx) => {
+        const pct = Math.round((idx / (colors.length - 1)) * 100);
+        return `${hexToRgba(col, alphaMain)} ${pct}%`;
+      });
+      background = `linear-gradient(135deg, ${stops.join(', ')})`;
+    }
+
+    if (isMatch) {
+      border = isToday ? '2.8px solid #f59e0b' : '2.5px solid #f59e0b';
+      boxShadow = isToday
+        ? '0 0 18px rgba(245, 158, 11, 0.55), inset 0 0 10px rgba(245, 158, 11, 0.12)'
+        : '0 0 14px rgba(245, 158, 11, 0.35)';
+    } else if (isToday) {
+      border = '2px solid rgba(34, 211, 238, 0.95)';
+    } else {
+      if (colors.length > 0) {
+        border = `1.5px solid ${hexToRgba(colors[0], isPast ? 0.30 : 0.50)}`;
+      } else {
+        border = `1px solid ${isPast ? 'rgba(255, 255, 255, 0.08)' : 'var(--border)'}`;
+      }
+    }
+
+    let styleStr = `background: ${background};`;
+    if (border) styleStr += ` border: ${border};`;
+    if (boxShadow) styleStr += ` box-shadow: ${boxShadow};`;
+    if (isPast) styleStr += ` opacity: 0.92;`;
+
+    return {
+      background,
+      border,
+      boxShadow,
+      styleStr,
+      teams,
+      colors
+    };
+  }
+
+  /* -------------------------------------------------------------
      CÁLCULO DE MÉTRICAS DEL JUGADOR (SIN MINUTOS, CON ASISTENCIAS SEPARADAS)
      ------------------------------------------------------------- */
   function getPlayerEffectiveSessions(pid) {
@@ -5187,10 +5345,15 @@
     pastConvs.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.time || '').localeCompare(a.time || ''));
 
     function renderSingleConvCard(c, isToday, isPast) {
-      const convTeams = (Array.isArray(c.teamIds) && c.teamIds.length > 0)
-        ? c.teamIds.map(String)
-        : (c.teamId ? [String(c.teamId)] : []);
-      const team = clubData.teams ? clubData.teams.find(t => convTeams.includes(String(t.id))) : null;
+      const isMatch = c.type === 'match';
+      const cardStyle = getEventCardStyle(c, { isPast, isToday, isMatch });
+      const matchClass = isMatch ? (isToday ? 'conv-card-match-today' : 'card-match-gold') : (isToday ? 'conv-card-today' : '');
+      const convTeams = cardStyle.teams;
+      const team = convTeams[0] || null;
+      const myTeamName = convTeams.map(tm => tm.name).join(' / ') || (team ? team.name : 'Mi Equipo');
+      const myTeamColor = team ? (team.color || '#22c55e') : '#22c55e';
+      const rivalName = c.rival || '';
+
       const list = c.list || {};
       const responses = liveVotes[c.id] || {};
 
@@ -5216,18 +5379,17 @@
       const isAttending = mySt && (mySt === 'called' || mySt === 'attending' || mySt === 'yes');
       const isAbsent = mySt && (mySt === 'absent' || mySt === 'no');
 
-      const isMatch = c.type === 'match';
       const isUnopened = isConvUnopened(c, myPlayerId);
 
       return `
-        <div class="card conv-card-clickable ${isToday ? 'conv-card-today' : ''} ${isPast ? 'past-conv-card' : ''}" style="${isToday ? 'border: 2px solid rgba(34, 211, 238, 0.95); box-shadow: 0 0 25px rgba(34, 211, 238, 0.65), 0 0 50px rgba(34, 211, 238, 0.35);' : 'border: 1px solid var(--border);'} padding: 16px; position: relative;" data-cid="${c.id}">
+        <div class="card conv-card-clickable ${matchClass} ${isPast ? 'past-conv-card' : ''}" style="${cardStyle.styleStr} padding: 16px; position: relative;" data-cid="${c.id}">
           ${isToday ? `
-            <div class="today-glow-banner" style="display: flex; align-items: center; justify-content: space-between; background: linear-gradient(90deg, rgba(6, 182, 212, 0.3), rgba(59, 130, 246, 0.3)); border: 1px solid rgba(34, 211, 238, 0.65); border-radius: 9px; padding: 7px 12px; margin-bottom: 12px; box-shadow: 0 0 14px rgba(6, 182, 212, 0.5);">
-              <span style="font-size: 11.5px; font-weight: 900; color: #a5f3fc; letter-spacing: 0.6px; text-transform: uppercase; display: flex; align-items: center; gap: 7px;">
-                <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #22d3ee; box-shadow: 0 0 10px #22d3ee;"></span>
+            <div class="today-glow-banner" style="display: flex; align-items: center; justify-content: space-between; background: ${isMatch ? 'linear-gradient(90deg, rgba(245, 158, 11, 0.35), rgba(217, 119, 6, 0.25))' : 'linear-gradient(90deg, rgba(6, 182, 212, 0.3), rgba(59, 130, 246, 0.3))'}; border: 1px solid ${isMatch ? 'rgba(245, 158, 11, 0.75)' : 'rgba(34, 211, 238, 0.65)'}; border-radius: 9px; padding: 7px 12px; margin-bottom: 12px; box-shadow: 0 0 14px ${isMatch ? 'rgba(245, 158, 11, 0.5)' : 'rgba(6, 182, 212, 0.5)'};">
+              <span style="font-size: 11.5px; font-weight: 900; color: ${isMatch ? '#fde68a' : '#a5f3fc'}; letter-spacing: 0.6px; text-transform: uppercase; display: flex; align-items: center; gap: 7px;">
+                <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: ${isMatch ? '#f59e0b' : '#22d3ee'}; box-shadow: 0 0 10px ${isMatch ? '#f59e0b' : '#22d3ee'};"></span>
                 ${isMatch ? t('todayMatchBadge') : t('todayTrainingBadge')}
               </span>
-              <span style="font-size: 10.5px; font-weight: 900; color: #fff; background: linear-gradient(135deg, #06b6d4, #3b82f6); padding: 2px 8px; border-radius: 6px; box-shadow: 0 0 8px rgba(6, 182, 212, 0.6);">
+              <span style="font-size: 10.5px; font-weight: 900; color: #fff; background: ${isMatch ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'linear-gradient(135deg, #06b6d4, #3b82f6)'}; padding: 2px 8px; border-radius: 6px; box-shadow: 0 0 8px ${isMatch ? 'rgba(245, 158, 11, 0.6)' : 'rgba(6, 182, 212, 0.6)'};">
                 ${t('todayBadge', 'HOY')}
               </span>
             </div>
@@ -5236,18 +5398,23 @@
           <!-- Encabezado clickeable para abrir detalles -->
           <div class="conv-card-header-tap" data-open-conv-id="${c.id}" style="cursor: pointer;">
             <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
-              <div style="flex: 1;">
+              <div style="flex: 1; min-width: 0;">
                 <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px; flex-wrap: wrap;">
                   <span class="badge ${c.type}">
                     ${isMatch ? '🏆 ' + t('match') : '⚽ ' + t('training')}
                   </span>
+                  ${convTeams.map(tm => `
+                    <span class="badge" style="font-size: 10px; font-weight: 800; background: ${tm.color || '#22c55e'}26; color: ${tm.color || '#22c55e'}; border: 1px solid ${tm.color || '#22c55e'}66; padding: 2px 7px; border-radius: 6px;">
+                      🛡️ ${escapeHtml(tm.name)}
+                    </span>
+                  `).join('')}
                   ${isPast ? `
                     <span class="badge" style="background: rgba(148, 163, 184, 0.15); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.3); font-size: 10.5px; font-weight: 800; padding: 2px 7px; border-radius: 8px;">
                       ✓ ${t('pastSessionBadge')}
                     </span>
                   ` : ''}
                   ${isToday && !isPast ? `
-                    <span class="badge-today-glow" style="display: inline-flex; align-items: center; gap: 4px; background: linear-gradient(135deg, #06b6d4, #3b82f6); color: #fff; border: 1px solid rgba(255,255,255,0.4); font-size: 11px; font-weight: 900; padding: 2px 9px; border-radius: 8px; box-shadow: 0 0 14px rgba(6, 182, 212, 0.8); letter-spacing: 0.3px;">
+                    <span class="badge-today-glow" style="display: inline-flex; align-items: center; gap: 4px; background: ${isMatch ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'linear-gradient(135deg, #06b6d4, #3b82f6)'}; color: #fff; border: 1px solid rgba(255,255,255,0.4); font-size: 11px; font-weight: 900; padding: 2px 9px; border-radius: 8px; box-shadow: 0 0 14px ${isMatch ? 'rgba(245, 158, 11, 0.8)' : 'rgba(6, 182, 212, 0.8)'}; letter-spacing: 0.3px;">
                       ✨ ${currentLang === 'ee' ? 'TÄNA' : (currentLang === 'es' ? 'HOY' : 'TODAY')}
                     </span>
                   ` : ''}
@@ -5258,9 +5425,41 @@
                     </span>
                   ` : ''}
                 </div>
-                <h3 style="margin: 0; font-size: 17px; font-weight: 900; color: #fff;">
-                  ${escapeHtml(c.title || (c.rival ? 'vs ' + c.rival : t('callUpOfficial')))}
-                </h3>
+
+                ${(isMatch && rivalName) ? `
+                  <div class="match-teams-bar" style="margin: 6px 0 8px;">
+                    ${convTeams.length > 1 ? `
+                      <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+                        ${convTeams.map(tm => `
+                          <span class="team-bubble-pill" style="border-color: ${tm.color || '#22c55e'}; background: ${tm.color || '#22c55e'}24; color: ${tm.color || '#22c55e'};" title="${escapeHtml(tm.name)}">
+                            🛡️ ${escapeHtml(tm.name)}
+                          </span>
+                        `).join('')}
+                      </div>
+                    ` : `
+                      <span class="team-bubble-pill" style="border-color: ${myTeamColor}; background: ${myTeamColor}24; color: ${myTeamColor};" title="${escapeHtml(myTeamName)}">
+                        🛡️ ${escapeHtml(myTeamName)}
+                      </span>
+                    `}
+                    ${(c.score && (c.score.home != null || c.score.away != null)) ? `
+                      <div class="score-pill-horiz">
+                        <span>${c.score.home || 0}</span>
+                        <span style="opacity: 0.55; font-size: 13px;">-</span>
+                        <span>${c.score.away || 0}</span>
+                      </div>
+                    ` : `
+                      <span class="score-pill-horiz" style="font-size: 11px; font-weight: 900; padding: 2px 8px; letter-spacing: 0.5px;">VS</span>
+                    `}
+                    <span class="rival-bubble-pill" title="${escapeHtml(rivalName)}">
+                      ⚔️ ${escapeHtml(rivalName)}
+                    </span>
+                  </div>
+                ` : `
+                  <h3 style="margin: 0; font-size: 17px; font-weight: 900; color: #fff;">
+                    ${escapeHtml(c.title || (c.rival ? 'vs ' + c.rival : (isMatch ? t('match') : t('callUpOfficial'))))}
+                  </h3>
+                `}
+
                 <div style="font-size: 12.5px; color: var(--muted); margin-top: 4px; line-height: 1.4;">
                   📅 <b>${formatDisplayDate(c.date)}</b> • ⏰ ${c.time || '10:00'}${c.endTime ? ' - ' + c.endTime : ''}${c.duration ? ' (' + c.duration + ' min)' : ''}<br />
                   ${c.venue ? `📍 <b>${t('venue')}:</b> ${escapeHtml(c.venue)}<br />` : ''}
@@ -5270,7 +5469,7 @@
                       ${t('openInMaps')}
                     </a><br />
                   ` : ''}
-                  ${team ? `<span style="color: ${team.color || 'var(--cyan)'}; font-weight: 800;">🛡️ ${escapeHtml(team.name)}</span>` : ''}
+                  ${(!isMatch && team) ? `<span style="color: ${team.color || 'var(--cyan)'}; font-weight: 800;">🛡️ ${escapeHtml(team.name)}</span>` : ''}
                 </div>
               </div>
               <div style="font-size: 16px; color: var(--muted); padding-top: 4px; opacity: 0.7;">➔</div>
@@ -5285,7 +5484,7 @@
 
           <!-- Botón interactivo para abrir los detalles completos -->
           <div style="margin-top: 10px;">
-            <button type="button" class="btn block ghost btn-open-conv-details" data-open-conv-id="${c.id}" style="height: 38px; font-size: 12.5px; font-weight: 800; border-radius: 10px; border: 1px dashed ${isMatch ? 'rgba(56, 189, 248, 0.45)' : 'rgba(34, 197, 94, 0.45)'}; background: ${isMatch ? 'rgba(56, 189, 248, 0.08)' : 'rgba(34, 197, 94, 0.08)'}; color: ${isMatch ? '#38bdf8' : '#86efac'}; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; cursor: pointer; width: 100%;">
+            <button type="button" class="btn block ghost btn-open-conv-details" data-open-conv-id="${c.id}" style="height: 38px; font-size: 12.5px; font-weight: 800; border-radius: 10px; border: 1px dashed ${isMatch ? 'rgba(245, 158, 11, 0.6)' : 'rgba(34, 197, 94, 0.45)'}; background: ${isMatch ? 'rgba(245, 158, 11, 0.12)' : 'rgba(34, 197, 94, 0.08)'}; color: ${isMatch ? '#fbbf24' : '#86efac'}; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; cursor: pointer; width: 100%;">
               <div style="display: flex; align-items: center; gap: 7px;">
                 <span>${isMatch ? '🏆' : '⚽'}</span>
                 <span>${isMatch ? t('tapMatchDetails', 'Tap for Match Details & Squad') : t('tapTrainingDetails', 'Tap for Training Details & Squad')}</span>
@@ -5727,11 +5926,16 @@
     const nowD = new Date();
     const todayIso = `${nowD.getFullYear()}-${String(nowD.getMonth() + 1).padStart(2, '0')}-${String(nowD.getDate()).padStart(2, '0')}`;
     const isToday = (conv.date === todayIso);
+    const cardStyle = getEventCardStyle(conv, { isPast: Boolean(conv.date && conv.date < todayIso), isToday, isMatch: true });
+    const matchTeams = cardStyle.teams;
+    const primaryTeam = matchTeams[0] || team;
+    const myTeamName = matchTeams.map(tm => tm.name).join(' / ') || (primaryTeam ? primaryTeam.name : 'Mi Equipo');
+    const myTeamColor = primaryTeam ? (primaryTeam.color || '#22c55e') : '#22c55e';
 
     const overlay = document.createElement('div');
     overlay.className = 'dialog-overlay';
     overlay.innerHTML = `
-      <div class="dialog-box" style="max-height: 90vh; width: 95%; max-width: 520px; display: flex; flex-direction: column; padding: 18px; border-radius: 20px;">
+      <div class="dialog-box card-match-gold" style="max-height: 90vh; width: 95%; max-width: 520px; display: flex; flex-direction: column; padding: 18px; border-radius: 20px; border: 2.5px solid #f59e0b; box-shadow: 0 0 24px rgba(245, 158, 11, 0.45);">
         <!-- Header -->
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 12px; flex-shrink: 0;">
           <div style="display: flex; align-items: center; gap: 8px;">
@@ -5741,7 +5945,7 @@
                 <h3 style="margin: 0; font-size: 16px; font-weight: 900; color: #fff;">${t('matchDetails')}</h3>
                 ${isToday ? `<span class="badge-today-glow" style="display: inline-flex; align-items: center; gap: 3px; background: linear-gradient(135deg, #06b6d4, #3b82f6); color: #fff; border: 1px solid rgba(255,255,255,0.4); font-size: 10px; font-weight: 900; padding: 1px 7px; border-radius: 6px; box-shadow: 0 0 10px rgba(6, 182, 212, 0.7);">✨ ${currentLang === 'ee' ? 'TÄNA' : (currentLang === 'es' ? 'HOY' : 'TODAY')}</span>` : ''}
               </div>
-              <small style="font-size: 11px; color: var(--muted);">${team ? escapeHtml(team.name) : t('callUpOfficial')}</small>
+              <small style="font-size: 11px; color: var(--muted);">${primaryTeam ? escapeHtml(primaryTeam.name) : t('callUpOfficial')}</small>
             </div>
           </div>
           <button type="button" class="icon-btn ghost" id="dlg-match-det-x" style="width: 32px; height: 32px; font-size: 16px;">✕</button>
@@ -5749,18 +5953,35 @@
 
         <div style="flex: 1; overflow-y: auto; padding-right: 4px; display: flex; flex-direction: column; gap: 12px;">
           <!-- Banner -->
-          <div style="background: linear-gradient(135deg, rgba(56, 189, 248, 0.16) 0%, rgba(3, 105, 161, 0.2) 100%); border: 1.5px solid rgba(56, 189, 248, 0.35); border-radius: 14px; padding: 14px; text-align: center;">
-            <div style="font-size: 11px; font-weight: 800; color: #38bdf8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">
-              ${team ? `🛡️ ${escapeHtml(team.name)}` : t('officialFixture')}
-            </div>
-            <div style="font-size: 20px; font-weight: 900; color: #fff; margin-bottom: 4px;">
-              ${escapeHtml(conv.title || (conv.rival ? 'vs ' + conv.rival : t('callUpOfficial')))}
+          <div style="background: ${cardStyle.background}; border: 2px solid #f59e0b; border-radius: 14px; padding: 14px; text-align: center; box-shadow: 0 4px 14px rgba(0,0,0,0.35);">
+            <div style="font-size: 11px; font-weight: 800; color: #fbbf24; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">
+              ${matchTeams.length > 0 ? matchTeams.map(tm => `🛡️ ${escapeHtml(tm.name)}`).join(' / ') : t('officialFixture')}
             </div>
             ${conv.rival ? `
-              <div style="font-size: 13px; font-weight: 800; color: #7dd3fc;">
-                ⚔️ ${t('opponentLabel')} <b>${escapeHtml(conv.rival)}</b>
+              <div class="match-teams-bar" style="justify-content: center; margin: 6px 0 4px;">
+                ${matchTeams.length > 1 ? `
+                  <div style="display: flex; gap: 4px; flex-wrap: wrap; justify-content: center;">
+                    ${matchTeams.map(tm => `
+                      <span class="team-bubble-pill" style="border-color: ${tm.color || '#22c55e'}; background: ${tm.color || '#22c55e'}24; color: ${tm.color || '#22c55e'};" title="${escapeHtml(tm.name)}">
+                        🛡️ ${escapeHtml(tm.name)}
+                      </span>
+                    `).join('')}
+                  </div>
+                ` : `
+                  <span class="team-bubble-pill" style="border-color: ${myTeamColor}; background: ${myTeamColor}24; color: ${myTeamColor};" title="${escapeHtml(myTeamName)}">
+                    🛡️ ${escapeHtml(myTeamName)}
+                  </span>
+                `}
+                <span class="score-pill-horiz" style="font-size: 12px; padding: 2px 8px; letter-spacing: 0.5px;">VS</span>
+                <span class="rival-bubble-pill" title="${escapeHtml(conv.rival)}">
+                  ⚔️ ${escapeHtml(conv.rival)}
+                </span>
               </div>
-            ` : ''}
+            ` : `
+              <div style="font-size: 20px; font-weight: 900; color: #fff; margin-bottom: 4px;">
+                ${escapeHtml(conv.title || t('callUpOfficial'))}
+              </div>
+            `}
           </div>
 
           <!-- Schedule Grid -->
@@ -6003,6 +6224,9 @@
     const nowD = new Date();
     const todayIso = `${nowD.getFullYear()}-${String(nowD.getMonth() + 1).padStart(2, '0')}-${String(nowD.getDate()).padStart(2, '0')}`;
     const isToday = (conv.date === todayIso);
+    const cardStyle = getEventCardStyle(conv, { isPast: Boolean(conv.date && conv.date < todayIso), isToday, isMatch: false });
+    const trainingTeams = cardStyle.teams;
+    const primaryTeam = trainingTeams[0] || team;
 
     const overlay = document.createElement('div');
     overlay.className = 'dialog-overlay';
@@ -6017,7 +6241,7 @@
                 <h3 style="margin: 0; font-size: 16px; font-weight: 900; color: #fff;">${t('trainingDetails')}</h3>
                 ${isToday ? `<span class="badge-today-glow" style="display: inline-flex; align-items: center; gap: 3px; background: linear-gradient(135deg, #06b6d4, #3b82f6); color: #fff; border: 1px solid rgba(255,255,255,0.4); font-size: 10px; font-weight: 900; padding: 1px 7px; border-radius: 6px; box-shadow: 0 0 10px rgba(6, 182, 212, 0.7);">✨ ${currentLang === 'ee' ? 'TÄNA' : (currentLang === 'es' ? 'HOY' : 'TODAY')}</span>` : ''}
               </div>
-              <small style="font-size: 11px; color: var(--muted);">${team ? escapeHtml(team.name) : t('officialTraining')}</small>
+              <small style="font-size: 11px; color: var(--muted);">${primaryTeam ? escapeHtml(primaryTeam.name) : t('officialTraining')}</small>
             </div>
           </div>
           <button type="button" class="icon-btn ghost" id="dlg-tr-det-x" style="width: 32px; height: 32px; font-size: 16px;">✕</button>
@@ -6025,9 +6249,9 @@
 
         <div style="flex: 1; overflow-y: auto; padding-right: 4px; display: flex; flex-direction: column; gap: 12px;">
           <!-- Banner -->
-          <div style="background: linear-gradient(135deg, rgba(34, 197, 94, 0.16) 0%, rgba(21, 128, 61, 0.2) 100%); border: 1.5px solid rgba(34, 197, 94, 0.35); border-radius: 14px; padding: 14px; text-align: center;">
+          <div style="background: ${cardStyle.background}; border: ${cardStyle.border}; border-radius: 14px; padding: 14px; text-align: center; box-shadow: 0 4px 14px rgba(0,0,0,0.3);">
             <div style="font-size: 11px; font-weight: 800; color: #86efac; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">
-              ${team ? `🛡️ ${escapeHtml(team.name)}` : t('officialTraining')}
+              ${trainingTeams.length > 0 ? trainingTeams.map(tm => `🛡️ ${escapeHtml(tm.name)}`).join(' / ') : t('officialTraining')}
             </div>
             <div style="font-size: 20px; font-weight: 900; color: #fff; margin-bottom: 4px;">
               ${escapeHtml(conv.title || t('officialTraining'))}
@@ -7182,6 +7406,8 @@
           const st = item.stats || {};
           const hasStats = item.hasStats !== undefined ? item.hasStats : Object.values(st).some(v => Number(v) > 0);
           const isMatch = item.type === 'match';
+          const cardStyle = getEventCardStyle(item, { isPast: true, isMatch, fallbackPlayerId: pid });
+          const matchClass = isMatch ? 'card-match-gold' : '';
           const title = item.title || (isMatch ? (item.rival ? 'vs ' + item.rival : t('match')) : t('training'));
           const scoreStr = (item.score && (item.score.home != null || item.score.away != null))
             ? `${item.score.home || 0} - ${item.score.away || 0}`
@@ -7192,12 +7418,19 @@
           const totalShots = (st.shotOn || 0) + (st.shotOff || 0);
 
           return `
-            <div class="card" style="padding: 14px; border: 1px solid var(--border); background: var(--surface2);">
+            <div class="card ${matchClass}" style="padding: 14px; ${cardStyle.styleStr}">
               <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
                 <div>
-                  <span class="badge" style="background: ${isMatch ? 'rgba(34, 197, 94, 0.15)' : 'rgba(56, 189, 248, 0.15)'}; color: ${isMatch ? '#86efac' : '#38bdf8'}; font-size: 10px; font-weight: 800;">
-                    ${isMatch ? '🏟️ ' + t('match').toUpperCase() : '🏃‍♂️ ' + t('training').toUpperCase()}
-                  </span>
+                  <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 4px;">
+                    <span class="badge" style="background: ${isMatch ? 'rgba(245, 158, 11, 0.2)' : 'rgba(34, 197, 94, 0.2)'}; color: ${isMatch ? '#fbbf24' : '#86efac'}; border: 1px solid ${isMatch ? 'rgba(245, 158, 11, 0.5)' : 'rgba(34, 197, 94, 0.4)'}; font-size: 10px; font-weight: 800;">
+                      ${isMatch ? '🏆 ' + t('match').toUpperCase() : '⚽ ' + t('training').toUpperCase()}
+                    </span>
+                    ${cardStyle.teams.map(tm => `
+                      <span class="badge" style="font-size: 9.5px; font-weight: 800; background: ${tm.color || '#22c55e'}24; color: ${tm.color || '#22c55e'}; border: 1px solid ${tm.color || '#22c55e'}50; padding: 1px 5px; border-radius: 5px;">
+                        🛡️ ${escapeHtml(tm.name)}
+                      </span>
+                    `).join('')}
+                  </div>
                   <h4 style="margin: 4px 0 2px; font-size: 15px; font-weight: 900; color: #fff;">
                     ${escapeHtml(title)}
                   </h4>
@@ -7277,9 +7510,11 @@
     return matches.map(s => {
       const st = (s.stats && s.stats[pid]) || {};
       const hasStats = s.hasStats !== undefined ? s.hasStats : Object.values(st).some(v => Number(v) > 0);
+      const isMatch = s.type === 'match';
+      const cardStyle = getEventCardStyle(s, { isPast: true, isMatch, fallbackPlayerId: pid });
+      const matchClass = isMatch ? 'card-match-gold' : '';
       const att = s.attendance && s.attendance[pid];
       const attSt = (typeof att === 'object' && att !== null) ? att.status : (att || s.attendanceStatus);
-      const isMatch = s.type === 'match';
       const title = s.title || (isMatch ? (s.rival ? 'vs ' + s.rival : t('match')) : t('training'));
       const scoreStr = (s.score && (s.score.home != null || s.score.away != null))
         ? `${s.score.home || 0} - ${s.score.away || 0}`
@@ -7291,12 +7526,19 @@
       const totalShots = (st.shotOn || 0) + (st.shotOff || 0);
 
       return `
-        <div class="card" style="padding: 14px; border: 1px solid var(--border); background: var(--surface2);">
+        <div class="card ${matchClass}" style="padding: 14px; ${cardStyle.styleStr}">
           <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
             <div>
-              <span class="badge" style="background: ${isMatch ? 'rgba(34, 197, 94, 0.15)' : 'rgba(56, 189, 248, 0.15)'}; color: ${isMatch ? '#86efac' : '#38bdf8'}; font-size: 10px; font-weight: 800;">
-                ${isMatch ? '🏟️ ' + t('match').toUpperCase() : '🏃‍♂️ ' + t('training').toUpperCase()}
-              </span>
+              <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 4px;">
+                <span class="badge" style="background: ${isMatch ? 'rgba(245, 158, 11, 0.2)' : 'rgba(34, 197, 94, 0.2)'}; color: ${isMatch ? '#fbbf24' : '#86efac'}; border: 1px solid ${isMatch ? 'rgba(245, 158, 11, 0.5)' : 'rgba(34, 197, 94, 0.4)'}; font-size: 10px; font-weight: 800;">
+                  ${isMatch ? '🏆 ' + t('match').toUpperCase() : '⚽ ' + t('training').toUpperCase()}
+                </span>
+                ${cardStyle.teams.map(tm => `
+                  <span class="badge" style="font-size: 9.5px; font-weight: 800; background: ${tm.color || '#22c55e'}24; color: ${tm.color || '#22c55e'}; border: 1px solid ${tm.color || '#22c55e'}50; padding: 1px 5px; border-radius: 5px;">
+                    🛡️ ${escapeHtml(tm.name)}
+                  </span>
+                `).join('')}
+              </div>
               <h4 style="margin: 4px 0 2px; font-size: 15px; font-weight: 900; color: #fff;">
                 ${escapeHtml(title)}
               </h4>
@@ -7410,6 +7652,15 @@
       const isMatch = sess.type === 'match';
       const myP = getMyPlayer();
       const myPid = myP ? myP.id : null;
+      const cardStyle = getEventCardStyle(sess, { isPast: true, isMatch, fallbackPlayerId: myPid });
+      if (isMatch) {
+        const dialogBox = overlay.querySelector('.dialog-box');
+        if (dialogBox) {
+          dialogBox.classList.add('card-match-gold');
+          dialogBox.style.border = '2.5px solid #f59e0b';
+          dialogBox.style.boxShadow = '0 0 24px rgba(245, 158, 11, 0.45)';
+        }
+      }
       const myStats = (myPid && sess.stats) ? sess.stats[myPid] : null;
       const title = sess.title || (isMatch ? (sess.rival ? 'vs ' + sess.rival : t('match')) : t('training'));
       const scoreStr = (sess.score && (sess.score.home != null || sess.score.away != null))
@@ -7485,19 +7736,28 @@
 
       contentEl.innerHTML = `
         <div style="text-align: left;">
-          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
-            <div>
-              <span class="badge" style="background: ${isMatch ? 'rgba(34, 197, 94, 0.15)' : 'rgba(56, 189, 248, 0.15)'}; color: ${isMatch ? '#86efac' : '#38bdf8'}; font-size: 11px; font-weight: 800;">
-                ${isMatch ? '🏟️ ' + t('match').toUpperCase() : '🏃‍♂️ ' + t('training').toUpperCase()}
-              </span>
-              <h3 style="margin: 4px 0 2px; font-size: 17px; font-weight: 900; color: #fff;">${escapeHtml(title)}</h3>
-              <div style="font-size: 11.5px; color: var(--muted);">📅 ${sess.date || ''} ${sess.venue ? '• 📍 ' + escapeHtml(sess.venue) : ''}</div>
-            </div>
-            ${scoreStr ? `
-              <div style="font-size: 18px; font-weight: 900; background: var(--bg2); padding: 4px 10px; border-radius: 8px; border: 1px solid var(--border); color: #fff;">
-                ${scoreStr}
+          <div style="background: ${cardStyle.background}; border: ${isMatch ? '2px solid #f59e0b' : cardStyle.border}; border-radius: 14px; padding: 14px; margin-bottom: 14px; box-shadow: 0 4px 14px rgba(0,0,0,0.35);">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+              <div>
+                <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 4px;">
+                  <span class="badge" style="background: ${isMatch ? 'rgba(245, 158, 11, 0.2)' : 'rgba(34, 197, 94, 0.2)'}; color: ${isMatch ? '#fbbf24' : '#86efac'}; font-size: 11px; font-weight: 800; border: 1px solid ${isMatch ? 'rgba(245, 158, 11, 0.5)' : 'rgba(34, 197, 94, 0.4)'};">
+                    ${isMatch ? '🏆 ' + t('match').toUpperCase() : '⚽ ' + t('training').toUpperCase()}
+                  </span>
+                  ${cardStyle.teams.map(tm => `
+                    <span class="badge" style="font-size: 10px; font-weight: 800; background: ${tm.color || '#22c55e'}26; color: ${tm.color || '#22c55e'}; border: 1px solid ${tm.color || '#22c55e'}66; padding: 2px 7px; border-radius: 6px;">
+                      🛡️ ${escapeHtml(tm.name)}
+                    </span>
+                  `).join('')}
+                </div>
+                <h3 style="margin: 4px 0 2px; font-size: 17px; font-weight: 900; color: #fff;">${escapeHtml(title)}</h3>
+                <div style="font-size: 11.5px; color: var(--muted);">📅 ${sess.date || ''} ${sess.venue ? '• 📍 ' + escapeHtml(sess.venue) : ''}</div>
               </div>
-            ` : ''}
+              ${scoreStr ? `
+                <div style="font-size: 18px; font-weight: 900; background: rgba(0,0,0,0.45); padding: 4px 10px; border-radius: 8px; border: 1.5px solid ${isMatch ? '#f59e0b' : 'var(--border)'}; color: #fff;">
+                  ${scoreStr}
+                </div>
+              ` : ''}
+            </div>
           </div>
 
           ${myStatsHtml}
