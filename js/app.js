@@ -2621,7 +2621,15 @@
       }
     });
 
-    const conv = s.convocationId ? Store.convocation(s.convocationId) : null;
+    let conv = s.convocationId ? Store.convocation(s.convocationId) : null;
+    if (!conv) {
+      conv = (Store.state.convocations || []).find(cv => cv.sessionId === s.id || (cv.date === s.date && cv.type === s.type && (!cv.rival || !s.rival || cv.rival === s.rival)));
+      if (conv && !s.convocationId) {
+        s.convocationId = conv.id;
+        conv.sessionId = s.id;
+        Store.save();
+      }
+    }
     let searchQuery = '';
 
     openSheet(t('rollCallTitle', 'Pasar Lista / Asistencia'), (body) => {
@@ -4717,9 +4725,45 @@
     const sessionTeams = Array.isArray(session.teamIds) && session.teamIds.length > 0
       ? session.teamIds
       : (session.teamId ? [session.teamId] : []);
-    const defaultTeamFilter = sessionTeams.length > 1 ? sessionTeams : (sessionTeams[0] || 'all');
 
-    let players = Store.sortedPlayers(defaultTeamFilter);
+    let linkedConv = session.convocationId ? Store.convocation(session.convocationId) : null;
+    if (!linkedConv) {
+      linkedConv = (Store.state.convocations || []).find(c => c.sessionId === session.id || (c.date === session.date && c.type === session.type && (!c.rival || !session.rival || c.rival === session.rival)));
+      if (linkedConv && !session.convocationId) {
+        session.convocationId = linkedConv.id;
+        linkedConv.sessionId = session.id;
+        Store.save();
+      }
+    }
+    const convCalledIds = new Set();
+    if (linkedConv && linkedConv.list) {
+      Object.keys(linkedConv.list).forEach(pid => {
+        const st = linkedConv.list[pid];
+        if (st && st !== 'uncalled' && st !== 'absent') {
+          convCalledIds.add(pid);
+        }
+      });
+    }
+
+    const defaultTeamFilter = (convCalledIds.size > 0)
+      ? 'convocados'
+      : (sessionTeams.length > 1 ? sessionTeams : (sessionTeams[0] || 'all'));
+
+    function getPlayersForFilter(filter) {
+      if (filter === 'convocados') {
+        const list = Array.from(convCalledIds).map(id => Store.player(id)).filter(Boolean);
+        list.sort((a, b) => {
+          const numA = (a.jersey != null && a.jersey !== '') ? Number(a.jersey) : (a.mainDorsal != null ? Number(a.mainDorsal) : 999);
+          const numB = (b.jersey != null && b.jersey !== '') ? Number(b.jersey) : (b.mainDorsal != null ? Number(b.mainDorsal) : 999);
+          if (numA !== numB) return numA - numB;
+          return (a.name || '').localeCompare(b.name || '');
+        });
+        return list;
+      }
+      return Store.sortedPlayers(filter);
+    }
+
+    let players = getPlayersForFilter(defaultTeamFilter);
 
     openSheet(t('selectPlayer'), (body) => {
       body.innerHTML = `
@@ -4729,12 +4773,15 @@
         </div>
 
         <div class="chips" id="picker-team-chips" style="margin-bottom: 14px;">
-          ${sessionTeams.length > 1 ? `
-            <button class="chip active" data-team="session_teams">🛡️ Equipos sesión (${sessionTeams.length})</button>
+          ${convCalledIds.size > 0 ? `
+            <button class="chip ${defaultTeamFilter === 'convocados' ? 'active' : ''}" data-team="convocados">📋 Convocados (${convCalledIds.size})</button>
           ` : ''}
-          <button class="chip ${sessionTeams.length <= 1 && defaultTeamFilter === 'all' ? 'active' : ''}" data-team="all">${t('all')}</button>
+          ${sessionTeams.length > 1 ? `
+            <button class="chip ${defaultTeamFilter === sessionTeams ? 'active' : ''}" data-team="session_teams">🛡️ Equipos sesión (${sessionTeams.length})</button>
+          ` : ''}
+          <button class="chip ${defaultTeamFilter === 'all' ? 'active' : ''}" data-team="all">${t('all')}</button>
           ${Store.state.teams.map(t => `
-            <button class="chip ${sessionTeams.length <= 1 && defaultTeamFilter === t.id ? 'active' : ''}" data-team="${t.id}">
+            <button class="chip ${defaultTeamFilter === t.id ? 'active' : ''}" data-team="${t.id}">
               <span class="dot" style="background: ${t.color}"></span>
               ${escapeHtml(t.name)}
             </button>
@@ -4752,7 +4799,7 @@
 
       function updateGrid() {
         const query = searchInput.value.toLowerCase().trim();
-        let list = Store.sortedPlayers(currentFilterTeam);
+        let list = getPlayersForFilter(currentFilterTeam);
         if (query) {
           list = list.filter(p => {
             const matchName = Store.playerName(p).toLowerCase().includes(query);
@@ -7221,7 +7268,28 @@
       ? s.teamIds
       : (s.teamId ? [s.teamId] : []);
 
-    let defaultTeamFilter = sessionTeams.length > 1 ? 'session_teams' : (sessionTeams[0] || 'all');
+    let linkedConv = s.convocationId ? Store.convocation(s.convocationId) : null;
+    if (!linkedConv) {
+      linkedConv = (Store.state.convocations || []).find(cv => cv.sessionId === s.id || (cv.date === s.date && cv.type === s.type && (!cv.rival || !s.rival || cv.rival === s.rival)));
+      if (linkedConv && !s.convocationId) {
+        s.convocationId = linkedConv.id;
+        linkedConv.sessionId = s.id;
+        Store.save();
+      }
+    }
+    const convCalledIds = new Set();
+    if (linkedConv && linkedConv.list) {
+      Object.keys(linkedConv.list).forEach(pid => {
+        const st = linkedConv.list[pid];
+        if (st && st !== 'uncalled' && st !== 'absent') {
+          convCalledIds.add(pid);
+        }
+      });
+    }
+
+    let defaultTeamFilter = (convCalledIds.size > 0)
+      ? 'convocados'
+      : (sessionTeams.length > 1 ? 'session_teams' : (sessionTeams[0] || 'all'));
     if (defaultTeamFilter === 'all' && (trackedPlayerIds.size > 0 || attendedPlayerIds.size > 0)) {
       for (const pid of [...trackedPlayerIds, ...attendedPlayerIds]) {
         const p = Store.player(pid);
@@ -7250,6 +7318,9 @@
       function renderSquadContent() {
         const teams = Store.state.teams || [];
         const filteredPlayers = allPlayers.filter(p => {
+          if (selectedTeamFilter === 'convocados') {
+            return convCalledIds.has(p.id);
+          }
           if (selectedTeamFilter === 'session_teams') {
             return sessionTeams.length > 0 ? sessionTeams.includes(p.teamId) : true;
           }
@@ -7257,8 +7328,8 @@
           return p.teamId === selectedTeamFilter;
         });
         const sortedSquad = filteredPlayers.slice().sort((a, b) => {
-          const aScore = (trackedPlayerIds.has(a.id) ? 2 : 0) + (Store.hasPlayerAttended(s, a.id) ? 1 : 0);
-          const bScore = (trackedPlayerIds.has(b.id) ? 2 : 0) + (Store.hasPlayerAttended(s, b.id) ? 1 : 0);
+          const aScore = (trackedPlayerIds.has(a.id) ? 4 : 0) + (Store.hasPlayerAttended(s, a.id) ? 2 : 0) + (convCalledIds.has(a.id) ? 1 : 0);
+          const bScore = (trackedPlayerIds.has(b.id) ? 4 : 0) + (Store.hasPlayerAttended(s, b.id) ? 2 : 0) + (convCalledIds.has(b.id) ? 1 : 0);
           if (bScore !== aScore) return bScore - aScore;
           return (a.name || '').localeCompare(b.name || '');
         });
@@ -7436,10 +7507,14 @@
           `}
 
           <!-- Selector de filtro de equipo -->
-          ${teams.length > 0 ? `
+          <!-- Selector de filtro de equipo -->
+          ${(teams.length > 0 || convCalledIds.size > 0) ? `
             <div style="margin-bottom: 10px;">
               <label style="font-size: 11.5px; font-weight: 700; color: var(--muted); margin-bottom: 4px; display: block;">Equipo del partido:</label>
               <select id="session-team-filter" style="width: 100%; font-weight: 800; font-size: 13.5px; padding: 8px 10px; border-radius: 10px;">
+                ${convCalledIds.size > 0 ? `
+                  <option value="convocados" ${selectedTeamFilter === 'convocados' ? 'selected' : ''}>📋 Convocados (${convCalledIds.size})</option>
+                ` : ''}
                 ${sessionTeams.length > 1 ? `
                   <option value="session_teams" ${selectedTeamFilter === 'session_teams' ? 'selected' : ''}>🛡️ Equipos de la sesión (${sessionTeams.map(tid => { const tm = Store.team(tid); return tm ? tm.name : ''; }).filter(Boolean).join(' + ')})</option>
                 ` : ''}
@@ -7484,7 +7559,7 @@
           </div>
 
           <div class="section-title">
-            <span>${t('matchSquadTitle', 'Plantilla de Jugadores')} (${trackedCount} ${t('trackedCountLabel', 'seguidos')} / ${filteredPlayers.length} ${t('totalCountLabel', 'total')})</span>
+            <span>${t('matchSquadTitle', 'Plantilla de Jugadores')} (${convCalledIds.size > 0 ? `${convCalledIds.size} convocados • ` : ''}${trackedCount} ${t('trackedCountLabel', 'seguidos')} / ${filteredPlayers.length} ${t('totalCountLabel', 'total')})</span>
           </div>
           <p class="hint" style="margin-bottom: 10px;">${t('matchSquadHint', 'Pulsa en cualquier jugador para consultar su rendimiento específico en este partido:')}</p>
 
@@ -7498,6 +7573,7 @@
               const isTracked = trackedPlayerIds.has(p.id);
               const attStatus = Store.getPlayerAttendanceStatus(s, p.id);
               const isPresent = (attStatus === 'present' || attStatus === 'late');
+              const isCalled = convCalledIds.has(p.id);
               const pStats = (s.stats && s.stats[p.id]) || {};
               const rating = Store.calculateMatchRating(pStats, p.mainPosition);
 
@@ -7512,17 +7588,20 @@
                 attBadgeHtml = `<span class="badge" style="background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.45); font-size: 10px; font-weight: 800; padding: 1px 6px;">❌ ${t('attAbsent', 'Ausente')}</span>`;
               }
 
+              const convBadgeHtml = isCalled ? `<span class="badge" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.45); font-size: 10px; font-weight: 800; padding: 1px 6px;">📋 Convocado</span>` : '';
+
               return `
-                <div class="player-match-row ${(isTracked || isPresent) ? 'tracked' : ''}" data-player-id="${p.id}">
+                <div class="player-match-row ${(isTracked || isPresent || isCalled) ? 'tracked' : ''}" data-player-id="${p.id}">
                   ${renderAvatar(p, 'sm')}
                   <div class="grow ellipsis">
                     <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
                       <b style="font-size: 14px;">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(Store.playerName(p))}</b>
+                      ${convBadgeHtml}
                       ${isTracked ? '<span class="tracked-badge">📊 Seguido</span>' : ''}
                       ${attBadgeHtml}
                     </div>
                     <small style="color: var(--muted); font-size: 11.5px; display: block; margin-top: 1px;">
-                      ${p.mainPosition || 'Jugador'} ${isTracked ? `• ⭐ ${rating.toFixed(1)} nota` : (isPresent ? '• ✅ Asistencia guardada (Sin seguimiento)' : '• (No registrado / Suplente)')}
+                      ${p.mainPosition || 'Jugador'} ${isTracked ? `• ⭐ ${rating.toFixed(1)} nota` : (isPresent ? '• ✅ Asistencia guardada (Sin seguimiento)' : (isCalled ? '• 📋 Convocado' : '• (No registrado / Suplente)'))}
                     </small>
                   </div>
                   ${(isTracked || isPresent) ? `
@@ -12316,18 +12395,50 @@
           list
         });
 
-        // Crear automáticamente la sesión en la lista de sesiones si es una convocatoria nueva
-        if (isNew) {
+        // Sincronizar bidireccionalmente con la sesión correspondiente en Inicio y Sesiones
+        let linkedSess = null;
+        if (savedConv.sessionId) {
+          linkedSess = Store.session(savedConv.sessionId);
+        }
+        if (!linkedSess && savedConv.id) {
+          linkedSess = (Store.state.sessions || []).find(s => s.convocationId === savedConv.id);
+        }
+        if (!linkedSess) {
+          linkedSess = (Store.state.sessions || []).find(s => 
+            s.date === (c.date || savedConv.date) && 
+            s.type === savedConv.type && 
+            (!savedConv.rival || !s.rival || s.rival === savedConv.rival)
+          );
+        }
+
+        if (linkedSess) {
+          linkedSess.convocationId = savedConv.id;
+          linkedSess.title = savedConv.title;
+          linkedSess.date = savedConv.date;
+          linkedSess.time = savedConv.time;
+          linkedSess.venue = savedConv.venue;
+          linkedSess.rival = savedConv.rival;
+          linkedSess.teamId = savedConv.teamId;
+          linkedSess.teamIds = savedConv.teamIds;
+          savedConv.sessionId = linkedSess.id;
+          Store.save();
+        } else {
           try {
-            Store.createSession({
+            const newSess = Store.createSession({
               type: currentType,
               date,
+              time,
+              venue,
               rival: rival || '',
               title: title || (currentType === 'match' ? (rival || 'Partido') : 'Entrenamiento'),
               teamId: selectedTeamIds[0] || '',
               teamIds: selectedTeamIds,
               convocationId: savedConv.id
             });
+            if (newSess) {
+              savedConv.sessionId = newSess.id;
+              Store.save();
+            }
           } catch (err) {
             console.error('Error auto-creando sesión desde convocatoria:', err);
           }

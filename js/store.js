@@ -438,7 +438,7 @@
 
       // Si el nuevo jugador pertenece a un equipo, añadirlo automáticamente a las convocatorias vigentes de ese equipo
       if (p.teamId && Array.isArray(this.state.convocations)) {
-        const todayIso = todayStr();
+        const todayIso = new Date().toISOString().slice(0, 10);
         this.state.convocations.forEach(c => {
           if (!c || (c.date && c.date < todayIso)) return;
           const tIds = Array.isArray(c.teamIds) ? c.teamIds : (c.teamId ? [c.teamId] : []);
@@ -716,6 +716,7 @@
         venue: opts.venue || '',
         teamId: opts.teamId || '',
         teamIds: opts.teamIds || (opts.teamId ? [opts.teamId] : []),
+        convocationId: opts.convocationId || null,
         notes: opts.notes || '',
         status: 'active',
         elapsedMs: 0,
@@ -884,14 +885,22 @@
       const playerIds = new Set();
 
       // 1. Si la sesión está vinculada a una convocatoria, usar convocados
+      let c = null;
       if (s.convocationId) {
-        const c = this.convocation(s.convocationId);
-        if (c && c.list) {
-          Object.keys(c.list).forEach(pid => {
-            const st = c.list[pid];
-            if (st && st !== 'uncalled' && st !== 'absent') playerIds.add(pid);
-          });
+        c = this.convocation(s.convocationId);
+      }
+      if (!c) {
+        c = (this.state.convocations || []).find(cv => cv.sessionId === s.id || (cv.date === s.date && cv.type === s.type && (!cv.rival || !s.rival || cv.rival === s.rival)));
+        if (c && !s.convocationId) {
+          s.convocationId = c.id;
+          c.sessionId = s.id;
         }
+      }
+      if (c && c.list) {
+        Object.keys(c.list).forEach(pid => {
+          const st = c.list[pid];
+          if (st && st !== 'uncalled' && st !== 'absent') playerIds.add(pid);
+        });
       }
 
       // 2. Si no hay jugadores por convocatoria, usar los del equipo de la sesión
@@ -1266,6 +1275,23 @@
       Object.keys(s.attendance || {}).forEach(pid => {
         if (this.hasPlayerAttended(s, pid)) ids.add(pid);
       });
+      // Fallback a convocados si aún no se han registrado acciones ni asistencia
+      if (ids.size === 0) {
+        let c = s.convocationId ? this.convocation(s.convocationId) : null;
+        if (!c) {
+          c = (this.state.convocations || []).find(cv => cv.sessionId === s.id || (cv.date === s.date && cv.type === s.type && (!cv.rival || !s.rival || cv.rival === s.rival)));
+          if (c && !s.convocationId) {
+            s.convocationId = c.id;
+            c.sessionId = s.id;
+          }
+        }
+        if (c && c.list) {
+          Object.keys(c.list).forEach(pid => {
+            const st = c.list[pid];
+            if (st && st !== 'uncalled' && st !== 'absent') ids.add(pid);
+          });
+        }
+      }
       return Array.from(ids);
     },
 
