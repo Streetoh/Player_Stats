@@ -1041,6 +1041,38 @@ button { font-family: inherit; color: inherit; border: 0; background: none; curs
   border: 1px solid rgba(34, 197, 94, 0.4);
 }
 
+/* Estados de respuesta a la convocatoria en la plantilla */
+.player-match-row.conv-status-yes {
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.24) 0%, rgba(16, 185, 129, 0.08) 60%, var(--surface, #1e293b) 100%) !important;
+  border: 1.5px solid rgba(34, 197, 94, 0.65) !important;
+  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.12);
+}
+.player-match-row.conv-status-yes:hover,
+.player-match-row.conv-status-yes:active {
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.34) 0%, rgba(16, 185, 129, 0.14) 60%, var(--surface2, #253349) 100%) !important;
+}
+
+.player-match-row.conv-status-no {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.24) 0%, rgba(220, 38, 38, 0.08) 60%, var(--surface, #1e293b) 100%) !important;
+  border: 1.5px solid rgba(239, 68, 68, 0.65) !important;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.12);
+}
+.player-match-row.conv-status-no:hover,
+.player-match-row.conv-status-no:active {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.34) 0%, rgba(220, 38, 38, 0.14) 60%, var(--surface2, #253349) 100%) !important;
+}
+
+.player-match-row.conv-status-pending {
+  background: linear-gradient(135deg, rgba(250, 204, 21, 0.22) 0%, rgba(234, 179, 8, 0.08) 60%, var(--surface, #1e293b) 100%) !important;
+  border: 1.5px solid rgba(250, 204, 21, 0.6) !important;
+  box-shadow: 0 2px 8px rgba(250, 204, 21, 0.10);
+}
+.player-match-row.conv-status-pending:hover,
+.player-match-row.conv-status-pending:active {
+  background: linear-gradient(135deg, rgba(250, 204, 21, 0.32) 0%, rgba(234, 179, 8, 0.14) 60%, var(--surface2, #253349) 100%) !important;
+}
+
+
 /* Fichas de Habilidad interactiva para el radar */
 .skill-chips-grid {
   display: grid;

@@ -2189,10 +2189,20 @@
     if (!player) return `<div class="${cls}"><span>?</span></div>`;
     const initial = (player.name ? player.name[0] : (player.nickname ? player.nickname[0] : 'P')).toUpperCase();
     const dorsalHtml = player.mainDorsal != null ? `<span class="dorsal">${player.mainDorsal}</span>` : '';
-    if (player.photo) {
-      return `<div class="${cls}"><img src="${player.photo}" alt="" loading="lazy" />${dorsalHtml}</div>`;
+    
+    let photo = player.photo;
+    if ((!photo || photo.length < 50) && player.id && window.CacheDB && window.CacheDB.getPhotoSync) {
+      const cached = window.CacheDB.getPhotoSync(player.id);
+      if (cached && cached.dataUrl && cached.dataUrl.length > 50) {
+        photo = cached.dataUrl;
+        player.photo = photo;
+      }
     }
-    return `<div class="${cls}"><span>${initial}</span>${dorsalHtml}</div>`;
+
+    if (photo && photo.length > 50) {
+      return `<div class="${cls}"><img src="${photo}" alt="" loading="lazy" />${dorsalHtml}</div>`;
+    }
+    return `<div class="${cls}" data-avatar-pid="${player.id || ''}"><span>${initial}</span>${dorsalHtml}</div>`;
   }
 
   function getMyPlayer() {
@@ -4398,6 +4408,15 @@
       });
     }
 
+    if (clubData && Array.isArray(clubData.players)) {
+      clubData.players.forEach(p => {
+        if (p && p.id && (!p.photo || p.photo.length < 50) && window.CacheDB && window.CacheDB.getPhotoSync) {
+          const cached = window.CacheDB.getPhotoSync(p.id);
+          if (cached && cached.dataUrl && cached.dataUrl.length > 50) p.photo = cached.dataUrl;
+        }
+      });
+    }
+
     overlay._refreshPlayers = renderPlayersList;
     renderPlayersList();
 
@@ -4413,6 +4432,13 @@
     document.body.appendChild(overlay);
     if (searchInp) setTimeout(() => searchInp.focus(), 80);
     syncFreshPlayersFromCloud();
+    if (window.Cloud && window.Cloud.hydratePlayerPhotos && clubData && Array.isArray(clubData.players)) {
+      window.Cloud.hydratePlayerPhotos(clubData.players, (loadedP) => {
+        if (loadedP && loadedP.id) {
+          refreshOpenIdentityModals(loadedP.id);
+        }
+      });
+    }
   }
 
   function refreshOpenIdentityModals(updatedPlayerId) {
@@ -4422,7 +4448,16 @@
         document.querySelectorAll(`.player-avatar-slot[data-slot-pid="${updatedPlayerId}"]`).forEach(slot => {
           slot.innerHTML = renderAvatar(p, 'sm');
         });
+        if (p.photo) {
+          document.querySelectorAll(`[data-avatar-pid="${updatedPlayerId}"]`).forEach(el => {
+            const dorsal = el.querySelector('.dorsal');
+            const dorsalHtml = dorsal ? dorsal.outerHTML : '';
+            el.innerHTML = `<img src="${p.photo}" alt="" loading="lazy" />${dorsalHtml}`;
+            el.removeAttribute('data-avatar-pid');
+          });
+        }
       }
+      return;
     }
     const idModal = document.getElementById('dialog-select-identity-overlay');
     if (idModal && typeof idModal._refreshPlayers === 'function') {
@@ -4445,7 +4480,12 @@
         serverPlayers.forEach(sp => {
           if (!sp || !sp.id) return;
           const prev = byId.get(sp.id);
-          byId.set(sp.id, Object.assign({}, prev || {}, sp, { photo: (prev && prev.photo) || sp.photo || '' }));
+          let photo = (prev && prev.photo) || sp.photo || '';
+          if ((!photo || photo.length < 50) && window.CacheDB && window.CacheDB.getPhotoSync) {
+            const cached = window.CacheDB.getPhotoSync(sp.id);
+            if (cached && cached.dataUrl && cached.dataUrl.length > 50) photo = cached.dataUrl;
+          }
+          byId.set(sp.id, Object.assign({}, prev || {}, sp, { photo: photo }));
         });
         clubData.players = Array.from(byId.values());
         window.clubData = clubData;
@@ -9365,11 +9405,20 @@
             return;
           }
         }
+        if (clubData && Array.isArray(clubData.players)) {
+          clubData.players.forEach(p => {
+            if (p && p.id && (!p.photo || p.photo.length < 50) && window.CacheDB && window.CacheDB.getPhotoSync) {
+              const cp = window.CacheDB.getPhotoSync(p.id);
+              if (cp && cp.dataUrl && cp.dataUrl.length > 50) p.photo = cp.dataUrl;
+            }
+          });
+        }
         updateHeaderIdentity();
         if (window.Cloud && window.Cloud.hydratePlayerPhotos && clubData && Array.isArray(clubData.players)) {
-          window.Cloud.hydratePlayerPhotos(clubData.players, () => {
+          window.Cloud.hydratePlayerPhotos(clubData.players, (loadedP) => {
             updateHeaderIdentity();
             renderCurrentTab();
+            refreshOpenIdentityModals(loadedP ? loadedP.id : null);
           });
         }
       }
@@ -9458,10 +9507,18 @@
             });
           }
           clubData = remoteState;
-          if (prevPhotos.size > 0 && Array.isArray(clubData.players)) {
+          if (Array.isArray(clubData.players)) {
             clubData.players.forEach(p => {
-              if (p && p.id && !p.photo && prevPhotos.has(p.id)) {
-                p.photo = prevPhotos.get(p.id);
+              if (!p || !p.id) return;
+              if (!p.photo || p.photo.length < 50) {
+                if (prevPhotos.has(p.id)) {
+                  p.photo = prevPhotos.get(p.id);
+                } else if (window.CacheDB && window.CacheDB.getPhotoSync) {
+                  const cached = window.CacheDB.getPhotoSync(p.id);
+                  if (cached && cached.dataUrl && cached.dataUrl.length > 50) {
+                    p.photo = cached.dataUrl;
+                  }
+                }
               }
             });
           }

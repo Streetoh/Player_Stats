@@ -827,8 +827,18 @@
     if (!player) return `<div class="${cls}"><span>?</span></div>`;
     const initial = (player.name ? player.name[0] : (player.nickname ? player.nickname[0] : 'J')).toUpperCase();
     const dorsalHtml = player.mainDorsal != null ? `<span class="dorsal">${player.mainDorsal}</span>` : '';
-    if (player.photo) {
-      return `<div class="${cls}"><img src="${player.photo}" alt="" loading="lazy" />${dorsalHtml}</div>`;
+    
+    let photo = player.photo;
+    if ((!photo || photo.length < 50) && player.id && window.CacheDB && window.CacheDB.getPhotoSync) {
+      const cached = window.CacheDB.getPhotoSync(player.id);
+      if (cached && cached.dataUrl && cached.dataUrl.length > 50) {
+        photo = cached.dataUrl;
+        player.photo = photo;
+      }
+    }
+
+    if (photo && photo.length > 50) {
+      return `<div class="${cls}"><img src="${photo}" alt="" loading="lazy" />${dorsalHtml}</div>`;
     }
     return `<div class="${cls}"><span>${initial}</span>${dorsalHtml}</div>`;
   }
@@ -7269,11 +7279,22 @@
       : (s.teamId ? [s.teamId] : []);
 
     let linkedConv = s.convocationId ? Store.convocation(s.convocationId) : null;
-    if (!linkedConv) {
-      linkedConv = (Store.state.convocations || []).find(cv => cv.sessionId === s.id || (cv.date === s.date && cv.type === s.type && (!cv.rival || !s.rival || cv.rival === s.rival)));
+    if (!linkedConv && Store.state && Array.isArray(Store.state.convocations)) {
+      linkedConv = Store.state.convocations.find(cv => {
+        if (cv.sessionId && cv.sessionId === s.id) return true;
+        if (cv.id && s.convocationId && cv.id === s.convocationId) return true;
+        if (cv.date === s.date && cv.type === s.type) {
+          if (s.rival && cv.rival && s.rival.toLowerCase().trim() === cv.rival.toLowerCase().trim()) return true;
+          const cvTeams = Array.isArray(cv.teamIds) && cv.teamIds.length > 0 ? cv.teamIds : (cv.teamId ? [cv.teamId] : []);
+          const matchTeams = sessionTeams.length > 0 ? sessionTeams : (s.teamId ? [s.teamId] : []);
+          if (cvTeams.some(tid => matchTeams.includes(tid))) return true;
+          if (!s.rival && !cv.rival) return true;
+        }
+        return false;
+      });
       if (linkedConv && !s.convocationId) {
         s.convocationId = linkedConv.id;
-        linkedConv.sessionId = s.id;
+        if (!linkedConv.sessionId) linkedConv.sessionId = s.id;
         Store.save();
       }
     }
@@ -7327,6 +7348,38 @@
           if (selectedTeamFilter === 'all') return true;
           return p.teamId === selectedTeamFilter;
         });
+
+        let convYesCount = 0;
+        let convNoCount = 0;
+        let convPendingCount = 0;
+
+        filteredPlayers.forEach(p => {
+          let cSt = null;
+          if (linkedConv) {
+            const resp = (linkedConv.responses && linkedConv.responses[p.id]) || null;
+            const st = (linkedConv.list && linkedConv.list[p.id]) || null;
+            if (resp) {
+              if (resp.status === 'attending' || resp.status === 'yes') cSt = 'yes';
+              else if (resp.status === 'absent' || resp.status === 'no') cSt = 'no';
+              else cSt = 'pending';
+            } else if (st === 'absent') {
+              cSt = 'no';
+            } else {
+              cSt = 'pending';
+            }
+          } else if (s.attendance && Object.keys(s.attendance).length > 0) {
+            const attSt = Store.getPlayerAttendanceStatus(s, p.id);
+            if (attSt === 'present' || attSt === 'late') cSt = 'yes';
+            else if (attSt === 'absent') cSt = 'no';
+            else cSt = 'pending';
+          } else {
+            cSt = 'pending';
+          }
+          if (cSt === 'yes') convYesCount++;
+          else if (cSt === 'no') convNoCount++;
+          else convPendingCount++;
+        });
+
         const sortedSquad = filteredPlayers.slice().sort((a, b) => {
           const aScore = (trackedPlayerIds.has(a.id) ? 4 : 0) + (Store.hasPlayerAttended(s, a.id) ? 2 : 0) + (convCalledIds.has(a.id) ? 1 : 0);
           const bScore = (trackedPlayerIds.has(b.id) ? 4 : 0) + (Store.hasPlayerAttended(s, b.id) ? 2 : 0) + (convCalledIds.has(b.id) ? 1 : 0);
@@ -7561,9 +7614,24 @@
           <div class="section-title">
             <span>${t('matchSquadTitle', 'Plantilla de Jugadores')} (${convCalledIds.size > 0 ? `${convCalledIds.size} convocados • ` : ''}${trackedCount} ${t('trackedCountLabel', 'seguidos')} / ${filteredPlayers.length} ${t('totalCountLabel', 'total')})</span>
           </div>
+
+          <!-- Resumen de Convocatoria / Asistencia (Verde: Asiste, Rojo: Baja, Amarillo: Sin respuesta) -->
+          ${(linkedConv || (s.attendance && Object.keys(s.attendance).length > 0)) ? `
+            <div style="display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; align-items: center;">
+              <span class="conv-status-chip called" style="font-size: 11px; padding: 4px 10px; font-weight: 800; border-radius: 8px;">🟢 ${convYesCount} ${t('attendanceShortYes', 'Asiste')}</span>
+              <span class="conv-status-chip" style="background: rgba(239, 68, 68, 0.18); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.4); font-size: 11px; padding: 4px 10px; font-weight: 800; border-radius: 8px;">❌ ${convNoCount} ${t('attendanceShortNo', 'Baja')}</span>
+              <span class="conv-status-chip" style="background: rgba(250, 204, 21, 0.15); color: #fde047; border: 1px solid rgba(250, 204, 21, 0.4); font-size: 11px; padding: 4px 10px; font-weight: 800; border-radius: 8px;">⏳ ${convPendingCount} ${t('noResponsePending', 'Sin respuesta')}</span>
+              ${linkedConv ? `
+                <button type="button" class="btn sm ghost" id="btn-session-open-conv-modal" style="margin-left: auto; font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 8px; border-color: rgba(168, 85, 247, 0.5); color: #c084fc;">
+                  📋 Convocatoria >
+                </button>
+              ` : ''}
+            </div>
+          ` : ''}
+
           <p class="hint" style="margin-bottom: 10px;">${t('matchSquadHint', 'Pulsa en cualquier jugador para consultar su rendimiento específico en este partido:')}</p>
 
-          <!-- Lista de jugadores con destacados interactivos -->
+          <!-- Lista de jugadores con destacados interactivos y degradados según confirmación -->
           <div style="max-height: 48vh; overflow-y: auto; padding-right: 2px;">
             ${sortedSquad.length === 0 ? `
               <div class="empty" style="padding: 16px;">
@@ -7577,32 +7645,90 @@
               const pStats = (s.stats && s.stats[p.id]) || {};
               const rating = Store.calculateMatchRating(pStats, p.mainPosition);
 
+              let convStatus = null; // 'yes' | 'no' | 'pending'
+              let convRespNotes = '';
+
+              if (linkedConv) {
+                const resp = (linkedConv.responses && linkedConv.responses[p.id]) || null;
+                const st = (linkedConv.list && linkedConv.list[p.id]) || null;
+                if (resp) {
+                  if (resp.status === 'attending' || resp.status === 'yes') {
+                    convStatus = 'yes';
+                  } else if (resp.status === 'absent' || resp.status === 'no') {
+                    convStatus = 'no';
+                    convRespNotes = resp.notes || resp.reason || '';
+                  } else {
+                    convStatus = 'pending';
+                  }
+                } else if (st === 'absent') {
+                  convStatus = 'no';
+                } else {
+                  convStatus = 'pending';
+                }
+              } else if (s.attendance && Object.keys(s.attendance).length > 0) {
+                if (attStatus === 'present' || attStatus === 'late') {
+                  convStatus = 'yes';
+                } else if (attStatus === 'absent') {
+                  convStatus = 'no';
+                } else {
+                  convStatus = 'pending';
+                }
+              } else {
+                convStatus = 'pending';
+              }
+
+              let cardClass = 'player-match-row';
+              let cardStyle = '';
+              let convStatusBadgeHtml = '';
+
+              if (convStatus === 'yes') {
+                cardClass += ' conv-status-yes';
+                cardStyle = 'background: linear-gradient(135deg, rgba(34, 197, 94, 0.24) 0%, rgba(16, 185, 129, 0.08) 60%, var(--surface, #1e293b) 100%) !important; border: 1.5px solid rgba(34, 197, 94, 0.65) !important; box-shadow: 0 2px 8px rgba(34, 197, 94, 0.12);';
+                convStatusBadgeHtml = `<span class="badge" style="background: rgba(34, 197, 94, 0.28); color: #86efac; border: 1.5px solid rgba(34, 197, 94, 0.7); font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 6px;">🟢 ${t('attendanceShortYes', 'Asiste')}</span>`;
+              } else if (convStatus === 'no') {
+                cardClass += ' conv-status-no';
+                cardStyle = 'background: linear-gradient(135deg, rgba(239, 68, 68, 0.24) 0%, rgba(220, 38, 38, 0.08) 60%, var(--surface, #1e293b) 100%) !important; border: 1.5px solid rgba(239, 68, 68, 0.65) !important; box-shadow: 0 2px 8px rgba(239, 68, 68, 0.12);';
+                convStatusBadgeHtml = `<span class="badge" style="background: rgba(239, 68, 68, 0.28); color: #fca5a5; border: 1.5px solid rgba(239, 68, 68, 0.7); font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 6px;">❌ ${t('attendanceShortNo', 'Baja')}</span>`;
+              } else {
+                cardClass += ' conv-status-pending';
+                cardStyle = 'background: linear-gradient(135deg, rgba(250, 204, 21, 0.22) 0%, rgba(234, 179, 8, 0.08) 60%, var(--surface, #1e293b) 100%) !important; border: 1.5px solid rgba(250, 204, 21, 0.6) !important; box-shadow: 0 2px 8px rgba(250, 204, 21, 0.10);';
+                convStatusBadgeHtml = `<span class="badge" style="background: rgba(250, 204, 21, 0.25); color: #fde047; border: 1.5px solid rgba(250, 204, 21, 0.7); font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 6px;">⏳ ${t('noResponsePending', 'Sin respuesta')}</span>`;
+              }
+
+              if (isTracked) cardClass += ' tracked';
+
               let attBadgeHtml = '';
-              if (attStatus === 'present') {
+              if (attStatus === 'present' && convStatus !== 'yes') {
                 attBadgeHtml = `<span class="badge" style="background: rgba(34, 197, 94, 0.2); color: #86efac; border: 1px solid rgba(34, 197, 94, 0.45); font-size: 10px; font-weight: 800; padding: 1px 6px;">🟢 ${t('attPresent', 'Presente')}</span>`;
               } else if (attStatus === 'late') {
                 attBadgeHtml = `<span class="badge" style="background: rgba(250, 204, 21, 0.2); color: #fde047; border: 1px solid rgba(250, 204, 21, 0.45); font-size: 10px; font-weight: 800; padding: 1px 6px;">⏰ ${t('attLate', 'Retraso')}</span>`;
               } else if (attStatus === 'justified') {
                 attBadgeHtml = `<span class="badge" style="background: rgba(56, 189, 248, 0.2); color: #7dd3fc; border: 1px solid rgba(56, 189, 248, 0.45); font-size: 10px; font-weight: 800; padding: 1px 6px;">🟡 ${t('attJustified', 'Justificado')}</span>`;
-              } else if (attStatus === 'absent') {
+              } else if (attStatus === 'absent' && convStatus !== 'no') {
                 attBadgeHtml = `<span class="badge" style="background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.45); font-size: 10px; font-weight: 800; padding: 1px 6px;">❌ ${t('attAbsent', 'Ausente')}</span>`;
               }
 
-              const convBadgeHtml = isCalled ? `<span class="badge" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.45); font-size: 10px; font-weight: 800; padding: 1px 6px;">📋 Convocado</span>` : '';
+              const convBadgeHtml = (isCalled && !linkedConv) ? `<span class="badge" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.45); font-size: 10px; font-weight: 800; padding: 1px 6px;">📋 Convocado</span>` : '';
 
               return `
-                <div class="player-match-row ${(isTracked || isPresent || isCalled) ? 'tracked' : ''}" data-player-id="${p.id}">
+                <div class="${cardClass}" style="${cardStyle}" data-player-id="${p.id}">
                   ${renderAvatar(p, 'sm')}
                   <div class="grow ellipsis">
                     <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
                       <b style="font-size: 14px;">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(Store.playerName(p))}</b>
+                      ${convStatusBadgeHtml}
                       ${convBadgeHtml}
                       ${isTracked ? '<span class="tracked-badge">📊 Seguido</span>' : ''}
                       ${attBadgeHtml}
                     </div>
                     <small style="color: var(--muted); font-size: 11.5px; display: block; margin-top: 1px;">
-                      ${p.mainPosition || 'Jugador'} ${isTracked ? `• ⭐ ${rating.toFixed(1)} nota` : (isPresent ? '• ✅ Asistencia guardada (Sin seguimiento)' : (isCalled ? '• 📋 Convocado' : '• (No registrado / Suplente)'))}
+                      ${p.mainPosition || 'Jugador'} ${isTracked ? `• ⭐ ${rating.toFixed(1)} nota` : (isPresent ? '• ✅ Asistencia guardada' : (isCalled ? '• 📋 Convocado' : '• Plantilla'))}
                     </small>
+                    ${convRespNotes ? `
+                      <div style="font-size: 11px; color: #fca5a5; margin-top: 2px; font-style: italic;">
+                        💬 "${escapeHtml(convRespNotes)}"
+                      </div>
+                    ` : ''}
                   </div>
                   ${(isTracked || isPresent) ? `
                     <div style="font-size: 12px; font-weight: 800; text-align: right; color: var(--cyan);">
@@ -7699,6 +7825,15 @@
         if (btnDetailAtt) {
           btnDetailAtt.onclick = () => {
             showSessionAttendanceModal(s.id);
+          };
+        }
+
+        const btnOpenConv = body.querySelector('#btn-session-open-conv-modal');
+        if (btnOpenConv && linkedConv) {
+          btnOpenConv.onclick = () => {
+            showConvocationDetailsModal(linkedConv, () => {
+              renderSquadContent();
+            });
           };
         }
 
@@ -10468,9 +10603,17 @@
         const mainDorsal = dorsalStr ? parseInt(dorsalStr, 10) : null;
 
         // Si no se seleccionó una foto nueva pero el jugador ya tenía una foto o hash, conservarla
-        if (!photoData && player && (player.photo || player.photoHash)) {
-          photoData = player.photo || '';
-          photoHash = player.photoHash || '';
+        if (!photoData && player) {
+          if (player.photo || player.photoHash) {
+            photoData = player.photo || '';
+            photoHash = player.photoHash || '';
+          } else if (window.CacheDB && window.CacheDB.getPhotoSync) {
+            const cached = window.CacheDB.getPhotoSync(player.id);
+            if (cached && cached.dataUrl) {
+              photoData = cached.dataUrl;
+              photoHash = cached.photoHash || '';
+            }
+          }
         }
 
         const saved = Store.upsertPlayer({
@@ -11339,7 +11482,7 @@
                   ${respondedYes.map(item => {
                     const p = item.player;
                     return `
-                      <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(34, 197, 94, 0.1); border: 1.5px solid rgba(34, 197, 94, 0.4); border-radius: 10px;">
+                      <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: linear-gradient(135deg, rgba(34, 197, 94, 0.24) 0%, rgba(16, 185, 129, 0.08) 60%, var(--surface, #1e293b) 100%); border: 1.5px solid rgba(34, 197, 94, 0.65); border-radius: 12px; box-shadow: 0 2px 8px rgba(34, 197, 94, 0.12);">
                         <div style="display: flex; align-items: center; gap: 8px;">
                           ${renderAvatar(p, 'sm')}
                           <div>
@@ -11358,7 +11501,7 @@
                     const p = item.player;
                     const reason = (item.resp && (item.resp.notes || item.resp.reason)) ? (item.resp.notes || item.resp.reason) : '';
                     return `
-                      <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(239, 68, 68, 0.1); border: 1.5px solid rgba(239, 68, 68, 0.4); border-radius: 10px;">
+                      <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: linear-gradient(135deg, rgba(239, 68, 68, 0.24) 0%, rgba(220, 38, 38, 0.08) 60%, var(--surface, #1e293b) 100%); border: 1.5px solid rgba(239, 68, 68, 0.65); border-radius: 12px; box-shadow: 0 2px 8px rgba(239, 68, 68, 0.12);">
                         <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;">
                           ${renderAvatar(p, 'sm')}
                           <div style="flex: 1; min-width: 0;">
@@ -11401,11 +11544,14 @@
                   ${pending.map(item => {
                     const p = item.player;
                     return `
-                      <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;">
+                      <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: linear-gradient(135deg, rgba(250, 204, 21, 0.22) 0%, rgba(234, 179, 8, 0.08) 60%, var(--surface, #1e293b) 100%); border: 1.5px solid rgba(250, 204, 21, 0.6); border-radius: 12px; box-shadow: 0 2px 8px rgba(250, 204, 21, 0.10);">
                         <div style="display: flex; align-items: center; gap: 8px;">
                           ${renderAvatar(p, 'sm')}
                           <div>
-                            <b style="font-size: 13px; color: #fff;">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(Store.playerName(p))}</b>
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                              <b style="font-size: 13px; color: #fff;">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(Store.playerName(p))}</b>
+                              <span class="badge" style="background: rgba(250, 204, 21, 0.25); color: #fde047; border: 1px solid rgba(250, 204, 21, 0.7); font-size: 9.5px; font-weight: 800; padding: 1px 6px; border-radius: 5px;">⏳ ${t('noResponsePending', 'Sin respuesta')}</span>
+                            </div>
                             <small style="display: block; color: var(--muted); font-size: 11px;">${p.mainPosition || 'Jugador'}</small>
                           </div>
                         </div>

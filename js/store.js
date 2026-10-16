@@ -232,6 +232,13 @@
     });
     s.players.forEach(p => {
       p.photoHash = p.photoHash || '';
+      if ((!p.photo || p.photo.length < 50) && p.id && typeof window !== 'undefined' && window.CacheDB && window.CacheDB.getPhotoSync) {
+        const cached = window.CacheDB.getPhotoSync(p.id);
+        if (cached && cached.dataUrl && cached.dataUrl.length > 50) {
+          p.photo = cached.dataUrl;
+          if (!p.photoHash && cached.photoHash) p.photoHash = cached.photoHash;
+        }
+      }
       if (p.photo && !p.photoHash) {
         p.photoHash = 'p_' + Date.now().toString(36);
       }
@@ -396,10 +403,18 @@
       if (data.id) {
         const i = this.state.players.findIndex(p => p.id === data.id);
         if (i >= 0) {
-          // Si no se pasó una foto nueva pero el jugador ya tenía una foto previa en memoria, conservarla
-          if (!cleanData.photo && !cleanData.removePhoto && this.state.players[i].photo) {
-            cleanData.photo = this.state.players[i].photo;
-            cleanData.photoHash = this.state.players[i].photoHash || cleanData.photoHash;
+          // Si no se pasó una foto nueva pero el jugador ya tenía una foto previa en memoria o en CacheDB, conservarla
+          if (!cleanData.photo && !cleanData.removePhoto) {
+            if (this.state.players[i].photo) {
+              cleanData.photo = this.state.players[i].photo;
+              cleanData.photoHash = this.state.players[i].photoHash || cleanData.photoHash;
+            } else if (typeof window !== 'undefined' && window.CacheDB && window.CacheDB.getPhotoSync) {
+              const cached = window.CacheDB.getPhotoSync(data.id);
+              if (cached && cached.dataUrl && cached.dataUrl.length > 50) {
+                cleanData.photo = cached.dataUrl;
+                cleanData.photoHash = cached.photoHash || cleanData.photoHash;
+              }
+            }
           }
           if (cleanData.photo && !cleanData.photoHash) {
             cleanData.photoHash = 'p_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);

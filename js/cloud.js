@@ -89,25 +89,70 @@
     });
   }
 
+  const photoMemoryCache = new Map();
+  try {
+    if (typeof localStorage !== 'undefined') {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('photo_cache_')) {
+          const pid = k.slice('photo_cache_'.length);
+          try {
+            const val = JSON.parse(localStorage.getItem(k));
+            if (val && val.dataUrl && val.dataUrl.length > 50) {
+              photoMemoryCache.set(pid, val);
+            }
+          } catch (e) {}
+        }
+      }
+    }
+  } catch (e) {}
+
   const CacheDB = {
+    getPhotoSync: function (playerId) {
+      if (!playerId) return null;
+      const mem = photoMemoryCache.get(playerId);
+      if (mem && mem.dataUrl) return mem;
+      try {
+        if (typeof localStorage !== 'undefined') {
+          const raw = localStorage.getItem('photo_cache_' + playerId);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed && parsed.dataUrl) {
+              photoMemoryCache.set(playerId, parsed);
+              return parsed;
+            }
+          }
+        }
+      } catch (e) {}
+      return null;
+    },
+
     getPhoto: async function (playerId) {
       if (!playerId) return null;
+      const mem = this.getPhotoSync(playerId);
+      if (mem && mem.dataUrl) return mem;
       try {
         const idb = await openIndexedDB();
         if (idb) {
-          return new Promise((res) => {
+          const rec = await new Promise((res) => {
             const tx = idb.transaction('photos', 'readonly');
             const store = tx.objectStore('photos');
             const req = store.get(playerId);
             req.onsuccess = () => res(req.result || null);
             req.onerror = () => res(null);
           });
+          if (rec && rec.dataUrl) {
+            photoMemoryCache.set(playerId, rec);
+            try {
+              if (typeof localStorage !== 'undefined') {
+                localStorage.setItem('photo_cache_' + playerId, JSON.stringify(rec));
+              }
+            } catch (e) {}
+            return rec;
+          }
         }
       } catch (e) {}
-      try {
-        const raw = localStorage.getItem('photo_cache_' + playerId);
-        return raw ? JSON.parse(raw) : null;
-      } catch (e) { return null; }
+      return this.getPhotoSync(playerId);
     },
 
     setPhoto: async function (playerId, photoHash, dataUrl) {
@@ -118,6 +163,12 @@
         dataUrl,
         updatedAt: Date.now()
       };
+      photoMemoryCache.set(playerId, record);
+      try {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem('photo_cache_' + playerId, JSON.stringify(record));
+        }
+      } catch (e) {}
       try {
         const idb = await openIndexedDB();
         if (idb) {
@@ -130,10 +181,7 @@
           });
         }
       } catch (e) {}
-      try {
-        localStorage.setItem('photo_cache_' + playerId, JSON.stringify(record));
-        return true;
-      } catch (e) { return false; }
+      return true;
     },
 
     getSession: async function (sessionId) {
@@ -394,9 +442,23 @@
           delete copy.originalPhoto;
           delete copy.cropSettings;
 
+          // Si no tiene foto en copy.photo, pero está en CacheDB, recuperarla
+          if ((!copy.photo || copy.photo.length < 50) && copy.id) {
+            try {
+              const cached = await CacheDB.getPhoto(copy.id);
+              if (cached && cached.dataUrl && cached.dataUrl.length > 50) {
+                copy.photo = cached.dataUrl;
+                if (!copy.photoHash && cached.photoHash) copy.photoHash = cached.photoHash;
+                p.photo = cached.dataUrl;
+                if (!p.photoHash && cached.photoHash) p.photoHash = cached.photoHash;
+              }
+            } catch (e) {}
+          }
+
           // Si tiene foto y no tiene photoHash, generarlo
           if (copy.photo && !copy.photoHash) {
             copy.photoHash = 'p_' + Date.now().toString(36);
+            p.photoHash = copy.photoHash;
           }
 
           // Guardar en IndexedDB localmente de inmediato
@@ -903,11 +965,24 @@
         delete copy.originalPhoto;
         delete copy.cropSettings;
 
+        if ((!copy.photo || copy.photo.length < 50) && copy.id) {
+          try {
+            const cached = await CacheDB.getPhoto(copy.id);
+            if (cached && cached.dataUrl && cached.dataUrl.length > 50) {
+              copy.photo = cached.dataUrl;
+              if (!copy.photoHash && cached.photoHash) copy.photoHash = cached.photoHash;
+              player.photo = cached.dataUrl;
+              if (!player.photoHash && cached.photoHash) player.photoHash = cached.photoHash;
+            }
+          } catch (e) {}
+        }
+
         if (copy.photo && !copy.photoHash) {
           copy.photoHash = 'p_' + Date.now().toString(36);
+          player.photoHash = copy.photoHash;
         }
         if (copy.photo && copy.photoHash) {
-          CacheDB.setPhoto(copy.id, copy.photoHash, copy.photo);
+          await CacheDB.setPhoto(copy.id, copy.photoHash, copy.photo);
           await clubRef.collection('player_photos').doc(copy.id).set({
             playerId: copy.id,
             photo: copy.photo,
@@ -1189,16 +1264,17 @@
       await Promise.all(players.map(async (p) => {
         if (!p || !p.id) return;
 
-        // 1. Si ya tiene foto en memoria, notificar y continuar
+        // 1. Si ya tiene foto en memoria, asegurar caché y notificar
         if (p.photo && typeof p.photo === 'string' && p.photo.length > 50) {
+          CacheDB.setPhoto(p.id, p.photoHash || ('p_' + p.id), p.photo);
           if (typeof onPhotoLoaded === 'function') onPhotoLoaded(p);
           return;
         }
 
-        // 2. Intentar cargar desde IndexedDB / localStorage
+        // 2. Intentar cargar desde caché síncrona o CacheDB (IndexedDB / localStorage)
         try {
           const cached = await CacheDB.getPhoto(p.id);
-          if (cached && cached.dataUrl && (!p.photoHash || cached.photoHash === p.photoHash)) {
+          if (cached && cached.dataUrl && cached.dataUrl.length > 50 && (!p.photoHash || cached.photoHash === p.photoHash)) {
             p.photo = cached.dataUrl;
             if (!p.photoHash && cached.photoHash) p.photoHash = cached.photoHash;
             if (typeof onPhotoLoaded === 'function') onPhotoLoaded(p);
@@ -1212,7 +1288,7 @@
           const photoDoc = await db.collection('clubs').doc(CLUB_ID).collection('player_photos').doc(p.id).get();
           if (photoDoc.exists) {
             const data = photoDoc.data();
-            if (data && data.photo) {
+            if (data && data.photo && typeof data.photo === 'string' && data.photo.length > 50) {
               p.photo = data.photo;
               p.photoHash = data.photoHash || p.photoHash || ('p_' + p.id);
               await CacheDB.setPhoto(p.id, p.photoHash, p.photo);
