@@ -334,21 +334,26 @@
     return clean;
   }
 
-  function openDatePicker(initialDate, onSelect) {
-    const iso = parseInputDateToIso(initialDate);
-    openCalendarModal(iso, onSelect);
+  function openDatePicker(initialDate, onSelect, options) {
+    const iso = initialDate ? parseInputDateToIso(initialDate) : '';
+    openCalendarModal(iso, onSelect, options);
   }
 
-  function openCalendarModal(initialDate, onSelect) {
-    const iso = parseInputDateToIso(initialDate);
+  function openCalendarModal(initialDate, onSelect, options) {
+    const opts = options || {};
+    const now = new Date();
+    const iso = initialDate ? parseInputDateToIso(initialDate) : '';
     let curYear, curMonth, curDay;
     if (iso && iso.includes('-')) {
       const parts = iso.split('-');
-      curYear = parseInt(parts[0], 10) || 2026;
+      curYear = parseInt(parts[0], 10) || now.getFullYear();
       curMonth = (parseInt(parts[1], 10) || 1) - 1;
       curDay = parseInt(parts[2], 10) || 1;
+    } else if (opts.isBirthDate) {
+      curYear = now.getFullYear() - 12;
+      curMonth = 0;
+      curDay = 1;
     } else {
-      const now = new Date();
       curYear = now.getFullYear();
       curMonth = now.getMonth();
       curDay = now.getDate();
@@ -404,12 +409,29 @@
         daysHtml += `<div class="calendar-day-cell other-month" data-action="next-month" data-d="${d}">${d}</div>`;
       }
 
+      const minYear = 1960;
+      const maxYear = todayYear + 5;
+      let yearOptionsHtml = '';
+      for (let y = maxYear; y >= minYear; y--) {
+        yearOptionsHtml += `<option value="${y}" ${y === viewYear ? 'selected' : ''}>${y}</option>`;
+      }
+
+      let monthOptionsHtml = '';
+      for (let m = 0; m < 12; m++) {
+        monthOptionsHtml += `<option value="${m}" ${m === viewMonth ? 'selected' : ''}>${monthNames[m]}</option>`;
+      }
+
       overlay.innerHTML = `
         <div class="calendar-modal">
-          <div class="calendar-header">
+          <div class="calendar-header" style="gap: 6px;">
             <button type="button" class="calendar-nav-btn" id="cal-prev" title="Mes anterior">‹</button>
-            <div class="calendar-title">
-              <span>${monthNames[viewMonth]} ${viewYear}</span>
+            <div class="calendar-title" style="display: flex; align-items: center; justify-content: center; gap: 6px; flex: 1;">
+              <select id="cal-select-month" style="background: rgba(15, 23, 42, 0.85); color: #fff; border: 1.5px solid rgba(56, 189, 248, 0.45); border-radius: 8px; padding: 5px 8px; font-size: 13.5px; font-weight: 800; cursor: pointer;">
+                ${monthOptionsHtml}
+              </select>
+              <select id="cal-select-year" style="background: rgba(15, 23, 42, 0.85); color: #38bdf8; border: 1.5px solid rgba(56, 189, 248, 0.45); border-radius: 8px; padding: 5px 8px; font-size: 13.5px; font-weight: 900; cursor: pointer;">
+                ${yearOptionsHtml}
+              </select>
             </div>
             <button type="button" class="calendar-nav-btn" id="cal-next" title="Mes siguiente">›</button>
           </div>
@@ -422,17 +444,36 @@
             ${daysHtml}
           </div>
 
+          ${opts.isBirthDate ? '' : `
           <div class="calendar-shortcuts">
             <button type="button" class="calendar-shortcut-btn" id="cal-btn-today">⚡ ${t('today', 'Hoy')}</button>
             <button type="button" class="calendar-shortcut-btn" id="cal-btn-tomorrow">⏩ ${t('tomorrow', 'Mañana')}</button>
             <button type="button" class="calendar-shortcut-btn" id="cal-btn-yesterday">⏪ ${t('yesterday', 'Ayer')}</button>
           </div>
+          `}
 
           <div style="margin-top: 12px; display: flex; gap: 8px;">
             <button type="button" class="btn ghost block" id="cal-btn-cancel">${t('cancel', 'Cancelar')}</button>
           </div>
         </div>
       `;
+
+      const monthSel = overlay.querySelector('#cal-select-month');
+      const yearSel = overlay.querySelector('#cal-select-year');
+      if (monthSel) {
+        monthSel.onchange = (e) => {
+          e.stopPropagation();
+          viewMonth = parseInt(monthSel.value, 10);
+          renderContent();
+        };
+      }
+      if (yearSel) {
+        yearSel.onchange = (e) => {
+          e.stopPropagation();
+          viewYear = parseInt(yearSel.value, 10);
+          renderContent();
+        };
+      }
 
       overlay.querySelector('#cal-prev').onclick = (e) => {
         e.stopPropagation();
@@ -448,28 +489,37 @@
         renderContent();
       };
 
-      overlay.querySelector('#cal-btn-today').onclick = (e) => {
-        e.stopPropagation();
-        const t = new Date();
-        const isoStr = String(t.getFullYear()) + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0');
-        finish(isoStr);
-      };
+      const btnToday = overlay.querySelector('#cal-btn-today');
+      if (btnToday) {
+        btnToday.onclick = (e) => {
+          e.stopPropagation();
+          const tNow = new Date();
+          const isoStr = String(tNow.getFullYear()) + '-' + String(tNow.getMonth() + 1).padStart(2, '0') + '-' + String(tNow.getDate()).padStart(2, '0');
+          finish(isoStr);
+        };
+      }
 
-      overlay.querySelector('#cal-btn-tomorrow').onclick = (e) => {
-        e.stopPropagation();
-        const t = new Date();
-        t.setDate(t.getDate() + 1);
-        const isoStr = String(t.getFullYear()) + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0');
-        finish(isoStr);
-      };
+      const btnTomorrow = overlay.querySelector('#cal-btn-tomorrow');
+      if (btnTomorrow) {
+        btnTomorrow.onclick = (e) => {
+          e.stopPropagation();
+          const tNow = new Date();
+          tNow.setDate(tNow.getDate() + 1);
+          const isoStr = String(tNow.getFullYear()) + '-' + String(tNow.getMonth() + 1).padStart(2, '0') + '-' + String(tNow.getDate()).padStart(2, '0');
+          finish(isoStr);
+        };
+      }
 
-      overlay.querySelector('#cal-btn-yesterday').onclick = (e) => {
-        e.stopPropagation();
-        const t = new Date();
-        t.setDate(t.getDate() - 1);
-        const isoStr = String(t.getFullYear()) + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0');
-        finish(isoStr);
-      };
+      const btnYesterday = overlay.querySelector('#cal-btn-yesterday');
+      if (btnYesterday) {
+        btnYesterday.onclick = (e) => {
+          e.stopPropagation();
+          const tNow = new Date();
+          tNow.setDate(tNow.getDate() - 1);
+          const isoStr = String(tNow.getFullYear()) + '-' + String(tNow.getMonth() + 1).padStart(2, '0') + '-' + String(tNow.getDate()).padStart(2, '0');
+          finish(isoStr);
+        };
+      }
 
       overlay.querySelector('#cal-btn-cancel').onclick = (e) => {
         e.stopPropagation();
@@ -10051,7 +10101,16 @@
         <div class="field-row">
           <div class="field">
             <label>🎂 ${t('birthDate', 'Fecha de Nacimiento')}</label>
-            <input type="date" id="p-birthdate" value="${isEdit && player.birthDate ? player.birthDate : ''}" />
+            <div class="date-picker-group" style="gap: 6px;">
+              <div class="date-picker-input-wrapper" style="flex: 1;">
+                <input type="text" id="p-birthdate-text" value="${isEdit && player.birthDate ? formatDisplayDate(player.birthDate) : ''}" placeholder="DD/MM/AAAA" autocomplete="off" style="padding-right: 34px; cursor: pointer;" />
+                <span class="date-picker-icon" id="p-birthdate-icon" title="${t('openCalendar', 'Abrir calendario')}" style="cursor: pointer;">📅</span>
+              </div>
+              <button type="button" class="btn-open-calendar" id="p-birthdate-cal-btn" title="${t('openCalendar', 'Abrir calendario')}" style="padding: 0 10px;">
+                <span>📅</span>
+              </button>
+              <input type="hidden" id="p-birthdate" value="${isEdit && player.birthDate ? player.birthDate : ''}" />
+            </div>
           </div>
           <div class="field" style="display: flex; flex-direction: column; justify-content: flex-end;">
             <label>${t('age', 'Edad (Años y Meses)')}</label>
@@ -10158,19 +10217,66 @@
         </div>
       `;
 
-      // Live Age Calculation on Birthdate Change
+      // Selector de Fecha de Nacimiento y Cálculo Automático de Edad
       const birthInput = body.querySelector('#p-birthdate');
+      const birthTextInput = body.querySelector('#p-birthdate-text');
+      const birthCalBtn = body.querySelector('#p-birthdate-cal-btn');
+      const birthIcon = body.querySelector('#p-birthdate-icon');
       const ageDisplay = body.querySelector('#p-age-display');
-      if (birthInput && ageDisplay) {
-        const updateAge = () => {
-          const val = birthInput.value;
-          const age = calculateAgeYearsMonths(val, curLang);
-          ageDisplay.innerHTML = age 
-            ? `🎂 ${age}` 
+
+      const updateAge = () => {
+        const val = birthInput ? birthInput.value : '';
+        const age = calculateAgeYearsMonths(val, curLang);
+        if (ageDisplay) {
+          ageDisplay.innerHTML = age
+            ? `🎂 ${age}`
             : `<span style="color: var(--muted); font-size: 11.5px;">${t('calcAgeHint', 'Introduce fecha')}</span>`;
+        }
+      };
+
+      const openBirthCalendar = () => {
+        const cur = birthInput ? birthInput.value : '';
+        openDatePicker(cur, (newIso) => {
+          if (birthInput) birthInput.value = newIso;
+          if (birthTextInput) birthTextInput.value = formatDisplayDate(newIso);
+          updateAge();
+          haptic(25);
+        }, { isBirthDate: true });
+      };
+
+      if (birthCalBtn) birthCalBtn.onclick = openBirthCalendar;
+      if (birthIcon) birthIcon.onclick = openBirthCalendar;
+      if (birthTextInput) {
+        birthTextInput.onclick = () => {
+          if (!birthTextInput.value) openBirthCalendar();
         };
-        birthInput.oninput = updateAge;
-        birthInput.onchange = updateAge;
+        birthTextInput.oninput = () => {
+          const raw = birthTextInput.value.trim();
+          if (!raw) {
+            if (birthInput) birthInput.value = '';
+            updateAge();
+            return;
+          }
+          const parsed = parseInputDateToIso(raw);
+          if (parsed && /^\d{4}-\d{2}-\d{2}$/.test(parsed)) {
+            if (birthInput) birthInput.value = parsed;
+            updateAge();
+          }
+        };
+        birthTextInput.onblur = () => {
+          const raw = birthTextInput.value.trim();
+          if (!raw) {
+            if (birthInput) birthInput.value = '';
+            updateAge();
+            return;
+          }
+          const parsed = parseInputDateToIso(raw);
+          if (parsed && /^\d{4}-\d{2}-\d{2}$/.test(parsed)) {
+            if (birthInput) birthInput.value = parsed;
+            birthTextInput.value = formatDisplayDate(parsed);
+            updateAge();
+          }
+        };
       }
 
       // Selector de Posición sobre el Campo Táctico
