@@ -374,11 +374,11 @@
       }
 
       const now = Date.now();
-      if (!force && (isSyncing || now - lastPushTime < 1200)) {
+      if (isSyncing || (!force && (now - lastPushTime < 1200))) {
         clearTimeout(pushPendingTimer);
         pushPendingTimer = setTimeout(() => {
           this.pushCoachState(stateData, true);
-        }, Math.max(400, 1300 - (now - lastPushTime)));
+        }, isSyncing ? 600 : Math.max(400, 1300 - (now - lastPushTime)));
         return true;
       }
       clearTimeout(pushPendingTimer);
@@ -556,6 +556,24 @@
           officialMvpId: s.officialMvpId || s.mvpWinnerId || null
         })).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
+        const playersSummary = sanitizedPlayers.map(p => ({
+          id: p.id,
+          name: p.name || '',
+          lastName: p.lastName || '',
+          nickname: p.nickname || '',
+          birthDate: p.birthDate || '',
+          teamId: p.teamId || '',
+          mainDorsal: p.mainDorsal != null ? p.mainDorsal : null,
+          mainPosition: p.mainPosition || 'Jugador',
+          secondaryPositions: p.secondaryPositions || [],
+          foot: p.foot || 'Diestro',
+          heightCm: p.heightCm || null,
+          photoHash: p.photoHash || '',
+          ovr: p.ovr || 50,
+          radar: p.radar || null,
+          statsSummary: p.statsSummary || null
+        }));
+
         const rootPayload = {
           teams: stateData.teams || [],
           recurringSchedules: stateData.recurringSchedules || [],
@@ -567,6 +585,7 @@
             convocatoriaWebUrl: (stateData.settings && stateData.settings.convocatoriaWebUrl) || '',
             forceCachePurgeTimestamp: (stateData.settings && stateData.settings.forceCachePurgeTimestamp) || 0
           },
+          playersSummary: playersSummary,
           latestMatchMvp: latestMatchMvp,
           sessionsSummary: sessionsSummary,
           schemaVersion: 2,
@@ -583,12 +602,13 @@
           deletedRecurringIds: rootPayload.deletedRecurringIds,
           coachProfile: rootPayload.coachProfile,
           settings: rootPayload.settings,
+          playersSummary: rootPayload.playersSummary,
           latestMatchMvp: rootPayload.latestMatchMvp,
           sessionsSummary: rootPayload.sessionsSummary
         });
 
-        // Solo escribe el doc raíz si ha cambiado o si se fuerza la primera sincronización
-        if (syncedHashes.root !== rootHash) {
+        // Solo escribe el doc raíz si ha cambiado o si se fuerza la sincronización
+        if (force || syncedHashes.root !== rootHash) {
           await clubRef.set(cleanUndefined(rootPayload), { merge: true });
           syncedHashes.root = rootHash;
           savePersistedSyncState();
@@ -618,13 +638,13 @@
         }
 
         const batchOps = [];
+        const onCommitCallbacks = [];
 
         // 3. Subcolección de Jugadores (clubs/default_club/players/{playerId}) - DELTA SYNC + FOTOS DESACOPLADAS
         const activePlayerIds = new Set();
         sanitizedPlayers.forEach(p => {
           if (!p || !p.id) return;
           activePlayerIds.add(p.id);
-          knownRemotePlayerIds.add(p.id);
 
           // Si el jugador tiene foto, sincronizarla en la subcolección desacoplada player_photos
           if (p.photo && p.photoHash) {
@@ -636,7 +656,9 @@
                 photoHash: p.photoHash,
                 updatedAt: global.firebase.firestore.FieldValue.serverTimestamp()
               }, { merge: true }));
-              syncedHashes.photos[p.id] = p.photoHash;
+              onCommitCallbacks.push(() => {
+                syncedHashes.photos[p.id] = p.photoHash;
+              });
             }
           }
 
@@ -661,21 +683,26 @@
 
           const pHash = JSON.stringify(cleanP);
 
-          if (syncedHashes.players[p.id] !== pHash) {
+          if (syncedHashes.players[p.id] !== pHash || !knownRemotePlayerIds.has(p.id)) {
             const pRef = clubRef.collection('players').doc(p.id);
             batchOps.push(batch => batch.set(pRef, cleanP, { merge: true }));
-            syncedHashes.players[p.id] = pHash;
+            onCommitCallbacks.push(() => {
+              knownRemotePlayerIds.add(p.id);
+              syncedHashes.players[p.id] = pHash;
+            });
           }
         });
-        knownRemotePlayerIds.forEach(id => {
+        Array.from(knownRemotePlayerIds).forEach(id => {
           if (!activePlayerIds.has(id)) {
             const pRef = clubRef.collection('players').doc(id);
             batchOps.push(batch => batch.delete(pRef));
             const photoRef = clubRef.collection('player_photos').doc(id);
             batchOps.push(batch => batch.delete(photoRef));
-            knownRemotePlayerIds.delete(id);
-            delete syncedHashes.players[id];
-            delete syncedHashes.photos[id];
+            onCommitCallbacks.push(() => {
+              knownRemotePlayerIds.delete(id);
+              delete syncedHashes.players[id];
+              delete syncedHashes.photos[id];
+            });
           }
         });
 
@@ -684,23 +711,27 @@
         (stateData.convocations || []).forEach(c => {
           if (!c || !c.id) return;
           activeConvIds.add(c.id);
-          knownRemoteConvIds.add(c.id);
 
           const cleanC = cleanUndefined(c);
           const cHash = JSON.stringify(cleanC);
 
-          if (syncedHashes.convocations[c.id] !== cHash) {
+          if (syncedHashes.convocations[c.id] !== cHash || !knownRemoteConvIds.has(c.id)) {
             const cRef = clubRef.collection('convocations').doc(c.id);
             batchOps.push(batch => batch.set(cRef, cleanC, { merge: true }));
-            syncedHashes.convocations[c.id] = cHash;
+            onCommitCallbacks.push(() => {
+              knownRemoteConvIds.add(c.id);
+              syncedHashes.convocations[c.id] = cHash;
+            });
           }
         });
-        knownRemoteConvIds.forEach(id => {
+        Array.from(knownRemoteConvIds).forEach(id => {
           if (!activeConvIds.has(id)) {
             const cRef = clubRef.collection('convocations').doc(id);
             batchOps.push(batch => batch.delete(cRef));
-            knownRemoteConvIds.delete(id);
-            delete syncedHashes.convocations[id];
+            onCommitCallbacks.push(() => {
+              knownRemoteConvIds.delete(id);
+              delete syncedHashes.convocations[id];
+            });
           }
         });
 
@@ -709,29 +740,34 @@
         (stateData.sessions || []).forEach(s => {
           if (!s || !s.id) return;
           activeSessIds.add(s.id);
-          knownRemoteSessionIds.add(s.id);
 
           const cleanS = cleanUndefined(s);
           const sHash = JSON.stringify(cleanS);
 
-          if (syncedHashes.sessions[s.id] !== sHash) {
+          if (syncedHashes.sessions[s.id] !== sHash || !knownRemoteSessionIds.has(s.id)) {
             const sRef = clubRef.collection('sessions').doc(s.id);
             batchOps.push(batch => batch.set(sRef, cleanS, { merge: true }));
-            syncedHashes.sessions[s.id] = sHash;
+            onCommitCallbacks.push(() => {
+              knownRemoteSessionIds.add(s.id);
+              syncedHashes.sessions[s.id] = sHash;
+            });
           }
         });
-        knownRemoteSessionIds.forEach(id => {
+        Array.from(knownRemoteSessionIds).forEach(id => {
           if (!activeSessIds.has(id)) {
             const sRef = clubRef.collection('sessions').doc(id);
             batchOps.push(batch => batch.delete(sRef));
-            knownRemoteSessionIds.delete(id);
-            delete syncedHashes.sessions[id];
+            onCommitCallbacks.push(() => {
+              knownRemoteSessionIds.delete(id);
+              delete syncedHashes.sessions[id];
+            });
           }
         });
 
         // 6. Ejecutar en lotes atómicos seguros solo los cambios pendientes
         if (batchOps.length > 0) {
           await commitBatchOperations(batchOps);
+          onCommitCallbacks.forEach(fn => { try { fn(); } catch (e) {} });
         }
         savePersistedSyncState();
 
@@ -857,6 +893,135 @@
       }
     },
 
+    // Sube inmediatamente un jugador recién creado o editado a la subcolección players de Firestore sin esperar lotes
+    upsertPlayerToCloud: async function (player, stateData) {
+      if (!player || !player.id) return false;
+      if (!this.init()) return false;
+      try {
+        const clubRef = db.collection('clubs').doc(CLUB_ID);
+        const copy = Object.assign({}, player);
+        delete copy.originalPhoto;
+        delete copy.cropSettings;
+
+        if (copy.photo && !copy.photoHash) {
+          copy.photoHash = 'p_' + Date.now().toString(36);
+        }
+        if (copy.photo && copy.photoHash) {
+          CacheDB.setPhoto(copy.id, copy.photoHash, copy.photo);
+          await clubRef.collection('player_photos').doc(copy.id).set({
+            playerId: copy.id,
+            photo: copy.photo,
+            photoHash: copy.photoHash,
+            updatedAt: global.firebase.firestore.FieldValue.serverTimestamp()
+          }, { merge: true });
+          if (syncedHashes && syncedHashes.photos) {
+            syncedHashes.photos[copy.id] = copy.photoHash;
+          }
+        }
+
+        const sessions = (stateData && stateData.sessions) || (global.Store && Store.state && Store.state.sessions) || [];
+        if (global.Store && Store.calculatePlayerRadar) {
+          copy.radar = Store.calculatePlayerRadar(copy.id, sessions);
+        }
+        if (global.FutCard && FutCard.computeOvr && copy.radar) {
+          copy.ovr = FutCard.computeOvr(copy.radar, copy.mainPosition);
+        }
+        if (global.Store && Store.calculatePlayerMvpCount) {
+          copy.mvpCount = Store.calculatePlayerMvpCount(copy.id);
+        }
+        if (global.Store && Store.calculatePlayerAttendanceStreak) {
+          copy.streak = Store.calculatePlayerAttendanceStreak(copy.id);
+        }
+        if (global.Store && Store.getPlayerStreakMilestone) {
+          copy.medals = Store.getPlayerStreakMilestone(copy.streak);
+        }
+        if (global.Store && Store.calculatePlayerStats) {
+          copy.statsSummary = Store.calculatePlayerStats(copy.id, sessions);
+        }
+
+        copy.photo = '';
+        copy.photoHash = player.photoHash || copy.photoHash || '';
+
+        const cleanP = {};
+        Object.keys(copy).forEach(k => {
+          if (copy[k] !== undefined) cleanP[k] = copy[k];
+        });
+
+        await clubRef.collection('players').doc(copy.id).set(cleanP, { merge: true });
+        if (knownRemotePlayerIds) knownRemotePlayerIds.add(copy.id);
+        savePersistedSyncState();
+
+        // Actualizar también playersSummary en el doc raíz de inmediato para que la App Jugadores lo reciba al instante
+        try {
+          const rootSnap = await clubRef.get();
+          if (rootSnap.exists) {
+            const rootData = rootSnap.data() || {};
+            let pSummary = Array.isArray(rootData.playersSummary) ? rootData.playersSummary.slice() : [];
+            const summaryEntry = {
+              id: copy.id,
+              name: copy.name || '',
+              lastName: copy.lastName || '',
+              nickname: copy.nickname || '',
+              birthDate: copy.birthDate || '',
+              teamId: copy.teamId || '',
+              mainDorsal: copy.mainDorsal != null ? copy.mainDorsal : null,
+              mainPosition: copy.mainPosition || 'Jugador',
+              secondaryPositions: copy.secondaryPositions || [],
+              foot: copy.foot || 'Diestro',
+              heightCm: copy.heightCm || null,
+              photoHash: copy.photoHash || '',
+              ovr: copy.ovr || 50,
+              radar: copy.radar || null,
+              statsSummary: copy.statsSummary || null
+            };
+            const idx = pSummary.findIndex(x => x.id === copy.id);
+            if (idx >= 0) {
+              pSummary[idx] = Object.assign({}, pSummary[idx], summaryEntry);
+            } else {
+              pSummary.push(summaryEntry);
+            }
+            await clubRef.set({
+              playersSummary: pSummary,
+              updatedAt: global.firebase.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+          }
+        } catch (rootErr) {
+          console.warn('[Cloud] Error actualizando playersSummary en doc raíz:', rootErr);
+        }
+
+        console.log('[Cloud] Jugador sincronizado instantáneamente en Firestore:', copy.id, copy.name);
+        return true;
+      } catch (err) {
+        console.error('[Cloud] Error en upsertPlayerToCloud:', err);
+        return false;
+      }
+    },
+
+    // Descarga bajo demanda la lista más reciente de jugadores desde Firestore (bypass de caché local si hay red)
+    fetchPlayersFromServer: async function () {
+      if (!this.init()) return null;
+      try {
+        const clubRef = db.collection('clubs').doc(CLUB_ID);
+        let snap = null;
+        try {
+          snap = await clubRef.collection('players').get({ source: 'server' });
+        } catch (e) {
+          snap = await clubRef.collection('players').get();
+        }
+        const list = [];
+        if (snap) {
+          snap.forEach(doc => {
+            const d = doc.data();
+            if (d && d.id) list.push(d);
+          });
+        }
+        return list;
+      } catch (err) {
+        console.warn('[Cloud] Error en fetchPlayersFromServer:', err);
+        return null;
+      }
+    },
+
     /* -------------------------------------------------------------
        2. FUNCIONES PARA LOS JUGADORES (PORTAL JUGADOR / PWA)
        ------------------------------------------------------------- */
@@ -889,16 +1054,30 @@
           const hasSubConvs = Array.isArray(currentConvocations) && currentConvocations.length > 0;
           const hasSubSessions = Array.isArray(currentSessions) && currentSessions.length > 0;
 
-          // EVITAR CARRERA: Nunca emitir un array vacío de jugadores si la subcolección aún no ha entregado su snapshot
+          // EVITAR CARRERA Y FUSIONAR CON playersSummary DEL DOCUMENTO RAÍZ:
+          // Si un jugador nuevo está en root.playersSummary o en currentPlayers, incluirlo siempre.
           let finalPlayers = null;
           if (hasSubPlayers) {
-            finalPlayers = currentPlayers;
+            finalPlayers = currentPlayers.slice();
           } else if (hasReceivedPlayersSnapshot) {
-            finalPlayers = currentPlayers;
+            finalPlayers = currentPlayers.slice();
           } else if (Array.isArray(root.players) && root.players.length > 0) {
-            finalPlayers = root.players;
+            finalPlayers = root.players.slice();
+          } else if (Array.isArray(root.playersSummary) && root.playersSummary.length > 0) {
+            finalPlayers = root.playersSummary.slice();
           } else {
             finalPlayers = null; // Aún cargando subcolección
+          }
+
+          if (Array.isArray(finalPlayers) && Array.isArray(root.playersSummary) && root.playersSummary.length > 0) {
+            const byId = new Map();
+            finalPlayers.forEach(p => { if (p && p.id) byId.set(p.id, p); });
+            root.playersSummary.forEach(ps => {
+              if (!ps || !ps.id) return;
+              if (!byId.has(ps.id)) {
+                finalPlayers.push(ps);
+              }
+            });
           }
 
           let finalConvs = currentConvocations;
@@ -936,14 +1115,14 @@
             teams: root.teams || [],
             recurringSchedules: root.recurringSchedules || [],
             deletedRecurringIds: root.deletedRecurringIds || [],
-            players: finalPlayers !== null ? finalPlayers : (root.players || []),
+            players: finalPlayers !== null ? finalPlayers : (root.players || root.playersSummary || []),
             convocations: finalConvs,
             sessions: finalSessions,
             latestMatchMvp: root.latestMatchMvp || null,
             updatedAt: root.updatedAt || null,
             clientTime: root.clientTime || Date.now(),
             schemaVersion: 2,
-            _playersLoaded: hasReceivedPlayersSnapshot || hasSubPlayers
+            _playersLoaded: hasReceivedPlayersSnapshot || hasSubPlayers || (Array.isArray(root.playersSummary) && root.playersSummary.length > 0)
           };
 
           onStateUpdate(combined);
@@ -1004,22 +1183,30 @@
       }
     },
 
-    // Descarga/hidrata fotos de jugadores desde IndexedDB con descarga bajo demanda de Firestore si photoHash cambió
+    // Descarga/hidrata fotos de jugadores desde IndexedDB con descarga bajo demanda de Firestore
     hydratePlayerPhotos: async function (players, onPhotoLoaded) {
       if (!Array.isArray(players) || players.length === 0) return;
       await Promise.all(players.map(async (p) => {
-        if (!p || !p.id || !p.photoHash) return;
-        // 1. Intentar cargar desde IndexedDB
+        if (!p || !p.id) return;
+
+        // 1. Si ya tiene foto en memoria, notificar y continuar
+        if (p.photo && typeof p.photo === 'string' && p.photo.length > 50) {
+          if (typeof onPhotoLoaded === 'function') onPhotoLoaded(p);
+          return;
+        }
+
+        // 2. Intentar cargar desde IndexedDB / localStorage
         try {
           const cached = await CacheDB.getPhoto(p.id);
-          if (cached && cached.photoHash === p.photoHash && cached.dataUrl) {
+          if (cached && cached.dataUrl && (!p.photoHash || cached.photoHash === p.photoHash)) {
             p.photo = cached.dataUrl;
+            if (!p.photoHash && cached.photoHash) p.photoHash = cached.photoHash;
             if (typeof onPhotoLoaded === 'function') onPhotoLoaded(p);
             return;
           }
         } catch (e) {}
 
-        // 2. Si no está en IndexedDB o photoHash cambió, descargar de Firestore
+        // 3. Descargar de Firestore subcolección player_photos si no está en caché o cambió
         try {
           if (!this.init()) return;
           const photoDoc = await db.collection('clubs').doc(CLUB_ID).collection('player_photos').doc(p.id).get();
@@ -1027,7 +1214,7 @@
             const data = photoDoc.data();
             if (data && data.photo) {
               p.photo = data.photo;
-              p.photoHash = data.photoHash || p.photoHash;
+              p.photoHash = data.photoHash || p.photoHash || ('p_' + p.id);
               await CacheDB.setPhoto(p.id, p.photoHash, p.photo);
               if (typeof onPhotoLoaded === 'function') onPhotoLoaded(p);
             }
@@ -1071,7 +1258,13 @@
       }
       return new Promise((resolve) => {
         function processImgData(dataUrl) {
-          if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image')) {
+          if (!dataUrl || typeof dataUrl !== 'string') {
+            return resolve({ dataUrl: '', photoHash: '' });
+          }
+          if (dataUrl.startsWith('data:application/octet-stream') || dataUrl.startsWith('data:;')) {
+            dataUrl = dataUrl.replace(/^data:[^;]*/, 'data:image/jpeg');
+          }
+          if (!dataUrl.startsWith('data:image')) {
             return resolve({ dataUrl: '', photoHash: '' });
           }
           const img = new Image();
@@ -1090,10 +1283,10 @@
               ctx.drawImage(img, sx, sy, s, s, 0, 0, 400, 400);
 
               let webpUrl = canvas.toDataURL('image/webp', 0.80);
-              if (!webpUrl || !webpUrl.startsWith('data:image/webp')) {
+              if (!webpUrl || (!webpUrl.startsWith('data:image/webp') && !webpUrl.startsWith('data:image/jpeg') && !webpUrl.startsWith('data:image/png'))) {
                 webpUrl = canvas.toDataURL('image/jpeg', 0.80);
               }
-              const photoHash = 'p_' + Date.now().toString(36);
+              const photoHash = 'p_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
               resolve({ dataUrl: webpUrl, photoHash });
             } catch (e) {
               resolve({ dataUrl, photoHash: 'p_' + Date.now().toString(36) });
@@ -1105,7 +1298,7 @@
 
         if (typeof fileOrDataUrl === 'string') {
           processImgData(fileOrDataUrl);
-        } else if (fileOrDataUrl instanceof Blob || fileOrDataUrl instanceof File) {
+        } else if (fileOrDataUrl && typeof fileOrDataUrl === 'object') {
           const reader = new FileReader();
           reader.onload = () => processImgData(reader.result);
           reader.onerror = () => resolve({ dataUrl: '', photoHash: '' });

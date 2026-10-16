@@ -41,9 +41,17 @@
   function processPlayerPhotoWebp(fileOrDataUrl) {
     return new Promise((resolve) => {
       function processImgData(dataUrl) {
-        if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image')) {
+        if (!dataUrl || typeof dataUrl !== 'string') {
           return resolve({ dataUrl: '', photoHash: '' });
         }
+        // Normalizar tipos genéricos o vacíos de Android/cámara a data:image/jpeg
+        if (dataUrl.startsWith('data:application/octet-stream') || dataUrl.startsWith('data:;')) {
+          dataUrl = dataUrl.replace(/^data:[^;]*/, 'data:image/jpeg');
+        }
+        if (!dataUrl.startsWith('data:image')) {
+          return resolve({ dataUrl: '', photoHash: '' });
+        }
+
         const img = new Image();
         img.onload = () => {
           try {
@@ -62,23 +70,26 @@
             ctx.drawImage(img, sx, sy, s, s, 0, 0, 400, 400);
 
             let webpUrl = canvas.toDataURL('image/webp', 0.80);
-            if (!webpUrl || !webpUrl.startsWith('data:image/webp')) {
+            if (!webpUrl || (!webpUrl.startsWith('data:image/webp') && !webpUrl.startsWith('data:image/jpeg') && !webpUrl.startsWith('data:image/png'))) {
               webpUrl = canvas.toDataURL('image/jpeg', 0.80);
             }
-            const photoHash = 'p_' + Date.now().toString(36);
+            const photoHash = 'p_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
             resolve({ dataUrl: webpUrl, photoHash });
           } catch (e) {
             console.error('[IO] Error procesando imagen WebP:', e);
             resolve({ dataUrl, photoHash: 'p_' + Date.now().toString(36) });
           }
         };
-        img.onerror = () => resolve({ dataUrl: '', photoHash: '' });
+        img.onerror = () => {
+          console.warn('[IO] img.onerror al cargar imagen dataUrl');
+          resolve({ dataUrl: '', photoHash: '' });
+        };
         img.src = dataUrl;
       }
 
       if (typeof fileOrDataUrl === 'string') {
         processImgData(fileOrDataUrl);
-      } else if (fileOrDataUrl instanceof Blob || fileOrDataUrl instanceof File) {
+      } else if (fileOrDataUrl && typeof fileOrDataUrl === 'object') {
         readFileDataURL(fileOrDataUrl).then(processImgData).catch(() => resolve({ dataUrl: '', photoHash: '' }));
       } else {
         resolve({ dataUrl: '', photoHash: '' });

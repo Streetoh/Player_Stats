@@ -10336,17 +10336,24 @@
         if (!photoInput.files || !photoInput.files[0]) return;
         const file = photoInput.files[0];
         try {
+          let res = null;
           if (window.IO && window.IO.processPlayerPhotoWebp) {
-            const res = await window.IO.processPlayerPhotoWebp(file);
-            photoData = res.dataUrl;
-            photoHash = res.photoHash;
-          } else {
-            const dataUrl = await IO.readFileDataURL(file);
-            const shrunken = await IO.shrinkPhoto(dataUrl, 180);
-            photoData = shrunken;
-            photoHash = 'p_' + Date.now().toString(36);
+            res = await window.IO.processPlayerPhotoWebp(file);
+          } else if (window.Cloud && window.Cloud.processPlayerPhotoWebp) {
+            res = await window.Cloud.processPlayerPhotoWebp(file);
           }
-          photoPreview.innerHTML = `<img src="${photoData}" alt="" /><div class="cam">${icon('camera', 16)}</div>`;
+          if (res && res.dataUrl) {
+            photoData = res.dataUrl;
+            photoHash = res.photoHash || ('p_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6));
+          } else if (window.IO && window.IO.readFileDataURL) {
+            const rawUrl = await IO.readFileDataURL(file);
+            const shrunken = (IO.shrinkPhoto ? await IO.shrinkPhoto(rawUrl, 200) : rawUrl);
+            photoData = shrunken || rawUrl;
+            photoHash = 'p_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
+          }
+          if (photoData) {
+            photoPreview.innerHTML = `<img src="${photoData}" alt="" /><div class="cam">${icon('camera', 16)}</div>`;
+          }
         } catch (err) {
           console.error("Error al procesar foto WebP:", err);
         }
@@ -10380,6 +10387,12 @@
         }
 
         const mainDorsal = dorsalStr ? parseInt(dorsalStr, 10) : null;
+
+        // Si no se seleccionó una foto nueva pero el jugador ya tenía una foto o hash, conservarla
+        if (!photoData && player && (player.photo || player.photoHash)) {
+          photoData = player.photo || '';
+          photoHash = player.photoHash || '';
+        }
 
         const saved = Store.upsertPlayer({
           id: isEdit ? player.id : null,

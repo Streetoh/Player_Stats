@@ -4122,7 +4122,6 @@
     }
 
     // Primera vez: selección inicial de perfil con selector de idioma accesible directamente
-    const players = clubData.players.slice().sort((a,b) => (a.name||'').localeCompare(b.name||''));
     const overlay = document.createElement('div');
     overlay.className = 'dialog-overlay';
     overlay.id = 'dialog-select-identity-overlay';
@@ -4141,24 +4140,7 @@
 
         <input type="text" id="id-search" placeholder="${t('searchTeammate')}" style="width: 100%; margin-bottom: 10px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg2); color: #fff; font-size: 13px;" />
 
-        <div style="display: flex; flex-direction: column; gap: 6px; max-height: 48vh; overflow-y: auto;" id="id-players-list">
-          ${players.map(p => {
-            const team = clubData.teams ? clubData.teams.find(t => t.id === p.teamId) : null;
-            return `
-              <div class="portal-player-pick-item" data-pid="${p.id}" style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--surface2); border: 1px solid var(--border); cursor: pointer;">
-                ${renderAvatar(p, 'sm')}
-                <div style="flex: 1; overflow: hidden;">
-                  <b style="font-size: 14px; display: block; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">
-                    #${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(p.name || '')} ${escapeHtml(p.lastName || '')}
-                  </b>
-                  <small style="color: var(--muted); font-size: 11.5px;">
-                    ${formatPosition(p.mainPosition)} ${team ? '• ' + escapeHtml(team.name) : ''}
-                  </small>
-                </div>
-              </div>
-            `;
-          }).join('')}
-        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px; max-height: 48vh; overflow-y: auto;" id="id-players-list"></div>
 
         <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border);">
           <button type="button" class="btn sm ghost" id="btn-dialog-id-req-creation" style="width: 100%; border: 1.5px dashed var(--cyan); color: var(--cyan); font-weight: 800; font-size: 12px; height: 38px; border-radius: 10px;">
@@ -4221,6 +4203,46 @@
 
     const searchInp = overlay.querySelector('#id-search');
     const listCont = overlay.querySelector('#id-players-list');
+
+    function renderPlayersList() {
+      if (!listCont) return;
+      const players = ((clubData && clubData.players) ? clubData.players : []).slice().sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      const q = searchInp ? searchInp.value.toLowerCase().trim() : '';
+      listCont.innerHTML = players.map(p => {
+        const team = (clubData && clubData.teams) ? clubData.teams.find(t => t.id === p.teamId) : null;
+        const fullText = `#${p.mainDorsal != null ? p.mainDorsal : '-'} ${p.name || ''} ${p.lastName || ''} ${p.nickname || ''} ${team ? team.name : ''}`.toLowerCase();
+        const visible = !q || fullText.includes(q);
+        return `
+          <div class="portal-player-pick-item" data-pid="${p.id}" style="display: ${visible ? 'flex' : 'none'}; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--surface2); border: 1px solid var(--border); cursor: pointer;">
+            <div class="player-avatar-slot" data-slot-pid="${p.id}">
+              ${renderAvatar(p, 'sm')}
+            </div>
+            <div style="flex: 1; overflow: hidden;">
+              <b style="font-size: 14px; display: block; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">
+                #${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(p.name || '')} ${escapeHtml(p.lastName || '')}
+              </b>
+              <small style="color: var(--muted); font-size: 11.5px;">
+                ${formatPosition(p.mainPosition)} ${team ? '• ' + escapeHtml(team.name) : ''}
+              </small>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      listCont.querySelectorAll('.portal-player-pick-item').forEach(it => {
+        it.onclick = () => {
+          const pid = it.getAttribute('data-pid');
+          const targetPlayer = (clubData.players || []).find(p => p.id === pid);
+          if (!targetPlayer) return;
+          close();
+          showConfirmIdentitySecurityCodeModal(targetPlayer);
+        };
+      });
+    }
+
+    overlay._refreshPlayers = renderPlayersList;
+    renderPlayersList();
+
     if (searchInp && listCont) {
       searchInp.oninput = () => {
         const q = searchInp.value.toLowerCase().trim();
@@ -4230,18 +4252,54 @@
       };
     }
 
-    listCont.querySelectorAll('.portal-player-pick-item').forEach(it => {
-      it.onclick = () => {
-        const pid = it.getAttribute('data-pid');
-        const targetPlayer = (clubData.players || []).find(p => p.id === pid);
-        if (!targetPlayer) return;
-        close();
-        showConfirmIdentitySecurityCodeModal(targetPlayer);
-      };
-    });
-
     document.body.appendChild(overlay);
     if (searchInp) setTimeout(() => searchInp.focus(), 80);
+    syncFreshPlayersFromCloud();
+  }
+
+  function refreshOpenIdentityModals(updatedPlayerId) {
+    if (updatedPlayerId) {
+      const p = (clubData && clubData.players) ? clubData.players.find(x => x.id === updatedPlayerId) : null;
+      if (p) {
+        document.querySelectorAll(`.player-avatar-slot[data-slot-pid="${updatedPlayerId}"]`).forEach(slot => {
+          slot.innerHTML = renderAvatar(p, 'sm');
+        });
+      }
+    }
+    const idModal = document.getElementById('dialog-select-identity-overlay');
+    if (idModal && typeof idModal._refreshPlayers === 'function') {
+      idModal._refreshPlayers();
+    }
+    const reqModal = document.getElementById('dialog-req-profile-change-overlay');
+    if (reqModal && typeof reqModal._refreshPlayers === 'function') {
+      reqModal._refreshPlayers();
+    }
+  }
+
+  async function syncFreshPlayersFromCloud() {
+    if (!window.Cloud || typeof window.Cloud.fetchPlayersFromServer !== 'function') return;
+    try {
+      const serverPlayers = await window.Cloud.fetchPlayersFromServer();
+      if (Array.isArray(serverPlayers) && serverPlayers.length > 0) {
+        clubData = clubData || {};
+        const byId = new Map();
+        (clubData.players || []).forEach(p => { if (p && p.id) byId.set(p.id, p); });
+        serverPlayers.forEach(sp => {
+          if (!sp || !sp.id) return;
+          const prev = byId.get(sp.id);
+          byId.set(sp.id, Object.assign({}, prev || {}, sp, { photo: (prev && prev.photo) || sp.photo || '' }));
+        });
+        clubData.players = Array.from(byId.values());
+        window.clubData = clubData;
+        try { localStorage.setItem('cached_club_state', JSON.stringify(clubData)); } catch (e) {}
+        refreshOpenIdentityModals();
+        if (window.Cloud.hydratePlayerPhotos) {
+          window.Cloud.hydratePlayerPhotos(clubData.players, (loadedP) => {
+            refreshOpenIdentityModals(loadedP ? loadedP.id : null);
+          });
+        }
+      }
+    } catch (e) {}
   }
 
   /* -------------------------------------------------------------
@@ -4494,11 +4552,11 @@
   function showRequestProfileChangeModal() {
     const myP = getMyPlayer();
     const curName = myP ? `${myP.name || ''} ${myP.lastName || ''}`.trim() : 'Jugador Actual';
-    const players = (clubData.players || []).filter(p => p.id !== myPlayerId).sort((a,b) => (a.name||'').localeCompare(b.name||''));
     let selectedTargetPid = null;
 
     const overlay = document.createElement('div');
     overlay.className = 'dialog-overlay';
+    overlay.id = 'dialog-req-profile-change-overlay';
     overlay.innerHTML = `
       <div class="dialog-box" style="max-height: 88vh; width: 92%; max-width: 440px; display: flex; flex-direction: column;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
@@ -4517,25 +4575,7 @@
         </label>
         <input type="text" id="req-player-search" placeholder="${t('searchTeammate')}" style="width: 100%; margin-bottom: 8px; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg2); color: #fff; font-size: 12.5px;" />
 
-        <div style="flex: 1; max-height: 38vh; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; padding: 2px;" id="req-players-list">
-          ${players.map(p => {
-            const team = clubData.teams ? clubData.teams.find(t => t.id === p.teamId) : null;
-            return `
-              <div class="portal-req-pick-item" data-pid="${p.id}" style="display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; background: var(--surface2); border: 2px solid var(--border); cursor: pointer; transition: all 0.15s;">
-                ${renderAvatar(p, 'sm')}
-                <div style="flex: 1; overflow: hidden;">
-                  <b style="font-size: 13.5px; display: block; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; color: #fff;">
-                    #${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(p.name || '')} ${escapeHtml(p.lastName || '')}
-                  </b>
-                  <small style="color: var(--muted); font-size: 11px;">
-                    ${formatPosition(p.mainPosition)} ${team ? '• ' + escapeHtml(team.name) : ''}
-                  </small>
-                </div>
-                <span class="req-check" style="display: none; font-size: 16px;">✅</span>
-              </div>
-            `;
-          }).join('')}
-        </div>
+        <div style="flex: 1; max-height: 38vh; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; padding: 2px;" id="req-players-list"></div>
 
         <label style="display: block; font-size: 11.5px; font-weight: 800; color: var(--muted); margin-bottom: 4px;">
           ${t('reasonLabel')}
@@ -4554,6 +4594,55 @@
 
     const searchInp = overlay.querySelector('#req-player-search');
     const listCont = overlay.querySelector('#req-players-list');
+
+    function renderReqPlayersList() {
+      if (!listCont) return;
+      const players = ((clubData && clubData.players) ? clubData.players : []).filter(p => p.id !== myPlayerId).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      const q = searchInp ? searchInp.value.toLowerCase().trim() : '';
+      listCont.innerHTML = players.map(p => {
+        const team = (clubData && clubData.teams) ? clubData.teams.find(t => t.id === p.teamId) : null;
+        const isSel = selectedTargetPid === p.id;
+        const fullText = `#${p.mainDorsal != null ? p.mainDorsal : '-'} ${p.name || ''} ${p.lastName || ''} ${p.nickname || ''} ${team ? team.name : ''}`.toLowerCase();
+        const visible = !q || fullText.includes(q);
+        return `
+          <div class="portal-req-pick-item" data-pid="${p.id}" style="display: ${visible ? 'flex' : 'none'}; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; background: ${isSel ? 'rgba(34, 211, 238, 0.15)' : 'var(--surface2)'}; border: 2px solid ${isSel ? 'var(--cyan)' : 'var(--border)'}; cursor: pointer; transition: all 0.15s;">
+            <div class="player-avatar-slot" data-slot-pid="${p.id}">
+              ${renderAvatar(p, 'sm')}
+            </div>
+            <div style="flex: 1; overflow: hidden;">
+              <b style="font-size: 13.5px; display: block; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; color: #fff;">
+                #${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(p.name || '')} ${escapeHtml(p.lastName || '')}
+              </b>
+              <small style="color: var(--muted); font-size: 11px;">
+                ${formatPosition(p.mainPosition)} ${team ? '• ' + escapeHtml(team.name) : ''}
+              </small>
+            </div>
+            <span class="req-check" style="display: ${isSel ? 'inline' : 'none'}; font-size: 16px;">✅</span>
+          </div>
+        `;
+      }).join('');
+
+      listCont.querySelectorAll('.portal-req-pick-item').forEach(it => {
+        it.onclick = () => {
+          listCont.querySelectorAll('.portal-req-pick-item').forEach(el => {
+            el.style.borderColor = 'var(--border)';
+            el.style.background = 'var(--surface2)';
+            const chk = el.querySelector('.req-check');
+            if (chk) chk.style.display = 'none';
+          });
+          it.style.borderColor = 'var(--cyan)';
+          it.style.background = 'rgba(34, 211, 238, 0.15)';
+          const chk = it.querySelector('.req-check');
+          if (chk) chk.style.display = 'inline';
+          selectedTargetPid = it.getAttribute('data-pid');
+          haptic(20);
+        };
+      });
+    }
+
+    overlay._refreshPlayers = renderReqPlayersList;
+    renderReqPlayersList();
+
     if (searchInp && listCont) {
       searchInp.oninput = () => {
         const q = searchInp.value.toLowerCase().trim();
@@ -4563,22 +4652,7 @@
       };
     }
 
-    listCont.querySelectorAll('.portal-req-pick-item').forEach(it => {
-      it.onclick = () => {
-        listCont.querySelectorAll('.portal-req-pick-item').forEach(el => {
-          el.style.borderColor = 'var(--border)';
-          el.style.background = 'var(--surface2)';
-          const chk = el.querySelector('.req-check');
-          if (chk) chk.style.display = 'none';
-        });
-        it.style.borderColor = 'var(--cyan)';
-        it.style.background = 'rgba(34, 211, 238, 0.15)';
-        const chk = it.querySelector('.req-check');
-        if (chk) chk.style.display = 'inline';
-        selectedTargetPid = it.getAttribute('data-pid');
-        haptic(20);
-      };
-    });
+    syncFreshPlayersFromCloud();
 
     const btnSubmit = overlay.querySelector('#btn-submit-req');
     btnSubmit.onclick = async () => {
@@ -9117,7 +9191,20 @@
         }
 
         if (Array.isArray(remoteState.players) && remoteState.players.length > 0) {
+          const prevPhotos = new Map();
+          if (clubData && Array.isArray(clubData.players)) {
+            clubData.players.forEach(p => {
+              if (p && p.id && p.photo) prevPhotos.set(p.id, p.photo);
+            });
+          }
           clubData = remoteState;
+          if (prevPhotos.size > 0 && Array.isArray(clubData.players)) {
+            clubData.players.forEach(p => {
+              if (p && p.id && !p.photo && prevPhotos.has(p.id)) {
+                p.photo = prevPhotos.get(p.id);
+              }
+            });
+          }
         } else if (clubData && clubData.players && clubData.players.length > 0) {
           clubData = Object.assign({}, clubData, remoteState, {
             players: (remoteState.players && Array.isArray(remoteState.players) && remoteState.players.length > 0) ? remoteState.players : clubData.players,
@@ -9155,11 +9242,13 @@
 
         updateHeaderIdentity();
         renderCurrentTab();
+        refreshOpenIdentityModals();
 
         if (window.Cloud && window.Cloud.hydratePlayerPhotos && clubData && Array.isArray(clubData.players)) {
-          window.Cloud.hydratePlayerPhotos(clubData.players, () => {
+          window.Cloud.hydratePlayerPhotos(clubData.players, (loadedP) => {
             updateHeaderIdentity();
             renderCurrentTab();
+            refreshOpenIdentityModals(loadedP ? loadedP.id : null);
           });
         }
 
@@ -9172,6 +9261,8 @@
             showSelectIdentityModal();
           } else if (!existingSelectionModal) {
             showSelectIdentityModal();
+          } else {
+            refreshOpenIdentityModals();
           }
         } else if (myPlayerId && hasApprovedProfile()) {
           const regKey = 'portal_device_link_registered_' + myPlayerId;

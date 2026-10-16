@@ -387,7 +387,7 @@
 
     upsertPlayer(data) {
       if (data.photo && !data.photoHash) {
-        data.photoHash = 'p_' + Date.now().toString(36);
+        data.photoHash = 'p_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
       }
       const cleanData = Object.assign({}, data);
       if (cleanData.heightCm !== undefined) {
@@ -396,11 +396,27 @@
       if (data.id) {
         const i = this.state.players.findIndex(p => p.id === data.id);
         if (i >= 0) {
+          // Si no se pasó una foto nueva pero el jugador ya tenía una foto previa en memoria, conservarla
+          if (!cleanData.photo && !cleanData.removePhoto && this.state.players[i].photo) {
+            cleanData.photo = this.state.players[i].photo;
+            cleanData.photoHash = this.state.players[i].photoHash || cleanData.photoHash;
+          }
+          if (cleanData.photo && !cleanData.photoHash) {
+            cleanData.photoHash = 'p_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
+          }
           this.state.players[i] = Object.assign({}, this.state.players[i], cleanData);
           if (this.state.players[i].photo && this.state.players[i].photoHash && typeof window !== 'undefined' && window.CacheDB && window.CacheDB.setPhoto) {
             window.CacheDB.setPhoto(this.state.players[i].id, this.state.players[i].photoHash, this.state.players[i].photo);
           }
           this.save();
+          if (typeof window !== 'undefined' && window.Cloud) {
+            if (typeof window.Cloud.upsertPlayerToCloud === 'function') {
+              window.Cloud.upsertPlayerToCloud(this.state.players[i], this.state);
+            }
+            if (typeof window.Cloud.pushCoachState === 'function') {
+              window.Cloud.pushCoachState(this.state, true);
+            }
+          }
           return this.state.players[i];
         }
       }
@@ -413,13 +429,35 @@
       }, cleanData);
       if (!p.id) p.id = uid('p');
       if (p.photo && !p.photoHash) {
-        p.photoHash = 'p_' + Date.now().toString(36);
+        p.photoHash = 'p_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
       }
       if (p.photo && p.photoHash && typeof window !== 'undefined' && window.CacheDB && window.CacheDB.setPhoto) {
         window.CacheDB.setPhoto(p.id, p.photoHash, p.photo);
       }
       this.state.players.push(p);
+
+      // Si el nuevo jugador pertenece a un equipo, añadirlo automáticamente a las convocatorias vigentes de ese equipo
+      if (p.teamId && Array.isArray(this.state.convocations)) {
+        const todayIso = todayStr();
+        this.state.convocations.forEach(c => {
+          if (!c || (c.date && c.date < todayIso)) return;
+          const tIds = Array.isArray(c.teamIds) ? c.teamIds : (c.teamId ? [c.teamId] : []);
+          if (tIds.includes(p.teamId)) {
+            c.list = c.list || {};
+            if (!c.list[p.id]) c.list[p.id] = 'called';
+          }
+        });
+      }
+
       this.save();
+      if (typeof window !== 'undefined' && window.Cloud) {
+        if (typeof window.Cloud.upsertPlayerToCloud === 'function') {
+          window.Cloud.upsertPlayerToCloud(p, this.state);
+        }
+        if (typeof window.Cloud.pushCoachState === 'function') {
+          window.Cloud.pushCoachState(this.state, true);
+        }
+      }
       return p;
     },
 
