@@ -7489,9 +7489,14 @@
                     </span>
                   </div>
                 </div>
-                <button type="button" class="btn sm" id="btn-manage-match-mvp" style="background: rgba(250, 204, 21, 0.2); color: #fde047; border: 1px solid rgba(250, 204, 21, 0.5); font-weight: 800; font-size: 11.5px; white-space: nowrap;">
-                  ⭐ ${s.mvpOfficialId ? 'Cambiar MVP' : 'Nombrar MVP'}
-                </button>
+                <div style="display: flex; gap: 6px; align-items: center; flex-shrink: 0;">
+                  <button type="button" class="btn sm" id="btn-view-mvp-breakdown" style="background: rgba(34, 197, 94, 0.2); color: #86efac; border: 1px solid rgba(34, 197, 94, 0.5); font-weight: 800; font-size: 11px; white-space: nowrap;">
+                    👁️ ${t('viewVotesDetail', 'Ver votos')}
+                  </button>
+                  <button type="button" class="btn sm" id="btn-manage-match-mvp" style="background: rgba(250, 204, 21, 0.2); color: #fde047; border: 1px solid rgba(250, 204, 21, 0.5); font-weight: 800; font-size: 11.5px; white-space: nowrap;">
+                    ⭐ ${s.mvpOfficialId ? 'Cambiar MVP' : 'Nombrar MVP'}
+                  </button>
+                </div>
               </div>
 
               <!-- Panel de Destacados del Entrenador (Coach Picks, máx 3) -->
@@ -7782,6 +7787,7 @@
         }
 
         const btnManageMvp = body.querySelector('#btn-manage-match-mvp');
+        const btnViewBreakdown = body.querySelector('#btn-view-mvp-breakdown');
         const cardManageMvp = body.querySelector('#card-match-mvp-action');
         function openMvpManager() {
           showSetOfficialMvpModal(s, () => {
@@ -7789,6 +7795,7 @@
           });
         }
         if (btnManageMvp) btnManageMvp.onclick = (e) => { e.stopPropagation(); openMvpManager(); };
+        if (btnViewBreakdown) btnViewBreakdown.onclick = (e) => { e.stopPropagation(); showMvpVotesBreakdownModal(s); };
         if (cardManageMvp) cardManageMvp.onclick = openMvpManager;
 
         const btnManageCoachPicks = body.querySelector('#btn-manage-coach-picks');
@@ -8307,6 +8314,235 @@
     bindEvents();
   }
 
+  // 👁️ Modal para que el entrenador vea quién ha votado a qué jugador en la votación MVP
+  function showMvpVotesBreakdownModal(session) {
+    if (!session) return;
+    const existing = document.getElementById('dialog-mvp-votes-breakdown');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.className = 'dialog-overlay';
+    modal.id = 'dialog-mvp-votes-breakdown';
+    modal.style.zIndex = '999999';
+
+    // Obtener jugadores que participaron en el partido
+    const participantSet = new Set();
+    if (session.stats) {
+      Object.keys(session.stats).forEach(pid => {
+        const st = session.stats[pid];
+        if (st && Object.values(st).some(v => Number(v) > 0)) participantSet.add(pid);
+      });
+    }
+    if (Array.isArray(session.slots)) session.slots.filter(Boolean).forEach(pid => participantSet.add(pid));
+    if (Array.isArray(session.trackedPlayerIds)) session.trackedPlayerIds.filter(Boolean).forEach(pid => participantSet.add(pid));
+    if (session.attendance) {
+      Object.keys(session.attendance).forEach(pid => {
+        const a = session.attendance[pid];
+        const st = (typeof a === 'object' && a !== null) ? a.status : a;
+        if (st === 'present' || st === 'late' || st === 'attended' || st === 'yes' || st === true) {
+          participantSet.add(pid);
+        } else if (st === 'absent') {
+          participantSet.delete(pid);
+        }
+      });
+    }
+    if (Array.isArray(session.coachPicks)) {
+      session.coachPicks.forEach(cp => {
+        if (!cp) return;
+        if (typeof cp === 'string') participantSet.add(cp);
+        else if (cp.playerId) participantSet.add(cp.playerId);
+        else if (cp.id) participantSet.add(cp.id);
+      });
+    }
+
+    const allPlayers = Store.state.players || [];
+    let participants = Array.from(participantSet).map(pid => allPlayers.find(p => p.id === pid)).filter(Boolean);
+    // Excluir jugadores de prueba
+    participants = participants.filter(p => !p.isTestPlayer && !p.isTest && p.id !== 'test_player_profile');
+    // Deduplicar participantes por ID y por nombre
+    const seenPIds = new Set();
+    const seenPNames = new Set();
+    participants = participants.filter(p => {
+      if (!p || !p.id) return false;
+      if (seenPIds.has(p.id)) return false;
+      const norm = `${(p.name || '').trim().toLowerCase()} ${(p.lastName || '').trim().toLowerCase()}`.trim();
+      if (norm && seenPNames.has(norm)) return false;
+      seenPIds.add(p.id);
+      if (norm) seenPNames.add(norm);
+      return true;
+    });
+
+    let currentVoteData = null;
+    let unsubMvp = null;
+
+    function renderContent() {
+      const votes = (currentVoteData && currentVoteData.votes) ? currentVoteData.votes : (session.votes || {});
+      const nowTs = Date.now();
+      let matchEndTs = 0;
+      if (session.endedAt) matchEndTs = Number(session.endedAt);
+      else if (session.finishedAt) matchEndTs = Number(session.finishedAt);
+      else if (session.date) {
+        const timePart = session.time ? (session.time.length === 5 ? session.time : session.time.slice(0, 5)) : '12:00';
+        const parsed = new Date(`${session.date}T${timePart}:00`).getTime();
+        matchEndTs = isNaN(parsed) ? new Date(session.date).getTime() : parsed;
+      }
+
+      const totalParticipants = participants.length;
+      const votedPlayers = participants.filter(p => !!votes[p.id]);
+      const allVoted = (totalParticipants > 0 && votedPlayers.length >= totalParticipants);
+
+      let deadlineTs = matchEndTs ? (matchEndTs + 48 * 3600 * 1000) : (nowTs + 48 * 3600 * 1000);
+      if (allVoted && matchEndTs) {
+        deadlineTs = Math.min(deadlineTs, matchEndTs + 24 * 3600 * 1000);
+      }
+      const isVotingActive = (nowTs < deadlineTs);
+      const remainingMs = Math.max(0, deadlineTs - nowTs);
+      const remHours = Math.floor(remainingMs / 3600000);
+      const remMins = Math.floor((remainingMs % 3600000) / 60000);
+
+      // Conteo de votos por candidato
+      const voteCounts = {};
+      Object.values(votes).forEach(tId => {
+        if (tId) voteCounts[tId] = (voteCounts[tId] || 0) + 1;
+      });
+
+      let leadingPlayer = null;
+      let maxVotes = 0;
+      let isTie = false;
+      if (Object.keys(voteCounts).length > 0) {
+        maxVotes = Math.max(...Object.values(voteCounts));
+        if (maxVotes > 0) {
+          const topIds = Object.keys(voteCounts).filter(id => voteCounts[id] === maxVotes);
+          if (topIds.length === 1) {
+            leadingPlayer = allPlayers.find(p => p.id === topIds[0]);
+          } else {
+            isTie = true;
+            let bestTieRating = -1;
+            topIds.forEach(candId => {
+              const cand = allPlayers.find(p => p.id === candId);
+              if (!cand) return;
+              const st = (session.stats && session.stats[candId]) || {};
+              const r = Store.calculateMatchRating(st, cand.mainPosition);
+              if (r > bestTieRating) {
+                bestTieRating = r;
+                leadingPlayer = cand;
+              }
+            });
+            if (!leadingPlayer) leadingPlayer = allPlayers.find(p => p.id === topIds[0]);
+          }
+        }
+      }
+
+      modal.innerHTML = `
+        <div class="card dialog-box" style="max-width: 480px; width: 92%; padding: 20px; border-radius: 18px; border: 1.5px solid #22c55e; max-height: 90vh; display: flex; flex-direction: column; background: #0b1329; box-shadow: 0 10px 40px rgba(0,0,0,0.85);">
+          <!-- Encabezado -->
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+            <div>
+              <h3 style="margin: 0; font-size: 16px; font-weight: 900; color: #fff; display: flex; align-items: center; gap: 8px;">
+                <span>🗳️</span> <span>${t('mvpVotesBreakdownTitle', 'Votación MVP: Quién ha votado a quién')}</span>
+              </h3>
+              <div style="font-size: 11.5px; color: var(--muted); margin-top: 2px;">
+                ${session.rival ? `vs ${escapeHtml(session.rival)}` : escapeHtml(session.title || 'Partido')} • ${session.date || ''}
+              </div>
+            </div>
+            <button type="button" class="btn sm ghost" id="btn-close-mvp-breakdown" style="padding: 4px 8px;">✕</button>
+          </div>
+
+          <!-- Resumen de Participación y Tiempo -->
+          <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 6px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px;">
+              <span style="color: #cbd5e1; font-weight: 700;">
+                📊 ${t('totalParticipantsCount', '{voted} de {total} participantes han votado').replace('{voted}', votedPlayers.length).replace('{total}', totalParticipants)}
+              </span>
+              <span class="badge" style="background: ${isVotingActive ? 'rgba(250, 204, 21, 0.2)' : 'rgba(148, 163, 184, 0.2)'}; color: ${isVotingActive ? '#fde047' : '#94a3b8'}; font-size: 10.5px; font-weight: 800;">
+                ${isVotingActive ? `⏳ Quedan ${remHours}h ${remMins}m` : `🏁 ${t('votingClosed', 'Votación finalizada')}`}
+              </span>
+            </div>
+
+            ${leadingPlayer ? `
+              <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; background: rgba(234, 179, 8, 0.15); border: 1px solid rgba(250, 204, 21, 0.4); padding: 6px 10px; border-radius: 8px;">
+                <span>🏆</span>
+                <span style="color: #fef08a; font-weight: 800;">
+                  ${isVotingActive ? t('currentLeader', 'Líder actual') : t('winner', 'Ganador')}: <b>${escapeHtml(Store.playerName(leadingPlayer))}</b> (${maxVotes} voto${maxVotes !== 1 ? 's' : ''}${isTie ? ` • ${t('votingTieBreakRating', 'Desempate por nota')}` : ''})
+                </span>
+              </div>
+            ` : ''}
+          </div>
+
+          <!-- Lista detallada: Quién votó a quién -->
+          <div style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; padding-right: 4px;">
+            ${participants.length === 0 ? `
+              <div style="text-align: center; color: var(--muted); padding: 20px;">
+                ${t('noPlayersInMatch', 'No hay jugadores registrados en este partido')}
+              </div>
+            ` : participants.map(voter => {
+              const targetId = votes[voter.id];
+              const targetPlayer = targetId ? allPlayers.find(p => p.id === targetId) : null;
+              const hasVoted = !!targetPlayer;
+
+              return `
+                <div class="card" style="padding: 10px 12px; border-radius: 12px; background: ${hasVoted ? 'rgba(15, 23, 42, 0.85)' : 'rgba(15, 23, 42, 0.45)'}; border: 1px solid ${hasVoted ? 'rgba(34, 197, 94, 0.35)' : 'rgba(255, 255, 255, 0.08)'}; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                  <!-- Votante -->
+                  <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;">
+                    ${renderAvatar(voter, 'xs')}
+                    <div style="overflow: hidden;">
+                      <b style="font-size: 12.5px; color: #fff; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; display: block;">
+                        #${voter.mainDorsal != null ? voter.mainDorsal : '—'} ${escapeHtml(Store.playerName(voter))}
+                      </b>
+                      <span style="font-size: 10.5px; color: var(--muted);">${voter.mainPosition || 'Jugador'}</span>
+                    </div>
+                  </div>
+
+                  <span style="font-size: 14px; color: var(--muted); opacity: 0.7; flex-shrink: 0;">➔</span>
+
+                  <!-- Destinatario del voto -->
+                  <div style="flex: 1; min-width: 0; text-align: right; display: flex; align-items: center; justify-content: flex-end; gap: 8px;">
+                    ${hasVoted ? `
+                      <div style="overflow: hidden; text-align: right;">
+                        <b style="font-size: 12.5px; color: #fde047; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; display: block;">
+                          ⭐ #${targetPlayer.mainDorsal != null ? targetPlayer.mainDorsal : '—'} ${escapeHtml(Store.playerName(targetPlayer))}
+                        </b>
+                        <span style="font-size: 10px; color: #86efac; font-weight: 700;">${t('voted', 'Votado')}</span>
+                      </div>
+                      ${renderAvatar(targetPlayer, 'xs')}
+                    ` : `
+                      <span class="badge" style="background: rgba(250, 204, 21, 0.15); color: #fde047; font-size: 10.5px; font-weight: 800; border: 1px solid rgba(250, 204, 21, 0.3);">
+                        ⏳ ${t('pendingVote', 'Pendiente')}
+                      </span>
+                    `}
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+
+          <!-- Botón Cerrar -->
+          <button type="button" class="btn ghost block" id="btn-close-mvp-breakdown-bottom" style="height: 40px; font-weight: 800; border-radius: 10px;">
+            ${t('close', 'Cerrar')}
+          </button>
+        </div>
+      `;
+
+      function closeModal() {
+        if (unsubMvp) { try { unsubMvp(); } catch (e) {} }
+        modal.remove();
+      }
+      modal.querySelector('#btn-close-mvp-breakdown').onclick = closeModal;
+      modal.querySelector('#btn-close-mvp-breakdown-bottom').onclick = closeModal;
+    }
+
+    if (window.Cloud && window.Cloud.listenToMatchMvp) {
+      unsubMvp = window.Cloud.listenToMatchMvp(session.id, (voteData) => {
+        currentVoteData = voteData;
+        renderContent();
+      });
+    } else {
+      renderContent();
+    }
+
+    document.body.appendChild(modal);
+  }
+
   // 👑 Modal para Nombrar el MVP Oficial del Partido
   function showSetOfficialMvpModal(session, onUpdated) {
     if (!session) return;
@@ -8314,7 +8550,20 @@
       ...Object.keys(session.stats || {}),
       ...(session.slots || []).filter(Boolean)
     ]);
-    const players = (Store.state.players || []).filter(p => trackedPlayerIds.has(p.id));
+    let players = (Store.state.players || []).filter(p => trackedPlayerIds.has(p.id) && !p.isTestPlayer && !p.isTest && p.id !== 'test_player_profile');
+    // Deduplicación estricta por ID y nombre
+    const seenPIds = new Set();
+    const seenPNames = new Set();
+    players = players.filter(p => {
+      if (!p || !p.id) return false;
+      if (seenPIds.has(p.id)) return false;
+      const norm = `${(p.name || '').trim().toLowerCase()} ${(p.lastName || '').trim().toLowerCase()}`.trim();
+      if (norm && seenPNames.has(norm)) return false;
+      seenPIds.add(p.id);
+      if (norm) seenPNames.add(norm);
+      return true;
+    });
+
     if (players.length === 0) {
       toast('No hay jugadores registrados en este partido para nombrar MVP', 'warning');
       return;
@@ -8363,9 +8612,14 @@
         </div>
 
         <div style="display: flex; gap: 8px; justify-content: space-between; align-items: center; flex-wrap: wrap;">
-          <button type="button" class="btn sm" id="btn-open-coach-picks-from-mvp" style="font-weight: 800; background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4);">
-            🌟 Nominar Top 3 Destacados
-          </button>
+          <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+            <button type="button" class="btn sm" id="btn-open-coach-picks-from-mvp" style="font-weight: 800; background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4);">
+              🌟 Nominar Top 3 Destacados
+            </button>
+            <button type="button" class="btn sm" id="btn-open-breakdown-from-mvp" style="font-weight: 800; background: rgba(34, 197, 94, 0.2); color: #86efac; border: 1px solid rgba(34, 197, 94, 0.4);">
+              👁️ ${t('viewVotesDetail', 'Ver votos')}
+            </button>
+          </div>
           <div style="display: flex; gap: 8px;">
             <button type="button" class="btn ghost" id="btn-cancel-set-mvp">${t('cancel')}</button>
             <button type="button" class="btn primary" id="btn-confirm-set-mvp" style="font-weight: 800; background: #eab308; color: #000;">
@@ -8445,6 +8699,13 @@
       btnPicksFromMvp.onclick = () => {
         closeModal();
         showMatchCoachPicksModal(session, onUpdated);
+      };
+    }
+
+    const btnBreakdownFromMvp = modal.querySelector('#btn-open-breakdown-from-mvp');
+    if (btnBreakdownFromMvp) {
+      btnBreakdownFromMvp.onclick = () => {
+        showMvpVotesBreakdownModal(session);
       };
     }
 

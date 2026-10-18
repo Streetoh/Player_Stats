@@ -322,6 +322,24 @@
         </div>
         <button type="button" class="btn sm" id="portal-lbl-change" style="font-size: 11.5px; font-weight: 800; flex-shrink: 0; padding: 4px 10px; border-radius: 8px; cursor: pointer; background: rgba(6, 182, 212, 0.15); color: var(--cyan); border: 1px solid rgba(6, 182, 212, 0.3);">Change ▾</button>
       </div>
+
+      <!-- Banner de Modo Test con botón para regresar a modo Coach -->
+      <div id="portal-test-mode-banner" style="display: none; margin-top: 8px; padding: 7px 12px; border-radius: 12px; background: linear-gradient(135deg, rgba(234, 179, 8, 0.22) 0%, rgba(202, 138, 4, 0.32) 100%); border: 1.5px solid #facc15; box-shadow: 0 4px 14px rgba(234, 179, 8, 0.25); align-items: center; justify-content: space-between; gap: 10px;">
+        <div style="display: flex; align-items: center; gap: 7px; overflow: hidden;">
+          <span style="font-size: 16px;">🧪</span>
+          <div style="overflow: hidden;">
+            <b style="font-size: 12px; color: #fef08a; display: block; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;" id="portal-test-banner-title">
+              Modo Jugador de Prueba
+            </b>
+            <span style="font-size: 10px; color: #fde047;" id="portal-test-banner-sub">
+              Perfil invisible de entrenador
+            </span>
+          </div>
+        </div>
+        <button type="button" class="btn sm" id="btn-return-coach-mode" style="background: #eab308; color: #000; font-weight: 900; font-size: 11px; padding: 5px 12px; border-radius: 8px; border: none; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,0.3); display: flex; align-items: center; gap: 5px; cursor: pointer;">
+          ↩️ <span id="lbl-return-coach-mode">Volver a Modo Coach</span>
+        </button>
+      </div>
     </header>
 
     <!-- Contenido principal según pestaña activa -->

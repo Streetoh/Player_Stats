@@ -139,6 +139,18 @@
     const d = defaultState();
     if (!s || typeof s !== 'object') return d;
     s.players = Array.isArray(s.players) ? s.players : [];
+    // Deduplicación preventiva de jugadores para evitar perfiles duplicados (ej. Glen)
+    const seenPIds = new Set();
+    const seenPNames = new Set();
+    s.players = s.players.filter(p => {
+      if (!p || !p.id) return false;
+      if (seenPIds.has(p.id)) return false;
+      const norm = `${(p.name || '').trim().toLowerCase()} ${(p.lastName || '').trim().toLowerCase()}`.trim();
+      if (norm && seenPNames.has(norm)) return false;
+      seenPIds.add(p.id);
+      if (norm) seenPNames.add(norm);
+      return true;
+    });
     s.teams = Array.isArray(s.teams) ? s.teams : [];
     s.sessions = Array.isArray(s.sessions) ? s.sessions : [];
     s.convocations = Array.isArray(s.convocations) ? s.convocations : [];

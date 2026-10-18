@@ -2896,6 +2896,20 @@
         .filter(p => !p.isTestPlayer && !p.isTest && p.id !== 'test_player_profile');
     }
 
+    // Deduplicación estricta por ID y por Nombre Completo Normalizado:
+    // Evita que jugadores como Glen aparezcan duplicados si existen perfiles residuales o repetidos
+    const seenPIds = new Set();
+    const seenPNames = new Set();
+    players = players.filter(p => {
+      if (!p || !p.id) return false;
+      if (seenPIds.has(p.id)) return false;
+      const normName = `${(p.name || '').trim().toLowerCase()} ${(p.lastName || '').trim().toLowerCase()}`.trim();
+      if (normName && seenPNames.has(normName)) return false;
+      seenPIds.add(p.id);
+      if (normName) seenPNames.add(normName);
+      return true;
+    });
+
     const existing = document.getElementById('dialog-match-mvp-vote');
     if (existing) existing.remove();
 
@@ -2928,7 +2942,7 @@
         updateVoteSelectionUI(targetId);
       } catch (err) {
         console.error('Error al registrar voto de MVP:', err);
-        toast('Error al votar: ' + err.message, 'error');
+        toast(t('mvpVoteError', 'Error al registrar el voto') + ': ' + (err.message || ''), 'error');
       }
     }
 
@@ -3660,15 +3674,40 @@
         lockIndicatorEl.style.background = locked ? 'rgba(250, 204, 21, 0.15)' : 'rgba(6, 182, 212, 0.15)';
         lockIndicatorEl.style.border = locked ? '1px solid rgba(250, 204, 21, 0.35)' : '1px solid rgba(6, 182, 212, 0.3)';
       }
+      const testBannerEl = document.getElementById('portal-test-mode-banner');
       if (myP && (myP.isTestPlayer || myP.isTest || myP.id === 'test_player_profile')) {
         if (nameEl) nameEl.textContent = `🧪 #${myP.mainDorsal || 99} ${myP.name || 'Test'} (${t('testPlayer', 'Test')})`;
         if (avatarEl) avatarEl.innerHTML = '<span>🧪</span>';
         if (lockIndicatorEl) {
-          lockIndicatorEl.innerHTML = `🧪 Modo Test`;
+          lockIndicatorEl.innerHTML = `🧪 ${t('testModeActive', 'Modo Test')}`;
           lockIndicatorEl.style.color = '#facc15';
           lockIndicatorEl.style.background = 'rgba(250, 204, 21, 0.25)';
           lockIndicatorEl.style.border = '1px solid #facc15';
         }
+        if (testBannerEl) {
+          testBannerEl.style.display = 'flex';
+          const titleEl = document.getElementById('portal-test-banner-title');
+          const subEl = document.getElementById('portal-test-banner-sub');
+          const lblBtn = document.getElementById('lbl-return-coach-mode');
+          if (titleEl) titleEl.textContent = `${t('testModeActive', 'Modo Jugador de Prueba')} (${myP.name || 'Test'})`;
+          if (subEl) subEl.textContent = t('testProfileDesc', 'Perfil invisible de entrenador');
+          if (lblBtn) lblBtn.textContent = t('returnToCoachMode', 'Volver al modo Entrenador');
+          const btnReturn = document.getElementById('btn-return-coach-mode');
+          if (btnReturn) {
+            btnReturn.onclick = (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              try {
+                localStorage.removeItem('portal_player_id');
+                localStorage.removeItem('portal_player_id_backup');
+                localStorage.removeItem('portal_player_team_id');
+              } catch (err) {}
+              window.location.href = 'coach.html';
+            };
+          }
+        }
+      } else {
+        if (testBannerEl) testBannerEl.style.display = 'none';
       }
       if (!window._chatUnreadInitialized && window.ChatUI && ChatUI.initGlobalUnreadListener) {
         window._chatUnreadInitialized = true;
@@ -5349,6 +5388,173 @@
   }
 
   /* -------------------------------------------------------------
+     CÁLCULO DEL ESTADO DE MVP DE UN PARTIDO
+     - Nota individual del jugador
+     - MVP Automático (mayor rating)
+     - MVP por Votación (mayor número de votos; en caso de empate desempata la nota más alta)
+     - Ventana de votación: 48h desde la finalización del partido.
+       Si todos los jugadores que han participado han votado, la votación terminará 24h tras la finalización.
+     ------------------------------------------------------------- */
+  function computeMatchMvpState(session, clubData, myP) {
+    if (!session) return null;
+    const nowTs = Date.now();
+    let matchEndTs = 0;
+    if (session.endedAt) matchEndTs = Number(session.endedAt);
+    else if (session.finishedAt) matchEndTs = Number(session.finishedAt);
+    else if (session.date) {
+      const timePart = session.time ? (session.time.length === 5 ? session.time : session.time.slice(0, 5)) : '12:00';
+      const parsed = new Date(`${session.date}T${timePart}:00`).getTime();
+      matchEndTs = isNaN(parsed) ? new Date(session.date).getTime() : parsed;
+    }
+
+    // Participantes reales del partido
+    const participantSet = new Set();
+    if (session.stats) {
+      Object.keys(session.stats).forEach(pid => {
+        const st = session.stats[pid];
+        if (st && Object.values(st).some(v => Number(v) > 0)) participantSet.add(pid);
+      });
+    }
+    if (Array.isArray(session.slots)) session.slots.filter(Boolean).forEach(pid => participantSet.add(pid));
+    if (Array.isArray(session.trackedPlayerIds)) session.trackedPlayerIds.filter(Boolean).forEach(pid => participantSet.add(pid));
+    if (session.attendance) {
+      Object.keys(session.attendance).forEach(pid => {
+        const a = session.attendance[pid];
+        const st = (typeof a === 'object' && a !== null) ? a.status : a;
+        if (st === 'present' || st === 'late' || st === 'attended' || st === 'yes' || st === true) {
+          participantSet.add(pid);
+        } else if (st === 'absent') {
+          participantSet.delete(pid);
+        }
+      });
+    }
+    if (Array.isArray(session.coachPicks)) {
+      session.coachPicks.forEach(cp => {
+        if (!cp) return;
+        if (typeof cp === 'string') participantSet.add(cp);
+        else if (cp.playerId) participantSet.add(cp.playerId);
+        else if (cp.id) participantSet.add(cp.id);
+      });
+    }
+
+    const allClubPlayers = (clubData && clubData.players) ? clubData.players : [];
+    const realParticipants = Array.from(participantSet).filter(pid => {
+      const p = allClubPlayers.find(x => x.id === pid);
+      return p && !p.isTestPlayer && !p.isTest && p.id !== 'test_player_profile';
+    });
+
+    const votes = session.votes || (window._liveVotesBySession && window._liveVotesBySession[session.id]) || {};
+    const totalParticipants = realParticipants.length;
+    const votedParticipants = realParticipants.filter(pid => !!votes[pid]);
+    const allParticipatedVoted = (totalParticipants > 0 && votedParticipants.length >= totalParticipants);
+
+    // Regla de duración de la votación:
+    // 48h desde que finalizó el partido.
+    // Cuando todos los jugadores que han participado han votado, la votación terminará 24h tras la finalización.
+    let deadlineTs = matchEndTs ? (matchEndTs + 48 * 3600 * 1000) : (nowTs + 48 * 3600 * 1000);
+    if (allParticipatedVoted && matchEndTs) {
+      deadlineTs = Math.min(deadlineTs, matchEndTs + 24 * 3600 * 1000);
+    }
+    const isVotingActive = (nowTs < deadlineTs);
+    const remainingMs = Math.max(0, deadlineTs - nowTs);
+    const remHours = Math.floor(remainingMs / 3600000);
+    const remMins = Math.floor((remainingMs % 3600000) / 60000);
+
+    const countdownText = isVotingActive
+      ? t('votingActiveRemaining', 'Votación activa: Quedan {hours}h {mins}m').replace('{hours}', remHours).replace('{mins}', remMins)
+      : t('votingClosed', 'Votación finalizada');
+
+    // Valoración del jugador actual en este partido
+    let myRating = null;
+    if (myP && session.stats && session.stats[myP.id]) {
+      const st = session.stats[myP.id];
+      if (st && Object.values(st).some(v => Number(v) > 0)) {
+        myRating = calculateMatchRating(st, myP.mainPosition);
+      }
+    }
+
+    // MVP Automático del partido (nota algorítmica más alta)
+    let autoMvpPlayer = null;
+    let maxAutoRating = -1;
+    realParticipants.forEach(pid => {
+      const p = allClubPlayers.find(x => x.id === pid);
+      if (!p) return;
+      const st = (session.stats && session.stats[pid]) || {};
+      const r = calculateMatchRating(st, p.mainPosition);
+      if (r > maxAutoRating) {
+        maxAutoRating = r;
+        autoMvpPlayer = p;
+      }
+    });
+    if (!autoMvpPlayer && (session.officialMvpId || session.mvpOfficialId)) {
+      const offId = session.officialMvpId || session.mvpOfficialId;
+      autoMvpPlayer = allClubPlayers.find(p => p.id === offId) || null;
+      if (autoMvpPlayer) maxAutoRating = calculateMatchRating((session.stats && session.stats[offId]) || {}, autoMvpPlayer.mainPosition);
+    }
+
+    // MVP por Votación (dinámico mientras esté activa)
+    const voteCounts = {};
+    Object.values(votes).forEach(targetId => {
+      if (targetId) voteCounts[targetId] = (voteCounts[targetId] || 0) + 1;
+    });
+
+    let votingMvpPlayer = null;
+    let maxVotes = 0;
+    let isTie = false;
+    const voteEntries = Object.entries(voteCounts);
+    if (voteEntries.length > 0) {
+      maxVotes = Math.max(...Object.values(voteCounts));
+      if (maxVotes > 0) {
+        const topCandidates = Object.keys(voteCounts).filter(id => voteCounts[id] === maxVotes);
+        if (topCandidates.length === 1) {
+          votingMvpPlayer = allClubPlayers.find(p => p.id === topCandidates[0]) || null;
+        } else {
+          isTie = true;
+          // En caso de empate, se desempatará eligiendo entre ellos al que tenga el rating más alto en ese partido
+          let bestTieRating = -1;
+          topCandidates.forEach(candId => {
+            const cand = allClubPlayers.find(p => p.id === candId);
+            if (!cand) return;
+            const st = (session.stats && session.stats[candId]) || {};
+            const r = calculateMatchRating(st, cand.mainPosition);
+            if (r > bestTieRating) {
+              bestTieRating = r;
+              votingMvpPlayer = cand;
+            }
+          });
+          if (!votingMvpPlayer) {
+            votingMvpPlayer = allClubPlayers.find(p => p.id === topCandidates[0]) || null;
+          }
+        }
+      }
+    }
+
+    const myVotedId = myP ? (votes[myP.id] || localStorage.getItem('my_mvp_vote_' + session.id)) : null;
+    const myVotedPlayer = myVotedId ? allClubPlayers.find(p => p.id === myVotedId) : null;
+    const isTestUser = !!(myP && (myP.isTestPlayer || myP.isTest || myP.id === 'test_player_profile'));
+    const canVote = isTestUser || (myP && realParticipants.includes(myP.id));
+
+    return {
+      matchEndTs,
+      deadlineTs,
+      isVotingActive,
+      countdownText,
+      totalParticipants,
+      votedCount: votedParticipants.length,
+      allParticipatedVoted,
+      myRating,
+      autoMvpPlayer,
+      maxAutoRating,
+      votingMvpPlayer,
+      maxVotes,
+      isTie,
+      canVote,
+      myVotedPlayer,
+      myVotedId
+    };
+  }
+
+  /* -------------------------------------------------------------
      PESTAÑA 1: CONVOCATORIAS (PUNTOS 2, 3, 4)
      ------------------------------------------------------------- */
   function renderConvocationsView() {
@@ -5537,31 +5743,56 @@
       }
     }
 
-    if (convs.length === 0) {
-      view.innerHTML = `
-        <div style="padding: 10px 0;">
-          ${mvpBannerHtml}
-          ${bannerHtml}
-          ${identityPromptCardHtml}
-          <div class="empty-state card">
-            <div class="e-ic">📋</div>
-            <h3>${t('emptyConvs')}</h3>
-            <p>${t('emptyConvsDesc')}</p>
-          </div>
-        </div>
-      `;
-      const btnSel = view.querySelector('#btn-select-id-from-convs');
-      if (btnSel) btnSel.onclick = showSelectIdentityModal;
-      const btnMvpBanner = view.querySelector('#banner-vote-mvp');
-      if (btnMvpBanner && recentMatchForMvp) {
-        btnMvpBanner.onclick = () => {
-          showMatchMvpVoteModal(recentMatchForMvp);
-        };
-      }
-      return;
-    }
+    // 1. Unir convocatorias oficiales con partidos recientes o finalizados de sessions / latestMatchMvp
+    const allConvsAndMatches = (clubData && clubData.convocations) ? clubData.convocations.slice() : [];
+    const existingMatchIds = new Set(allConvsAndMatches.map(c => c.sessionId || c.id));
 
-    const filteredConvs = convs.filter(c => {
+    const candidateMatches = [];
+    if (clubData && Array.isArray(clubData.sessions)) candidateMatches.push(...clubData.sessions);
+    if (clubData && clubData.latestMatchMvp) candidateMatches.push(clubData.latestMatchMvp);
+    if (clubData && Array.isArray(clubData.sessionsSummary)) candidateMatches.push(...clubData.sessionsSummary);
+
+    const nowD = new Date();
+    const todayIso = `${nowD.getFullYear()}-${String(nowD.getMonth() + 1).padStart(2, '0')}-${String(nowD.getDate()).padStart(2, '0')}`;
+
+    candidateMatches.forEach(sm => {
+      if (!sm || !sm.id || (!sm.rival && sm.type !== 'match')) return;
+      if (existingMatchIds.has(sm.id)) return;
+      const mDate = sm.date || '';
+      const isFin = !!(sm.finished || sm.isFinished || sm.status === 'finished' || sm.status === 'completed' || sm.endedAt != null || sm.finishedAt != null);
+      if (!isFin && mDate < todayIso) return;
+      const mTs = sm.endedAt ? Number(sm.endedAt) : (mDate ? new Date(mDate).getTime() : 0);
+      const isRecent = (mDate === todayIso) || (mTs && (nowD.getTime() - mTs < 72 * 3600 * 1000));
+      if (!isRecent && mDate !== todayIso) return;
+
+      allConvsAndMatches.push({
+        id: 'sess_' + sm.id,
+        sessionId: sm.id,
+        type: 'match',
+        title: sm.title || 'Partido',
+        rival: sm.rival || '',
+        date: sm.date || todayIso,
+        time: sm.time || '10:00',
+        teamId: sm.teamId,
+        teamIds: sm.teamIds,
+        score: sm.score,
+        status: sm.status || (isFin ? 'finished' : 'scheduled'),
+        finished: isFin,
+        isFinished: isFin,
+        endedAt: sm.endedAt,
+        finishedAt: sm.finishedAt,
+        stats: sm.stats || {},
+        attendance: sm.attendance || {},
+        coachPicks: sm.coachPicks || [],
+        mvpOfficialId: sm.mvpOfficialId || sm.officialMvpId || null,
+        officialMvpId: sm.mvpOfficialId || sm.officialMvpId || null,
+        votes: sm.votes || {},
+        isSynthesized: true
+      });
+      existingMatchIds.add(sm.id);
+    });
+
+    const filteredConvs = allConvsAndMatches.filter(c => {
       if (convFilterType !== 'all' && c.type !== convFilterType) return false;
 
       // Si es un entrenamiento recurrente, sólo mostrar sesiones de la semana actual
@@ -5618,11 +5849,39 @@
         return true;
       }
 
+      // 3) Si es un partido donde participó el jugador
+      if (c.type === 'match' && myP) {
+        if (c.stats && c.stats[myP.id] && Object.values(c.stats[myP.id]).some(v => Number(v) > 0)) return true;
+        if (Array.isArray(c.slots) && c.slots.includes(myP.id)) return true;
+        if (Array.isArray(c.trackedPlayerIds) && c.trackedPlayerIds.includes(myP.id)) return true;
+      }
+
       return false;
     });
 
-    const nowD = new Date();
-    const todayIso = `${nowD.getFullYear()}-${String(nowD.getMonth() + 1).padStart(2, '0')}-${String(nowD.getDate()).padStart(2, '0')}`;
+    if (filteredConvs.length === 0) {
+      view.innerHTML = `
+        <div style="padding: 10px 0;">
+          ${mvpBannerHtml}
+          ${bannerHtml}
+          ${identityPromptCardHtml}
+          <div class="empty-state card">
+            <div class="e-ic">📋</div>
+            <h3>${t('emptyConvs')}</h3>
+            <p>${t('emptyConvsDesc')}</p>
+          </div>
+        </div>
+      `;
+      const btnSel = view.querySelector('#btn-select-id-from-convs');
+      if (btnSel) btnSel.onclick = showSelectIdentityModal;
+      const btnMvpBanner = view.querySelector('#banner-vote-mvp');
+      if (btnMvpBanner && recentMatchForMvp) {
+        btnMvpBanner.onclick = () => {
+          showMatchMvpVoteModal(recentMatchForMvp);
+        };
+      }
+      return;
+    }
 
     // Separar en:
     // 1. Convocatorias de HOY (destacadas con iluminación)
@@ -5650,13 +5909,24 @@
 
     function renderSingleConvCard(c, isToday, isPast) {
       const isMatch = c.type === 'match';
+      const linkedSession = (clubData && clubData.sessions)
+        ? clubData.sessions.find(s => s.id === c.sessionId || s.convocationId === c.id || (s.date === c.date && (s.type === 'match' || s.rival)))
+        : (clubData && clubData.latestMatchMvp && (clubData.latestMatchMvp.id === c.sessionId || clubData.latestMatchMvp.convocationId === c.id || clubData.latestMatchMvp.date === c.date) ? clubData.latestMatchMvp : null);
+
+      const effMatchSession = linkedSession || (isMatch ? c : null);
+      const isMatchFinished = isMatch && !!(
+        (effMatchSession && (effMatchSession.isFinished || effMatchSession.finished || effMatchSession.status === 'finished' || effMatchSession.status === 'completed' || effMatchSession.endedAt != null || effMatchSession.finishedAt != null)) ||
+        c.status === 'finished' || c.isFinished || c.finished
+      );
+      const mvpState = isMatchFinished ? computeMatchMvpState(effMatchSession || c, clubData, myP) : null;
+
       const cardStyle = getEventCardStyle(c, { isPast, isToday, isMatch });
       const matchClass = isMatch ? (isToday ? 'conv-card-match-today' : 'card-match-gold') : (isToday ? 'conv-card-today' : '');
       const convTeams = cardStyle.teams;
       const team = convTeams[0] || null;
       const myTeamName = convTeams.map(tm => tm.name).join(' / ') || (team ? team.name : 'Mi Equipo');
       const myTeamColor = team ? (team.color || '#22c55e') : '#22c55e';
-      const rivalName = c.rival || '';
+      const rivalName = c.rival || (effMatchSession ? effMatchSession.rival : '');
 
       const list = c.list || {};
       const responses = liveVotes[c.id] || {};
@@ -5712,11 +5982,15 @@
                       🛡️ ${escapeHtml(tm.name)}
                     </span>
                   `).join('')}
-                  ${isPast ? `
+                  ${isMatchFinished ? `
+                    <span class="badge" style="background: rgba(34, 197, 94, 0.22); color: #4ade80; border: 1.5px solid #22c55e; font-size: 10.5px; font-weight: 900; padding: 2px 8px; border-radius: 8px;">
+                      🏁 ${t('matchFinished', 'Finalizado')}
+                    </span>
+                  ` : (isPast ? `
                     <span class="badge" style="background: rgba(148, 163, 184, 0.15); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.3); font-size: 10.5px; font-weight: 800; padding: 2px 7px; border-radius: 8px;">
                       ✓ ${t('pastSessionBadge')}
                     </span>
-                  ` : ''}
+                  ` : '')}
                   ${isToday && !isPast ? `
                     <span class="badge-today-glow" style="display: inline-flex; align-items: center; gap: 4px; background: ${isMatch ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'linear-gradient(135deg, #06b6d4, #3b82f6)'}; color: #fff; border: 1px solid rgba(255,255,255,0.4); font-size: 11px; font-weight: 900; padding: 2px 9px; border-radius: 8px; box-shadow: 0 0 14px ${isMatch ? 'rgba(245, 158, 11, 0.8)' : 'rgba(6, 182, 212, 0.8)'}; letter-spacing: 0.3px;">
                       ✨ ${currentLang === 'ee' ? 'TÄNA' : (currentLang === 'es' ? 'HOY' : 'TODAY')}
@@ -5797,50 +6071,124 @@
             </button>
           </div>
 
-          <!-- CAJA DE ASISTENCIA -->
-          <div class="portal-vote-box" style="margin-top: 10px;">
-            ${(hasApprovedProfile() && myPlayerId) ? (
-              isCalled ? `
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                  <span style="font-size: 12px; font-weight: 800; color: #fff;">${t('willYouAttend')}</span>
-                  <span id="vote-badge-${c.id}" class="badge" style="${isAttending ? 'background: rgba(34,197,94,0.2); color: #86efac;' : (isAbsent ? 'background: rgba(239,68,68,0.2); color: #fca5a5;' : 'background: var(--surface); color: var(--muted);')}">
-                    ${isAttending ? t('attendanceConfirmed') : (isAbsent ? t('absenceReported') : t('pendingResponse'))}
-                  </span>
+          <!-- CAJA DE ASISTENCIA O RESUMEN MVP DE PARTIDO FINALIZADO -->
+          ${isMatchFinished ? `
+            <div class="finished-match-mvp-box" style="margin-top: 12px; background: rgba(15, 23, 42, 0.7); border: 1.5px solid rgba(234, 179, 8, 0.35); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 10px;">
+              <!-- 3 Métricas en grid: Tu valoración | MVP Automático | MVP Votación -->
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 8px;">
+                <!-- Tu Valoración -->
+                <div style="background: rgba(30, 41, 59, 0.85); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 8px; text-align: center;">
+                  <div style="font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; margin-bottom: 3px;">
+                    ⭐ ${t('yourMatchRating', 'Tu Valoración')}
+                  </div>
+                  <div style="font-size: 17px; font-weight: 900; color: ${mvpState && mvpState.myRating ? '#38bdf8' : '#64748b'};">
+                    ${(mvpState && mvpState.myRating) ? mvpState.myRating : '—'}
+                  </div>
                 </div>
 
-                <div class="portal-vote-btns">
-                  <button class="btn-vote yes ${isAttending ? 'active' : ''}" data-cid="${c.id}" data-vote="called">
-                    ${t('iWillAttend')}
-                  </button>
-                  <button class="btn-vote no ${isAbsent ? 'active' : ''}" data-cid="${c.id}" data-vote="absent">
-                    ${t('iCannotAttend')}
-                  </button>
+                <!-- MVP Automático -->
+                <div style="background: rgba(30, 41, 59, 0.85); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 8px; text-align: center;">
+                  <div style="font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; margin-bottom: 3px;">
+                    🤖 ${t('autoMvpTitle', 'MVP Auto')}
+                  </div>
+                  <div style="font-size: 12.5px; font-weight: 900; color: #fbbf24; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${mvpState && mvpState.autoMvpPlayer ? escapeHtml(mvpState.autoMvpPlayer.name + ' ' + (mvpState.autoMvpPlayer.lastName || '')) : ''}">
+                    ${(mvpState && mvpState.autoMvpPlayer) ? escapeHtml(mvpState.autoMvpPlayer.name + (mvpState.autoMvpPlayer.lastName ? ' ' + mvpState.autoMvpPlayer.lastName.charAt(0) + '.' : '')) : '—'}
+                  </div>
+                  ${(mvpState && mvpState.autoMvpPlayer && mvpState.maxAutoRating) ? `
+                    <div style="font-size: 9.5px; color: #94a3b8; font-weight: 700;">★ ${mvpState.maxAutoRating.toFixed(1)}</div>
+                  ` : ''}
                 </div>
-              ` : `
-                <div style="text-align: center; padding: 6px 0; color: var(--muted); font-size: 12.5px;">
-                  ${t('notCalledUp')}
+
+                <!-- MVP por Votación -->
+                <div style="background: rgba(30, 41, 59, 0.85); border: 1px solid rgba(234, 179, 8, 0.35); border-radius: 10px; padding: 8px; text-align: center;">
+                  <div style="font-size: 10px; font-weight: 800; color: #fbbf24; text-transform: uppercase; margin-bottom: 3px;">
+                    🗳️ ${t('votingMvpTitle', 'MVP Votos')}
+                  </div>
+                  <div style="font-size: 12.5px; font-weight: 900; color: #fef08a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${mvpState && mvpState.votingMvpPlayer ? escapeHtml(mvpState.votingMvpPlayer.name + ' ' + (mvpState.votingMvpPlayer.lastName || '')) : ''}">
+                    ${(mvpState && mvpState.votingMvpPlayer) ? escapeHtml(mvpState.votingMvpPlayer.name + (mvpState.votingMvpPlayer.lastName ? ' ' + mvpState.votingMvpPlayer.lastName.charAt(0) + '.' : '')) : `<span style="font-size: 11px; color: #94a3b8;">${t('noVotesYet', 'Sin votos')}</span>`}
+                  </div>
+                  ${(mvpState && mvpState.votingMvpPlayer && mvpState.maxVotes > 0) ? `
+                    <div style="font-size: 9.5px; color: #fde047; font-weight: 700;">
+                      ${mvpState.maxVotes} ${mvpState.maxVotes === 1 ? 'voto' : 'votos'}${mvpState.isTie ? ` (${t('votingTieBreakRating', 'Desempate por nota')})` : ''}
+                    </div>
+                  ` : ''}
                 </div>
-              `
-            ) : `
-              <div style="text-align: center; padding: 6px 0;">
-                <button type="button" class="btn sm primary btn-select-id-for-conv" style="font-weight: 800; font-size: 12px; padding: 7px 16px; border-radius: 10px; width: 100%;">
-                  ⚽ ${t('selectIdentityToVote', 'Seleccionar mi perfil para confirmar asistencia')}
+              </div>
+
+              <!-- Contador de tiempo restante & progreso -->
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; background: rgba(0,0,0,0.25); padding: 7px 10px; border-radius: 8px; font-size: 11.5px;">
+                <div style="display: flex; align-items: center; gap: 5px; color: ${mvpState && mvpState.isVotingActive ? '#fef08a' : '#94a3b8'}; font-weight: 800;">
+                  <span>${mvpState && mvpState.isVotingActive ? '⏳' : '🔒'}</span>
+                  <span>${mvpState ? mvpState.countdownText : ''}</span>
+                </div>
+                <div style="font-size: 11px; color: #94a3b8; font-weight: 700;">
+                  ${mvpState ? `${mvpState.votedCount}/${mvpState.totalParticipants} ${t('voted', 'han votado')}` : ''}
+                </div>
+              </div>
+
+              <!-- Botón para votar MVP si el usuario participó o es test user -->
+              ${(mvpState && mvpState.canVote && mvpState.isVotingActive) ? `
+                <button type="button" class="btn sm btn-open-mvp-from-conv" data-match-id="${effMatchSession ? effMatchSession.id : c.id}" style="width: 100%; background: linear-gradient(135deg, #eab308, #ca8a04); color: #000; font-weight: 900; font-size: 12px; border-radius: 8px; border: none; padding: 7px 12px; cursor: pointer; box-shadow: 0 2px 8px rgba(234, 179, 8, 0.3);">
+                  ${mvpState.myVotedPlayer ? `✏️ ${t('mvpChangeVote', 'Cambiar voto')} (${escapeHtml(mvpState.myVotedPlayer.name)})` : `⭐ ${t('voteMatchMvp', 'Votar MVP del partido')}`}
+                </button>
+              ` : (mvpState && mvpState.myVotedPlayer ? `
+                <div style="text-align: center; font-size: 11.5px; color: #86efac; font-weight: 800;">
+                  ✓ ${t('mvpYouVotedFor', 'Has votado a {name}').replace('{name}', escapeHtml(mvpState.myVotedPlayer.name + ' ' + (mvpState.myVotedPlayer.lastName || '')))}
+                </div>
+              ` : '')}
+
+              <!-- Enlace para ver los asistentes de la convocatoria -->
+              <div style="display: flex; justify-content: flex-end; padding-top: 4px; border-top: 1px solid rgba(255,255,255,0.06);">
+                <button type="button" class="btn sm ghost" data-open-squad-status="${c.id}" style="color: var(--cyan); font-weight: 800; font-size: 11px; padding: 2px 6px;">
+                  ${t('viewAttendees')}
                 </button>
               </div>
-            `}
-
-            <!-- RECUENTO EN VIVO Y MODAL DE COMPAÑEROS QUE ASISTEN -->
-            <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; font-size: 12px;">
-              <div style="display: flex; gap: 8px;">
-                <span style="color: #86efac; font-weight: 800;">🟢 ${nAttending}</span>
-                <span style="color: #fca5a5; font-weight: 800;">❌ ${nAbsent}</span>
-                <span style="color: #fde047; font-weight: 800;">⏳ ${nPending}</span>
-              </div>
-              <button type="button" class="btn sm ghost" data-open-squad-status="${c.id}" style="color: var(--cyan); font-weight: 800; font-size: 11.5px; padding: 4px 8px;">
-                ${t('viewAttendees')}
-              </button>
             </div>
-          </div>
+          ` : `
+            <div class="portal-vote-box" style="margin-top: 10px;">
+              ${(hasApprovedProfile() && myPlayerId) ? (
+                isCalled ? `
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 12px; font-weight: 800; color: #fff;">${t('willYouAttend')}</span>
+                    <span id="vote-badge-${c.id}" class="badge" style="${isAttending ? 'background: rgba(34,197,94,0.2); color: #86efac;' : (isAbsent ? 'background: rgba(239,68,68,0.2); color: #fca5a5;' : 'background: var(--surface); color: var(--muted);')}">
+                      ${isAttending ? t('attendanceConfirmed') : (isAbsent ? t('absenceReported') : t('pendingResponse'))}
+                    </span>
+                  </div>
+
+                  <div class="portal-vote-btns">
+                    <button class="btn-vote yes ${isAttending ? 'active' : ''}" data-cid="${c.id}" data-vote="called">
+                      ${t('iWillAttend')}
+                    </button>
+                    <button class="btn-vote no ${isAbsent ? 'active' : ''}" data-cid="${c.id}" data-vote="absent">
+                      ${t('iCannotAttend')}
+                    </button>
+                  </div>
+                ` : `
+                  <div style="text-align: center; padding: 6px 0; color: var(--muted); font-size: 12.5px;">
+                    ${t('notCalledUp')}
+                  </div>
+                `
+              ) : `
+                <div style="text-align: center; padding: 6px 0;">
+                  <button type="button" class="btn sm primary btn-select-id-for-conv" style="font-weight: 800; font-size: 12px; padding: 7px 16px; border-radius: 10px; width: 100%;">
+                    ⚽ ${t('selectIdentityToVote', 'Seleccionar mi perfil para confirmar asistencia')}
+                  </button>
+                </div>
+              `}
+
+              <!-- RECUENTO EN VIVO Y MODAL DE COMPAÑEROS QUE ASISTEN -->
+              <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; font-size: 12px;">
+                <div style="display: flex; gap: 8px;">
+                  <span style="color: #86efac; font-weight: 800;">🟢 ${nAttending}</span>
+                  <span style="color: #fca5a5; font-weight: 800;">❌ ${nAbsent}</span>
+                  <span style="color: #fde047; font-weight: 800;">⏳ ${nPending}</span>
+                </div>
+                <button type="button" class="btn sm ghost" data-open-squad-status="${c.id}" style="color: var(--cyan); font-weight: 800; font-size: 11.5px; padding: 4px 8px;">
+                  ${t('viewAttendees')}
+                </button>
+              </div>
+            </div>
+          `}
         </div>
       `;
     }
@@ -6096,6 +6444,30 @@
       btn.onclick = (e) => {
         e.stopPropagation();
         showSelectIdentityModal();
+      };
+    });
+
+    // Abrir modal de votación MVP desde la tarjeta de partido finalizado
+    view.querySelectorAll('.btn-open-mvp-from-conv').forEach(btn => {
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        const mid = btn.getAttribute('data-match-id');
+        let targetMatch = null;
+        if (typeof candidateMatches !== 'undefined' && Array.isArray(candidateMatches)) {
+          targetMatch = candidateMatches.find(m => m && (m.id === mid || 'sess_' + m.id === mid));
+        }
+        if (!targetMatch && clubData && Array.isArray(clubData.sessions)) {
+          targetMatch = clubData.sessions.find(s => s && (s.id === mid || 'sess_' + s.id === mid));
+        }
+        if (!targetMatch && clubData && clubData.latestMatchMvp && (clubData.latestMatchMvp.id === mid || 'sess_' + clubData.latestMatchMvp.id === mid)) {
+          targetMatch = clubData.latestMatchMvp;
+        }
+        if (!targetMatch && typeof allConvsAndMatches !== 'undefined') {
+          targetMatch = allConvsAndMatches.find(c => c && (c.id === mid || c.sessionId === mid));
+        }
+        if (targetMatch) {
+          showMatchMvpVoteModal(targetMatch);
+        }
       };
     });
   }
