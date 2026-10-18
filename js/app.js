@@ -8435,7 +8435,7 @@
       }
 
       modal.innerHTML = `
-        <div class="card dialog-box" style="max-width: 480px; width: 92%; padding: 20px; border-radius: 18px; border: 1.5px solid #22c55e; max-height: 90vh; display: flex; flex-direction: column; background: #0b1329; box-shadow: 0 10px 40px rgba(0,0,0,0.85);">
+        <div class="card dialog-box" style="max-width: 480px; width: 94%; padding: 16px 14px; border-radius: 18px; border: 1.5px solid #22c55e; max-height: 90vh; display: flex; flex-direction: column; background: #0b1329; box-shadow: 0 10px 40px rgba(0,0,0,0.85);">
           <!-- Encabezado -->
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
             <div>
@@ -8482,36 +8482,51 @@
               const hasVoted = !!targetPlayer;
 
               return `
-                <div class="card" style="padding: 10px 12px; border-radius: 12px; background: ${hasVoted ? 'rgba(15, 23, 42, 0.85)' : 'rgba(15, 23, 42, 0.45)'}; border: 1px solid ${hasVoted ? 'rgba(34, 197, 94, 0.35)' : 'rgba(255, 255, 255, 0.08)'}; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                <div class="card" style="padding: 10px 12px; border-radius: 12px; background: ${hasVoted ? 'rgba(15, 23, 42, 0.85)' : 'rgba(15, 23, 42, 0.45)'}; border: 1.5px solid ${hasVoted ? 'rgba(234, 179, 8, 0.4)' : 'rgba(255, 255, 255, 0.08)'}; display: flex; flex-direction: column; gap: 8px;">
                   <!-- Votante -->
-                  <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;">
-                    ${renderAvatar(voter, 'xs')}
-                    <div style="overflow: hidden;">
-                      <b style="font-size: 12.5px; color: #fff; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; display: block;">
-                        #${voter.mainDorsal != null ? voter.mainDorsal : '—'} ${escapeHtml(Store.playerName(voter))}
-                      </b>
-                      <span style="font-size: 10.5px; color: var(--muted);">${voter.mainPosition || 'Jugador'}</span>
+                  <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+                    <div style="display: flex; align-items: center; gap: 9px; min-width: 0; flex: 1;">
+                      ${renderAvatar(voter, 'sm')}
+                      <div style="min-width: 0; flex: 1;">
+                        <div style="font-size: 13.5px; font-weight: 900; color: #fff; line-height: 1.25;">
+                          #${voter.mainDorsal != null ? voter.mainDorsal : '—'} ${escapeHtml(Store.playerName(voter))}
+                        </div>
+                        <div style="font-size: 10.5px; color: var(--muted); margin-top: 2px;">
+                          ${voter.mainPosition || 'Jugador'}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style="flex-shrink: 0;">
+                      ${hasVoted ? `
+                        <span class="badge" style="background: rgba(34, 197, 94, 0.18); color: #86efac; border: 1px solid rgba(34, 197, 94, 0.4); font-size: 11px; font-weight: 800; padding: 4px 8px; border-radius: 8px; display: inline-flex; align-items: center; gap: 4px;">
+                          <span>✓</span> <span>${t('voted', 'Votado')}</span>
+                        </span>
+                      ` : `
+                        <span class="badge" style="background: rgba(250, 204, 21, 0.15); color: #fde047; border: 1px solid rgba(250, 204, 21, 0.35); font-size: 11px; font-weight: 800; padding: 4px 8px; border-radius: 8px; display: inline-flex; align-items: center; gap: 4px;">
+                          <span>⏳</span> <span>${t('pendingVote', 'Pendiente de votar')}</span>
+                        </span>
+                      `}
                     </div>
                   </div>
 
-                  <span style="font-size: 14px; color: var(--muted); opacity: 0.7; flex-shrink: 0;">➔</span>
-
-                  <!-- Destinatario del voto -->
-                  <div style="flex: 1; min-width: 0; text-align: right; display: flex; align-items: center; justify-content: flex-end; gap: 8px;">
-                    ${hasVoted ? `
-                      <div style="overflow: hidden; text-align: right;">
-                        <b style="font-size: 12.5px; color: #fde047; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; display: block;">
-                          ⭐ #${targetPlayer.mainDorsal != null ? targetPlayer.mainDorsal : '—'} ${escapeHtml(Store.playerName(targetPlayer))}
-                        </b>
-                        <span style="font-size: 10px; color: #86efac; font-weight: 700;">${t('voted', 'Votado')}</span>
+                  <!-- Destinatario del voto (si ha votado) -->
+                  ${hasVoted ? `
+                    <div style="background: rgba(0, 0, 0, 0.35); border: 1px solid rgba(234, 179, 8, 0.3); border-left: 3.5px solid #eab308; border-radius: 8px; padding: 7px 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                      <div style="display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1;">
+                        <span style="font-size: 11px; font-weight: 800; color: #fbbf24; text-transform: uppercase; letter-spacing: 0.3px; flex-shrink: 0; display: flex; align-items: center; gap: 4px;">
+                          <span>🗳️</span> <span>${t('voterVotedFor', 'Ha votado a')}:</span>
+                        </span>
+                        ${renderAvatar(targetPlayer, 'xs')}
+                        <span style="font-size: 13px; font-weight: 900; color: #fef08a; min-width: 0; line-height: 1.25;">
+                          #${targetPlayer.mainDorsal != null ? targetPlayer.mainDorsal : '—'} ${escapeHtml(Store.playerName(targetPlayer))}
+                        </span>
                       </div>
-                      ${renderAvatar(targetPlayer, 'xs')}
-                    ` : `
-                      <span class="badge" style="background: rgba(250, 204, 21, 0.15); color: #fde047; font-size: 10.5px; font-weight: 800; border: 1px solid rgba(250, 204, 21, 0.3);">
-                        ⏳ ${t('pendingVote', 'Pendiente')}
+                      <span class="badge" style="background: rgba(234, 179, 8, 0.2); color: #fde047; border: 1px solid rgba(234, 179, 8, 0.3); font-size: 10px; font-weight: 800; flex-shrink: 0; padding: 2px 6px;">
+                        ${targetPlayer.mainPosition || 'Jugador'}
                       </span>
-                    `}
-                  </div>
+                    </div>
+                  ` : ''}
                 </div>
               `;
             }).join('')}
