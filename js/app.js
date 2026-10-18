@@ -7437,7 +7437,7 @@
           ${s.type === 'match' ? `
             ${isMatchFinished ? `
               <div style="background: linear-gradient(135deg, rgba(250, 204, 21, 0.12), rgba(34, 211, 238, 0.12)); border: 1px solid rgba(250, 204, 21, 0.35); border-radius: 16px; padding: 14px; text-align: center; margin-bottom: 12px;">
-                <span class="badge match" style="font-size: 10.5px; padding: 2px 8px; margin-bottom: 6px;">PARTIDO FINALIZADO</span>
+                <span class="badge match" style="font-size: 10.5px; padding: 2px 8px; margin-bottom: 6px;">🏁 ${t('matchFinished', 'PARTIDO FINALIZADO').toUpperCase()}</span>
                 <div style="font-size: 34px; font-weight: 900; font-variant-numeric: tabular-nums; margin: 4px 0;">
                   <span>${(s.score && s.score.home) || 0}</span>
                   <span style="color: var(--dim); margin: 0 10px;">:</span>
@@ -7453,7 +7453,7 @@
             ` : `
               <div style="background: linear-gradient(135deg, rgba(56, 189, 248, 0.12), rgba(34, 211, 238, 0.12)); border: 1.5px solid rgba(56, 189, 248, 0.35); border-radius: 16px; padding: 14px; text-align: center; margin-bottom: 12px;">
                 <span class="badge" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid #38bdf8; font-size: 10.5px; padding: 2px 8px; margin-bottom: 6px; font-weight: 800;">
-                  ${isFutureMatch ? 'PRÓXIMO PARTIDO' : (isTodayMatch ? 'HOY • PARTIDO PROGRAMADO' : 'PARTIDO PROGRAMADO')}
+                  ${isFutureMatch ? t('upcomingMatch', 'PRÓXIMO PARTIDO').toUpperCase() : (isTodayMatch ? t('todayMatchBadge', 'HOY • PARTIDO PROGRAMADO').toUpperCase() : t('scheduledMatch', 'PARTIDO PROGRAMADO').toUpperCase())}
                 </span>
                 <div style="font-size: 26px; font-weight: 900; color: #38bdf8; margin: 6px 0;">
                   VS
@@ -7466,10 +7466,10 @@
                 </div>
                 <div style="display: flex; gap: 8px; justify-content: center; margin-top: 10px; flex-wrap: wrap;">
                   <button type="button" class="btn sm primary" id="btn-start-match-live" style="font-weight: 800; font-size: 12px; border-radius: 8px;">
-                    ▶️ Abrir Tracker en Vivo
+                    ▶️ ${t('openLiveTracker', 'Abrir Tracker en Vivo')}
                   </button>
                   <button type="button" class="btn sm" id="btn-mark-match-finished" style="background: rgba(250, 204, 21, 0.2); color: #facc15; border: 1px solid #facc15; font-weight: 800; font-size: 12px; border-radius: 8px;">
-                    🏁 Marcar como Finalizado
+                    🏁 ${t('markAsFinished', 'Marcar como Finalizado')}
                   </button>
                 </div>
               </div>
@@ -7477,50 +7477,50 @@
 
             <!-- Panel de Gestión y Votación de MVP de Partido (Solo visible si finalizado) -->
             ${isMatchFinished ? `
-              <div class="card" id="card-match-mvp-action" style="margin-bottom: 12px; background: rgba(250, 204, 21, 0.08); border: 1.5px solid rgba(250, 204, 21, 0.35); padding: 12px 14px; border-radius: 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer;">
+              <div class="card" id="card-match-mvp-action" style="margin-bottom: 12px; background: rgba(250, 204, 21, 0.08); border: 1.5px solid rgba(250, 204, 21, 0.35); padding: 12px 14px; border-radius: 14px; display: flex; flex-direction: column; gap: 10px; cursor: pointer;">
                 <div style="display: flex; align-items: center; gap: 10px;">
-                  <span style="font-size: 22px;">👑</span>
-                  <div>
-                    <b style="font-size: 13px; color: #fde047; display: block;">
-                      ${s.mvpOfficialId ? '⭐ MVP Oficial Confirmado' : 'Votación del MVP del Partido'}
+                  <span style="font-size: 24px; flex-shrink: 0;">👑</span>
+                  <div style="flex: 1; min-width: 0;">
+                    <b style="font-size: 13.5px; color: #fde047; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                      ${s.mvpOfficialId ? '⭐ ' + t('officialMvpConfirmed', 'MVP Oficial Confirmado') : t('matchMvpVotingTitle', 'Votación del MVP del Partido')}
                     </b>
-                    <span id="label-mvp-votes-tally" style="font-size: 11.5px; color: var(--muted); display: block;">
-                      ${s.mvpOfficialId && Store.player(s.mvpOfficialId) ? `${escapeHtml(Store.playerName(Store.player(s.mvpOfficialId)))} (#${Store.player(s.mvpOfficialId).mainDorsal || ''})` : 'Toca para nombrar el MVP oficial o consultar votos'}
+                    <span id="label-mvp-votes-tally" style="font-size: 11.5px; color: var(--muted); display: block; margin-top: 2px;">
+                      ${s.mvpOfficialId && Store.player(s.mvpOfficialId) ? `${escapeHtml(Store.playerName(Store.player(s.mvpOfficialId)))} (#${Store.player(s.mvpOfficialId).mainDorsal || ''})` : t('tapToManageMvp', 'Toca para nombrar el MVP oficial o consultar votos')}
                     </span>
                   </div>
                 </div>
-                <div style="display: flex; gap: 6px; align-items: center; flex-shrink: 0;">
-                  <button type="button" class="btn sm" id="btn-view-mvp-breakdown" style="background: rgba(34, 197, 94, 0.2); color: #86efac; border: 1px solid rgba(34, 197, 94, 0.5); font-weight: 800; font-size: 11px; white-space: nowrap;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%;">
+                  <button type="button" class="btn sm" id="btn-view-mvp-breakdown" style="background: rgba(34, 197, 94, 0.2); color: #86efac; border: 1px solid rgba(34, 197, 94, 0.5); font-weight: 800; font-size: 12px; padding: 7px 10px; border-radius: 9px; display: flex; align-items: center; justify-content: center; gap: 5px; width: 100%; white-space: nowrap;">
                     👁️ ${t('viewVotesDetail', 'Ver votos')}
                   </button>
-                  <button type="button" class="btn sm" id="btn-manage-match-mvp" style="background: rgba(250, 204, 21, 0.2); color: #fde047; border: 1px solid rgba(250, 204, 21, 0.5); font-weight: 800; font-size: 11.5px; white-space: nowrap;">
-                    ⭐ ${s.mvpOfficialId ? 'Cambiar MVP' : 'Nombrar MVP'}
+                  <button type="button" class="btn sm" id="btn-manage-match-mvp" style="background: rgba(250, 204, 21, 0.2); color: #fde047; border: 1px solid rgba(250, 204, 21, 0.5); font-weight: 800; font-size: 12px; padding: 7px 10px; border-radius: 9px; display: flex; align-items: center; justify-content: center; gap: 5px; width: 100%; white-space: nowrap;">
+                    ⭐ ${s.mvpOfficialId ? t('changeMvp', 'Cambiar MVP') : t('nameMvp', 'Nombrar MVP')}
                   </button>
                 </div>
               </div>
 
               <!-- Panel de Destacados del Entrenador (Coach Picks, máx 3) -->
               <div class="card" id="card-coach-picks-action" style="margin-bottom: 12px; background: rgba(168, 85, 247, 0.08); border: 1.5px solid rgba(168, 85, 247, 0.35); padding: 12px 14px; border-radius: 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer;">
-                <div style="display: flex; align-items: center; gap: 10px;">
-                  <span style="font-size: 22px;">🌟</span>
-                  <div>
-                    <b style="font-size: 13px; color: #c084fc; display: block;">
+                <div style="display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0;">
+                  <span style="font-size: 24px; flex-shrink: 0;">🌟</span>
+                  <div style="flex: 1; min-width: 0;">
+                    <b style="font-size: 13.5px; color: #c084fc; display: block;">
                       ${t('mvp_coach_picks_title', 'Destacados por el Míster')}
                     </b>
-                    <span style="font-size: 11.5px; color: var(--muted); display: block;">
-                      ${(s.coachPicks && s.coachPicks.length > 0) ? `${s.coachPicks.length} nominado${s.coachPicks.length > 1 ? 's' : ''} para la votación de compañeros` : 'Nominar hasta 3 jugadores con comentario para guiar los votos'}
+                    <span style="font-size: 11.5px; color: var(--muted); display: block; margin-top: 2px;">
+                      ${(s.coachPicks && s.coachPicks.length > 0) ? `${s.coachPicks.length} ${t('nominatedForTeammatesVote', 'nominados para la votación de compañeros')}` : t('nominateTop3Desc', 'Nominar hasta 3 jugadores con comentario para guiar los votos')}
                     </span>
                   </div>
                 </div>
-                <button type="button" class="btn sm" id="btn-manage-coach-picks" style="background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.5); font-weight: 800; font-size: 11.5px; white-space: nowrap;">
-                  🌟 ${(s.coachPicks && s.coachPicks.length > 0) ? 'Editar Destacados' : 'Nominar Top 3'}
+                <button type="button" class="btn sm" id="btn-manage-coach-picks" style="background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.5); font-weight: 800; font-size: 11.5px; white-space: nowrap; flex-shrink: 0;">
+                  🌟 ${(s.coachPicks && s.coachPicks.length > 0) ? t('editCoachPicks', 'Editar Destacados') : t('nominateTop3', 'Nominar Top 3')}
                 </button>
               </div>
             ` : `
               <div class="card" style="margin-bottom: 12px; background: rgba(255, 255, 255, 0.03); border: 1px dashed rgba(255, 255, 255, 0.15); padding: 10px 14px; border-radius: 12px; display: flex; align-items: center; gap: 10px;">
                 <span style="font-size: 20px;">⏳</span>
                 <span style="font-size: 12px; color: var(--muted);">
-                  La votación del MVP y destacados se activarán cuando marques el partido como finalizado.
+                  ${t('mvpVotingActivatesOnFinished', 'La votación del MVP y destacados se activarán cuando marques el partido como finalizado.')}
                 </span>
               </div>
             `}
@@ -7531,14 +7531,14 @@
                 ${renderAvatar(mvpMatchPlayer, 'md')}
                 <div class="grow" style="line-height: 1.2;">
                   <div style="font-size: 10px; font-weight: 800; color: #facc15; text-transform: uppercase; letter-spacing: 0.5px;">
-                    ${s.mvpOfficialId ? 'MVP OFICIAL DEL CUERPO TÉCNICO' : 'MEJOR JUGADOR DEL PARTIDO • MVP'}
+                    ${s.mvpOfficialId ? t('officialStaffMvp', 'MVP OFICIAL DEL CUERPO TÉCNICO') : t('bestMatchPlayerMvp', 'MEJOR JUGADOR DEL PARTIDO • MVP')}
                   </div>
                   <div style="font-size: 15px; font-weight: 900; color: #fff;">${escapeHtml(Store.playerName(mvpMatchPlayer))} #${mvpMatchPlayer.mainDorsal || ''}</div>
                   <div style="font-size: 11.5px; color: var(--muted); margin-top: 2px;">
-                    ${mvpMatchPlayer.mainPosition || 'Jugador'} • Nota: <b style="color: #22c55e;">${mvpMatchRating.toFixed(1)} / 10</b>
+                    ${mvpMatchPlayer.mainPosition || 'Jugador'} • ${t('matchRating', 'Nota')}: <b style="color: #22c55e;">${mvpMatchRating.toFixed(1)} / 10</b>
                   </div>
                 </div>
-                <button type="button" class="btn sm ghost" style="color: #facc15; border-color: rgba(250, 204, 21, 0.4); font-size: 11px; padding: 6px 10px;">Ver ficha ></button>
+                <button type="button" class="btn sm ghost" style="color: #facc15; border-color: rgba(250, 204, 21, 0.4); font-size: 11px; padding: 6px 10px;">${t('viewPlayerProfile', 'Ver ficha >')}</button>
               </div>
             ` : ''}
           ` : `
@@ -7815,10 +7815,11 @@
             if (!labelEl) return;
             if (voteData && voteData.votes) {
               const voteCount = Object.keys(voteData.votes).length;
+              const tallyStr = voteCount === 1 ? t('voteRegisteredSingle', 'voto de compañero registrado') : t('votesRegisteredPlural', 'votos de compañeros registrados');
               if (s.mvpOfficialId && Store.player(s.mvpOfficialId)) {
-                labelEl.textContent = `${escapeHtml(Store.playerName(Store.player(s.mvpOfficialId)))} • ${voteCount} voto${voteCount > 1 ? 's' : ''} de compañeros`;
+                labelEl.textContent = `${escapeHtml(Store.playerName(Store.player(s.mvpOfficialId)))} • ${voteCount} ${tallyStr}`;
               } else {
-                labelEl.textContent = `${voteCount} voto${voteCount > 1 ? 's' : ''} de compañeros registrados`;
+                labelEl.textContent = `${voteCount} ${tallyStr}`;
               }
             }
           });

@@ -104,6 +104,9 @@
     currentLang = valid;
     window.currentLang = currentLang;
     try { localStorage.setItem('lang', currentLang); } catch (e) {}
+    if (window.I18N && typeof window.I18N.setLang === 'function') {
+      window.I18N.setLang(currentLang);
+    }
     updateHeaderIdentity();
     updateTabbarLabels();
     renderCurrentTab();
@@ -692,8 +695,39 @@
       "mvp_btn_confirm_vote": "Vote {name} as MVP",
       "mvp_btn_cancel": "Cancel and view others",
       "currentProgressLabel": "Progress",
-      "minAttemptsLabel": "Min. attempts"
-},
+      "minAttemptsLabel": "Min. attempts",
+      "yourMatchRating": "Your Rating",
+      "autoMvpTitle": "Auto MVP",
+      "votingMvpTitle": "Vote MVP",
+      "currentLeader": "Current Leader",
+      "votingTieBreakRating": "Tie-break by rating",
+      "votingActiveRemaining": "Voting active: {hours}h {mins}m left",
+      "votingClosed": "Voting closed",
+      "noVotesYet": "No votes yet",
+      "viewVotesDetail": "View player votes",
+      "mvpVotesBreakdownTitle": "MVP Voting: Who voted for whom",
+      "pendingVote": "Pending vote",
+      "voterVotedFor": "voted for",
+      "totalParticipantsCount": "{voted} of {total} participants have voted",
+      "mvpVoteError": "Error recording vote",
+      "voted": "Voted",
+      "mvpVotedConfirmed": "Vote saved",
+      "mvp_btn_save_vote": "💾 Save vote",
+      "mvpYouVotedFor": "You voted for {name}",
+      "coachHighlightDefault": "Great performance and attitude in the match.",
+      "matchStats": "Match Stats",
+      "shotsOnTarget": "Shots on target",
+      "duelsWon": "Duels won",
+      "noPlayersInMatch": "No players registered in this match",
+      "oneVotePerPlayer": "1 vote per player",
+      "mvpChangeVote": "Change vote",
+      "votedParticipantsCount": "{voted}/{total} have voted",
+      "returnToCoachMode": "Return to Coach Mode",
+      "testModeActive": "Test Player Mode Active",
+      "matchFinished": "Finished",
+      "votes": "votes",
+      "vote": "vote"
+    },
     ee: {
       "appName": "Player stats (Mängija)",
       "convocations": "Kutsed",
@@ -1078,8 +1112,39 @@
       "mvp_btn_confirm_vote": "Hääleta {name} MVP-ks",
       "mvp_btn_cancel": "Tühista ja vaata teisi",
       "currentProgressLabel": "Edu",
-      "minAttemptsLabel": "Min. katseid"
-},
+      "minAttemptsLabel": "Min. katseid",
+      "yourMatchRating": "Sinu hinne",
+      "autoMvpTitle": "Auto-MVP",
+      "votingMvpTitle": "Hääletuse MVP",
+      "currentLeader": "Praegune liider",
+      "votingTieBreakRating": "Viigilahutus hinde järgi",
+      "votingActiveRemaining": "Hääletus avatud: jäänud {hours}t {mins}m",
+      "votingClosed": "Hääletus lõppenud",
+      "noVotesYet": "Hääli pole veel",
+      "viewVotesDetail": "Vaata mängijate hääli",
+      "mvpVotesBreakdownTitle": "MVP hääletus: Kes kelle poolt hääletas",
+      "pendingVote": "Ootel hääletus",
+      "voterVotedFor": "hääletas mängija poolt",
+      "totalParticipantsCount": "{voted} / {total} osalejast on hääletanud",
+      "mvpVoteError": "Viga hääle salvestamisel",
+      "voted": "Hääletatud",
+      "mvpVotedConfirmed": "Hääl salvestatud",
+      "mvp_btn_save_vote": "💾 Salvesta hääl",
+      "mvpYouVotedFor": "Sa hääletasid mängija {name} poolt",
+      "coachHighlightDefault": "Suurepärane esitus ja suhtumine mängus.",
+      "matchStats": "Mängu statistika",
+      "shotsOnTarget": "Löögid raami",
+      "duelsWon": "Võidetud kahevõitlused",
+      "noPlayersInMatch": "Selles mängus pole registreeritud mängijaid",
+      "oneVotePerPlayer": "1 hääl mängija kohta",
+      "mvpChangeVote": "Muuda häält",
+      "votedParticipantsCount": "{voted}/{total} on hääletanud",
+      "returnToCoachMode": "Tagasi treeneri režiimi",
+      "testModeActive": "Testmängija režiim aktiivne",
+      "matchFinished": "Lõppenud",
+      "votes": "häält",
+      "vote": "hääl"
+    },
     es: {
       "appName": "Player stats (Player)",
       "convocations": "Convocatorias",
@@ -1464,8 +1529,39 @@
       "mvp_btn_confirm_vote": "Votar a {name} como MVP",
       "mvp_btn_cancel": "Cancelar y ver otros",
       "currentProgressLabel": "Progreso",
-      "minAttemptsLabel": "Mín. intentos"
-},
+      "minAttemptsLabel": "Mín. intentos",
+      "yourMatchRating": "Tu Valoración",
+      "autoMvpTitle": "MVP Auto",
+      "votingMvpTitle": "MVP Votos",
+      "currentLeader": "Líder actual",
+      "votingTieBreakRating": "Desempate por nota",
+      "votingActiveRemaining": "Votación activa: Quedan {hours}h {mins}m",
+      "votingClosed": "Votación finalizada",
+      "noVotesYet": "Sin votos",
+      "viewVotesDetail": "Ver votos de jugadores",
+      "mvpVotesBreakdownTitle": "Votación de MVP: Quién ha votado a qué jugador",
+      "pendingVote": "Pendiente de votar",
+      "voterVotedFor": "ha votado a",
+      "totalParticipantsCount": "{voted} de {total} participantes han votado",
+      "mvpVoteError": "Error al registrar el voto",
+      "voted": "Votado",
+      "mvpVotedConfirmed": "Voto guardado",
+      "mvp_btn_save_vote": "💾 Guardar voto",
+      "mvpYouVotedFor": "Has votado a {name}",
+      "coachHighlightDefault": "Gran rendimiento y actitud en el partido.",
+      "matchStats": "Estadísticas del Partido",
+      "shotsOnTarget": "Tiros a puerta",
+      "duelsWon": "Duelos ganados",
+      "noPlayersInMatch": "No hay jugadores registrados en este partido",
+      "oneVotePerPlayer": "1 voto por jugador",
+      "mvpChangeVote": "Cambiar voto",
+      "votedParticipantsCount": "{voted}/{total} han votado",
+      "returnToCoachMode": "Volver a Modo Coach",
+      "testModeActive": "Modo Jugador de Prueba Activo",
+      "matchFinished": "Finalizado",
+      "votes": "votos",
+      "vote": "voto"
+    },
     ru: {
       "appName": "Player stats (Coach)",
       "convocations": "Заявки",
@@ -1850,12 +1946,43 @@
       "mvp_btn_confirm_vote": "Голосовать за {name} как MVP",
       "mvp_btn_cancel": "Отмена и смотреть других",
       "currentProgressLabel": "Прогресс",
-      "minAttemptsLabel": "Мин. попыток"
-},
+      "minAttemptsLabel": "Мин. попыток",
+      "yourMatchRating": "Твоя оценка",
+      "autoMvpTitle": "Авто-MVP",
+      "votingMvpTitle": "MVP по голосованию",
+      "currentLeader": "Текущий лидер",
+      "votingTieBreakRating": "Тай-брейк по оценке",
+      "votingActiveRemaining": "Голосование активно: осталось {hours}ч {mins}м",
+      "votingClosed": "Голосование завершено",
+      "noVotesYet": "Голосов пока нет",
+      "viewVotesDetail": "Посмотреть голоса игроков",
+      "mvpVotesBreakdownTitle": "Голосование MVP: кто за кого голосовал",
+      "pendingVote": "Ожидает голосования",
+      "voterVotedFor": "проголосовал за",
+      "totalParticipantsCount": "{voted} из {total} участников проголосовали",
+      "mvpVoteError": "Ошибка при сохранении голоса",
+      "voted": "Проголосовано",
+      "mvpVotedConfirmed": "Голос сохранен",
+      "mvp_btn_save_vote": "💾 Сохранить голос",
+      "mvpYouVotedFor": "Вы проголосовали за {name}",
+      "coachHighlightDefault": "Отличная игра и отношение к матчу.",
+      "matchStats": "Статистика матча",
+      "shotsOnTarget": "Удары в створ",
+      "duelsWon": "Выигранные единоборства",
+      "noPlayersInMatch": "В этом матче нет зарегистрированных игроков",
+      "oneVotePerPlayer": "1 голос на игрока",
+      "mvpChangeVote": "Изменить голос",
+      "votedParticipantsCount": "{voted}/{total} проголосовали",
+      "returnToCoachMode": "Вернуться в режим тренера",
+      "testModeActive": "Режим тестового игрока",
+      "matchFinished": "Завершен",
+      "votes": "голосов",
+      "vote": "голос",
       "selected": "Выбран",
       "select": "Выбрать",
       "saveVote": "Сохранить голос",
       "saveVoteFor": "Сохранить голос за: {name}"
+    }
   };
   DICT.et = DICT.ee;
   DICT.ee = DICT.et;
@@ -2017,10 +2144,15 @@
   };
 
   function t(key, fallback) {
-    const dict = DICT[currentLang] || DICT.en;
-    if (dict[key] !== undefined) return dict[key];
-    if (DICT.en[key] !== undefined) return DICT.en[key];
-    return fallback || key;
+    const lang = (currentLang === 'ee' || currentLang === 'et') ? 'ee' : currentLang;
+    const dict = DICT[lang] || DICT.en;
+    if (dict && dict[key] !== undefined) return dict[key];
+    if (window.I18N && typeof window.I18N.t === 'function') {
+      const i18nVal = window.I18N.t(key);
+      if (i18nVal !== undefined && i18nVal !== key) return i18nVal;
+    }
+    if (DICT.en && DICT.en[key] !== undefined) return DICT.en[key];
+    return fallback !== undefined ? fallback : key;
   }
   window.t = t;
 
@@ -2918,10 +3050,16 @@
     overlay.id = 'dialog-match-mvp-vote';
     overlay.style.zIndex = '999999';
 
-    let currentVoteData = null;
+    const cleanSessionId = String(session.sessionId || session.id || '').replace(/^sess_sess_/, 'sess_');
+    const rawSessionId = cleanSessionId.replace(/^sess_/, '');
+
+    let currentVoteData = (window._liveMvpDataBySession && (window._liveMvpDataBySession[cleanSessionId] || window._liveMvpDataBySession[rawSessionId])) || null;
     let unsubMvp = null;
     let selectedCandidateId = (session.votes && session.votes[myP.id]) ||
-                              (window._myVotedMvpBySession && window._myVotedMvpBySession[session.id]) ||
+                              (currentVoteData && currentVoteData.votes && currentVoteData.votes[myP.id]) ||
+                              (window._myVotedMvpBySession && (window._myVotedMvpBySession[cleanSessionId] || window._myVotedMvpBySession[rawSessionId] || window._myVotedMvpBySession[session.id])) ||
+                              localStorage.getItem('my_mvp_vote_' + cleanSessionId) ||
+                              localStorage.getItem('my_mvp_vote_' + rawSessionId) ||
                               localStorage.getItem('my_mvp_vote_' + session.id) || null;
 
     async function executeVote(targetId) {
@@ -2929,13 +3067,24 @@
       const targetPlayer = players.find(p => p.id === targetId);
       try {
         if (window.Cloud && window.Cloud.voteMatchMvp) {
-          await window.Cloud.voteMatchMvp(session.id, myP.id, targetId);
+          await window.Cloud.voteMatchMvp(cleanSessionId, myP.id, targetId);
         }
         if (!currentVoteData) currentVoteData = { votes: {} };
         if (!currentVoteData.votes) currentVoteData.votes = {};
         currentVoteData.votes[myP.id] = targetId;
+
         window._myVotedMvpBySession = window._myVotedMvpBySession || {};
+        window._myVotedMvpBySession[cleanSessionId] = targetId;
+        window._myVotedMvpBySession[rawSessionId] = targetId;
         window._myVotedMvpBySession[session.id] = targetId;
+
+        window._liveVotesBySession = window._liveVotesBySession || {};
+        window._liveVotesBySession[cleanSessionId] = currentVoteData.votes;
+        window._liveVotesBySession[rawSessionId] = currentVoteData.votes;
+        window._liveVotesBySession[session.id] = currentVoteData.votes;
+
+        localStorage.setItem('my_mvp_vote_' + cleanSessionId, targetId);
+        localStorage.setItem('my_mvp_vote_' + rawSessionId, targetId);
         localStorage.setItem('my_mvp_vote_' + session.id, targetId);
 
         toast(t('mvpVoteRegistered', '¡Voto de MVP registrado para {name}!').replace('{name}', (targetPlayer ? targetPlayer.name : '')), 'success');
@@ -3327,8 +3476,14 @@
     }
 
     if (window.Cloud && window.Cloud.listenToMatchMvp) {
-      unsubMvp = window.Cloud.listenToMatchMvp(session.id, (voteData) => {
+      unsubMvp = window.Cloud.listenToMatchMvp(cleanSessionId, (voteData) => {
         currentVoteData = voteData;
+        if (voteData && voteData.votes) {
+          window._liveVotesBySession = window._liveVotesBySession || {};
+          window._liveVotesBySession[cleanSessionId] = voteData.votes;
+          window._liveVotesBySession[rawSessionId] = voteData.votes;
+          window._liveVotesBySession[session.id] = voteData.votes;
+        }
         renderModal();
       });
     } else {
@@ -5443,7 +5598,10 @@
       return p && !p.isTestPlayer && !p.isTest && p.id !== 'test_player_profile';
     });
 
-    const votes = session.votes || (window._liveVotesBySession && window._liveVotesBySession[session.id]) || {};
+    const cleanSessId = String(session.sessionId || session.id || '').replace(/^sess_sess_/, 'sess_');
+    const rawSessId = cleanSessId.replace(/^sess_/, '');
+    const liveDoc = (window._liveMvpDataBySession && (window._liveMvpDataBySession[cleanSessId] || window._liveMvpDataBySession[rawSessId] || window._liveMvpDataBySession['sess_' + rawSessId])) || null;
+    const votes = (liveDoc && liveDoc.votes) || session.votes || (window._liveVotesBySession && (window._liveVotesBySession[cleanSessId] || window._liveVotesBySession[rawSessId] || window._liveVotesBySession['sess_' + rawSessId])) || {};
     const totalParticipants = realParticipants.length;
     const votedParticipants = realParticipants.filter(pid => !!votes[pid]);
     const allParticipatedVoted = (totalParticipants > 0 && votedParticipants.length >= totalParticipants);
@@ -5529,7 +5687,7 @@
       }
     }
 
-    const myVotedId = myP ? (votes[myP.id] || localStorage.getItem('my_mvp_vote_' + session.id)) : null;
+    const myVotedId = myP ? (votes[myP.id] || localStorage.getItem('my_mvp_vote_' + cleanSessId) || localStorage.getItem('my_mvp_vote_' + rawSessId) || localStorage.getItem('my_mvp_vote_' + session.id)) : null;
     const myVotedPlayer = myVotedId ? allClubPlayers.find(p => p.id === myVotedId) : null;
     const isTestUser = !!(myP && (myP.isTestPlayer || myP.isTest || myP.id === 'test_player_profile'));
     const canVote = isTestUser || (myP && realParticipants.includes(myP.id));
@@ -5765,9 +5923,11 @@
       const isRecent = (mDate === todayIso) || (mTs && (nowD.getTime() - mTs < 72 * 3600 * 1000));
       if (!isRecent && mDate !== todayIso) return;
 
+      const rawSessId = sm.id ? String(sm.id).replace(/^sess_sess_/, 'sess_') : '';
+      const convId = rawSessId.startsWith('sess_') ? rawSessId : ('sess_' + rawSessId);
       allConvsAndMatches.push({
-        id: 'sess_' + sm.id,
-        sessionId: sm.id,
+        id: convId,
+        sessionId: rawSessId,
         type: 'match',
         title: sm.title || 'Partido',
         rival: sm.rival || '',
@@ -5790,6 +5950,51 @@
         isSynthesized: true
       });
       existingMatchIds.add(sm.id);
+      existingMatchIds.add(convId);
+      existingMatchIds.add(rawSessId);
+    });
+
+    // Activar escucha en tiempo real de votos MVP para los partidos candidatos
+    window._liveMvpListeners = window._liveMvpListeners || {};
+    window._liveVotesBySession = window._liveVotesBySession || {};
+    window._liveMvpDataBySession = window._liveMvpDataBySession || {};
+
+    candidateMatches.forEach(sm => {
+      if (!sm || !sm.id) return;
+      const cleanId = String(sm.sessionId || sm.id).replace(/^sess_sess_/, 'sess_');
+      const rawId = cleanId.replace(/^sess_/, '');
+      if (!window._liveMvpListeners[cleanId] && window.Cloud && window.Cloud.listenToMatchMvp) {
+        window._liveMvpListeners[cleanId] = window.Cloud.listenToMatchMvp(cleanId, (voteData) => {
+          if (voteData) {
+            window._liveMvpDataBySession[cleanId] = voteData;
+            window._liveMvpDataBySession[rawId] = voteData;
+            window._liveMvpDataBySession['sess_' + rawId] = voteData;
+
+            window._liveVotesBySession[cleanId] = voteData.votes || {};
+            window._liveVotesBySession[rawId] = voteData.votes || {};
+            window._liveVotesBySession['sess_' + rawId] = voteData.votes || {};
+
+            sm.votes = voteData.votes || {};
+            if (voteData.officialMvpId) sm.officialMvpId = voteData.officialMvpId;
+            if (voteData.coachPicks) sm.coachPicks = voteData.coachPicks;
+
+            const curP = getMyPlayer();
+            if (curP && voteData.votes && voteData.votes[curP.id]) {
+              try {
+                localStorage.setItem('my_mvp_vote_' + cleanId, voteData.votes[curP.id]);
+                localStorage.setItem('my_mvp_vote_' + rawId, voteData.votes[curP.id]);
+              } catch (e) {}
+            }
+
+            if (currentTab === 'convocations') {
+              if (window._mvpRenderDebounce) clearTimeout(window._mvpRenderDebounce);
+              window._mvpRenderDebounce = setTimeout(() => {
+                renderConvocationsView();
+              }, 150);
+            }
+          }
+        });
+      }
     });
 
     const filteredConvs = allConvsAndMatches.filter(c => {
@@ -6109,7 +6314,7 @@
                   </div>
                   ${(mvpState && mvpState.votingMvpPlayer && mvpState.maxVotes > 0) ? `
                     <div style="font-size: 9.5px; color: #fde047; font-weight: 700;">
-                      ${mvpState.maxVotes} ${mvpState.maxVotes === 1 ? 'voto' : 'votos'}${mvpState.isTie ? ` (${t('votingTieBreakRating', 'Desempate por nota')})` : ''}
+                      ${mvpState.maxVotes} ${mvpState.maxVotes === 1 ? t('vote', 'voto') : t('votes', 'votos')}${mvpState.isTie ? ` (${t('votingTieBreakRating', 'Desempate por nota')})` : ''}
                     </div>
                   ` : ''}
                 </div>
@@ -6122,7 +6327,7 @@
                   <span>${mvpState ? mvpState.countdownText : ''}</span>
                 </div>
                 <div style="font-size: 11px; color: #94a3b8; font-weight: 700;">
-                  ${mvpState ? `${mvpState.votedCount}/${mvpState.totalParticipants} ${t('voted', 'han votado')}` : ''}
+                  ${mvpState ? t('votedParticipantsCount', '{voted}/{total} han votado').replace('{voted}', mvpState.votedCount).replace('{total}', mvpState.totalParticipants) : ''}
                 </div>
               </div>
 

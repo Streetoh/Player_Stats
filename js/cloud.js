@@ -2466,13 +2466,25 @@
         throw new Error('Datos incompletos para registrar voto de MVP');
       }
       try {
-        const voteRef = db.collection('clubs').doc(CLUB_ID).collection('mvp_votes').doc(sessionId);
+        const cleanId = String(sessionId).replace(/^sess_sess_/, 'sess_');
+        const voteRef = db.collection('clubs').doc(CLUB_ID).collection('mvp_votes').doc(cleanId);
         await voteRef.set({
+          sessionId: cleanId,
           votes: {
             [voterId]: targetPlayerId
           },
           lastVoteAt: Date.now()
         }, { merge: true });
+
+        // Actualizar también en la sesión para sincronización instantánea
+        try {
+          await db.collection('clubs').doc(CLUB_ID).collection('sessions').doc(cleanId).set({
+            votes: {
+              [voterId]: targetPlayerId
+            }
+          }, { merge: true });
+        } catch (e) {}
+
         return true;
       } catch (err) {
         console.error('[Cloud] Error al votar MVP:', err);
@@ -2523,13 +2535,31 @@
       }
     },
 
+    fetchMatchMvp: async function (sessionId) {
+      if (!this.init() || !sessionId) return null;
+      try {
+        const cleanId = String(sessionId).replace(/^sess_sess_/, 'sess_');
+        const doc = await db.collection('clubs').doc(CLUB_ID).collection('mvp_votes').doc(cleanId).get();
+        if (doc && doc.exists) return doc.data();
+        if (cleanId.startsWith('sess_')) {
+          const rawId = cleanId.replace(/^sess_/, '');
+          const docRaw = await db.collection('clubs').doc(CLUB_ID).collection('mvp_votes').doc(rawId).get();
+          if (docRaw && docRaw.exists) return docRaw.data();
+        }
+        return null;
+      } catch (e) {
+        return null;
+      }
+    },
+
     listenToMatchMvp: function (sessionId, callback) {
       if (!this.init() || !sessionId) return null;
       try {
-        return db.collection('clubs').doc(CLUB_ID).collection('mvp_votes').doc(sessionId)
+        const cleanId = String(sessionId).replace(/^sess_sess_/, 'sess_');
+        return db.collection('clubs').doc(CLUB_ID).collection('mvp_votes').doc(cleanId)
           .onSnapshot((doc) => {
             if (typeof callback === 'function') {
-              callback(doc.exists ? doc.data() : null);
+              callback(doc && doc.exists ? doc.data() : null);
             }
           }, (err) => {
             console.warn('[Cloud] Error escuchando votos MVP:', err);
