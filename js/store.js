@@ -552,10 +552,14 @@
       if (!s) return null;
       s.status = 'finished';
       s.finished = true;
+      s.isFinished = true;
       s.endedAt = s.endedAt || Date.now();
       s.finishedAt = s.finishedAt || Date.now();
       if (s.timerStartedAt) this.toggleTimer(s);
       this.save();
+      if (window.Cloud && window.Cloud.pushCoachState) {
+        window.Cloud.pushCoachState(this.state, true);
+      }
       return s;
     },
 
@@ -679,6 +683,9 @@
       if (window.Cloud && window.Cloud.setOfficialMatchMvp) {
         window.Cloud.setOfficialMatchMvp(sessionId, playerId);
       }
+      if (window.Cloud && window.Cloud.pushCoachState) {
+        window.Cloud.pushCoachState(this.state, true);
+      }
       return s;
     },
 
@@ -689,6 +696,9 @@
       this.save();
       if (window.Cloud && window.Cloud.setMatchCoachPicks) {
         window.Cloud.setMatchCoachPicks(sessionId, s.coachPicks);
+      }
+      if (window.Cloud && window.Cloud.pushCoachState) {
+        window.Cloud.pushCoachState(this.state, true);
       }
       return s;
     },

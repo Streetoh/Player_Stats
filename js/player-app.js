@@ -2830,17 +2830,32 @@
         if (st === 'present' || st === 'yes' || st === true) matchPlayerIds.add(id);
       });
     }
-    if (session.convocationId && clubData.convocations) {
-      const conv = clubData.convocations.find(c => c.id === session.convocationId);
-      if (conv && conv.list) {
-        Object.entries(conv.list).forEach(([id, st]) => {
-          if (st === 'called' || st === 'confirmed' || st === 'attended') matchPlayerIds.add(id);
-        });
-      }
+    const linkedConv = (session.convocationId && clubData.convocations)
+      ? clubData.convocations.find(c => c.id === session.convocationId)
+      : (clubData.convocations ? clubData.convocations.find(cv => cv.sessionId === session.id || (cv.date === session.date && cv.type === 'match')) : null);
+
+    if (linkedConv && linkedConv.list) {
+      Object.entries(linkedConv.list).forEach(([id, st]) => {
+        if (st && st !== 'absent' && st !== 'uncalled') matchPlayerIds.add(id);
+      });
     }
+    if (linkedConv && linkedConv.responses) {
+      Object.entries(linkedConv.responses).forEach(([id, r]) => {
+        const st = (r && typeof r === 'object') ? r.status : r;
+        if (st === 'called' || st === 'attending' || st === 'yes') matchPlayerIds.add(id);
+      });
+    }
+
+    const sessionTeams = Array.isArray(session.teamIds) && session.teamIds.length > 0
+      ? session.teamIds.map(String)
+      : (session.teamId ? [String(session.teamId)] : (linkedConv ? ((Array.isArray(linkedConv.teamIds) && linkedConv.teamIds.length > 0) ? linkedConv.teamIds.map(String) : (linkedConv.teamId ? [String(linkedConv.teamId)] : [])) : []));
+
     let players = (clubData && clubData.players ? clubData.players : []).filter(p => matchPlayerIds.has(p.id));
-    if (players.length === 0 && session.teamId) {
-      players = (clubData && clubData.players ? clubData.players : []).filter(p => p.teamId === session.teamId);
+    if (players.length === 0 && sessionTeams.length > 0) {
+      players = (clubData && clubData.players ? clubData.players : []).filter(p => p.teamId && sessionTeams.includes(String(p.teamId)));
+    }
+    if (players.length === 0 && myP.teamId) {
+      players = (clubData && clubData.players ? clubData.players : []).filter(p => String(p.teamId) === String(myP.teamId));
     }
     if (players.length === 0) {
       players = clubData && clubData.players ? clubData.players : [];
@@ -5659,44 +5674,116 @@
       listContentHtml = sectionsHtml;
     }
 
-    // Buscar si hay un partido reciente finalizado (hasta 48h tras finalizar) para votar MVP
+    // Buscar si hay un partido reciente finalizado (hasta 72h tras finalizar) para votar MVP
     let mvpBannerHtml = '';
     let recentMatchForMvp = null;
     if (clubData && myP) {
       const nowTs = Date.now();
       const isEligibleMatch = (s) => {
-        if (!s || s.type !== 'match' || !s.date) return false;
-        const isFin = (s.isFinished === true || s.status === 'finished');
-        if (!isFin) return false; // NUNCA se vota en partidos no finalizados o futuros
-        const sTime = new Date(s.date + (s.time ? 'T' + s.time : '')).getTime();
-        const elapsed = nowTs - sTime;
-        if (elapsed < 0 || elapsed > 48 * 3600 * 1000) return false; // Ventana de 0 a 48h tras el partido
+        if (!s || !s.date) return false;
+        const isMatch = (s.type === 'match' || (!s.type && (s.rival || s.score)));
+        if (!isMatch) return false;
 
-        // El botón SÓLO estará visible para los jugadores que formaron parte del partido
+        const isFin = !!(
+          s.isFinished === true ||
+          s.finished === true ||
+          s.status === 'finished' ||
+          s.status === 'completed' ||
+          s.endedAt != null ||
+          s.finishedAt != null
+        );
+        if (!isFin) return false; // NUNCA se vota en partidos no finalizados o futuros
+
+        // Ventana de tiempo (hasta 72h tras finalizar)
+        let matchTs = 0;
+        if (s.endedAt) matchTs = Number(s.endedAt);
+        else if (s.finishedAt) matchTs = Number(s.finishedAt);
+        else if (s.date) {
+          const timePart = s.time ? (s.time.length === 5 ? s.time : s.time.slice(0, 5)) : '12:00';
+          const parsed = new Date(`${s.date}T${timePart}:00`).getTime();
+          matchTs = isNaN(parsed) ? new Date(s.date).getTime() : parsed;
+        }
+        const elapsed = nowTs - matchTs;
+        // Permitir desde -2 horas (discrepancia de reloj) hasta 72 horas después
+        if (elapsed < -2 * 3600 * 1000 || elapsed > 72 * 3600 * 1000) return false;
+
+        // Comprobar si el jugador formó parte del partido o pertenece al equipo del partido
+        const sTeams = Array.isArray(s.teamIds) && s.teamIds.length > 0
+          ? s.teamIds.map(String)
+          : (s.teamId ? [String(s.teamId)] : []);
+        const matchesPlayerTeam = sTeams.length === 0 || (myP.teamId && sTeams.includes(String(myP.teamId)));
+
+        const linkedConv = (s.convocationId && clubData.convocations)
+          ? clubData.convocations.find(conv => conv.id === s.convocationId)
+          : (clubData.convocations ? clubData.convocations.find(cv => cv.sessionId === s.id || (cv.date === s.date && cv.type === 'match')) : null);
+
+        const convTeams = linkedConv
+          ? ((Array.isArray(linkedConv.teamIds) && linkedConv.teamIds.length > 0)
+              ? linkedConv.teamIds.map(String)
+              : (linkedConv.teamId ? [String(linkedConv.teamId)] : []))
+          : [];
+        const matchesConvTeam = convTeams.length === 0 || (myP.teamId && convTeams.includes(String(myP.teamId)));
+
+        const isExplicitlyAbsent = (
+          (s.attendance && (s.attendance[myP.id] === 'absent' || (typeof s.attendance[myP.id] === 'object' && s.attendance[myP.id] !== null && s.attendance[myP.id].status === 'absent'))) ||
+          (linkedConv && linkedConv.list && linkedConv.list[myP.id] === 'absent')
+        );
+        if (isExplicitlyAbsent) return false;
+
         const participated = (
-          (s.stats && s.stats[myP.id] && Object.values(s.stats[myP.id]).some(v => v > 0)) ||
+          (s.stats && s.stats[myP.id] && Object.values(s.stats[myP.id]).some(v => Number(v) > 0)) ||
           (Array.isArray(s.slots) && s.slots.includes(myP.id)) ||
-          (s.attendance && (s.attendance[myP.id] === 'present' || s.attendance[myP.id] === 'yes' || s.attendance[myP.id] === true)) ||
+          (s.attendance && (s.attendance[myP.id] === 'present' || s.attendance[myP.id] === 'late' || s.attendance[myP.id] === 'yes' || s.attendance[myP.id] === true || (typeof s.attendance[myP.id] === 'object' && s.attendance[myP.id] !== null && s.attendance[myP.id].status === 'present'))) ||
           (Array.isArray(s.trackedPlayerIds) && s.trackedPlayerIds.includes(myP.id)) ||
           (Array.isArray(s.coachPicks) && s.coachPicks.some(cp => cp && (cp.playerId === myP.id || cp.id === myP.id))) ||
-          (s.convocationId && clubData.convocations && (() => {
-            const c = clubData.convocations.find(conv => conv.id === s.convocationId);
-            return c && c.list && (c.list[myP.id] === 'confirmed' || c.list[myP.id] === 'attended' || c.list[myP.id] === 'called');
-          })())
+          (linkedConv && linkedConv.list && (linkedConv.list[myP.id] === 'confirmed' || linkedConv.list[myP.id] === 'attended' || linkedConv.list[myP.id] === 'called')) ||
+          (linkedConv && linkedConv.responses && linkedConv.responses[myP.id] && (linkedConv.responses[myP.id].status === 'called' || linkedConv.responses[myP.id].status === 'attending' || linkedConv.responses[myP.id].status === 'yes')) ||
+          matchesPlayerTeam ||
+          matchesConvTeam
         );
         return participated;
       };
 
-      if (clubData.latestMatchMvp && isEligibleMatch(clubData.latestMatchMvp)) {
-        recentMatchForMvp = clubData.latestMatchMvp;
+      // Recopilar y ordenar todos los partidos finalizados candidatos
+      const candidateMatches = [];
+      if (clubData.latestMatchMvp) candidateMatches.push(clubData.latestMatchMvp);
+      if (Array.isArray(clubData.sessions)) candidateMatches.push(...clubData.sessions);
+
+      // Deduplicar por id y ordenar del más reciente al más antiguo
+      const seenMatchIds = new Set();
+      const uniqueMatches = [];
+      for (const m of candidateMatches) {
+        if (m && m.id && !seenMatchIds.has(m.id)) {
+          seenMatchIds.add(m.id);
+          uniqueMatches.push(m);
+        }
       }
-      if (!recentMatchForMvp && Array.isArray(clubData.sessions)) {
-        recentMatchForMvp = clubData.sessions.find(isEligibleMatch);
+      uniqueMatches.sort((a, b) => {
+        const dateCmp = (b.date || '').localeCompare(a.date || '');
+        if (dateCmp !== 0) return dateCmp;
+        return (Number(b.endedAt || b.finishedAt || 0)) - (Number(a.endedAt || a.finishedAt || 0));
+      });
+
+      recentMatchForMvp = uniqueMatches.find(isEligibleMatch) || null;
+
+      // Si encontramos el partido, enriquecer con datos de sessions o convocations si faltaran
+      if (recentMatchForMvp && Array.isArray(clubData.sessions)) {
+        const fullS = clubData.sessions.find(s => s.id === recentMatchForMvp.id);
+        if (fullS) {
+          recentMatchForMvp = {
+            ...fullS,
+            ...recentMatchForMvp,
+            coachPicks: (recentMatchForMvp.coachPicks && recentMatchForMvp.coachPicks.length > 0) ? recentMatchForMvp.coachPicks : (fullS.coachPicks || []),
+            officialMvpId: recentMatchForMvp.officialMvpId || fullS.officialMvpId || fullS.mvpOfficialId || null,
+            stats: Object.keys(recentMatchForMvp.stats || {}).length > 0 ? recentMatchForMvp.stats : (fullS.stats || {})
+          };
+        }
       }
 
       if (recentMatchForMvp) {
-        const isOfficialSet = !!recentMatchForMvp.officialMvpId;
-        const officialPlayer = isOfficialSet ? (clubData.players || []).find(p => p.id === recentMatchForMvp.officialMvpId) : null;
+        const isOfficialSet = !!(recentMatchForMvp.officialMvpId || recentMatchForMvp.mvpOfficialId);
+        const officialId = recentMatchForMvp.officialMvpId || recentMatchForMvp.mvpOfficialId;
+        const officialPlayer = isOfficialSet ? (clubData.players || []).find(p => p.id === officialId) : null;
         const myVotedId = (recentMatchForMvp.votes && recentMatchForMvp.votes[myP.id]) ||
                           (window._myVotedMvpBySession && window._myVotedMvpBySession[recentMatchForMvp.id]) ||
                           localStorage.getItem('my_mvp_vote_' + recentMatchForMvp.id);
@@ -5972,6 +6059,31 @@
     const myTeamName = matchTeams.map(tm => tm.name).join(' / ') || (primaryTeam ? primaryTeam.name : 'Mi Equipo');
     const myTeamColor = primaryTeam ? (primaryTeam.color || '#22c55e') : '#22c55e';
 
+    const matchSessionForModal = (clubData && Array.isArray(clubData.sessions))
+      ? clubData.sessions.find(s => s.id === conv.sessionId || s.convocationId === conv.id || (s.date === conv.date && (s.type === 'match' || s.rival)))
+      : null;
+
+    const isMatchFin = !!(
+      (matchSessionForModal && (matchSessionForModal.isFinished === true || matchSessionForModal.finished === true || matchSessionForModal.status === 'finished' || matchSessionForModal.endedAt != null)) ||
+      (conv && (conv.isFinished === true || conv.finished === true || conv.status === 'finished')) ||
+      (clubData && clubData.latestMatchMvp && (clubData.latestMatchMvp.id === conv.sessionId || clubData.latestMatchMvp.convocationId === conv.id || (clubData.latestMatchMvp.date === conv.date && (clubData.latestMatchMvp.isFinished || clubData.latestMatchMvp.finished)))) ||
+      (conv.date && conv.date < todayIso)
+    );
+
+    const effSessionForMvp = matchSessionForModal || (clubData && clubData.latestMatchMvp && (clubData.latestMatchMvp.id === conv.sessionId || clubData.latestMatchMvp.convocationId === conv.id || clubData.latestMatchMvp.date === conv.date) ? clubData.latestMatchMvp : null) || {
+      id: conv.sessionId || conv.id,
+      title: conv.title || (conv.rival ? 'vs ' + conv.rival : 'Partido'),
+      rival: conv.rival || '',
+      date: conv.date,
+      time: conv.time || '',
+      type: 'match',
+      teamId: conv.teamId,
+      teamIds: conv.teamIds,
+      convocationId: conv.id,
+      isFinished: true,
+      status: 'finished'
+    };
+
     const overlay = document.createElement('div');
     overlay.className = 'dialog-overlay';
     overlay.innerHTML = `
@@ -6114,6 +6226,43 @@
             </div>
           </div>
 
+          <!-- Panel de Votación del MVP de Partido -->
+          ${isMatchFin ? `
+            <div id="modal-match-mvp-card" style="background: linear-gradient(135deg, rgba(234, 179, 8, 0.22) 0%, rgba(202, 138, 4, 0.35) 100%); border: 2px solid #eab308; border-radius: 14px; padding: 13px 14px; box-shadow: 0 4px 16px rgba(234, 179, 8, 0.25); cursor: pointer;">
+              <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <span style="font-size: 26px;">👑</span>
+                  <div>
+                    <b style="font-size: 13.5px; color: #fde047; display: block;">
+                      ${(() => {
+                        const isOfficial = !!(effSessionForMvp.officialMvpId || effSessionForMvp.mvpOfficialId);
+                        const offId = effSessionForMvp.officialMvpId || effSessionForMvp.mvpOfficialId;
+                        const offP = isOfficial ? (clubData.players || []).find(p => p.id === offId) : null;
+                        if (isOfficial && offP) {
+                          return `⭐ ${t('mvpOfficialWinner', '⭐ MVP Oficial: {name}!').replace('{name}', offP.name || '')}`;
+                        }
+                        const myVoted = (effSessionForMvp.votes && effSessionForMvp.votes[myPlayerId]) ||
+                                        (window._myVotedMvpBySession && window._myVotedMvpBySession[effSessionForMvp.id]) ||
+                                        localStorage.getItem('my_mvp_vote_' + effSessionForMvp.id);
+                        if (myVoted) {
+                          const vp = (clubData.players || []).find(p => p.id === myVoted);
+                          return `✅ ${t('mvpYouVotedFor', 'Has votado a {name}').replace('{name}', vp ? vp.name : '')}`;
+                        }
+                        return t('mvpBannerTitle', '👑 ¡Votación del MVP del Partido!');
+                      })()}
+                    </b>
+                    <span style="font-size: 11.5px; color: #fff; display: block; margin-top: 1px;">
+                      ${t('chooseBestTeammate', 'Vota al mejor compañero del partido')}
+                    </span>
+                  </div>
+                </div>
+                <button type="button" class="btn sm" id="btn-modal-vote-mvp" style="background: #eab308; color: #000; font-weight: 900; font-size: 12px; border-radius: 10px; border: none; padding: 7px 14px; white-space: nowrap;">
+                  ⭐ ${t('voteMatchMvp', 'Votar')}
+                </button>
+              </div>
+            </div>
+          ` : ''}
+
           <!-- Attendance Response Box -->
           <div style="background: rgba(34, 197, 94, 0.08); border: 1.5px solid rgba(34, 197, 94, 0.3); border-radius: 14px; padding: 12px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
@@ -6146,6 +6295,14 @@
     overlay.querySelector('#dlg-match-det-x').onclick = close;
     overlay.querySelector('#dlg-match-det-close').onclick = close;
     overlay.onclick = (e) => { if (e.target === overlay) close(); };
+
+    const btnModalMvpCard = overlay.querySelector('#modal-match-mvp-card');
+    if (btnModalMvpCard) {
+      btnModalMvpCard.onclick = () => {
+        close();
+        showMatchMvpVoteModal(effSessionForMvp);
+      };
+    }
 
     // Manejar voto interactivo dentro del modal
     overlay.querySelectorAll('.match-modal-vote-btn').forEach(btn => {
@@ -7146,8 +7303,72 @@
       `;
     }
 
+    // Comprobar si hay partido reciente para votar MVP
+    let statsMvpBannerHtml = '';
+    let statsMvpMatch = null;
+    if (clubData && myP) {
+      const allMatches = [];
+      if (clubData.latestMatchMvp) allMatches.push(clubData.latestMatchMvp);
+      if (Array.isArray(clubData.sessions)) allMatches.push(...clubData.sessions);
+      const seen = new Set();
+      const unique = [];
+      for (const m of allMatches) {
+        if (m && m.id && !seen.has(m.id)) {
+          seen.add(m.id);
+          unique.push(m);
+        }
+      }
+      unique.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (Number(b.endedAt || b.finishedAt || 0)) - (Number(a.endedAt || a.finishedAt || 0)));
+      statsMvpMatch = unique.find(s => s && (s.type === 'match' || s.rival) && (s.isFinished || s.finished || s.status === 'finished' || s.endedAt != null)) || null;
+
+      if (statsMvpMatch) {
+        const isOfficialSet = !!(statsMvpMatch.officialMvpId || statsMvpMatch.mvpOfficialId);
+        const offId = statsMvpMatch.officialMvpId || statsMvpMatch.mvpOfficialId;
+        const officialPlayer = isOfficialSet ? (clubData.players || []).find(p => p.id === offId) : null;
+        const myVotedId = (statsMvpMatch.votes && statsMvpMatch.votes[myP.id]) ||
+                          (window._myVotedMvpBySession && window._myVotedMvpBySession[statsMvpMatch.id]) ||
+                          localStorage.getItem('my_mvp_vote_' + statsMvpMatch.id);
+        const votedPlayer = myVotedId ? (clubData.players || []).find(p => p.id === myVotedId) : null;
+
+        let statusSubtitle = t('chooseBestTeammate', 'Vota al mejor compañero del partido');
+        let btnLabel = `⭐ ${t('voteMatchMvp', 'Votar')}`;
+        if (isOfficialSet && officialPlayer) {
+          statusSubtitle = `⭐ ${t('mvpOfficialWinner', '⭐ MVP Oficial: {name}!').replace('{name}', officialPlayer.name || '')}`;
+          btnLabel = `⭐ ${t('viewMvp', 'Ver MVP')}`;
+        } else if (votedPlayer) {
+          statusSubtitle = `✅ ${t('mvpYouVotedFor', 'Has votado a {name}').replace('{name}', (votedPlayer.name || '') + (votedPlayer.lastName ? ' ' + votedPlayer.lastName : ''))}`;
+          btnLabel = `✏️ ${t('mvpChangeVote', 'Cambiar voto')}`;
+        }
+
+        statsMvpBannerHtml = `
+          <div class="card" id="banner-stats-vote-mvp" style="margin-bottom: 12px; background: linear-gradient(135deg, rgba(234, 179, 8, 0.18) 0%, rgba(202, 138, 4, 0.28) 100%); border: 1.5px solid #eab308; border-radius: 16px; padding: 12px 14px; box-shadow: 0 4px 20px rgba(234, 179, 8, 0.2); cursor: pointer;">
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 26px;">👑</span>
+                <div>
+                  <div style="font-size: 11px; font-weight: 800; color: #facc15; text-transform: uppercase; letter-spacing: 0.6px;">
+                    ${t('mvpBannerTitle', '👑 ¡Votación del MVP del Partido!')}
+                  </div>
+                  <div style="font-size: 14px; font-weight: 900; color: #fff; margin-top: 1px;">
+                    ${statsMvpMatch.rival ? `vs ${escapeHtml(statsMvpMatch.rival)}` : escapeHtml(statsMvpMatch.title || 'Partido')}
+                  </div>
+                  <div style="font-size: 11px; color: #fde047; margin-top: 1px;">
+                    ${statusSubtitle}
+                  </div>
+                </div>
+              </div>
+              <button type="button" class="btn sm" style="background: #eab308; color: #000; font-weight: 900; font-size: 11.5px; border-radius: 10px; border: none; padding: 6px 12px; white-space: nowrap;">
+                ${btnLabel}
+              </button>
+            </div>
+          </div>
+        `;
+      }
+    }
+
     view.innerHTML = `
       <div style="padding: 6px 0;">
+        ${statsMvpBannerHtml}
         <!-- Ficha Hero -->
         <div class="card p-hero" style="margin-bottom: 14px; border: 1px solid var(--border);">
           ${renderAvatar(myP, 'lg')}
@@ -7416,6 +7637,14 @@
             lang: currentLang
           });
         }
+      };
+    }
+
+    // Conectar banner de MVP del partido si está presente
+    const btnStatsMvp = view.querySelector('#banner-stats-vote-mvp');
+    if (btnStatsMvp && statsMvpMatch) {
+      btnStatsMvp.onclick = () => {
+        showMatchMvpVoteModal(statsMvpMatch);
       };
     }
   }

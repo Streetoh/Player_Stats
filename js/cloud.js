@@ -592,18 +592,38 @@
         const clubRef = db.collection('clubs').doc(CLUB_ID);
 
         // 1. Guardar documento raíz (Capa Caliente: configuración, perfil, equipos, horarios, latestMatchMvp y sessionsSummary)
-        const matchSessions = (stateData.sessions || [])
-          .filter(s => s && s.type === 'match' && s.date)
-          .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-        const latestMatch = matchSessions[0] || null;
+        const todayIsoStr = new Date().toISOString().slice(0, 10);
+        const allMatches = (stateData.sessions || []).filter(s => s && (s.type === 'match' || s.rival || s.score) && s.date);
+        const finishedMatches = allMatches
+          .filter(s => !!(s.finished === true || s.isFinished === true || s.status === 'finished' || s.endedAt != null || s.finishedAt != null))
+          .sort((a, b) => (b.date || '').localeCompare(a.date || '') || (Number(b.endedAt || b.finishedAt || 0)) - (Number(a.endedAt || a.finishedAt || 0)));
+
+        const sortedMatches = allMatches.slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        const latestMatch = finishedMatches[0] || sortedMatches.find(s => (s.date || '') <= todayIsoStr) || sortedMatches[0] || null;
+
         const latestMatchMvp = latestMatch ? {
           id: latestMatch.id,
+          type: 'match',
           title: latestMatch.title || 'Partido',
           rival: latestMatch.rival || '',
-          date: latestMatch.date,
+          date: latestMatch.date || '',
+          time: latestMatch.time || '',
+          status: latestMatch.status || (latestMatch.finished ? 'finished' : 'scheduled'),
+          finished: !!(latestMatch.finished === true || latestMatch.isFinished === true || latestMatch.status === 'finished' || latestMatch.endedAt != null),
+          isFinished: !!(latestMatch.finished === true || latestMatch.isFinished === true || latestMatch.status === 'finished' || latestMatch.endedAt != null),
+          endedAt: latestMatch.endedAt || null,
+          finishedAt: latestMatch.finishedAt || null,
+          teamId: latestMatch.teamId || null,
+          teamIds: latestMatch.teamIds || [],
+          convocationId: latestMatch.convocationId || null,
+          trackedPlayerIds: latestMatch.trackedPlayerIds || [],
+          slots: latestMatch.slots || [],
+          attendance: latestMatch.attendance || {},
           coachPicks: latestMatch.coachPicks || [],
-          officialMvpId: latestMatch.officialMvpId || latestMatch.mvpWinnerId || null,
-          stats: latestMatch.stats || {}
+          officialMvpId: latestMatch.officialMvpId || latestMatch.mvpWinnerId || latestMatch.mvpOfficialId || null,
+          mvpOfficialId: latestMatch.officialMvpId || latestMatch.mvpWinnerId || latestMatch.mvpOfficialId || null,
+          stats: latestMatch.stats || {},
+          score: latestMatch.score || null
         } : null;
 
         const sessionsSummary = (stateData.sessions || []).map(s => ({
@@ -613,9 +633,22 @@
           time: s.time || '',
           title: s.title || '',
           rival: s.rival || '',
-          score: s.score || '',
+          score: s.score || null,
+          status: s.status || (s.finished ? 'finished' : 'scheduled'),
+          finished: !!(s.finished === true || s.isFinished === true || s.status === 'finished' || s.endedAt != null),
+          isFinished: !!(s.finished === true || s.isFinished === true || s.status === 'finished' || s.endedAt != null),
+          endedAt: s.endedAt || null,
+          finishedAt: s.finishedAt || null,
+          teamId: s.teamId || null,
+          teamIds: s.teamIds || [],
+          convocationId: s.convocationId || null,
+          trackedPlayerIds: s.trackedPlayerIds || [],
+          slots: s.slots || [],
+          attendance: s.attendance || {},
           coachPicks: s.coachPicks || [],
-          officialMvpId: s.officialMvpId || s.mvpWinnerId || null
+          officialMvpId: s.officialMvpId || s.mvpWinnerId || s.mvpOfficialId || null,
+          mvpOfficialId: s.officialMvpId || s.mvpWinnerId || s.mvpOfficialId || null,
+          stats: s.stats || {}
         })).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
         const playersSummary = sanitizedPlayers.map(p => ({
