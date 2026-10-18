@@ -592,6 +592,41 @@
         const clubRef = db.collection('clubs').doc(CLUB_ID);
 
         // 1. Guardar documento raíz (Capa Caliente: configuración, perfil, equipos, horarios, latestMatchMvp y sessionsSummary)
+        const computeParticipatingPlayerIds = (s) => {
+          if (!s) return [];
+          const set = new Set();
+          if (s.stats) {
+            Object.keys(s.stats).forEach(pid => {
+              const st = s.stats[pid];
+              if (st && Object.values(st).some(v => Number(v) > 0)) set.add(pid);
+            });
+          }
+          if (Array.isArray(s.slots)) {
+            s.slots.filter(Boolean).forEach(pid => set.add(pid));
+          }
+          if (Array.isArray(s.trackedPlayerIds)) {
+            s.trackedPlayerIds.filter(Boolean).forEach(pid => set.add(pid));
+          }
+          if (s.attendance) {
+            Object.keys(s.attendance).forEach(pid => {
+              const a = s.attendance[pid];
+              const st = (typeof a === 'object' && a !== null) ? a.status : a;
+              if (st === 'present' || st === 'late' || st === 'attended' || st === 'yes' || st === true) {
+                set.add(pid);
+              }
+            });
+          }
+          if (Array.isArray(s.coachPicks)) {
+            s.coachPicks.forEach(cp => {
+              if (!cp) return;
+              if (typeof cp === 'string') set.add(cp);
+              else if (cp.playerId) set.add(cp.playerId);
+              else if (cp.id) set.add(cp.id);
+            });
+          }
+          return Array.from(set);
+        };
+
         const todayIsoStr = new Date().toISOString().slice(0, 10);
         const allMatches = (stateData.sessions || []).filter(s => s && (s.type === 'match' || s.rival || s.score) && s.date);
         const finishedMatches = allMatches
@@ -616,7 +651,7 @@
           teamId: latestMatch.teamId || null,
           teamIds: latestMatch.teamIds || [],
           convocationId: latestMatch.convocationId || null,
-          trackedPlayerIds: latestMatch.trackedPlayerIds || [],
+          trackedPlayerIds: computeParticipatingPlayerIds(latestMatch),
           slots: latestMatch.slots || [],
           attendance: latestMatch.attendance || {},
           coachPicks: latestMatch.coachPicks || [],
@@ -642,7 +677,7 @@
           teamId: s.teamId || null,
           teamIds: s.teamIds || [],
           convocationId: s.convocationId || null,
-          trackedPlayerIds: s.trackedPlayerIds || [],
+          trackedPlayerIds: computeParticipatingPlayerIds(s),
           slots: s.slots || [],
           attendance: s.attendance || {},
           coachPicks: s.coachPicks || [],
@@ -666,7 +701,11 @@
           photoHash: p.photoHash || '',
           ovr: p.ovr || 50,
           radar: p.radar || null,
-          statsSummary: p.statsSummary || null
+          statsSummary: p.statsSummary || null,
+          isTestPlayer: !!(p.isTestPlayer || p.isTest || p.id === 'test_player_profile'),
+          isTest: !!(p.isTestPlayer || p.isTest || p.id === 'test_player_profile'),
+          assignedTeamIds: p.assignedTeamIds || [],
+          securityCode: p.securityCode || '0000'
         }));
 
         const rootPayload = {

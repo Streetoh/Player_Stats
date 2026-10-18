@@ -656,7 +656,19 @@
       "noMatchesYet": "No hay partidos registrados",
       "noTrainingsYet": "No hay entrenamientos registrados",
       "noMatchesDesc": "Crea un partido para registrar estadísticas en directo.",
-      "noTrainingsDesc": "Crea una sesión de entrenamiento para pasar lista."
+      "noTrainingsDesc": "Crea una sesión de entrenamiento para pasar lista.",
+      "testPlayerProfile": "Perfil de Jugador de Prueba (Modo Test)",
+      "testPlayer": "Jugador de Prueba",
+      "assignedTeam": "Equipo asignado",
+      "allTeams": "Todos los equipos",
+      "openAsTestPlayer": "Abrir App como Jugador Test",
+      "copyTestLink": "Copiar enlace de prueba",
+      "testProfileDesc": "Perfil invisible para jugadores reales. Permite al entrenador verificar convocatorias y votaciones MVP asignándolo a diferentes equipos.",
+      "accessTestProfile": "Acceso a Perfil de Prueba",
+      "enterTestCode": "Introduce el código de acceso de prueba (PIN):",
+      "testPlayerNotice": "Modo Test Activo: Estás usando el perfil de prueba del entrenador.",
+      "testPlayerConfigTitle": "Configurar Jugador de Prueba",
+      "testPlayerAssignedToast": "Jugador de prueba asignado a {team}"
 },
     en: {
       "appName": "Player stats (Coach)",
@@ -1309,7 +1321,19 @@
       "noMatchesYet": "No matches recorded",
       "noTrainingsYet": "No trainings recorded",
       "noMatchesDesc": "Create a match to track live stats.",
-      "noTrainingsDesc": "Create a training session to take attendance."
+      "noTrainingsDesc": "Create a training session to take attendance.",
+      "testPlayerProfile": "Test Player Profile (Test Mode)",
+      "testPlayer": "Test Player",
+      "assignedTeam": "Assigned team",
+      "allTeams": "All teams",
+      "openAsTestPlayer": "Open App as Test Player",
+      "copyTestLink": "Copy test link",
+      "testProfileDesc": "Invisible profile for real players. Allows coach to verify convocations and MVP voting by assigning it to different teams.",
+      "accessTestProfile": "Access Test Profile",
+      "enterTestCode": "Enter test access code (PIN):",
+      "testPlayerNotice": "Test Mode Active: You are using the coach test profile.",
+      "testPlayerConfigTitle": "Configure Test Player",
+      "testPlayerAssignedToast": "Test player assigned to {team}"
 },
     et: {
       "appName": "Player stats (Coach)",
@@ -1962,7 +1986,19 @@
       "noMatchesYet": "Mänge pole veel salvestatud",
       "noTrainingsYet": "Treeninguid pole veel salvestatud",
       "noMatchesDesc": "Loo mäng reaalajas statistika salvestamiseks.",
-      "noTrainingsDesc": "Loo treening kohaloleku märkimiseks."
+      "noTrainingsDesc": "Loo treening kohaloleku märkimiseks.",
+      "testPlayerProfile": "Testmängija profiil (testirežiim)",
+      "testPlayer": "Testmängija",
+      "assignedTeam": "Määratud meeskond",
+      "allTeams": "Kõik meeskonnad",
+      "openAsTestPlayer": "Ava äpp testmängijana",
+      "copyTestLink": "Kopeeri testilink",
+      "testProfileDesc": "Nähtamatu profiil päris mängijatele. Võimaldab treeneril kontrollida kutseid ja MVP hääletust, määrates selle eri meeskondadesse.",
+      "accessTestProfile": "Juurdepääs testprofiilile",
+      "enterTestCode": "Sisesta testkood (PIN):",
+      "testPlayerNotice": "Testirežiim aktiivne: kasutad treeneri testprofiili.",
+      "testPlayerConfigTitle": "Seadista testmängija",
+      "testPlayerAssignedToast": "Testmängija määratud meeskonda {team}"
 },
     ru: {
       "appName": "Player stats (Coach)",
@@ -2615,7 +2651,19 @@
       "noMatchesYet": "Нет записанных матчей",
       "noTrainingsYet": "Нет записанных тренировок",
       "noMatchesDesc": "Создайте матч для записи статистики в реальном времени.",
-      "noTrainingsDesc": "Создайте тренировку для отметки посещаемости."
+      "noTrainingsDesc": "Создайте тренировку для отметки посещаемости.",
+      "testPlayerProfile": "Профиль тестового игрока (режим теста)",
+      "testPlayer": "Тестовый игрок",
+      "assignedTeam": "Назначенная команда",
+      "allTeams": "Все команды",
+      "openAsTestPlayer": "Открыть приложение как тест-игрок",
+      "copyTestLink": "Скопировать тестовую ссылку",
+      "testProfileDesc": "Невидимый профиль для реальных игроков. Позволяет тренеру проверять вызовы и голосование MVP, назначая его в разные команды.",
+      "accessTestProfile": "Доступ к тестовому профилю",
+      "enterTestCode": "Введите код тестового доступа (PIN):",
+      "testPlayerNotice": "Режим теста активен: вы используете тестовый профиль тренера.",
+      "testPlayerConfigTitle": "Настроить тестового игрока",
+      "testPlayerAssignedToast": "Тестовый игрок назначен в {team}"
 }
   };
 

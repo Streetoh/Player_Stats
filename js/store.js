@@ -379,6 +379,7 @@
     sortedPlayers(teamFilter) {
       return this.state.players
         .filter(p => {
+          if (p.isTestPlayer || p.isTest) return false;
           if (!teamFilter || teamFilter === 'all') return true;
           if (Array.isArray(teamFilter)) return teamFilter.includes(p.teamId);
           return p.teamId === teamFilter;
@@ -390,6 +391,55 @@
           if (na !== nb) return na - nb;
           return Store.playerName(a).localeCompare(Store.playerName(b));
         });
+    },
+
+    realPlayersCount() {
+      return (this.state.players || []).filter(p => !p.isTestPlayer && !p.isTest).length;
+    },
+
+    getTestPlayer() {
+      return (this.state.players || []).find(p => p.isTestPlayer || p.isTest || p.id === 'test_player_profile') || null;
+    },
+
+    ensureTestPlayer(options) {
+      let tp = this.getTestPlayer();
+      if (!tp) {
+        tp = {
+          id: 'test_player_profile',
+          name: (options && options.name) || 'Jugador Test',
+          lastName: (options && options.lastName) || '(Prueba)',
+          mainPosition: (options && options.mainPosition) || 'MED',
+          mainDorsal: (options && options.mainDorsal != null) ? options.mainDorsal : 99,
+          foot: 'right',
+          teamId: (options && options.teamId) || (this.state.teams[0] ? this.state.teams[0].id : ''),
+          assignedTeamIds: (options && options.assignedTeamIds) || [],
+          isTestPlayer: true,
+          isTest: true,
+          photo: '',
+          securityCode: (options && options.securityCode) || '0000',
+          createdAt: Date.now()
+        };
+        this.state.players.push(tp);
+      } else {
+        if (options) {
+          if (options.teamId !== undefined) tp.teamId = options.teamId;
+          if (options.assignedTeamIds !== undefined) tp.assignedTeamIds = options.assignedTeamIds;
+          if (options.name !== undefined) tp.name = options.name;
+          if (options.lastName !== undefined) tp.lastName = options.lastName;
+          if (options.mainDorsal !== undefined) tp.mainDorsal = options.mainDorsal;
+          if (options.mainPosition !== undefined) tp.mainPosition = options.mainPosition;
+          if (options.securityCode !== undefined) tp.securityCode = options.securityCode;
+        }
+      }
+      this.save();
+      if (window.Cloud && window.Cloud.pushCoachState) {
+        window.Cloud.pushCoachState(this.state, true);
+      }
+      return tp;
+    },
+
+    updateTestPlayerTeam(teamId) {
+      return this.ensureTestPlayer({ teamId: teamId || '' });
     },
 
     upsertPlayer(data) {
@@ -954,7 +1004,7 @@
         });
       }
 
-      const players = Array.from(playerIds).map(id => this.player(id)).filter(Boolean);
+      const players = Array.from(playerIds).map(id => this.player(id)).filter(p => p && !p.isTestPlayer && !p.isTest);
       players.sort((a, b) => {
         const numA = (a.jersey != null && a.jersey !== '') ? Number(a.jersey) : 999;
         const numB = (b.jersey != null && b.jersey !== '') ? Number(b.jersey) : 999;

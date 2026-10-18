@@ -22,6 +22,21 @@
   let currentTab = 'convocations';
   let clubData = null;
   let myPlayerId = localStorage.getItem('portal_player_id') || null;
+  // Soporte directo para Perfil de Jugador de Prueba (Modo Test del Entrenador)
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('test_player') === '1' || urlParams.get('test') === '1' || urlParams.get('claim') === 'test_player_profile') {
+      myPlayerId = 'test_player_profile';
+      localStorage.setItem('portal_player_id', 'test_player_profile');
+      localStorage.setItem('portal_player_id_backup', 'test_player_profile');
+      localStorage.setItem('portal_player_locked', 'true');
+      if (window.history && window.history.replaceState) {
+        const cleanUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, cleanUrl);
+      }
+    }
+  } catch (e) {}
+
   if (!myPlayerId) {
     const backupId = localStorage.getItem('portal_player_id_backup');
     if (backupId) {
@@ -2207,8 +2222,21 @@
 
   function getMyPlayer() {
     if (myPlayerId) {
-      const p = (clubData && clubData.players) ? clubData.players.find(x => x.id === myPlayerId) : null;
+      const p = (clubData && clubData.players) ? clubData.players.find(x => x.id === myPlayerId || (myPlayerId === 'test_player_profile' && (x.isTestPlayer || x.isTest))) : null;
       if (p) return p;
+      if (myPlayerId === 'test_player_profile') {
+        return {
+          id: 'test_player_profile',
+          name: 'Jugador Test',
+          lastName: '(Prueba)',
+          mainDorsal: 99,
+          mainPosition: 'MED',
+          teamId: (clubData && clubData.teams && clubData.teams[0] ? clubData.teams[0].id : ''),
+          assignedTeamIds: [],
+          isTestPlayer: true,
+          isTest: true
+        };
+      }
       const pendingCreationId = localStorage.getItem('portal_pending_creation_id');
       if (myPlayerId === pendingCreationId) {
         return {
@@ -2850,15 +2878,22 @@
       ? session.teamIds.map(String)
       : (session.teamId ? [String(session.teamId)] : (linkedConv ? ((Array.isArray(linkedConv.teamIds) && linkedConv.teamIds.length > 0) ? linkedConv.teamIds.map(String) : (linkedConv.teamId ? [String(linkedConv.teamId)] : [])) : []));
 
-    let players = (clubData && clubData.players ? clubData.players : []).filter(p => matchPlayerIds.has(p.id));
+    let players = (clubData && clubData.players ? clubData.players : [])
+      .filter(p => !p.isTestPlayer && !p.isTest && p.id !== 'test_player_profile')
+      .filter(p => matchPlayerIds.has(p.id));
     if (players.length === 0 && sessionTeams.length > 0) {
-      players = (clubData && clubData.players ? clubData.players : []).filter(p => p.teamId && sessionTeams.includes(String(p.teamId)));
+      players = (clubData && clubData.players ? clubData.players : [])
+        .filter(p => !p.isTestPlayer && !p.isTest && p.id !== 'test_player_profile')
+        .filter(p => p.teamId && sessionTeams.includes(String(p.teamId)));
     }
     if (players.length === 0 && myP.teamId) {
-      players = (clubData && clubData.players ? clubData.players : []).filter(p => String(p.teamId) === String(myP.teamId));
+      players = (clubData && clubData.players ? clubData.players : [])
+        .filter(p => !p.isTestPlayer && !p.isTest && p.id !== 'test_player_profile')
+        .filter(p => String(p.teamId) === String(myP.teamId));
     }
     if (players.length === 0) {
-      players = clubData && clubData.players ? clubData.players : [];
+      players = (clubData && clubData.players ? clubData.players : [])
+        .filter(p => !p.isTestPlayer && !p.isTest && p.id !== 'test_player_profile');
     }
 
     const existing = document.getElementById('dialog-match-mvp-vote');
@@ -3625,6 +3660,16 @@
         lockIndicatorEl.style.background = locked ? 'rgba(250, 204, 21, 0.15)' : 'rgba(6, 182, 212, 0.15)';
         lockIndicatorEl.style.border = locked ? '1px solid rgba(250, 204, 21, 0.35)' : '1px solid rgba(6, 182, 212, 0.3)';
       }
+      if (myP && (myP.isTestPlayer || myP.isTest || myP.id === 'test_player_profile')) {
+        if (nameEl) nameEl.textContent = `🧪 #${myP.mainDorsal || 99} ${myP.name || 'Test'} (${t('testPlayer', 'Test')})`;
+        if (avatarEl) avatarEl.innerHTML = '<span>🧪</span>';
+        if (lockIndicatorEl) {
+          lockIndicatorEl.innerHTML = `🧪 Modo Test`;
+          lockIndicatorEl.style.color = '#facc15';
+          lockIndicatorEl.style.background = 'rgba(250, 204, 21, 0.25)';
+          lockIndicatorEl.style.border = '1px solid #facc15';
+        }
+      }
       if (!window._chatUnreadInitialized && window.ChatUI && ChatUI.initGlobalUnreadListener) {
         window._chatUnreadInitialized = true;
         ChatUI.initGlobalUnreadListener(myPlayerId, myP.teamId || null);
@@ -4333,6 +4378,9 @@
             <button type="button" class="btn sm ghost" id="btn-dialog-id-clear-cache" style="font-size: 11px; opacity: 0.75; color: var(--muted); border: 1px dashed var(--border); padding: 4px 12px; border-radius: 8px;" title="Clear cache and reload latest version">
               ${t('clearCacheBtn', '🔄 Clear App Cache & Refresh')}
             </button>
+            <button type="button" class="btn sm ghost" id="btn-dialog-id-test-profile" style="font-size: 11px; opacity: 0.65; color: var(--muted); border: 1px dashed var(--border); padding: 4px 10px; border-radius: 8px; margin-top: 4px;">
+              🧪 ${t('accessTestProfile', 'Acceso a Perfil de Prueba')}
+            </button>
             ${!window.AndroidBridge ? `
               <button type="button" class="btn sm ghost" id="btn-dialog-id-download-apk" style="display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: 11.5px; color: var(--cyan); font-weight: 800; padding: 6px 14px; border-radius: 10px; background: rgba(34, 211, 238, 0.09); border: 1.5px solid rgba(34, 211, 238, 0.4); cursor: pointer; width: 100%; max-width: 280px; margin-top: 4px;">
                 📲 ${t('downloadApk', 'Descargar App Android (APK)')}
@@ -4346,6 +4394,28 @@
     function close() { overlay.remove(); }
     overlay.querySelector('#dialog-id-close').onclick = close;
     overlay.onclick = (e) => { if (e.target === overlay) close(); };
+
+    const btnTestProf = overlay.querySelector('#btn-dialog-id-test-profile');
+    if (btnTestProf) {
+      btnTestProf.onclick = () => {
+        const pin = prompt(t('enterTestCode', 'Introduce el código de acceso de prueba (PIN):'));
+        if (pin === null) return;
+        const tp = (clubData && clubData.players) ? clubData.players.find(p => p.id === 'test_player_profile' || p.isTestPlayer) : null;
+        const expectedPin = (tp && tp.securityCode) ? String(tp.securityCode) : '0000';
+        if (pin.trim() === expectedPin || pin.trim() === '0000') {
+          myPlayerId = 'test_player_profile';
+          localStorage.setItem('portal_player_id', 'test_player_profile');
+          localStorage.setItem('portal_player_id_backup', 'test_player_profile');
+          localStorage.setItem('portal_player_locked', 'true');
+          close();
+          updateHeaderIdentity();
+          renderCurrentTab();
+          toast(t('testPlayerNotice', 'Modo Test Activo: Estás usando el perfil de prueba del entrenador.'), 'info');
+        } else {
+          toast('PIN incorrecto', 'error');
+        }
+      };
+    }
 
     const btnReqCreation = overlay.querySelector('#btn-dialog-id-req-creation');
     if (btnReqCreation) {
@@ -4389,7 +4459,10 @@
 
     function renderPlayersList() {
       if (!listCont) return;
-      const players = ((clubData && clubData.players) ? clubData.players : []).slice().sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      const players = ((clubData && clubData.players) ? clubData.players : [])
+        .filter(p => !p.isTestPlayer && !p.isTest && p.id !== 'test_player_profile')
+        .slice()
+        .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
       const q = searchInp ? searchInp.value.toLowerCase().trim() : '';
       listCont.innerHTML = players.map(p => {
         const team = (clubData && clubData.teams) ? clubData.teams.find(t => t.id === p.teamId) : null;
@@ -5281,6 +5354,7 @@
   function renderConvocationsView() {
     const convs = (clubData && clubData.convocations) ? clubData.convocations : [];
     const myP = getMyPlayer();
+    const isTestUser = !!(myP && (myP.isTestPlayer || myP.isTest || myP.id === 'test_player_profile'));
     const pendingReqId = localStorage.getItem('portal_pending_req_id');
 
     let bannerHtml = '';
@@ -5309,9 +5383,164 @@
       `;
     }
 
+    // 👑 Buscar si hay un partido reciente finalizado (hasta 72h tras finalizar) para votar MVP
+    let mvpBannerHtml = '';
+    let recentMatchForMvp = null;
+    if (clubData && myP) {
+      const nowTs = Date.now();
+      const isEligibleMatch = (s) => {
+        if (!s || !s.date) return false;
+        const isMatch = (s.type === 'match' || (!s.type && (s.rival || s.score)));
+        if (!isMatch) return false;
+
+        const isFin = !!(
+          s.isFinished === true ||
+          s.finished === true ||
+          s.status === 'finished' ||
+          s.status === 'completed' ||
+          s.endedAt != null ||
+          s.finishedAt != null
+        );
+        if (!isFin) return false; // NUNCA se vota en partidos no finalizados o futuros
+
+        // Ventana de tiempo: abierta durante 72h tras finalizar (NUNCA descartar por reloj local)
+        let matchEndTs = 0;
+        if (s.endedAt) matchEndTs = Number(s.endedAt);
+        else if (s.finishedAt) matchEndTs = Number(s.finishedAt);
+        else if (s.date) {
+          const timePart = s.time ? (s.time.length === 5 ? s.time : s.time.slice(0, 5)) : '12:00';
+          const parsed = new Date(`${s.date}T${timePart}:00`).getTime();
+          matchEndTs = isNaN(parsed) ? new Date(s.date).getTime() : parsed;
+        }
+        if (matchEndTs && (nowTs - matchEndTs > 72 * 3600 * 1000)) return false;
+
+        // Comprobar equipos del partido
+        const sTeams = Array.isArray(s.teamIds) && s.teamIds.length > 0
+          ? s.teamIds.map(String)
+          : (s.teamId ? [String(s.teamId)] : []);
+
+        const linkedConv = (s.convocationId && clubData.convocations)
+          ? clubData.convocations.find(conv => conv.id === s.convocationId)
+          : (clubData.convocations ? clubData.convocations.find(cv => cv.sessionId === s.id || (cv.date === s.date && cv.type === 'match')) : null);
+
+        const convTeams = linkedConv
+          ? ((Array.isArray(linkedConv.teamIds) && linkedConv.teamIds.length > 0)
+              ? linkedConv.teamIds.map(String)
+              : (linkedConv.teamId ? [String(linkedConv.teamId)] : []))
+          : [];
+
+        // Modo Perfil de Test del Entrenador:
+        if (isTestUser) {
+          const assignedTids = Array.isArray(myP.assignedTeamIds) && myP.assignedTeamIds.length > 0
+            ? myP.assignedTeamIds.map(String)
+            : (myP.teamId ? [String(myP.teamId)] : []);
+          const isAllTeams = assignedTids.length === 0 || assignedTids.includes('all') || myP.teamId === 'all';
+          const matchMatchesTeam = isAllTeams ||
+            sTeams.some(tid => assignedTids.includes(tid)) ||
+            convTeams.some(tid => assignedTids.includes(tid));
+          return matchMatchesTeam;
+        }
+
+        // Para jugadores reales: SOLO los que realmente PARTICIPARON en el partido
+        const isExplicitlyAbsent = (
+          (s.attendance && (s.attendance[myP.id] === 'absent' || (typeof s.attendance[myP.id] === 'object' && s.attendance[myP.id] !== null && s.attendance[myP.id].status === 'absent'))) ||
+          (linkedConv && linkedConv.list && linkedConv.list[myP.id] === 'absent')
+        );
+        if (isExplicitlyAbsent) return false;
+
+        const participated = !!(
+          (s.stats && s.stats[myP.id] && Object.values(s.stats[myP.id]).some(v => Number(v) > 0)) ||
+          (Array.isArray(s.slots) && s.slots.includes(myP.id)) ||
+          (s.attendance && (s.attendance[myP.id] === 'present' || s.attendance[myP.id] === 'late' || s.attendance[myP.id] === 'yes' || s.attendance[myP.id] === true || (typeof s.attendance[myP.id] === 'object' && s.attendance[myP.id] !== null && (s.attendance[myP.id].status === 'present' || s.attendance[myP.id].status === 'late')))) ||
+          (Array.isArray(s.trackedPlayerIds) && s.trackedPlayerIds.includes(myP.id)) ||
+          (Array.isArray(s.coachPicks) && s.coachPicks.some(cp => cp && (cp.playerId === myP.id || cp.id === myP.id || cp === myP.id))) ||
+          (linkedConv && linkedConv.list && (linkedConv.list[myP.id] === 'confirmed' || linkedConv.list[myP.id] === 'attended'))
+        );
+        return participated;
+      };
+
+      const candidateMatches = [];
+      if (clubData.latestMatchMvp) candidateMatches.push(clubData.latestMatchMvp);
+      if (Array.isArray(clubData.sessions)) candidateMatches.push(...clubData.sessions);
+
+      const seenMatchIds = new Set();
+      const uniqueMatches = [];
+      for (const m of candidateMatches) {
+        if (m && m.id && !seenMatchIds.has(m.id)) {
+          seenMatchIds.add(m.id);
+          uniqueMatches.push(m);
+        }
+      }
+      uniqueMatches.sort((a, b) => {
+        const dateCmp = (b.date || '').localeCompare(a.date || '');
+        if (dateCmp !== 0) return dateCmp;
+        return (Number(b.endedAt || b.finishedAt || 0)) - (Number(a.endedAt || a.finishedAt || 0));
+      });
+
+      recentMatchForMvp = uniqueMatches.find(isEligibleMatch) || null;
+
+      if (recentMatchForMvp && Array.isArray(clubData.sessions)) {
+        const fullS = clubData.sessions.find(s => s.id === recentMatchForMvp.id);
+        if (fullS) {
+          recentMatchForMvp = {
+            ...fullS,
+            ...recentMatchForMvp,
+            coachPicks: (recentMatchForMvp.coachPicks && recentMatchForMvp.coachPicks.length > 0) ? recentMatchForMvp.coachPicks : (fullS.coachPicks || []),
+            officialMvpId: recentMatchForMvp.officialMvpId || fullS.officialMvpId || fullS.mvpOfficialId || null,
+            stats: Object.keys(recentMatchForMvp.stats || {}).length > 0 ? recentMatchForMvp.stats : (fullS.stats || {})
+          };
+        }
+      }
+
+      if (recentMatchForMvp) {
+        const isOfficialSet = !!(recentMatchForMvp.officialMvpId || recentMatchForMvp.mvpOfficialId);
+        const officialId = recentMatchForMvp.officialMvpId || recentMatchForMvp.mvpOfficialId;
+        const officialPlayer = isOfficialSet ? (clubData.players || []).find(p => p.id === officialId) : null;
+        const myVotedId = (recentMatchForMvp.votes && recentMatchForMvp.votes[myP.id]) ||
+                          (window._myVotedMvpBySession && window._myVotedMvpBySession[recentMatchForMvp.id]) ||
+                          localStorage.getItem('my_mvp_vote_' + recentMatchForMvp.id);
+        const votedPlayer = myVotedId ? (clubData.players || []).find(p => p.id === myVotedId) : null;
+
+        let statusSubtitle = t('chooseBestTeammate', 'Vota al mejor compañero del partido');
+        let btnLabel = `⭐ ${t('voteMatchMvp', 'Votar')}`;
+        if (isOfficialSet && officialPlayer) {
+          statusSubtitle = `⭐ ${t('mvpOfficialWinner', '⭐ MVP Oficial: {name}!').replace('{name}', officialPlayer.name || '')}`;
+          btnLabel = `⭐ ${t('viewMvp', 'Ver MVP')}`;
+        } else if (votedPlayer) {
+          statusSubtitle = `✅ ${t('mvpYouVotedFor', 'Has votado a {name}').replace('{name}', (votedPlayer.name || '') + (votedPlayer.lastName ? ' ' + votedPlayer.lastName : ''))}`;
+          btnLabel = `✏️ ${t('mvpChangeVote', 'Cambiar voto')}`;
+        }
+
+        mvpBannerHtml = `
+          <div class="card" id="banner-vote-mvp" style="margin-bottom: 14px; background: linear-gradient(135deg, rgba(234, 179, 8, 0.22) 0%, rgba(202, 138, 4, 0.35) 100%); border: 2px solid #eab308; border-radius: 16px; padding: 14px 16px; box-shadow: 0 6px 24px rgba(234, 179, 8, 0.28); cursor: pointer; position: relative;">
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <span style="font-size: 30px; line-height: 1;">👑</span>
+                <div>
+                  <div style="font-size: 11px; font-weight: 900; color: #facc15; text-transform: uppercase; letter-spacing: 0.8px;">
+                    ${t('mvpBannerTitle', '👑 ¡Votación del MVP del Partido!')}
+                  </div>
+                  <div style="font-size: 15px; font-weight: 900; color: #fff; margin-top: 2px;">
+                    ${recentMatchForMvp.rival ? `vs ${escapeHtml(recentMatchForMvp.rival)}` : escapeHtml(recentMatchForMvp.title || 'Partido')}
+                  </div>
+                  <div style="font-size: 12px; font-weight: 700; color: #fef08a; margin-top: 2px;">
+                    ${statusSubtitle}
+                  </div>
+                </div>
+              </div>
+              <button type="button" class="btn sm" style="background: #eab308; color: #000; font-weight: 900; font-size: 12px; border-radius: 10px; border: none; padding: 7px 14px; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
+                ${btnLabel}
+              </button>
+            </div>
+          </div>
+        `;
+      }
+    }
+
     if (convs.length === 0) {
       view.innerHTML = `
-        <div style="padding: 16px 0;">
+        <div style="padding: 10px 0;">
+          ${mvpBannerHtml}
           ${bannerHtml}
           ${identityPromptCardHtml}
           <div class="empty-state card">
@@ -5323,6 +5552,12 @@
       `;
       const btnSel = view.querySelector('#btn-select-id-from-convs');
       if (btnSel) btnSel.onclick = showSelectIdentityModal;
+      const btnMvpBanner = view.querySelector('#banner-vote-mvp');
+      if (btnMvpBanner && recentMatchForMvp) {
+        btnMvpBanner.onclick = () => {
+          showMatchMvpVoteModal(recentMatchForMvp);
+        };
+      }
       return;
     }
 
@@ -5336,6 +5571,20 @@
       // Si el usuario aún no tiene perfil aprobado, mostrar todas las convocatorias vigentes del club
       if (!hasApprovedProfile() || !myPlayerId) {
         return true;
+      }
+
+      // Modo Test del Entrenador: recibe automáticamente todas las convocatorias de su equipo asignado
+      if (isTestUser) {
+        const assignedTids = Array.isArray(myP.assignedTeamIds) && myP.assignedTeamIds.length > 0
+          ? myP.assignedTeamIds.map(String)
+          : (myP.teamId ? [String(myP.teamId)] : []);
+        const isAll = assignedTids.length === 0 || assignedTids.includes('all') || myP.teamId === 'all';
+        if (isAll) return true;
+        const cTeams = (Array.isArray(c.teamIds) && c.teamIds.length > 0)
+          ? c.teamIds.map(String)
+          : (c.teamId ? [String(c.teamId)] : []);
+        if (cTeams.length === 0) return true;
+        return cTeams.some(tid => assignedTids.includes(tid));
       }
 
       const convTeams = (Array.isArray(c.teamIds) && c.teamIds.length > 0)
@@ -5674,162 +5923,11 @@
       listContentHtml = sectionsHtml;
     }
 
-    // Buscar si hay un partido reciente finalizado (hasta 72h tras finalizar) para votar MVP
-    let mvpBannerHtml = '';
-    let recentMatchForMvp = null;
-    if (clubData && myP) {
-      const nowTs = Date.now();
-      const isEligibleMatch = (s) => {
-        if (!s || !s.date) return false;
-        const isMatch = (s.type === 'match' || (!s.type && (s.rival || s.score)));
-        if (!isMatch) return false;
-
-        const isFin = !!(
-          s.isFinished === true ||
-          s.finished === true ||
-          s.status === 'finished' ||
-          s.status === 'completed' ||
-          s.endedAt != null ||
-          s.finishedAt != null
-        );
-        if (!isFin) return false; // NUNCA se vota en partidos no finalizados o futuros
-
-        // Ventana de tiempo (hasta 72h tras finalizar)
-        let matchTs = 0;
-        if (s.endedAt) matchTs = Number(s.endedAt);
-        else if (s.finishedAt) matchTs = Number(s.finishedAt);
-        else if (s.date) {
-          const timePart = s.time ? (s.time.length === 5 ? s.time : s.time.slice(0, 5)) : '12:00';
-          const parsed = new Date(`${s.date}T${timePart}:00`).getTime();
-          matchTs = isNaN(parsed) ? new Date(s.date).getTime() : parsed;
-        }
-        const elapsed = nowTs - matchTs;
-        // Permitir desde -2 horas (discrepancia de reloj) hasta 72 horas después
-        if (elapsed < -2 * 3600 * 1000 || elapsed > 72 * 3600 * 1000) return false;
-
-        // Comprobar si el jugador formó parte del partido o pertenece al equipo del partido
-        const sTeams = Array.isArray(s.teamIds) && s.teamIds.length > 0
-          ? s.teamIds.map(String)
-          : (s.teamId ? [String(s.teamId)] : []);
-        const matchesPlayerTeam = sTeams.length === 0 || (myP.teamId && sTeams.includes(String(myP.teamId)));
-
-        const linkedConv = (s.convocationId && clubData.convocations)
-          ? clubData.convocations.find(conv => conv.id === s.convocationId)
-          : (clubData.convocations ? clubData.convocations.find(cv => cv.sessionId === s.id || (cv.date === s.date && cv.type === 'match')) : null);
-
-        const convTeams = linkedConv
-          ? ((Array.isArray(linkedConv.teamIds) && linkedConv.teamIds.length > 0)
-              ? linkedConv.teamIds.map(String)
-              : (linkedConv.teamId ? [String(linkedConv.teamId)] : []))
-          : [];
-        const matchesConvTeam = convTeams.length === 0 || (myP.teamId && convTeams.includes(String(myP.teamId)));
-
-        const isExplicitlyAbsent = (
-          (s.attendance && (s.attendance[myP.id] === 'absent' || (typeof s.attendance[myP.id] === 'object' && s.attendance[myP.id] !== null && s.attendance[myP.id].status === 'absent'))) ||
-          (linkedConv && linkedConv.list && linkedConv.list[myP.id] === 'absent')
-        );
-        if (isExplicitlyAbsent) return false;
-
-        const participated = (
-          (s.stats && s.stats[myP.id] && Object.values(s.stats[myP.id]).some(v => Number(v) > 0)) ||
-          (Array.isArray(s.slots) && s.slots.includes(myP.id)) ||
-          (s.attendance && (s.attendance[myP.id] === 'present' || s.attendance[myP.id] === 'late' || s.attendance[myP.id] === 'yes' || s.attendance[myP.id] === true || (typeof s.attendance[myP.id] === 'object' && s.attendance[myP.id] !== null && s.attendance[myP.id].status === 'present'))) ||
-          (Array.isArray(s.trackedPlayerIds) && s.trackedPlayerIds.includes(myP.id)) ||
-          (Array.isArray(s.coachPicks) && s.coachPicks.some(cp => cp && (cp.playerId === myP.id || cp.id === myP.id))) ||
-          (linkedConv && linkedConv.list && (linkedConv.list[myP.id] === 'confirmed' || linkedConv.list[myP.id] === 'attended' || linkedConv.list[myP.id] === 'called')) ||
-          (linkedConv && linkedConv.responses && linkedConv.responses[myP.id] && (linkedConv.responses[myP.id].status === 'called' || linkedConv.responses[myP.id].status === 'attending' || linkedConv.responses[myP.id].status === 'yes')) ||
-          matchesPlayerTeam ||
-          matchesConvTeam
-        );
-        return participated;
-      };
-
-      // Recopilar y ordenar todos los partidos finalizados candidatos
-      const candidateMatches = [];
-      if (clubData.latestMatchMvp) candidateMatches.push(clubData.latestMatchMvp);
-      if (Array.isArray(clubData.sessions)) candidateMatches.push(...clubData.sessions);
-
-      // Deduplicar por id y ordenar del más reciente al más antiguo
-      const seenMatchIds = new Set();
-      const uniqueMatches = [];
-      for (const m of candidateMatches) {
-        if (m && m.id && !seenMatchIds.has(m.id)) {
-          seenMatchIds.add(m.id);
-          uniqueMatches.push(m);
-        }
-      }
-      uniqueMatches.sort((a, b) => {
-        const dateCmp = (b.date || '').localeCompare(a.date || '');
-        if (dateCmp !== 0) return dateCmp;
-        return (Number(b.endedAt || b.finishedAt || 0)) - (Number(a.endedAt || a.finishedAt || 0));
-      });
-
-      recentMatchForMvp = uniqueMatches.find(isEligibleMatch) || null;
-
-      // Si encontramos el partido, enriquecer con datos de sessions o convocations si faltaran
-      if (recentMatchForMvp && Array.isArray(clubData.sessions)) {
-        const fullS = clubData.sessions.find(s => s.id === recentMatchForMvp.id);
-        if (fullS) {
-          recentMatchForMvp = {
-            ...fullS,
-            ...recentMatchForMvp,
-            coachPicks: (recentMatchForMvp.coachPicks && recentMatchForMvp.coachPicks.length > 0) ? recentMatchForMvp.coachPicks : (fullS.coachPicks || []),
-            officialMvpId: recentMatchForMvp.officialMvpId || fullS.officialMvpId || fullS.mvpOfficialId || null,
-            stats: Object.keys(recentMatchForMvp.stats || {}).length > 0 ? recentMatchForMvp.stats : (fullS.stats || {})
-          };
-        }
-      }
-
-      if (recentMatchForMvp) {
-        const isOfficialSet = !!(recentMatchForMvp.officialMvpId || recentMatchForMvp.mvpOfficialId);
-        const officialId = recentMatchForMvp.officialMvpId || recentMatchForMvp.mvpOfficialId;
-        const officialPlayer = isOfficialSet ? (clubData.players || []).find(p => p.id === officialId) : null;
-        const myVotedId = (recentMatchForMvp.votes && recentMatchForMvp.votes[myP.id]) ||
-                          (window._myVotedMvpBySession && window._myVotedMvpBySession[recentMatchForMvp.id]) ||
-                          localStorage.getItem('my_mvp_vote_' + recentMatchForMvp.id);
-        const votedPlayer = myVotedId ? (clubData.players || []).find(p => p.id === myVotedId) : null;
-
-        let statusSubtitle = t('chooseBestTeammate', 'Vota al mejor compañero del partido');
-        let btnLabel = `⭐ ${t('voteMatchMvp', 'Votar')}`;
-        if (isOfficialSet && officialPlayer) {
-          statusSubtitle = `⭐ ${t('mvpOfficialWinner', '⭐ MVP Oficial: {name}!').replace('{name}', officialPlayer.name || '')}`;
-          btnLabel = `⭐ ${t('viewMvp', 'Ver MVP')}`;
-        } else if (votedPlayer) {
-          statusSubtitle = `✅ ${t('mvpYouVotedFor', 'Has votado a {name}').replace('{name}', (votedPlayer.name || '') + (votedPlayer.lastName ? ' ' + votedPlayer.lastName : ''))}`;
-          btnLabel = `✏️ ${t('mvpChangeVote', 'Cambiar voto')}`;
-        }
-
-        mvpBannerHtml = `
-          <div class="card" id="banner-vote-mvp" style="margin-bottom: 12px; background: linear-gradient(135deg, rgba(234, 179, 8, 0.18) 0%, rgba(202, 138, 4, 0.28) 100%); border: 1.5px solid #eab308; border-radius: 16px; padding: 12px 14px; box-shadow: 0 4px 20px rgba(234, 179, 8, 0.2); cursor: pointer;">
-            <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
-              <div style="display: flex; align-items: center; gap: 10px;">
-                <span style="font-size: 26px;">👑</span>
-                <div>
-                  <div style="font-size: 11px; font-weight: 800; color: #facc15; text-transform: uppercase; letter-spacing: 0.6px;">
-                    ${t('mvpBannerTitle', '👑 ¡Votación del MVP del Partido!')}
-                  </div>
-                  <div style="font-size: 14px; font-weight: 900; color: #fff; margin-top: 1px;">
-                    ${recentMatchForMvp.rival ? `vs ${escapeHtml(recentMatchForMvp.rival)}` : escapeHtml(recentMatchForMvp.title || 'Partido')}
-                  </div>
-                  <div style="font-size: 11px; color: #fde047; margin-top: 1px;">
-                    ${statusSubtitle}
-                  </div>
-                </div>
-              </div>
-              <button type="button" class="btn sm" style="background: #eab308; color: #000; font-weight: 900; font-size: 11.5px; border-radius: 10px; border: none; padding: 6px 12px; white-space: nowrap;">
-                ${btnLabel}
-              </button>
-            </div>
-          </div>
-        `;
-      }
-    }
-
     view.innerHTML = `
       <div style="padding: 10px 0;">
+        ${mvpBannerHtml}
         ${bannerHtml}
         ${identityPromptCardHtml}
-        ${mvpBannerHtml}
 
         <!-- FILTROS DE CONVOCATORIAS: TODOS, PARTIDOS, ENTRENAMIENTOS -->
         <div class="segmented" style="display: flex; gap: 4px; margin-bottom: 12px; background: var(--surface2); padding: 4px; border-radius: 12px; border: 1px solid var(--border);">
@@ -8135,7 +8233,7 @@
       return;
     }
     const teams = clubData && clubData.teams ? clubData.teams : [];
-    let players = (clubData && clubData.players) ? clubData.players.slice().sort((a,b) => (a.name||'').localeCompare(b.name||'')) : [];
+    let players = (clubData && clubData.players) ? clubData.players.filter(p => !p.isTestPlayer && !p.isTest && p.id !== 'test_player_profile').slice().sort((a,b) => (a.name||'').localeCompare(b.name||'')) : [];
 
     if (activeTeamFilter !== 'all') {
       players = players.filter(p => p.teamId === activeTeamFilter);
@@ -8861,7 +8959,7 @@
       renderNoProfileAccessView(t('h2h', 'Face to Face'));
       return;
     }
-    const players = clubData && clubData.players ? clubData.players : [];
+    const players = clubData && clubData.players ? clubData.players.filter(p => !p.isTestPlayer && !p.isTest && p.id !== 'test_player_profile') : [];
 
     if (players.length < 2) {
       view.innerHTML = `

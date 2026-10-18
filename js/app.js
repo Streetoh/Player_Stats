@@ -7991,9 +7991,10 @@
         <div class="topbar">
           <div>
             <h1>${t('playerSquad')}</h1>
-            <span class="sub">${Store.state.players.length} ${t('totalPlayersSuffix')}</span>
+            <span class="sub">${Store.realPlayersCount ? Store.realPlayersCount() : Store.state.players.filter(p => !p.isTestPlayer && !p.isTest).length} ${t('totalPlayersSuffix')}</span>
           </div>
           <div class="row">
+            <button class="icon-btn" id="btn-test-player-modal" title="${t('testPlayerProfile', 'Perfil de Jugador de Prueba (Modo Test)')}" style="color: #facc15; font-size: 18px;">🧪</button>
             <button class="icon-btn" id="btn-manage-teams" title="${t('manageTeams')}">${icon('shield', 20)}</button>
             <button class="icon-btn" id="btn-import-players" title="${t('importPlayers')}">${icon('upload', 20)}</button>
           </div>
@@ -8098,6 +8099,9 @@
 
       const btnTeamsTop = view.querySelector('#btn-manage-teams');
       if (btnTeamsTop) btnTeamsTop.onclick = () => showManageTeamsModal(() => build());
+
+      const btnTestModal = view.querySelector('#btn-test-player-modal');
+      if (btnTestModal) btnTestModal.onclick = () => showTestPlayerConfigModal(() => build());
 
       view.querySelectorAll('.player-item').forEach(el => {
         el.onclick = () => {
@@ -10651,6 +10655,140 @@
         if (onSaved) onSaved(saved);
       };
     });
+  }
+
+  /* =========================================================
+     MODAL DE CONFIGURACIÓN DEL PERFIL DE JUGADOR DE PRUEBA
+     ========================================================= */
+  function showTestPlayerConfigModal(onDone) {
+    const tp = Store.ensureTestPlayer();
+    const teams = Store.state.teams || [];
+
+    const overlay = document.createElement('div');
+    overlay.className = 'dialog-overlay';
+    overlay.id = 'dialog-test-player-config';
+    overlay.style.zIndex = '999999';
+
+    const portalBaseUrl = (Store.state.settings && Store.state.settings.convocatoriaWebUrl)
+      ? Store.state.settings.convocatoriaWebUrl.replace(/convocatoria\.html.*$/, 'jugadores.html')
+      : 'jugadores.html';
+    const testPlayerUrl = portalBaseUrl + (portalBaseUrl.includes('?') ? '&' : '?') + 'test_player=1';
+
+    overlay.innerHTML = `
+      <div class="dialog-box" style="width: 92%; max-width: 460px; max-height: 88vh; overflow-y: auto;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 26px;">🧪</span>
+            <div>
+              <h3 style="margin: 0; font-size: 17px; font-weight: 900; color: #fff;">${t('testPlayerProfile', 'Perfil de Jugador de Prueba')}</h3>
+              <small style="color: var(--muted); font-size: 11.5px;">Modo Test del Entrenador</small>
+            </div>
+          </div>
+          <button type="button" class="icon-btn ghost" id="btn-close-test-modal" style="width: 32px; height: 32px;">✕</button>
+        </div>
+
+        <div style="background: rgba(250, 204, 21, 0.1); border: 1px solid rgba(250, 204, 21, 0.35); border-radius: 12px; padding: 10px 12px; margin-bottom: 14px; font-size: 12px; color: #fde047; line-height: 1.45;">
+          ℹ️ ${t('testProfileDesc', 'Este perfil es invisible para jugadores reales (no aparece en plantillas, listas ni clasificaciones). Recibe automáticamente las convocatorias de su equipo asignado y permite votar y verificar el MVP.')}
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px;">
+          <div>
+            <label style="display: block; font-size: 12px; font-weight: 800; color: var(--muted); margin-bottom: 4px;">
+              🛡️ ${t('assignedTeam', 'Equipo Asignado')}
+            </label>
+            <select id="test-player-select-team" class="input" style="width: 100%; height: 42px; border-radius: 10px; font-size: 13.5px; font-weight: 800; background: var(--bg2); color: #fff; border: 1px solid var(--border);">
+              <option value="all" ${(tp.teamId === 'all' || !tp.teamId) ? 'selected' : ''}>🌐 ${t('allTeams', 'Todos los equipos')}</option>
+              ${teams.map(tm => `
+                <option value="${tm.id}" ${tp.teamId === tm.id ? 'selected' : ''}>🛡️ ${escapeHtml(tm.name)}</option>
+              `).join('')}
+            </select>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 10px;">
+            <div>
+              <label style="display: block; font-size: 12px; font-weight: 800; color: var(--muted); margin-bottom: 4px;">
+                👤 ${t('playerName', 'Nombre')}
+              </label>
+              <input type="text" id="test-player-inp-name" value="${escapeHtml(tp.name || 'Jugador Test')}" class="input" style="width: 100%; height: 40px; border-radius: 10px; font-size: 13px; background: var(--bg2); color: #fff; border: 1px solid var(--border);" />
+            </div>
+            <div>
+              <label style="display: block; font-size: 12px; font-weight: 800; color: var(--muted); margin-bottom: 4px;">
+                🔢 ${t('dorsal', 'Dorsal')}
+              </label>
+              <input type="number" id="test-player-inp-dorsal" value="${tp.mainDorsal != null ? tp.mainDorsal : 99}" class="input" style="width: 100%; height: 40px; border-radius: 10px; font-size: 13px; background: var(--bg2); color: #fff; border: 1px solid var(--border);" />
+            </div>
+          </div>
+
+          <div>
+            <label style="display: block; font-size: 12px; font-weight: 800; color: var(--muted); margin-bottom: 4px;">
+              🔑 PIN de Acceso Rápido
+            </label>
+            <input type="text" id="test-player-inp-pin" value="${escapeHtml(tp.securityCode || '0000')}" maxlength="6" class="input" style="width: 100%; height: 40px; border-radius: 10px; font-size: 13px; background: var(--bg2); color: #fff; border: 1px solid var(--border);" />
+            <small style="color: var(--muted); font-size: 11px;">Código para acceder desde la App de Jugadores (por defecto 0000).</small>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <button type="button" class="btn primary" id="btn-save-test-player" style="height: 42px; font-weight: 900; font-size: 13.5px; border-radius: 12px;">
+            💾 ${t('save', 'Guardar Cambios')}
+          </button>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <button type="button" class="btn secondary" id="btn-modal-open-test-player" style="height: 38px; font-size: 12px; font-weight: 800; color: #facc15; border-color: rgba(250, 204, 21, 0.5);">
+              📲 ${t('openAsTestPlayer', 'Abrir App como Test')}
+            </button>
+            <button type="button" class="btn secondary" id="btn-modal-copy-test-link" style="height: 38px; font-size: 12px; font-weight: 800;">
+              📋 ${t('copyTestLink', 'Copiar Enlace')}
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    function close() { overlay.remove(); }
+    overlay.querySelector('#btn-close-test-modal').onclick = close;
+    overlay.onclick = (e) => { if (e.target === overlay) close(); };
+
+    overlay.querySelector('#btn-save-test-player').onclick = () => {
+      const teamId = overlay.querySelector('#test-player-select-team').value;
+      const name = overlay.querySelector('#test-player-inp-name').value.trim() || 'Jugador Test';
+      const dorsal = parseInt(overlay.querySelector('#test-player-inp-dorsal').value, 10) || 99;
+      const pin = overlay.querySelector('#test-player-inp-pin').value.trim() || '0000';
+
+      Store.ensureTestPlayer({
+        teamId: teamId,
+        assignedTeamIds: teamId === 'all' ? [] : [teamId],
+        name: name,
+        mainDorsal: dorsal,
+        securityCode: pin
+      });
+
+      const tm = Store.team(teamId);
+      toast(t('testPlayerAssignedToast', 'Jugador de prueba asignado a {team}').replace('{team}', tm ? tm.name : t('allTeams', 'Todos los equipos')), 'success');
+      close();
+      if (typeof onDone === 'function') onDone();
+    };
+
+    overlay.querySelector('#btn-modal-open-test-player').onclick = () => {
+      if (window.AndroidBridge && window.AndroidBridge.openCustomTab) {
+        window.AndroidBridge.openCustomTab(testPlayerUrl);
+      } else {
+        window.open(testPlayerUrl, '_blank');
+      }
+    };
+
+    overlay.querySelector('#btn-modal-copy-test-link').onclick = () => {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(testPlayerUrl).then(() => {
+          toast(t('linkCopied', '¡Enlace copiado al portapapeles!'), 'success');
+        }).catch(() => {
+          prompt('Copia este enlace:', testPlayerUrl);
+        });
+      } else {
+        prompt('Copia este enlace:', testPlayerUrl);
+      }
+    };
+
+    document.body.appendChild(overlay);
   }
 
   /* =========================================================
@@ -14206,6 +14344,7 @@
   function renderConfigView(view) {
     const settings = Store.state.settings;
     const coachProfile = Store.state.coachProfile || {};
+    const testP = Store.ensureTestPlayer();
 
     view.innerHTML = `
       <div class="topbar">
@@ -14315,6 +14454,39 @@
           </button>
           <button class="btn btn-secondary block" id="btn-force-players-cache-wipe" style="height: 42px; font-size: 12.5px; font-weight: 800; color: #facc15; border: 1.5px solid rgba(250, 204, 21, 0.5); background: rgba(250, 204, 21, 0.12); display: flex; align-items: center; justify-content: center; gap: 8px;">
             🧹 ${t('forcePlayersCacheWipe', 'Forzar Borrado de Caché en Jugadores (App y PWA)')}
+          </button>
+        </div>
+      </div>
+
+      <!-- Perfil de Jugador de Prueba (Modo Test) -->
+      <div class="section-title"><span>🧪 ${t('testPlayerProfile', 'Perfil de Jugador de Prueba (Modo Test)')}</span></div>
+      <div class="card" style="margin-bottom: 14px; border: 1.5px dashed rgba(250, 204, 21, 0.6); background: linear-gradient(135deg, rgba(250, 204, 21, 0.08) 0%, rgba(15, 23, 42, 0.7) 100%);">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+          <div>
+            <h5 style="margin: 0; font-size: 14px; font-weight: 800; color: #fff;">🧪 ${t('testPlayer', 'Jugador de Prueba')}</h5>
+            <small style="color: var(--muted); font-size: 11px;">${t('testProfileDesc', 'Perfil invisible para verificar convocatorias y votaciones MVP.')}</small>
+          </div>
+          <span class="badge" style="background: rgba(250, 204, 21, 0.2); color: #facc15; font-size: 11px; font-weight: 800; border: 1px solid rgba(250, 204, 21, 0.4);">Modo Test</span>
+        </div>
+
+        <div style="margin-bottom: 12px;">
+          <label style="font-size: 12px; font-weight: 800; color: var(--muted); display: block; margin-bottom: 4px;">
+            🛡️ ${t('assignedTeam', 'Equipo asignado')}:
+          </label>
+          <select id="config-test-player-team" class="input" style="width: 100%; height: 40px; border-radius: 10px; font-size: 13.5px; font-weight: 800; background: var(--bg2); color: #fff; border: 1px solid var(--border);">
+            <option value="all" ${(testP && (testP.teamId === 'all' || !testP.teamId)) ? 'selected' : ''}>🌐 ${t('allTeams', 'Todos los equipos')}</option>
+            ${Store.state.teams.map(tm => `
+              <option value="${tm.id}" ${(testP && testP.teamId === tm.id) ? 'selected' : ''}>🛡️ ${escapeHtml(tm.name)}</option>
+            `).join('')}
+          </select>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+          <button type="button" class="btn secondary" id="btn-config-open-test-player" style="height: 38px; font-size: 11.5px; font-weight: 800; color: #facc15; border-color: rgba(250, 204, 21, 0.5);">
+            📲 ${t('openAsTestPlayer', 'Abrir App como Test')}
+          </button>
+          <button type="button" class="btn secondary" id="btn-config-copy-test-link" style="height: 38px; font-size: 11.5px; font-weight: 800;">
+            📋 ${t('copyTestLink', 'Copiar Enlace')}
           </button>
         </div>
       </div>
@@ -14508,6 +14680,47 @@
       btnSharePortalViber.onclick = () => {
         const viberMsg = `⚽ *Portal Oficial del Jugador - Jõhvi JK Noova*\nConsulta tus estadísticas individuales, convocatorias y confirma tu asistencia en vivo:\n👉 ${portalUrl}`;
         dispatchViberShare(viberMsg);
+      };
+    }
+
+    // Configuración del Perfil de Jugador de Prueba (Modo Test)
+    const selTestTeam = view.querySelector('#config-test-player-team');
+    if (selTestTeam) {
+      selTestTeam.onchange = () => {
+        const teamId = selTestTeam.value;
+        Store.ensureTestPlayer({
+          teamId: teamId,
+          assignedTeamIds: teamId === 'all' ? [] : [teamId]
+        });
+        const tm = Store.team(teamId);
+        toast(t('testPlayerAssignedToast', 'Jugador de prueba asignado a {team}').replace('{team}', tm ? tm.name : t('allTeams', 'Todos los equipos')), 'success');
+      };
+    }
+
+    const testPlayerPortalUrl = portalUrl + '?test_player=1';
+    const btnOpenTestPlayer = view.querySelector('#btn-config-open-test-player');
+    if (btnOpenTestPlayer) {
+      btnOpenTestPlayer.onclick = () => {
+        if (window.AndroidBridge && window.AndroidBridge.openCustomTab) {
+          window.AndroidBridge.openCustomTab(testPlayerPortalUrl);
+        } else {
+          window.open(testPlayerPortalUrl, '_blank');
+        }
+      };
+    }
+
+    const btnCopyTestLink = view.querySelector('#btn-config-copy-test-link');
+    if (btnCopyTestLink) {
+      btnCopyTestLink.onclick = () => {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(testPlayerPortalUrl).then(() => {
+            toast(t('linkCopied', '¡Enlace copiado al portapapeles!'), 'success');
+          }).catch(() => {
+            prompt('Copia este enlace:', testPlayerPortalUrl);
+          });
+        } else {
+          prompt('Copia este enlace:', testPlayerPortalUrl);
+        }
       };
     }
 
