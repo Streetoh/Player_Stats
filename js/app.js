@@ -1788,7 +1788,7 @@
         } else if (type === 'session_finished') {
           toast(t('sessionFinishedByHost', 'El anfitrión ha finalizado la sesión. Guardada en tu historial.'), 'info');
           closeTracker();
-          navigate('history');
+          navigate('convocations');
         }
       });
     }
@@ -1824,9 +1824,8 @@
     if (!bar) return;
     const tabs = [
       { id: 'home',         label: t('home'),         ic: 'home' },
-      { id: 'history',      label: t('sessions'),     ic: 'calendar' },
-      { id: 'players',      label: t('players'),      ic: 'users' },
       { id: 'convocations', label: t('convocations'), ic: 'clipboard' },
+      { id: 'players',      label: t('players'),      ic: 'users' },
       { id: 'chat',         label: t('chat', 'Chat'), ic: 'message' },
       { id: 'stats',        label: t('metrics'),      ic: 'chart' },
       { id: 'config',       label: t('settings'),     ic: 'sliders' }
@@ -1866,6 +1865,7 @@
   }
 
   function navigate(tab) {
+    if (tab === 'history') tab = 'convocations';
     currentTab = tab;
     renderTabbar();
     const view = document.getElementById('view');
@@ -1874,9 +1874,8 @@
 
     switch (tab) {
       case 'home':         renderHomeView(view); break;
-      case 'history':      renderHistoryView(view); break;
-      case 'players':      renderPlayersView(view); break;
       case 'convocations': renderConvocationsView(view); break;
+      case 'players':      renderPlayersView(view); break;
       case 'chat':         renderChatView(view); break;
       case 'stats':        renderStatsView(view); break;
       case 'config':       renderConfigView(view); break;
@@ -1886,10 +1885,13 @@
   /* =========================================================
      VISTA 1: INICIO (HOME)
      ========================================================= */
+  let _homeNotifsExpanded = false;
+
   function renderHomeNotificationsHtml() {
     const notifs = NotifManager.getAll();
     const pendingReqsCount = (pendingProfileRequests || []).length + (pendingPlayerCreationRequests || []).length + (pendingProfileClaimRequests || []).length;
     const totalCount = Math.max(NotifManager.getUnreadCount(), pendingReqsCount);
+    const displayedNotifs = (notifs.length > 1 && !_homeNotifsExpanded) ? notifs.slice(0, 1) : notifs.slice(0, 15);
 
     return `
       <div class="card" style="margin-bottom: 16px; border: 1.5px solid ${totalCount > 0 ? 'rgba(34, 211, 238, 0.4)' : 'var(--border)'}; background: ${totalCount > 0 ? 'rgba(34, 211, 238, 0.04)' : 'var(--surface)'};">
@@ -1921,8 +1923,8 @@
             🎉 ¡Todo al día! No tienes notificaciones ni solicitudes pendientes.
           </div>
         ` : `
-          <div style="display: flex; flex-direction: column; gap: 8px; max-height: 280px; overflow-y: auto; padding: 2px;">
-            ${notifs.slice(0, 10).map(n => {
+          <div style="display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow-y: auto; padding: 2px;">
+            ${displayedNotifs.map(n => {
               let ic = '🔔';
               if (n.type === 'profile_req') ic = '🔄';
               else if (n.type === 'creation_req') ic = '➕';
@@ -1950,6 +1952,13 @@
               `;
             }).join('')}
           </div>
+
+          ${notifs.length > 1 ? `
+            <button type="button" class="btn sm ghost block" id="btn-home-toggle-notifs" style="width: 100%; margin-top: 8px; font-size: 11.5px; font-weight: 800; border-radius: 8px; border: 1px dashed rgba(34, 211, 238, 0.4); color: var(--cyan); padding: 5px 8px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+              <span>${_homeNotifsExpanded ? '▲' : '▼'}</span>
+              <span>${_homeNotifsExpanded ? t('showLessNotifs', 'Plegar notificaciones') : t('showMoreNotifs', 'Ver {count} notificaciones más').replace('{count}', notifs.length - 1)}</span>
+            </button>
+          ` : ''}
         `}
       </div>
     `;
@@ -1973,6 +1982,14 @@
     if (btnHomeClearAll) {
       btnHomeClearAll.onclick = () => {
         NotifManager.clearAll();
+        refreshHomeNotifications();
+      };
+    }
+
+    const btnToggleNotifs = container.querySelector('#btn-home-toggle-notifs');
+    if (btnToggleNotifs) {
+      btnToggleNotifs.onclick = () => {
+        _homeNotifsExpanded = !_homeNotifsExpanded;
         refreshHomeNotifications();
       };
     }
@@ -2044,13 +2061,13 @@
       window.Store.autoCreateTodayScheduledSessions();
     }
     const totalPlayers = Store.state.players.length;
-    const totalTrainings = Store.state.sessions.filter(s => s.type === 'training').length;
-    const totalMatches = Store.state.sessions.filter(s => s.type === 'match').length;
     const todayIso = getTodayIso();
+    const tomorrowIso = getTomorrowIso();
     const allSessions = Store.state.sessions || [];
     const todaySessions = allSessions.filter(s => s.date === todayIso);
-    const futureSessions = allSessions.filter(s => s.date > todayIso).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    const tomorrowSessions = allSessions.filter(s => s.date === tomorrowIso);
     const pastSessions = allSessions.filter(s => s.date < todayIso).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    const futureSessions = allSessions.filter(s => s.date > tomorrowIso).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
 
     let html = `
       <div class="topbar">
@@ -2064,24 +2081,9 @@
         ${renderLangButton()}
       </div>
 
-      <!-- Notificaciones y Solicitudes en Inicio -->
+      <!-- Notificaciones y Solicitudes en Inicio (Ventana Expandible) -->
       <div id="home-notifications-container">
         ${renderHomeNotificationsHtml()}
-      </div>
-
-      <div class="quick-stats">
-        <div class="qs clickable" id="qs-players" title="${t('viewPlayers', 'Ver Jugadores')}">
-          <b>${totalPlayers}</b>
-          <span>${t('players')}</span>
-        </div>
-        <div class="qs clickable" id="qs-trainings" title="${t('viewTrainings', 'Ver Entrenamientos')}">
-          <b style="color: var(--train);">${totalTrainings}</b>
-          <span>${t('training')}</span>
-        </div>
-        <div class="qs clickable" id="qs-matches" title="${t('viewMatches', 'Ver Partidos')}">
-          <b style="color: var(--match);">${totalMatches}</b>
-          <span>${t('match')}</span>
-        </div>
       </div>
 
       ${totalPlayers === 0 ? `
@@ -2108,24 +2110,38 @@
             <p>${t('noSessionsDesc')}</p>
           </div>
         ` : `
+          <!-- 1. Sesiones de Hoy -->
           ${todaySessions.length > 0 ? `
-            <div style="font-size: 12.5px; font-weight: 800; color: var(--cyan); margin-bottom: 2px; display: flex; align-items: center; gap: 6px;">
+            <div style="font-size: 13px; font-weight: 800; color: var(--cyan); margin-bottom: 2px; display: flex; align-items: center; gap: 6px;">
               <span>⚡</span> ${t('todaySessions', 'Sesiones de Hoy')} (${todaySessions.length})
             </div>
             ${todaySessions.map(s => renderSessionItemHtml(s)).join('')}
           ` : `
-            <div class="card" style="padding: 14px; text-align: center; color: var(--muted); font-size: 12.5px; margin-bottom: 4px; border: 1px dashed var(--border);">
+            <div class="card" style="padding: 12px 14px; text-align: center; color: var(--muted); font-size: 12.5px; margin-bottom: 4px; border: 1px dashed var(--border);">
               📅 ${t('noSessionsToday', 'No hay sesiones programadas para hoy')}
             </div>
           `}
 
+          <!-- 2. Sesiones de Mañana -->
+          ${tomorrowSessions.length > 0 ? `
+            <div style="font-size: 13px; font-weight: 800; color: #a5b4fc; margin-top: 10px; margin-bottom: 2px; display: flex; align-items: center; gap: 6px;">
+              <span>🌅</span> ${t('tomorrowSessions', 'Sesiones de Mañana')} (${tomorrowSessions.length})
+            </div>
+            ${tomorrowSessions.map(s => renderSessionItemHtml(s)).join('')}
+          ` : `
+            <div class="card" style="padding: 12px 14px; text-align: center; color: var(--muted); font-size: 12.5px; margin-top: 6px; margin-bottom: 4px; border: 1px dashed var(--border);">
+              📅 ${t('noSessionsTomorrow', 'No hay sesiones programadas para mañana')}
+            </div>
+          `}
+
           ${futureSessions.length > 0 ? `
-            <div style="font-size: 12.5px; font-weight: 800; color: #a5b4fc; margin-top: 10px; margin-bottom: 2px; display: flex; align-items: center; gap: 6px;">
+            <div style="font-size: 12.5px; font-weight: 800; color: #cbd5e1; margin-top: 10px; margin-bottom: 2px; display: flex; align-items: center; gap: 6px;">
               <span>📅</span> ${t('futureSessionsTitle', 'Próximas Sesiones')} (${futureSessions.length})
             </div>
             ${futureSessions.map(s => renderSessionItemHtml(s)).join('')}
           ` : ''}
 
+          <!-- 3. Grupo de sesiones anteriores -->
           ${pastSessions.length > 0 ? `
             <details class="card past-convs-details" style="margin-top: 10px; padding: 0; border-radius: 14px; overflow: hidden; background: rgba(15, 23, 42, 0.5);">
               <summary style="cursor: pointer; padding: 12px 14px; font-size: 13px; font-weight: 800; display: flex; justify-content: space-between; align-items: center; user-select: none; list-style: none;">
@@ -2135,10 +2151,10 @@
                 <span style="font-size: 11px; color: var(--muted); font-weight: 700;">▼</span>
               </summary>
               <div style="display: flex; flex-direction: column; gap: 8px; padding: 10px 12px 14px; border-top: 1px solid rgba(255, 255, 255, 0.08);">
-                ${pastSessions.slice(0, 8).map(s => renderSessionItemHtml(s)).join('')}
-                ${pastSessions.length > 8 ? `
+                ${pastSessions.slice(0, 10).map(s => renderSessionItemHtml(s)).join('')}
+                ${pastSessions.length > 10 ? `
                   <button type="button" class="btn sm ghost" id="btn-home-see-all-past" style="margin-top: 6px; font-size: 12px; font-weight: 800;">
-                    ${t('seeAllSessions', 'Ver todas las sesiones en Historial')} (${pastSessions.length}) ➔
+                    ${t('seeAllConvs', 'Ver todas en Convocatorias')} (${pastSessions.length}) ➔
                   </button>
                 ` : ''}
               </div>
@@ -2153,28 +2169,51 @@
     const btnLang = view.querySelector('#btn-toggle-lang');
     if (btnLang) btnLang.onclick = toggleLanguage;
 
-    view.querySelector('#btn-see-all-sessions').onclick = () => navigate('history');
+    const btnSeeAll = view.querySelector('#btn-see-all-sessions');
+    if (btnSeeAll) btnSeeAll.onclick = () => navigate('convocations');
     const btnPast = view.querySelector('#btn-home-see-all-past');
-    if (btnPast) btnPast.onclick = () => navigate('history');
+    if (btnPast) btnPast.onclick = () => navigate('convocations');
 
     bindHomeNotificationsEvents(view.querySelector('#home-notifications-container'));
 
     const btnImp = view.querySelector('#btn-home-import');
     if (btnImp) btnImp.onclick = () => showImportModal();
 
-    const qsP = view.querySelector('#qs-players');
-    if (qsP) qsP.onclick = () => navigate('players');
-
-    const qsTr = view.querySelector('#qs-trainings');
-    if (qsTr) qsTr.onclick = () => showHomeSessionsListModal('training');
-
-    const qsMa = view.querySelector('#qs-matches');
-    if (qsMa) qsMa.onclick = () => showHomeSessionsListModal('match');
-
+    // Al pulsar en cualquier sesión de Inicio, navegar a Convocatorias y abrir la ficha de esa convocatoria
     view.querySelectorAll('.session-item').forEach(el => {
       el.onclick = () => {
         const id = el.getAttribute('data-id');
-        openTracker(id);
+        const s = Store.session(id);
+        if (!s) return;
+        let conv = s.convocationId ? Store.convocation(s.convocationId) : null;
+        if (!conv) {
+          conv = (Store.state.convocations || []).find(c => c.sessionId === s.id || (c.date === s.date && c.type === s.type));
+        }
+        if (!conv) {
+          conv = Store.upsertConvocation({
+            id: 'conv_' + s.id,
+            sessionId: s.id,
+            type: s.type,
+            title: Store.sessionTitle(s),
+            date: s.date,
+            time: s.time || '18:00',
+            endTime: s.endTime || '',
+            duration: s.duration || 90,
+            venue: s.venue || '',
+            address: s.address || '',
+            rival: s.rival || '',
+            teamId: s.teamId || '',
+            teamIds: Array.isArray(s.teamIds) ? s.teamIds : (s.teamId ? [s.teamId] : []),
+            notes: s.notes || '',
+            list: s.attendance || {}
+          });
+          s.convocationId = conv.id;
+          Store.save();
+        }
+        navigate('convocations');
+        setTimeout(() => {
+          showConvocationDetailsModal(conv);
+        }, 80);
       };
     });
 
@@ -2370,7 +2409,7 @@
 
             <div style="margin-top: 10px; text-align: center;">
               <button type="button" class="btn sm ghost" id="btn-modal-see-history" style="font-size: 12px; font-weight: 800; width: 100%;">
-                ${t('seeAllSessions', 'Ver todas las sesiones en Historial')} ➔
+                ${t('seeAllSessions', 'Ver todas las convocatorias')} ➔
               </button>
             </div>
           `}
@@ -2389,8 +2428,7 @@
       if (btnHist) {
         btnHist.onclick = () => {
           closeSheet();
-          historyInitialFilter = type;
-          navigate('history');
+          navigate('convocations');
         };
       }
 
@@ -2414,6 +2452,12 @@
 
   function getTodayIso() {
     const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  function getTomorrowIso() {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
 
@@ -2923,9 +2967,8 @@
         if (activeSessionId === sessionId) {
           renderTracker();
         }
-        if (currentTab === 'sessions' || currentTab === 'history') {
-          if (typeof renderSessionsView === 'function') renderSessionsView();
-          else if (typeof renderHistoryView === 'function') renderHistoryView();
+        if (currentTab === 'convocations') {
+          renderConvocationsView();
         } else if (currentTab === 'home') {
           renderHomeView();
         }
@@ -6380,15 +6423,12 @@
           <div style="font-size: 11.5px; font-weight: 800; color: var(--muted); margin-bottom: 6px; text-align: left;">
             ${t('shareCardWithImage', 'COMPARTIR FICHA CON IMAGEN PNG:')}
           </div>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px;">
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px;">
             <button class="btn btn-social" id="btn-share-wa" style="background: #16a34a; color: #fff; border-color: #22c55e;">
               ${icon('whatsapp', 18)} WhatsApp
             </button>
             <button class="btn btn-social" id="btn-share-tg" style="background: #0284c7; color: #fff; border-color: #38bdf8;">
               ${icon('send', 18)} Telegram
-            </button>
-            <button class="btn btn-social" id="btn-share-viber" style="background: #7c3aed; color: #fff; border-color: #a855f7;">
-              💜 Viber
             </button>
             <button class="btn btn-social" id="btn-share-all" style="background: var(--surface2); color: #fff;">
               ${icon('share', 18)} ${t('shareGeneric', 'Más...')}
@@ -6649,8 +6689,6 @@
                 window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`, '_blank');
               } else if (targetApp === 'telegram') {
                 window.open(`https://t.me/share/url?url=${encodeURIComponent('https://streetoh.github.io/Player_Stats/jugadores.html')}&text=${encodeURIComponent(shareText)}`, '_blank');
-              } else if (targetApp === 'viber') {
-                window.open(`viber://forward?text=${encodeURIComponent(shareText)}`, '_blank');
               } else {
                 if (navigator.share) {
                   navigator.share({ title: pName, text: shareText }).catch(() => {});
@@ -6663,7 +6701,6 @@
 
           body.querySelector('#btn-share-wa').onclick = () => handleSocialShare('whatsapp');
           body.querySelector('#btn-share-tg').onclick = () => handleSocialShare('telegram');
-          body.querySelector('#btn-share-viber').onclick = () => handleSocialShare('viber');
           body.querySelector('#btn-share-all').onclick = () => handleSocialShare('all');
           body.querySelector('#btn-share-guide').onclick = () => showSkillGuideModal();
         };
@@ -6722,15 +6759,12 @@
         <div style="font-size: 11.5px; font-weight: 800; color: var(--muted); margin-bottom: 6px; text-align: left;">
           COMPARTIR GUÍA CON IMAGEN (PNG):
         </div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;">
           <button class="btn btn-social" id="btn-guide-wa" style="background: #16a34a; color: #fff; border-color: #22c55e;">
             ${icon('whatsapp', 18)} WhatsApp
           </button>
           <button class="btn btn-social" id="btn-guide-tg" style="background: #0284c7; color: #fff; border-color: #38bdf8;">
             ${icon('send', 18)} Telegram
-          </button>
-          <button class="btn btn-social" id="btn-guide-viber" style="background: #7c3aed; color: #fff; border-color: #a855f7;">
-            💜 Viber
           </button>
           <button class="btn btn-social" id="btn-guide-all" style="background: var(--surface2); color: #fff;">
             ${icon('share', 18)} ${t('shareGeneric', 'Más...')}
@@ -6834,8 +6868,6 @@
               window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(guideText)}`, '_blank');
             } else if (app === 'telegram') {
               window.open(`https://t.me/share/url?url=${encodeURIComponent('https://streetoh.github.io/Player_Stats/jugadores.html')}&text=${encodeURIComponent(guideText)}`, '_blank');
-            } else if (app === 'viber') {
-              window.open(`viber://forward?text=${encodeURIComponent(guideText)}`, '_blank');
             } else {
               if (navigator.share) navigator.share({ title: 'Guía de Habilidades', text: guideText }).catch(() => {});
             }
@@ -6844,7 +6876,6 @@
 
         body.querySelector('#btn-guide-wa').onclick = () => shareGuide('whatsapp');
         body.querySelector('#btn-guide-tg').onclick = () => shareGuide('telegram');
-        body.querySelector('#btn-guide-viber').onclick = () => shareGuide('viber');
         body.querySelector('#btn-guide-all').onclick = () => shareGuide('all');
       }, 50);
     }, (foot) => {
@@ -7264,32 +7295,12 @@
     const s = Store.session(sessionId);
     if (!s) return;
 
-    const allPlayers = Store.state.players || [];
-    // Determinar equipo de la sesión o de los jugadores seguidos/asistentes
-    const trackedPlayerIds = new Set([
-      ...Object.keys(s.stats || {}).filter(pid => s.stats[pid] && Object.keys(s.stats[pid]).some(k => Number(s.stats[pid][k]) > 0)),
-      ...(s.slots || []).filter(Boolean)
-    ]);
-    const attendedPlayerIds = new Set(
-      Object.keys(s.attendance || {}).filter(pid => Store.hasPlayerAttended(s, pid))
-    );
-
-    const sessionTeams = Array.isArray(s.teamIds) && s.teamIds.length > 0
-      ? s.teamIds
-      : (s.teamId ? [s.teamId] : []);
-
     let linkedConv = s.convocationId ? Store.convocation(s.convocationId) : null;
     if (!linkedConv && Store.state && Array.isArray(Store.state.convocations)) {
       linkedConv = Store.state.convocations.find(cv => {
         if (cv.sessionId && cv.sessionId === s.id) return true;
         if (cv.id && s.convocationId && cv.id === s.convocationId) return true;
-        if (cv.date === s.date && cv.type === s.type) {
-          if (s.rival && cv.rival && s.rival.toLowerCase().trim() === cv.rival.toLowerCase().trim()) return true;
-          const cvTeams = Array.isArray(cv.teamIds) && cv.teamIds.length > 0 ? cv.teamIds : (cv.teamId ? [cv.teamId] : []);
-          const matchTeams = sessionTeams.length > 0 ? sessionTeams : (s.teamId ? [s.teamId] : []);
-          if (cvTeams.some(tid => matchTeams.includes(tid))) return true;
-          if (!s.rival && !cv.rival) return true;
-        }
+        if (cv.date === s.date && cv.type === s.type) return true;
         return false;
       });
       if (linkedConv && !s.convocationId) {
@@ -7298,589 +7309,35 @@
         Store.save();
       }
     }
-    const convCalledIds = new Set();
-    if (linkedConv && linkedConv.list) {
-      Object.keys(linkedConv.list).forEach(pid => {
-        const st = linkedConv.list[pid];
-        if (st && st !== 'uncalled' && st !== 'absent') {
-          convCalledIds.add(pid);
-        }
+    if (!linkedConv) {
+      linkedConv = Store.upsertConvocation({
+        id: 'conv_' + s.id,
+        sessionId: s.id,
+        type: s.type,
+        title: Store.sessionTitle(s),
+        date: s.date,
+        time: s.time || '18:00',
+        endTime: s.endTime || '',
+        duration: s.duration || 90,
+        venue: s.venue || '',
+        address: s.address || '',
+        rival: s.rival || '',
+        teamId: s.teamId || '',
+        teamIds: Array.isArray(s.teamIds) ? s.teamIds : (s.teamId ? [s.teamId] : []),
+        notes: s.notes || '',
+        list: s.attendance || {}
       });
+      s.convocationId = linkedConv.id;
+      Store.save();
     }
-
-    let defaultTeamFilter = (convCalledIds.size > 0)
-      ? 'convocados'
-      : (sessionTeams.length > 1 ? 'session_teams' : (sessionTeams[0] || 'all'));
-    if (defaultTeamFilter === 'all' && (trackedPlayerIds.size > 0 || attendedPlayerIds.size > 0)) {
-      for (const pid of [...trackedPlayerIds, ...attendedPlayerIds]) {
-        const p = Store.player(pid);
-        if (p && p.teamId) { defaultTeamFilter = p.teamId; break; }
-      }
-    }
-    let selectedTeamFilter = defaultTeamFilter;
-
-    let participatingTeams = [];
-    if (sessionTeams.length > 0) {
-      participatingTeams = sessionTeams.map(tid => Store.team(tid)).filter(Boolean);
-    }
-    if (participatingTeams.length === 0 && (trackedPlayerIds.size > 0 || attendedPlayerIds.size > 0)) {
-      const seen = new Set();
-      [...trackedPlayerIds, ...attendedPlayerIds].forEach(pid => {
-        const pl = Store.player(pid);
-        if (pl && pl.teamId && !seen.has(pl.teamId)) {
-          seen.add(pl.teamId);
-          const tm = Store.team(pl.teamId);
-          if (tm) participatingTeams.push(tm);
-        }
-      });
-    }
-
-    openSheet(Store.sessionTitle(s), (body) => {
-      function renderSquadContent() {
-        const teams = Store.state.teams || [];
-        const filteredPlayers = allPlayers.filter(p => {
-          if (selectedTeamFilter === 'convocados') {
-            return convCalledIds.has(p.id);
-          }
-          if (selectedTeamFilter === 'session_teams') {
-            return sessionTeams.length > 0 ? sessionTeams.includes(p.teamId) : true;
-          }
-          if (selectedTeamFilter === 'all') return true;
-          return p.teamId === selectedTeamFilter;
-        });
-
-        let convYesCount = 0;
-        let convNoCount = 0;
-        let convPendingCount = 0;
-
-        filteredPlayers.forEach(p => {
-          let cSt = null;
-          if (linkedConv) {
-            const resp = (linkedConv.responses && linkedConv.responses[p.id]) || null;
-            const st = (linkedConv.list && linkedConv.list[p.id]) || null;
-            if (resp) {
-              if (resp.status === 'attending' || resp.status === 'yes') cSt = 'yes';
-              else if (resp.status === 'absent' || resp.status === 'no') cSt = 'no';
-              else cSt = 'pending';
-            } else if (st === 'absent') {
-              cSt = 'no';
-            } else {
-              cSt = 'pending';
-            }
-          } else if (s.attendance && Object.keys(s.attendance).length > 0) {
-            const attSt = Store.getPlayerAttendanceStatus(s, p.id);
-            if (attSt === 'present' || attSt === 'late') cSt = 'yes';
-            else if (attSt === 'absent') cSt = 'no';
-            else cSt = 'pending';
-          } else {
-            cSt = 'pending';
-          }
-          if (cSt === 'yes') convYesCount++;
-          else if (cSt === 'no') convNoCount++;
-          else convPendingCount++;
-        });
-
-        const sortedSquad = filteredPlayers.slice().sort((a, b) => {
-          const aScore = (trackedPlayerIds.has(a.id) ? 4 : 0) + (Store.hasPlayerAttended(s, a.id) ? 2 : 0) + (convCalledIds.has(a.id) ? 1 : 0);
-          const bScore = (trackedPlayerIds.has(b.id) ? 4 : 0) + (Store.hasPlayerAttended(s, b.id) ? 2 : 0) + (convCalledIds.has(b.id) ? 1 : 0);
-          if (bScore !== aScore) return bScore - aScore;
-          return (a.name || '').localeCompare(b.name || '');
-        });
-        const trackedCount = sortedSquad.filter(p => trackedPlayerIds.has(p.id) || Store.hasPlayerAttended(s, p.id)).length;
-
-        // Calcular MVP del partido con volumen de juego o MVP Oficial fijado
-        let mvpMatchPlayer = null;
-        let mvpMatchRating = 0;
-        if (s.mvpOfficialId) {
-          mvpMatchPlayer = Store.player(s.mvpOfficialId);
-          if (mvpMatchPlayer) {
-            const st = (s.stats && s.stats[mvpMatchPlayer.id]) || {};
-            mvpMatchRating = Store.calculateMatchRating(st, mvpMatchPlayer.mainPosition);
-          }
-        }
-        if (!mvpMatchPlayer && s.type === 'match' && trackedPlayerIds.size > 0) {
-          allPlayers.forEach(p => {
-            if (trackedPlayerIds.has(p.id)) {
-              const st = (s.stats && s.stats[p.id]) || {};
-              let actCount = 0;
-              Object.keys(st).forEach(k => { actCount += (st[k] || 0); });
-              const r = Store.calculateMatchRating(st, p.mainPosition);
-              if (actCount >= 4 && r > mvpMatchRating) {
-                mvpMatchRating = r;
-                mvpMatchPlayer = p;
-              }
-            }
-          });
-          if (!mvpMatchPlayer) {
-            allPlayers.forEach(p => {
-              if (trackedPlayerIds.has(p.id)) {
-                const st = (s.stats && s.stats[p.id]) || {};
-                let actCount = 0;
-                Object.keys(st).forEach(k => { actCount += (st[k] || 0); });
-                const r = Store.calculateMatchRating(st, p.mainPosition);
-                if (actCount > 0 && r > mvpMatchRating && r >= 5.5) {
-                  mvpMatchRating = r;
-                  mvpMatchPlayer = p;
-                }
-              }
-            });
-          }
-        }
-
-        const isMatchFinished = Store.isSessionFinished(s);
-        const todayNormStr = new Date().toISOString().slice(0, 10);
-        const isFutureMatch = (s.date > todayNormStr);
-        const isTodayMatch = (s.date === todayNormStr);
-
-        body.innerHTML = `
-          <!-- Cabecera del partido o entrenamiento -->
-          ${s.type === 'match' ? `
-            ${isMatchFinished ? `
-              <div style="background: linear-gradient(135deg, rgba(250, 204, 21, 0.12), rgba(34, 211, 238, 0.12)); border: 1px solid rgba(250, 204, 21, 0.35); border-radius: 16px; padding: 14px; text-align: center; margin-bottom: 12px;">
-                <span class="badge match" style="font-size: 10.5px; padding: 2px 8px; margin-bottom: 6px;">🏁 ${t('matchFinished', 'PARTIDO FINALIZADO').toUpperCase()}</span>
-                <div style="font-size: 34px; font-weight: 900; font-variant-numeric: tabular-nums; margin: 4px 0;">
-                  <span>${(s.score && s.score.home) || 0}</span>
-                  <span style="color: var(--dim); margin: 0 10px;">:</span>
-                  <span>${(s.score && s.score.away) || 0}</span>
-                </div>
-                <div style="font-size: 15px; font-weight: 800; color: var(--text);">
-                  ${escapeHtml(Store.sessionTitle(s))}
-                </div>
-                <div class="muted" style="font-size: 12px; margin-top: 4px;">
-                  📅 ${formatDateDDMMAAAA(s.date)} • ⏱️ ${Store.fmtTime(Store.elapsed(s), s)} ${s.venue ? '• 📍 ' + escapeHtml(s.venue) : ''}
-                </div>
-              </div>
-            ` : `
-              <div style="background: linear-gradient(135deg, rgba(56, 189, 248, 0.12), rgba(34, 211, 238, 0.12)); border: 1.5px solid rgba(56, 189, 248, 0.35); border-radius: 16px; padding: 14px; text-align: center; margin-bottom: 12px;">
-                <span class="badge" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid #38bdf8; font-size: 10.5px; padding: 2px 8px; margin-bottom: 6px; font-weight: 800;">
-                  ${isFutureMatch ? t('upcomingMatch', 'PRÓXIMO PARTIDO').toUpperCase() : (isTodayMatch ? t('todayMatchBadge', 'HOY • PARTIDO PROGRAMADO').toUpperCase() : t('scheduledMatch', 'PARTIDO PROGRAMADO').toUpperCase())}
-                </span>
-                <div style="font-size: 26px; font-weight: 900; color: #38bdf8; margin: 6px 0;">
-                  VS
-                </div>
-                <div style="font-size: 15px; font-weight: 800; color: var(--text);">
-                  ${escapeHtml(Store.sessionTitle(s))}
-                </div>
-                <div class="muted" style="font-size: 12px; margin-top: 4px;">
-                  📅 ${formatDateDDMMAAAA(s.date)} ${s.time ? '• ⏰ ' + s.time : ''} ${s.venue ? '• 📍 ' + escapeHtml(s.venue) : ''}
-                </div>
-                <div style="display: flex; gap: 8px; justify-content: center; margin-top: 10px; flex-wrap: wrap;">
-                  <button type="button" class="btn sm primary" id="btn-start-match-live" style="font-weight: 800; font-size: 12px; border-radius: 8px;">
-                    ▶️ ${t('openLiveTracker', 'Abrir Tracker en Vivo')}
-                  </button>
-                  <button type="button" class="btn sm" id="btn-mark-match-finished" style="background: rgba(250, 204, 21, 0.2); color: #facc15; border: 1px solid #facc15; font-weight: 800; font-size: 12px; border-radius: 8px;">
-                    🏁 ${t('markAsFinished', 'Marcar como Finalizado')}
-                  </button>
-                </div>
-              </div>
-            `}
-
-            <!-- Panel de Gestión y Votación de MVP de Partido (Solo visible si finalizado) -->
-            ${isMatchFinished ? `
-              <div class="card" id="card-match-mvp-action" style="margin-bottom: 12px; background: rgba(250, 204, 21, 0.08); border: 1.5px solid rgba(250, 204, 21, 0.35); padding: 12px 14px; border-radius: 14px; display: flex; flex-direction: column; gap: 10px; cursor: pointer;">
-                <div style="display: flex; align-items: center; gap: 10px;">
-                  <span style="font-size: 24px; flex-shrink: 0;">👑</span>
-                  <div style="flex: 1; min-width: 0;">
-                    <b style="font-size: 13.5px; color: #fde047; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                      ${s.mvpOfficialId ? '⭐ ' + t('officialMvpConfirmed', 'MVP Oficial Confirmado') : t('matchMvpVotingTitle', 'Votación del MVP del Partido')}
-                    </b>
-                    <span id="label-mvp-votes-tally" style="font-size: 11.5px; color: var(--muted); display: block; margin-top: 2px;">
-                      ${s.mvpOfficialId && Store.player(s.mvpOfficialId) ? `${escapeHtml(Store.playerName(Store.player(s.mvpOfficialId)))} (#${Store.player(s.mvpOfficialId).mainDorsal || ''})` : t('tapToManageMvp', 'Toca para nombrar el MVP oficial o consultar votos')}
-                    </span>
-                  </div>
-                </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%;">
-                  <button type="button" class="btn sm" id="btn-view-mvp-breakdown" style="background: rgba(34, 197, 94, 0.2); color: #86efac; border: 1px solid rgba(34, 197, 94, 0.5); font-weight: 800; font-size: 12px; padding: 7px 10px; border-radius: 9px; display: flex; align-items: center; justify-content: center; gap: 5px; width: 100%; white-space: nowrap;">
-                    👁️ ${t('viewVotesDetail', 'Ver votos')}
-                  </button>
-                  <button type="button" class="btn sm" id="btn-manage-match-mvp" style="background: rgba(250, 204, 21, 0.2); color: #fde047; border: 1px solid rgba(250, 204, 21, 0.5); font-weight: 800; font-size: 12px; padding: 7px 10px; border-radius: 9px; display: flex; align-items: center; justify-content: center; gap: 5px; width: 100%; white-space: nowrap;">
-                    ⭐ ${s.mvpOfficialId ? t('changeMvp', 'Cambiar MVP') : t('nameMvp', 'Nombrar MVP')}
-                  </button>
-                </div>
-              </div>
-
-              <!-- Panel de Destacados del Entrenador (Coach Picks, máx 3) -->
-              <div class="card" id="card-coach-picks-action" style="margin-bottom: 12px; background: rgba(168, 85, 247, 0.08); border: 1.5px solid rgba(168, 85, 247, 0.35); padding: 12px 14px; border-radius: 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer;">
-                <div style="display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0;">
-                  <span style="font-size: 24px; flex-shrink: 0;">🌟</span>
-                  <div style="flex: 1; min-width: 0;">
-                    <b style="font-size: 13.5px; color: #c084fc; display: block;">
-                      ${t('mvp_coach_picks_title', 'Destacados por el Míster')}
-                    </b>
-                    <span style="font-size: 11.5px; color: var(--muted); display: block; margin-top: 2px;">
-                      ${(s.coachPicks && s.coachPicks.length > 0) ? `${s.coachPicks.length} ${t('nominatedForTeammatesVote', 'nominados para la votación de compañeros')}` : t('nominateTop3Desc', 'Nominar hasta 3 jugadores con comentario para guiar los votos')}
-                    </span>
-                  </div>
-                </div>
-                <button type="button" class="btn sm" id="btn-manage-coach-picks" style="background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.5); font-weight: 800; font-size: 11.5px; white-space: nowrap; flex-shrink: 0;">
-                  🌟 ${(s.coachPicks && s.coachPicks.length > 0) ? t('editCoachPicks', 'Editar Destacados') : t('nominateTop3', 'Nominar Top 3')}
-                </button>
-              </div>
-            ` : `
-              <div class="card" style="margin-bottom: 12px; background: rgba(255, 255, 255, 0.03); border: 1px dashed rgba(255, 255, 255, 0.15); padding: 10px 14px; border-radius: 12px; display: flex; align-items: center; gap: 10px;">
-                <span style="font-size: 20px;">⏳</span>
-                <span style="font-size: 12px; color: var(--muted);">
-                  ${t('mvpVotingActivatesOnFinished', 'La votación del MVP y destacados se activarán cuando marques el partido como finalizado.')}
-                </span>
-              </div>
-            `}
-
-            ${(mvpMatchPlayer && (mvpMatchRating >= 5.5 || s.mvpOfficialId)) ? `
-              <div class="mvp-match-banner" id="banner-match-mvp" style="cursor: pointer;" title="Toca para ver ficha de ${escapeHtml(Store.playerName(mvpMatchPlayer))}">
-                <div style="font-size: 26px;">⭐</div>
-                ${renderAvatar(mvpMatchPlayer, 'md')}
-                <div class="grow" style="line-height: 1.2;">
-                  <div style="font-size: 10px; font-weight: 800; color: #facc15; text-transform: uppercase; letter-spacing: 0.5px;">
-                    ${s.mvpOfficialId ? t('officialStaffMvp', 'MVP OFICIAL DEL CUERPO TÉCNICO') : t('bestMatchPlayerMvp', 'MEJOR JUGADOR DEL PARTIDO • MVP')}
-                  </div>
-                  <div style="font-size: 15px; font-weight: 900; color: #fff;">${escapeHtml(Store.playerName(mvpMatchPlayer))} #${mvpMatchPlayer.mainDorsal || ''}</div>
-                  <div style="font-size: 11.5px; color: var(--muted); margin-top: 2px;">
-                    ${mvpMatchPlayer.mainPosition || 'Jugador'} • ${t('matchRating', 'Nota')}: <b style="color: #22c55e;">${mvpMatchRating.toFixed(1)} / 10</b>
-                  </div>
-                </div>
-                <button type="button" class="btn sm ghost" style="color: #facc15; border-color: rgba(250, 204, 21, 0.4); font-size: 11px; padding: 6px 10px;">${t('viewPlayerProfile', 'Ver ficha >')}</button>
-              </div>
-            ` : ''}
-          ` : `
-            <div class="card" style="margin-bottom: 12px;">
-              <div class="row" style="justify-content: space-between;">
-                <span class="badge training">${t('training').toUpperCase()}</span>
-                <span class="muted">${formatDateDDMMAAAA(s.date)}</span>
-              </div>
-              <div class="meta" style="margin-top: 8px;">
-                <div>⏱️ Tiempo de entrenamiento: <b>${Store.fmtTime(Store.elapsed(s))}</b></div>
-                ${s.venue ? `<div>📍 Lugar: <b>${escapeHtml(s.venue)}</b></div>` : ''}
-              </div>
-              ${participatingTeams.length > 0 ? `
-                <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.08); display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-                  <span style="font-size: 11px; font-weight: 800; color: var(--muted);">${t('participatingTeams', 'Equipos participantes')}:</span>
-                  ${participatingTeams.map(tm => `
-                    <span class="badge" style="font-size: 10.5px; font-weight: 800; background: ${tm.color || '#22c55e'}22; color: ${tm.color || '#22c55e'}; border: 1px solid ${tm.color || '#22c55e'}60; padding: 2px 7px; border-radius: 6px;">
-                      🛡️ ${escapeHtml(tm.name)}
-                    </span>
-                  `).join('')}
-                </div>
-              ` : ''}
-            </div>
-          `}
-
-          <!-- Selector de filtro de equipo -->
-          <!-- Selector de filtro de equipo -->
-          ${(teams.length > 0 || convCalledIds.size > 0) ? `
-            <div style="margin-bottom: 10px;">
-              <label style="font-size: 11.5px; font-weight: 700; color: var(--muted); margin-bottom: 4px; display: block;">Equipo del partido:</label>
-              <select id="session-team-filter" style="width: 100%; font-weight: 800; font-size: 13.5px; padding: 8px 10px; border-radius: 10px;">
-                ${convCalledIds.size > 0 ? `
-                  <option value="convocados" ${selectedTeamFilter === 'convocados' ? 'selected' : ''}>📋 Convocados (${convCalledIds.size})</option>
-                ` : ''}
-                ${sessionTeams.length > 1 ? `
-                  <option value="session_teams" ${selectedTeamFilter === 'session_teams' ? 'selected' : ''}>🛡️ Equipos de la sesión (${sessionTeams.map(tid => { const tm = Store.team(tid); return tm ? tm.name : ''; }).filter(Boolean).join(' + ')})</option>
-                ` : ''}
-                <option value="all" ${selectedTeamFilter === 'all' ? 'selected' : ''}>Todos los jugadores (${allPlayers.length})</option>
-                ${teams.map(tm => `
-                  <option value="${tm.id}" ${selectedTeamFilter === tm.id ? 'selected' : ''}>${escapeHtml(tm.name)}</option>
-                `).join('')}
-              </select>
-            </div>
-          ` : ''}
-
-          <!-- Botón de exportación JSON individual -->
-          <div class="row" style="margin-bottom: 12px;">
-            <button class="btn sm block ghost" id="btn-export-single-session-json" style="width: 100%;">
-              ${icon('file', 16)} ${t('exportJSON')} de esta sesión
-            </button>
-          </div>
-
-          <!-- Resumen y Gestión de Asistencia -->
-          <div class="card" style="margin-bottom: 12px; background: rgba(34, 211, 238, 0.06); border: 1px solid rgba(34, 211, 238, 0.25); padding: 12px 14px;">
-            <div class="row" style="justify-content: space-between; align-items: center;">
-              <div>
-                <b style="font-size: 13.5px; color: #fff;">📋 ${t('attendance', 'Asistencia')}</b>
-                <div style="font-size: 11.5px; color: var(--muted); margin-top: 2px;">
-                  ${(() => {
-                    const attMap = s.attendance || {};
-                    let pCnt = 0, aCnt = 0;
-                    Object.keys(attMap).forEach(k => {
-                      const rec = attMap[k];
-                      const st = (typeof rec === 'object' && rec !== null) ? rec.status : rec;
-                      if (st === 'present' || st === 'late') pCnt++;
-                      else if (st === 'absent') aCnt++;
-                    });
-                    return `${pCnt} ${t('present', 'presentes')}, ${aCnt} ${t('absent', 'ausentes')}`;
-                  })()}
-                </div>
-              </div>
-              <button type="button" class="btn sm" id="btn-detail-rollcall" style="background: var(--surface2); color: var(--cyan); border: 1.5px solid var(--border); font-size: 11.5px; font-weight: 800; border-radius: 8px;">
-                📋 ${t('rollCallBtn', 'Pasar Lista')}
-              </button>
-            </div>
-          </div>
-
-          <div class="section-title">
-            <span>${t('matchSquadTitle', 'Plantilla de Jugadores')} (${convCalledIds.size > 0 ? `${convCalledIds.size} convocados • ` : ''}${trackedCount} ${t('trackedCountLabel', 'seguidos')} / ${filteredPlayers.length} ${t('totalCountLabel', 'total')})</span>
-          </div>
-
-          <!-- Resumen de Convocatoria / Asistencia (Verde: Asiste, Rojo: Baja, Amarillo: Sin respuesta) -->
-          ${(linkedConv || (s.attendance && Object.keys(s.attendance).length > 0)) ? `
-            <div style="display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; align-items: center;">
-              <span class="conv-status-chip called" style="font-size: 11px; padding: 4px 10px; font-weight: 800; border-radius: 8px;">🟢 ${convYesCount} ${t('attendanceShortYes', 'Asiste')}</span>
-              <span class="conv-status-chip" style="background: rgba(239, 68, 68, 0.18); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.4); font-size: 11px; padding: 4px 10px; font-weight: 800; border-radius: 8px;">❌ ${convNoCount} ${t('attendanceShortNo', 'Baja')}</span>
-              <span class="conv-status-chip" style="background: rgba(250, 204, 21, 0.15); color: #fde047; border: 1px solid rgba(250, 204, 21, 0.4); font-size: 11px; padding: 4px 10px; font-weight: 800; border-radius: 8px;">⏳ ${convPendingCount} ${t('noResponsePending', 'Sin respuesta')}</span>
-              ${linkedConv ? `
-                <button type="button" class="btn sm ghost" id="btn-session-open-conv-modal" style="margin-left: auto; font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 8px; border-color: rgba(168, 85, 247, 0.5); color: #c084fc;">
-                  📋 Convocatoria >
-                </button>
-              ` : ''}
-            </div>
-          ` : ''}
-
-          <p class="hint" style="margin-bottom: 10px;">${t('matchSquadHint', 'Pulsa en cualquier jugador para consultar su rendimiento específico en este partido:')}</p>
-
-          <!-- Lista de jugadores con destacados interactivos y degradados según confirmación -->
-          <div style="max-height: 48vh; overflow-y: auto; padding-right: 2px;">
-            ${sortedSquad.length === 0 ? `
-              <div class="empty" style="padding: 16px;">
-                <p>${t('noPlayersInTeam', 'No hay jugadores registrados en el equipo seleccionado.')}</p>
-              </div>
-            ` : sortedSquad.map(p => {
-              const isTracked = trackedPlayerIds.has(p.id);
-              const attStatus = Store.getPlayerAttendanceStatus(s, p.id);
-              const isPresent = (attStatus === 'present' || attStatus === 'late');
-              const isCalled = convCalledIds.has(p.id);
-              const pStats = (s.stats && s.stats[p.id]) || {};
-              const rating = Store.calculateMatchRating(pStats, p.mainPosition);
-
-              let convStatus = null; // 'yes' | 'no' | 'pending'
-              let convRespNotes = '';
-
-              if (linkedConv) {
-                const resp = (linkedConv.responses && linkedConv.responses[p.id]) || null;
-                const st = (linkedConv.list && linkedConv.list[p.id]) || null;
-                if (resp) {
-                  if (resp.status === 'attending' || resp.status === 'yes') {
-                    convStatus = 'yes';
-                  } else if (resp.status === 'absent' || resp.status === 'no') {
-                    convStatus = 'no';
-                    convRespNotes = resp.notes || resp.reason || '';
-                  } else {
-                    convStatus = 'pending';
-                  }
-                } else if (st === 'absent') {
-                  convStatus = 'no';
-                } else {
-                  convStatus = 'pending';
-                }
-              } else if (s.attendance && Object.keys(s.attendance).length > 0) {
-                if (attStatus === 'present' || attStatus === 'late') {
-                  convStatus = 'yes';
-                } else if (attStatus === 'absent') {
-                  convStatus = 'no';
-                } else {
-                  convStatus = 'pending';
-                }
-              } else {
-                convStatus = 'pending';
-              }
-
-              let cardClass = 'player-match-row';
-              let cardStyle = '';
-              let convStatusBadgeHtml = '';
-
-              if (convStatus === 'yes') {
-                cardClass += ' conv-status-yes';
-                cardStyle = 'background: linear-gradient(135deg, rgba(34, 197, 94, 0.24) 0%, rgba(16, 185, 129, 0.08) 60%, var(--surface, #1e293b) 100%) !important; border: 1.5px solid rgba(34, 197, 94, 0.65) !important; box-shadow: 0 2px 8px rgba(34, 197, 94, 0.12);';
-                convStatusBadgeHtml = `<span class="badge" style="background: rgba(34, 197, 94, 0.28); color: #86efac; border: 1.5px solid rgba(34, 197, 94, 0.7); font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 6px;">🟢 ${t('attendanceShortYes', 'Asiste')}</span>`;
-              } else if (convStatus === 'no') {
-                cardClass += ' conv-status-no';
-                cardStyle = 'background: linear-gradient(135deg, rgba(239, 68, 68, 0.24) 0%, rgba(220, 38, 38, 0.08) 60%, var(--surface, #1e293b) 100%) !important; border: 1.5px solid rgba(239, 68, 68, 0.65) !important; box-shadow: 0 2px 8px rgba(239, 68, 68, 0.12);';
-                convStatusBadgeHtml = `<span class="badge" style="background: rgba(239, 68, 68, 0.28); color: #fca5a5; border: 1.5px solid rgba(239, 68, 68, 0.7); font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 6px;">❌ ${t('attendanceShortNo', 'Baja')}</span>`;
-              } else {
-                cardClass += ' conv-status-pending';
-                cardStyle = 'background: linear-gradient(135deg, rgba(250, 204, 21, 0.22) 0%, rgba(234, 179, 8, 0.08) 60%, var(--surface, #1e293b) 100%) !important; border: 1.5px solid rgba(250, 204, 21, 0.6) !important; box-shadow: 0 2px 8px rgba(250, 204, 21, 0.10);';
-                convStatusBadgeHtml = `<span class="badge" style="background: rgba(250, 204, 21, 0.25); color: #fde047; border: 1.5px solid rgba(250, 204, 21, 0.7); font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 6px;">⏳ ${t('noResponsePending', 'Sin respuesta')}</span>`;
-              }
-
-              if (isTracked) cardClass += ' tracked';
-
-              let attBadgeHtml = '';
-              if (attStatus === 'present' && convStatus !== 'yes') {
-                attBadgeHtml = `<span class="badge" style="background: rgba(34, 197, 94, 0.2); color: #86efac; border: 1px solid rgba(34, 197, 94, 0.45); font-size: 10px; font-weight: 800; padding: 1px 6px;">🟢 ${t('attPresent', 'Presente')}</span>`;
-              } else if (attStatus === 'late') {
-                attBadgeHtml = `<span class="badge" style="background: rgba(250, 204, 21, 0.2); color: #fde047; border: 1px solid rgba(250, 204, 21, 0.45); font-size: 10px; font-weight: 800; padding: 1px 6px;">⏰ ${t('attLate', 'Retraso')}</span>`;
-              } else if (attStatus === 'justified') {
-                attBadgeHtml = `<span class="badge" style="background: rgba(56, 189, 248, 0.2); color: #7dd3fc; border: 1px solid rgba(56, 189, 248, 0.45); font-size: 10px; font-weight: 800; padding: 1px 6px;">🟡 ${t('attJustified', 'Justificado')}</span>`;
-              } else if (attStatus === 'absent' && convStatus !== 'no') {
-                attBadgeHtml = `<span class="badge" style="background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.45); font-size: 10px; font-weight: 800; padding: 1px 6px;">❌ ${t('attAbsent', 'Ausente')}</span>`;
-              }
-
-              const convBadgeHtml = (isCalled && !linkedConv) ? `<span class="badge" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.45); font-size: 10px; font-weight: 800; padding: 1px 6px;">📋 Convocado</span>` : '';
-
-              return `
-                <div class="${cardClass}" style="${cardStyle}" data-player-id="${p.id}">
-                  ${renderAvatar(p, 'sm')}
-                  <div class="grow ellipsis">
-                    <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-                      <b style="font-size: 14px;">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(Store.playerName(p))}</b>
-                      ${convStatusBadgeHtml}
-                      ${convBadgeHtml}
-                      ${isTracked ? '<span class="tracked-badge">📊 Seguido</span>' : ''}
-                      ${attBadgeHtml}
-                    </div>
-                    <small style="color: var(--muted); font-size: 11.5px; display: block; margin-top: 1px;">
-                      ${p.mainPosition || 'Jugador'} ${isTracked ? `• ⭐ ${rating.toFixed(1)} nota` : (isPresent ? '• ✅ Asistencia guardada' : (isCalled ? '• 📋 Convocado' : '• Plantilla'))}
-                    </small>
-                    ${convRespNotes ? `
-                      <div style="font-size: 11px; color: #fca5a5; margin-top: 2px; font-style: italic;">
-                        💬 "${escapeHtml(convRespNotes)}"
-                      </div>
-                    ` : ''}
-                  </div>
-                  ${(isTracked || isPresent) ? `
-                    <div style="font-size: 12px; font-weight: 800; text-align: right; color: var(--cyan);">
-                      <div>${pStats.goal ? `⚽ ${pStats.goal} ` : ''}${pStats.shotOn ? `🎯 ${pStats.shotOn} ` : ''}</div>
-                      <div style="color: var(--dim); font-size: 11px;">Ver ficha ></div>
-                    </div>
-                  ` : `
-                    <div class="chev" style="opacity: 0.4;">${icon('chevR', 16)}</div>
-                  `}
-                </div>
-              `;
-            }).join('')}
-          </div>
-        `;
-
-        const filterSelect = body.querySelector('#session-team-filter');
-        if (filterSelect) {
-          filterSelect.onchange = (e) => {
-            selectedTeamFilter = e.target.value;
-            renderSquadContent();
-          };
-        }
-
-        const bannerMvp = body.querySelector('#banner-match-mvp');
-        if (bannerMvp && mvpMatchPlayer) {
-          bannerMvp.onclick = () => {
-            showPlayerMatchDetailModal(s, mvpMatchPlayer);
-          };
-        }
-
-        const btnStartLive = body.querySelector('#btn-start-match-live');
-        if (btnStartLive) {
-          btnStartLive.onclick = () => {
-            closeSheet();
-            openTracker(s.id);
-          };
-        }
-
-        const btnMarkFin = body.querySelector('#btn-mark-match-finished');
-        if (btnMarkFin) {
-          btnMarkFin.onclick = () => {
-            confirmDialog('Finalizar Partido', '¿Deseas marcar este partido como finalizado?', () => {
-              Store.finishSession(s.id);
-              if (window.Cloud && window.Cloud.pushCoachState) {
-                window.Cloud.pushCoachState(Store.state, true);
-              }
-              toast('Partido marcado como finalizado', 'success');
-              renderSquadContent();
-            });
-          };
-        }
-
-        const btnManageMvp = body.querySelector('#btn-manage-match-mvp');
-        const btnViewBreakdown = body.querySelector('#btn-view-mvp-breakdown');
-        const cardManageMvp = body.querySelector('#card-match-mvp-action');
-        function openMvpManager() {
-          showSetOfficialMvpModal(s, () => {
-            renderSquadContent();
-          });
-        }
-        if (btnManageMvp) btnManageMvp.onclick = (e) => { e.stopPropagation(); openMvpManager(); };
-        if (btnViewBreakdown) btnViewBreakdown.onclick = (e) => { e.stopPropagation(); showMvpVotesBreakdownModal(s); };
-        if (cardManageMvp) cardManageMvp.onclick = openMvpManager;
-
-        const btnManageCoachPicks = body.querySelector('#btn-manage-coach-picks');
-        const cardCoachPicks = body.querySelector('#card-coach-picks-action');
-        function openCoachPicksManager() {
-          showMatchCoachPicksModal(s, () => {
-            renderSquadContent();
-          });
-        }
-        if (btnManageCoachPicks) btnManageCoachPicks.onclick = (e) => { e.stopPropagation(); openCoachPicksManager(); };
-        if (cardCoachPicks) cardCoachPicks.onclick = openCoachPicksManager;
-
-        // Escucha en tiempo real de votos MVP de compañeros
-        if (s.type === 'match' && window.Cloud && window.Cloud.listenToMatchMvp) {
-          window.Cloud.listenToMatchMvp(s.id, (voteData) => {
-            const labelEl = body.querySelector('#label-mvp-votes-tally');
-            if (!labelEl) return;
-            if (voteData && voteData.votes) {
-              const voteCount = Object.keys(voteData.votes).length;
-              const tallyStr = voteCount === 1 ? t('voteRegisteredSingle', 'voto de compañero registrado') : t('votesRegisteredPlural', 'votos de compañeros registrados');
-              if (s.mvpOfficialId && Store.player(s.mvpOfficialId)) {
-                labelEl.textContent = `${escapeHtml(Store.playerName(Store.player(s.mvpOfficialId)))} • ${voteCount} ${tallyStr}`;
-              } else {
-                labelEl.textContent = `${voteCount} ${tallyStr}`;
-              }
-            }
-          });
-        }
-
-        body.querySelector('#btn-export-single-session-json').onclick = () => {
-          IO.exportSessionJSON(s.id);
-        };
-
-        const btnDetailAtt = body.querySelector('#btn-detail-rollcall');
-        if (btnDetailAtt) {
-          btnDetailAtt.onclick = () => {
-            showSessionAttendanceModal(s.id);
-          };
-        }
-
-        const btnOpenConv = body.querySelector('#btn-session-open-conv-modal');
-        if (btnOpenConv && linkedConv) {
-          btnOpenConv.onclick = () => {
-            showConvocationDetailsModal(linkedConv, () => {
-              renderSquadContent();
-            });
-          };
-        }
-
-        body.querySelectorAll('.player-match-row').forEach(row => {
-          row.onclick = () => {
-            const pid = row.getAttribute('data-player-id');
-            const p = Store.player(pid);
-            if (p) {
-              showPlayerMatchDetailModal(s, p);
-            }
-          };
-        });
-      }
-
-      renderSquadContent();
-    }, (foot) => {
-      foot.innerHTML = `
-        <div class="btn-row">
-          <button class="btn danger" id="btn-del-session">${icon('trash', 16)} ${t('delete')}</button>
-          <button class="btn primary" id="btn-reopen-tracker">${icon('play', 16)} Abrir Tracker</button>
-        </div>
-      `;
-
-      foot.querySelector('#btn-reopen-tracker').onclick = () => {
-        closeSheet();
-        openTracker(s.id);
-      };
-
-      foot.querySelector('#btn-del-session').onclick = () => {
-        confirmDialog(t('delete'), '¿Estás seguro de eliminar esta sesión?', () => {
-          Store.deleteSession(s.id);
-          closeSheet();
-          navigate('history');
-        });
-      };
-    });
+    navigate('convocations');
+    setTimeout(() => {
+      showConvocationDetailsModal(linkedConv);
+    }, 60);
+    return;
   }
 
-  function showEditSessionStatsModal(sessionId, playerId) {
+    function showEditSessionStatsModal(sessionId, playerId) {
     const s = Store.session(sessionId);
     const p = Store.player(playerId);
     if (!s || !p) return;
@@ -9383,19 +8840,14 @@
             </div>
           </div>
 
-          <!-- Botones de Acción: Imprimir, WhatsApp, Viber -->
+          <!-- Botones de Acción: Imprimir, WhatsApp -->
           <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px;">
             <button class="btn primary block" id="btn-print-report" style="font-weight: 800; font-size: 13.5px; padding: 10px;">
               🖨️ ${t('printPdf', 'Imprimir / Guardar en PDF')}
             </button>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-              <button class="btn btn-social" id="btn-report-share-wa" style="background: #16a34a; color: #fff; border-color: #22c55e; font-weight: 800; font-size: 12.5px;">
-                ${icon('whatsapp', 16)} WhatsApp
-              </button>
-              <button class="btn btn-social" id="btn-report-share-viber" style="background: #7c3aed; color: #fff; border-color: #a855f7; font-weight: 800; font-size: 12.5px;">
-                💜 Viber
-              </button>
-            </div>
+            <button class="btn btn-social" id="btn-report-share-wa" style="background: #16a34a; color: #fff; border-color: #22c55e; font-weight: 800; font-size: 13px; width: 100%; justify-content: center;">
+              ${icon('whatsapp', 18)} WhatsApp
+            </button>
           </div>
         `;
 
@@ -9452,16 +8904,6 @@
             window.AndroidBridge.shareText(buildShareText());
           } else {
             window.open(`https://wa.me/?text=${text}`, '_blank');
-          }
-        };
-
-        body.querySelector('#btn-report-share-viber').onclick = () => {
-          saveNotes();
-          const text = encodeURIComponent(buildShareText());
-          if (hasNative() && window.AndroidBridge && window.AndroidBridge.shareText) {
-            window.AndroidBridge.shareText(buildShareText());
-          } else {
-            window.open(`viber://forward?text=${text}`, '_blank');
           }
         };
       }
@@ -9632,8 +9074,8 @@
                   <a href="tel:${p.parentContact.phone.replace(/\s+/g, '')}" class="btn sm" style="text-decoration: none; font-size: 12px; height: 34px; padding: 0 12px; background: #0284c7; color: #ffffff !important; border: 1.5px solid #38bdf8; font-weight: 800; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px;">
                     📞 ${t('callGuardian', 'Llamar')}
                   </a>
-                  <a href="viber://chat?number=${encodeURIComponent(p.parentContact.phone.replace(/[^0-9+]/g, ''))}" target="_blank" rel="noopener" class="btn sm" style="text-decoration: none; font-size: 12px; height: 34px; padding: 0 12px; background: #7c3aed; color: #ffffff !important; border: 1.5px solid #c084fc; font-weight: 800; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px;">
-                    💜 Viber
+                  <a href="https://wa.me/${p.parentContact.phone.replace(/[^0-9]/g, '')}" target="_blank" rel="noopener" class="btn sm" style="text-decoration: none; font-size: 12px; height: 34px; padding: 0 12px; background: #16a34a; color: #ffffff !important; border: 1.5px solid #22c55e; font-weight: 800; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px;">
+                    💬 WhatsApp
                   </a>
                 ` : ''}
                 ${p.parentContact.email ? `
@@ -11410,9 +10852,9 @@
   }
 
   /* =========================================================
-     SECCIÓN CONVOCATORIAS: FORMATEADOR Y COMPARTIR POR VIBER
+     SECCIÓN CONVOCATORIAS: FORMATEADOR Y COMPARTIR CONVOCATORIA
      ========================================================= */
-  function dispatchViberShare(text) {
+  function dispatchTextShare(text) {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).catch(() => {});
     }
@@ -11420,18 +10862,21 @@
 
     if (window.AndroidBridge && window.AndroidBridge.shareText) {
       try {
-        window.AndroidBridge.shareText(text, 'viber');
+        window.AndroidBridge.shareText(text);
         return;
       } catch (e) {
         console.error('Error invoking native shareText:', e);
       }
     }
 
-    const viberUrl = `viber://forward?text=${encodeURIComponent(text)}`;
-    window.location.href = viberUrl;
-    setTimeout(() => {
-      window.open(viberUrl, '_blank');
-    }, 350);
+    if (navigator.share) {
+      navigator.share({ text }).catch(() => {});
+    } else {
+      window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
+    }
+  }
+  function dispatchViberShare(text) {
+    dispatchTextShare(text);
   }
 
   function formatConvocationWhatsAppText(conv, lang) {
@@ -11603,12 +11048,12 @@
     }
 
     text += isRu
-      ? `\n📲 *Пожалуйста, подтвердите участие в Viber:*\n  👉 Ответьте: "🟢 БУДУ" или "❌ НЕ МОГУ"\n⚽ _Отправлено из Player Stats_`
+      ? `\n📲 *Пожалуйста, подтвердите участие:*\n  👉 Ответьте: "🟢 БУДУ" или "❌ НЕ МОГУ"\n⚽ _Отправлено из Player Stats_`
       : isEt
-      ? `\n📲 *Palun kinnita oma osalemine vastates Viberis:*\n  👉 Vasta: "🟢 TULEN" või "❌ EI SAA"\n⚽ _Saadetud rakendusest Player Stats_`
+      ? `\n📲 *Palun kinnita oma osalemine:*\n  👉 Vasta: "🟢 TULEN" või "❌ EI SAA"\n⚽ _Saadetud rakendusest Player Stats_`
       : isEn
-      ? `\n📲 *Please confirm attendance by replying via Viber:*\n  👉 Reply: "🟢 ATTENDING" or "❌ CANNOT ATTEND"\n⚽ _Sent from Player Stats_`
-      : `\n📲 *Por favor confirma tu asistencia respondiendo por Viber:*\n  👉 Responde: "🟢 VOY" o "❌ NO PUEDO"\n⚽ _Enviado desde Estadísticas Jugadores_`;
+      ? `\n📲 *Please confirm attendance:*\n  👉 Reply: "🟢 ATTENDING" or "❌ CANNOT ATTEND"\n⚽ _Sent from Player Stats_`
+      : `\n📲 *Por favor confirma tu asistencia:*\n  👉 Responde: "🟢 VOY" o "❌ NO PUEDO"\n⚽ _Enviado desde Estadísticas Jugadores_`;
     return text;
   }
 
@@ -11837,35 +11282,6 @@
             ${conv.notes ? `<div style="margin-top: 4px; color: var(--muted);">📝 <b>Notas:</b> ${escapeHtml(conv.notes)}</div>` : ''}
           </div>
 
-          <!-- BOTÓN DESTACADO: PEGAR MENSAJES DE VIBER -->
-          <div style="background: rgba(124, 58, 237, 0.14); border: 1.5px solid rgba(168, 85, 247, 0.4); border-radius: 14px; padding: 12px; margin-bottom: 12px;">
-            <div style="font-size: 12px; font-weight: 800; color: #d8b4fe; margin-bottom: 6px;">
-              💬 REGISTRAR RESPUESTAS RECIBIDAS:
-            </div>
-            <button type="button" class="btn block" id="btn-prominent-paste-replies" style="background: #7c3aed; color: #fff; font-size: 13.5px; font-weight: 800; border-color: #a855f7;">
-              📥 Pegar mensaje de Viber
-            </button>
-          </div>
-
-          <!-- BOTONES COMPARTIR POR VIBER -->
-          <div style="font-size: 11px; font-weight: 800; color: var(--muted); margin-bottom: 6px; text-transform: uppercase;">
-            COMPARTIR CONVOCATORIA:
-          </div>
-          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 14px;">
-            <button type="button" class="btn" id="btn-conv-share-viber-es" style="background: #7c3aed; color: #fff; font-weight: 800; font-size: 11.5px; padding: 6px 2px; border-color: #a855f7;">
-              🇪🇸 ES
-            </button>
-            <button type="button" class="btn" id="btn-conv-share-viber-en" style="background: #6d28d9; color: #fff; font-weight: 800; font-size: 11.5px; padding: 6px 2px; border-color: #9333ea;">
-              🇬🇧 EN
-            </button>
-            <button type="button" class="btn" id="btn-conv-share-viber-et" style="background: #5b21b6; color: #fff; font-weight: 800; font-size: 11.5px; padding: 6px 2px; border-color: #8b5cf6;">
-              🇪🇪 ET
-            </button>
-            <button type="button" class="btn" id="btn-conv-share-viber-ru" style="background: #4c1d95; color: #fff; font-weight: 800; font-size: 11.5px; padding: 6px 2px; border-color: #7c3aed;">
-              🇷🇺 RU
-            </button>
-          </div>
-
           <!-- Barra de recuento de confirmaciones -->
           <div class="conv-badge-row" style="margin-bottom: 14px;">
             <span class="conv-status-chip called" style="font-size: 11.5px; padding: 5px 10px; font-weight: 800;">🟢 ${respondedYes.length} Confirmados (SÍ)</span>
@@ -11890,7 +11306,7 @@
               </div>
               ${(respondedYes.length === 0 && respondedNo.length === 0) ? `
                 <div style="padding: 10px; text-align: center; color: var(--muted); font-size: 11.5px; background: var(--bg2); border: 1px dashed var(--border); border-radius: 10px;">
-                  Ningún jugador ha confirmado aún. Cuando respondan por Viber, pulsa "Pegar mensaje de Viber".
+                  ${t('noConfirmationsYet', 'Ningún jugador ha confirmado aún.')}
                 </div>
               ` : `
                 <div style="display: flex; flex-direction: column; gap: 6px;">
@@ -12037,21 +11453,6 @@
           };
         }
 
-        const btnPasteProm = body.querySelector('#btn-prominent-paste-replies');
-        if (btnPasteProm) btnPasteProm.onclick = () => openPasteDialog();
-
-        const btnViberEs = body.querySelector('#btn-conv-share-viber-es');
-        if (btnViberEs) btnViberEs.onclick = () => dispatchViberShare(formatConvocationWhatsAppText(conv, 'es'));
-
-        const btnViberEn = body.querySelector('#btn-conv-share-viber-en');
-        if (btnViberEn) btnViberEn.onclick = () => dispatchViberShare(formatConvocationWhatsAppText(conv, 'en'));
-
-        const btnViberEt = body.querySelector('#btn-conv-share-viber-et');
-        if (btnViberEt) btnViberEt.onclick = () => dispatchViberShare(formatConvocationWhatsAppText(conv, 'et'));
-
-        const btnViberRu = body.querySelector('#btn-conv-share-viber-ru');
-        if (btnViberRu) btnViberRu.onclick = () => dispatchViberShare(formatConvocationWhatsAppText(conv, 'ru'));
-
         const btnQuickEdit = body.querySelector('#btn-quick-open-editor');
         if (btnQuickEdit) {
           btnQuickEdit.onclick = () => {
@@ -12119,125 +11520,6 @@
         });
       }
 
-      function openPasteDialog() {
-        const bodyHtml = `
-          <p class="hint" style="margin-bottom: 8px;">
-            Pega aquí el mensaje recibido por Viber del padre o jugador:
-          </p>
-          <textarea id="paste-replies-textarea" rows="6" style="width: 100%; border-radius: 12px; padding: 10px; font-size: 12.5px; background: var(--bg2); color: #fff; border: 1px solid var(--border); box-sizing: border-box;" placeholder="Ej:
-👤 Jugador: Alex Tamm (#9)
-📢 Estado: 🟢 CONFIRMO ASISTENCIA
-..."></textarea>
-          <div style="margin-top: 12px; display: flex; gap: 8px;">
-            <button class="btn primary grow" id="btn-proc-paste">Procesar y Actualizar</button>
-          </div>
-        `;
-
-        const dialog = openModalDialog('📥 Registrar Confirmación (Viber)', bodyHtml);
-        const txtArea = dialog.querySelector('#paste-replies-textarea');
-        if (navigator.clipboard && navigator.clipboard.readText) {
-          navigator.clipboard.readText().then(clip => {
-            if (clip && txtArea) txtArea.value = clip;
-          }).catch(() => {});
-        }
-
-        dialog.querySelector('#btn-proc-paste').onclick = () => {
-          const raw = (txtArea ? txtArea.value : '').trim();
-          if (!raw) {
-            toast('No se ha introducido ningún texto', 'error');
-            return;
-          }
-
-          let updatedCount = 0;
-          const allPlayers = Store.sortedPlayers();
-          const lines = raw.split('\n');
-          let detectedName = null;
-          let detectedStatus = null;
-
-          function parseAttendanceStatus(str) {
-            const s = str.toLowerCase();
-            if (s.includes('confirm') || s.includes('asistir') || s.includes('asist') || s.includes('🟢') || s.includes('si voy') || s.includes('cuenta conmigo') || s.includes('attending') || s.includes('yes') || s.includes('will attend')) return 'called';
-            if (s.includes('duda') || s.includes('pendiente') || s.includes('🟡') || s.includes('quizas') || s.includes('quizá') || s.includes('veremos') || s.includes('maybe') || s.includes('doubt')) return 'bench';
-            if (s.includes('no puedo') || s.includes('baja') || s.includes('❌') || s.includes('no podre') || s.includes('no asist') || s.includes('lesion') || s.includes('lesión') || s.includes('not attending') || s.includes('cannot attend') || s.includes('absent')) return 'absent';
-            return null;
-          }
-
-          for (const line of lines) {
-            const mName = line.match(/(?:Jugador|Player|Nombre):\s*([^\n\r]+)/i);
-            if (mName) {
-              detectedName = mName[1].trim();
-            }
-            const mStatus = line.match(/(?:Estado|Status|Asistencia):\s*([^\n\r]+)/i);
-            if (mStatus) {
-              detectedStatus = parseAttendanceStatus(mStatus[1]);
-            } else {
-              const directSt = parseAttendanceStatus(line);
-              if (directSt) detectedStatus = directSt;
-            }
-
-            if (detectedName && detectedStatus) {
-              const cleanQuery = detectedName.replace(/[\*\_]/g, '').toLowerCase().replace(/#\d+\s*/g, '').trim();
-              let matchedP = allPlayers.find(p => (p.name || '').toLowerCase().trim() === cleanQuery);
-              if (!matchedP) {
-                matchedP = allPlayers.find(p => {
-                  const pNorm = (p.name || '').toLowerCase().trim();
-                  return pNorm && (cleanQuery.includes(pNorm) || pNorm.includes(cleanQuery));
-                });
-              }
-              if (matchedP) {
-                conv.list = conv.list || {};
-                conv.responses = conv.responses || {};
-                if (detectedStatus === 'called') {
-                  conv.responses[matchedP.id] = { status: 'attending', time: Date.now() };
-                  conv.list[matchedP.id] = 'called';
-                } else if (detectedStatus === 'absent') {
-                  conv.responses[matchedP.id] = { status: 'absent', time: Date.now() };
-                  conv.list[matchedP.id] = 'absent';
-                } else {
-                  conv.list[matchedP.id] = detectedStatus;
-                }
-                updatedCount++;
-              }
-              detectedName = null;
-              detectedStatus = null;
-            }
-          }
-
-          if (updatedCount === 0) {
-            const st = parseAttendanceStatus(raw);
-            if (st) {
-              for (const p of allPlayers) {
-                if (raw.toLowerCase().includes((p.name || '').toLowerCase().trim())) {
-                  conv.list = conv.list || {};
-                  conv.responses = conv.responses || {};
-                  if (st === 'called') {
-                    conv.responses[p.id] = { status: 'attending', time: Date.now() };
-                    conv.list[p.id] = 'called';
-                  } else if (st === 'absent') {
-                    conv.responses[p.id] = { status: 'absent', time: Date.now() };
-                    conv.list[p.id] = 'absent';
-                  } else {
-                    conv.list[p.id] = st;
-                  }
-                  updatedCount++;
-                  break;
-                }
-              }
-            }
-          }
-
-          if (updatedCount > 0) {
-            Store.save();
-            toast(`¡${updatedCount} confirmación(es) registrada(s)!`, 'success');
-            dialog.remove();
-            renderDetails();
-            if (onDone) onDone();
-          } else {
-            toast('No se detectó ningún jugador conocido en el texto', 'error');
-          }
-        };
-      }
-
       renderDetails();
       window.activeConvocationModalRefresh = () => {
         conv = Store.convocation(conv.id) || conv;
@@ -12245,14 +11527,44 @@
       };
     }, (foot) => {
       foot.innerHTML = `
-        <div class="btn-row">
-          <button class="btn danger" id="btn-detail-del" title="${t('delete')}">${icon('trash', 16)}</button>
-          <button class="btn ghost grow" id="btn-detail-close">${t('close', 'Cerrar')}</button>
-          <button class="btn primary grow" id="btn-detail-edit">${icon('edit', 16)} Modificar Convocatoria</button>
+        <div class="btn-row" style="display: flex; gap: 8px; width: 100%;">
+          <button class="btn danger" id="btn-detail-del" title="${t('delete')}" style="padding: 0 12px; height: 42px;">${icon('trash', 16)}</button>
+          <button class="btn ghost" id="btn-detail-edit" style="font-weight: 800; font-size: 12.5px; height: 42px; padding: 0 12px;">${icon('edit', 16)} ${t('edit', 'Editar')}</button>
+          <button class="btn primary grow" id="btn-detail-open-tracker" style="font-weight: 900; font-size: 13.5px; height: 42px; display: inline-flex; align-items: center; justify-content: center; gap: 8px;">
+            ▶️ ${t('openTracker', 'Abrir Tracker')}
+          </button>
         </div>
       `;
 
-      foot.querySelector('#btn-detail-close').onclick = closeSheet;
+      foot.querySelector('#btn-detail-open-tracker').onclick = () => {
+        closeSheet();
+        let s = conv.sessionId ? Store.session(conv.sessionId) : null;
+        if (!s) {
+          s = (Store.state.sessions || []).find(sess => sess.convocationId === conv.id || (sess.date === conv.date && sess.type === conv.type));
+        }
+        if (!s) {
+          s = Store.createSession({
+            type: conv.type,
+            date: conv.date,
+            time: conv.time || '18:00',
+            endTime: conv.endTime || '',
+            duration: conv.duration || 90,
+            venue: conv.venue || '',
+            address: conv.address || '',
+            rival: conv.rival || '',
+            teamId: conv.teamId || '',
+            teamIds: Array.isArray(conv.teamIds) ? conv.teamIds : (conv.teamId ? [conv.teamId] : []),
+            convocationId: conv.id,
+            notes: conv.notes || ''
+          });
+          conv.sessionId = s.id;
+          Store.save();
+        }
+        openTracker(s.id);
+        setTimeout(() => {
+          showSessionAttendanceModal(s.id);
+        }, 250);
+      };
 
       foot.querySelector('#btn-detail-del').onclick = () => {
         confirmDialog(t('delete'), '¿Deseas eliminar esta convocatoria?', () => {
@@ -12844,7 +12156,7 @@
             '1. Sube el archivo "convocatoria.html" (incluido en la app) a un repositorio público en tu GitHub.\n' +
             '2. En Configuración del repositorio -> Pages, activa GitHub Pages en la rama main.\n' +
             '3. Pega aquí el enlace que te genere GitHub (ej: https://tu-usuario.github.io/repo/convocatoria.html).\n\n' +
-            '¡Listo! Al compartir la convocatoria por Viber, se incluirá el enlace y cada jugador podrá elegir su nombre y marcar si asiste o no.'
+            '¡Listo! Al compartir la convocatoria, se incluirá el enlace y cada jugador podrá elegir su nombre y marcar si asiste o no.'
           );
         };
       }
@@ -12853,54 +12165,12 @@
       bindTimePickerField('conv-time', body);
     }, (foot) => {
       foot.innerHTML = `
-        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 8px;">
-          <button class="btn" id="btn-conv-share-viber-es" style="background: #7c3aed; color: #fff; border-color: #a855f7; font-weight: 800; font-size: 11.5px; padding: 6px 2px;">
-            🇪🇸 ES
-          </button>
-          <button class="btn" id="btn-conv-share-viber-en" style="background: #6d28d9; color: #fff; border-color: #9333ea; font-weight: 800; font-size: 11.5px; padding: 6px 2px;">
-            🇬🇧 EN
-          </button>
-          <button class="btn" id="btn-conv-share-viber-et" style="background: #5b21b6; color: #fff; border-color: #8b5cf6; font-weight: 800; font-size: 11.5px; padding: 6px 2px;">
-            🇪🇪 ET
-          </button>
-          <button class="btn" id="btn-conv-share-viber-ru" style="background: #4c1d95; color: #fff; border-color: #7c3aed; font-weight: 800; font-size: 11.5px; padding: 6px 2px;">
-            🇷🇺 RU
-          </button>
-        </div>
         <div class="btn-row">
           ${c.id ? `<button class="btn danger" id="btn-conv-del" title="${t('delete')}">${icon('trash', 16)}</button>` : ''}
           <button class="btn ghost grow" id="btn-conv-cancel">${t('cancel')}</button>
           <button class="btn primary grow" id="btn-conv-save">${t('saveChanges')}</button>
         </div>
       `;
-
-      function triggerViberShare(lang) {
-        const textInp = document.getElementById('conv-date-text');
-        const hiddenInp = document.getElementById('conv-date');
-        if (textInp && hiddenInp) {
-          const parsed = parseInputDateToIso(textInp.value);
-          if (parsed) hiddenInp.value = parsed;
-        }
-
-        const formData = {
-          title: document.getElementById('conv-title').value.trim(),
-          type: currentType,
-          date: hiddenInp ? hiddenInp.value : (c.date || new Date().toISOString().slice(0, 10)),
-          time: document.getElementById('conv-time').value,
-          venue: document.getElementById('conv-venue').value.trim(),
-          rival: document.getElementById('conv-rival').value.trim(),
-          teamId: document.getElementById('conv-team') ? document.getElementById('conv-team').value : '',
-          notes: document.getElementById('conv-notes').value.trim(),
-          list
-        };
-        const text = formatConvocationWhatsAppText(formData, lang);
-        dispatchViberShare(text);
-      }
-
-      foot.querySelector('#btn-conv-share-viber-es').onclick = () => triggerViberShare('es');
-      foot.querySelector('#btn-conv-share-viber-en').onclick = () => triggerViberShare('en');
-      foot.querySelector('#btn-conv-share-viber-et').onclick = () => triggerViberShare('et');
-      foot.querySelector('#btn-conv-share-viber-ru').onclick = () => triggerViberShare('ru');
 
       foot.querySelector('#btn-conv-cancel').onclick = closeSheet;
 
@@ -13164,11 +12434,11 @@
               toast(t('deleted', 'Eliminado'), 'info');
               renderSchedulesList();
               if (onDone) onDone();
-              if (currentTab === 'home' || currentTab === 'history') {
+              if (currentTab === 'home' || currentTab === 'convocations') {
                 const view = document.getElementById('view');
                 if (view) {
                   if (currentTab === 'home') renderHomeView(view);
-                  else if (currentTab === 'history') renderHistoryView(view);
+                  else if (currentTab === 'convocations') renderConvocationsView(view);
                 }
               }
             });
@@ -13803,9 +13073,6 @@
                     🔔 ${nPending}
                   </button>
                 ` : ''}
-                <button class="btn sm" data-quick-viber="${c.id}" style="background: #7c3aed; color: #fff; border-color: #a855f7; font-size: 11.5px; font-weight: 800; padding: 4px 8px;" title="Viber">
-                  💜 Viber
-                </button>
               </div>
             </div>
 
@@ -14077,18 +13344,6 @@
         };
       });
 
-      view.querySelectorAll('[data-quick-viber]').forEach(btn => {
-        btn.onclick = (e) => {
-          e.stopPropagation();
-          const cid = btn.getAttribute('data-quick-viber');
-          const conv = Store.convocation(cid);
-          if (conv) {
-            const lang = Store.state.settings.lang || 'es';
-            const viberText = formatConvocationWhatsAppText(conv, lang);
-            dispatchViberShare(viberText);
-          }
-        };
-      });
 
       // Al pulsar en una convocatoria de la lista: abre la ventana con información y resumen de esa convocatoria
       view.querySelectorAll('.conv-card').forEach(card => {
@@ -14718,14 +13973,9 @@
           <button class="btn btn-primary" id="btn-cloud-sync-now" style="height: 40px; font-size: 13px; font-weight: 800;">
             ☁️ ${t('syncAllNow', 'Sincronizar Todo a la Nube Ahora')}
           </button>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-            <button class="btn btn-secondary" id="btn-copy-portal-link" style="height: 38px; font-size: 12px; font-weight: 700;">
-              🔗 Copiar Enlace Portal
-            </button>
-            <button class="btn btn-secondary" id="btn-share-portal-viber" style="height: 38px; font-size: 12px; font-weight: 700; background: rgba(115, 96, 242, 0.2); border-color: rgba(115, 96, 242, 0.5); color: #c4b5fd;">
-              📱 Enviar por Viber
-            </button>
-          </div>
+          <button class="btn btn-secondary block" id="btn-copy-portal-link" style="height: 38px; font-size: 12.5px; font-weight: 700;">
+            🔗 Copiar Enlace Portal del Jugador
+          </button>
           <button class="btn btn-secondary block" id="btn-reset-test-presence" style="height: 38px; font-size: 12px; font-weight: 700; color: #f87171; border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.1);">
             🔄 ${t('resetTestPlayerLinks', 'Desvincular perfiles de prueba')}
           </button>
@@ -14952,13 +14202,6 @@
       };
     }
 
-    const btnSharePortalViber = view.querySelector('#btn-share-portal-viber');
-    if (btnSharePortalViber) {
-      btnSharePortalViber.onclick = () => {
-        const viberMsg = `⚽ *Portal Oficial del Jugador - Jõhvi JK Noova*\nConsulta tus estadísticas individuales, convocatorias y confirma tu asistencia en vivo:\n👉 ${portalUrl}`;
-        dispatchViberShare(viberMsg);
-      };
-    }
 
     // Configuración del Perfil de Jugador de Prueba (Modo Test)
     const selTestTeam = view.querySelector('#config-test-player-team');
