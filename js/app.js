@@ -2129,7 +2129,6 @@
     const todaySessions = allSessions.filter(s => s.date === todayIso).sort((a, b) => (a.time || '').localeCompare(b.time || ''));
     const tomorrowSessions = allSessions.filter(s => s.date === tomorrowIso).sort((a, b) => (a.time || '').localeCompare(b.time || ''));
     const pastSessions = allSessions.filter(s => s.date < todayIso).sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.time || '').localeCompare(a.time || ''));
-    const futureSessions = allSessions.filter(s => s.date > tomorrowIso).sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.time || '').localeCompare(b.time || ''));
 
     let html = `
       <div class="topbar">
@@ -2195,13 +2194,6 @@
               📅 ${t('noSessionsTomorrow', 'No hay sesiones programadas para mañana')}
             </div>
           `}
-
-          ${futureSessions.length > 0 ? `
-            <div style="font-size: 12.5px; font-weight: 800; color: #cbd5e1; margin-top: 10px; margin-bottom: 2px; display: flex; align-items: center; gap: 6px;">
-              <span>📅</span> ${t('futureSessionsTitle', 'Próximas Sesiones')} (${futureSessions.length})
-            </div>
-            ${futureSessions.map(s => renderSessionItemHtml(s)).join('')}
-          ` : ''}
 
           <!-- 3. Grupo de sesiones anteriores -->
           ${pastSessions.length > 0 ? `
