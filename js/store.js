@@ -2522,6 +2522,13 @@
       const d = String(now.getDate()).padStart(2, '0');
       const todayStr = `${y}-${m}-${d}`;
 
+      const tomDate = new Date();
+      tomDate.setDate(tomDate.getDate() + 1);
+      const ty = tomDate.getFullYear();
+      const tm_m = String(tomDate.getMonth() + 1).padStart(2, '0');
+      const td = String(tomDate.getDate()).padStart(2, '0');
+      const tomorrowStr = `${ty}-${tm_m}-${td}`;
+
       this.state.sessions = Array.isArray(this.state.sessions) ? this.state.sessions : [];
       this.state.convocations = Array.isArray(this.state.convocations) ? this.state.convocations : [];
 
@@ -2534,53 +2541,70 @@
       }
 
       const deletedSet = new Set(this.state.deletedRecurringIds || []);
-      const todayTrainings = this.state.convocations.filter(c => {
-        if (!c || c.date !== todayStr || c.type !== 'training') return false;
+      // Incluir convocatorias activas (hoy, mañana y eventos planificados)
+      const activeConvocations = this.state.convocations.filter(c => {
+        if (!c || !c.date) return false;
         if (c.id && deletedSet.has(c.id)) return false;
-        if (c.scheduleId && deletedSet.has(`rec_${c.scheduleId}_${todayStr.replace(/-/g, '')}`)) return false;
+        if (c.scheduleId && deletedSet.has(`rec_${c.scheduleId}_${c.date.replace(/-/g, '')}`)) return false;
         return true;
       });
-      if (!todayTrainings.length) return 0;
+      if (!activeConvocations.length) return 0;
 
       let createdCount = 0;
 
-      todayTrainings.forEach(c => {
+      activeConvocations.forEach(c => {
         const targetTeamIds = Array.isArray(c.teamIds) && c.teamIds.length > 0
           ? c.teamIds
           : (c.teamId ? [c.teamId] : []);
         const targetTeamsSortedStr = targetTeamIds.slice().sort().join(',');
 
-        // Comprobar si ya existe una sesión en el menú sesiones vinculada a este entrenamiento de hoy
-        const exists = this.state.sessions.some(s => {
+        // Comprobar si ya existe una sesión vinculada a esta convocatoria
+        const exists = this.state.sessions.find(s => {
+          if (!s) return false;
           if (s.convocationId && s.convocationId === c.id) return true;
           if (c.sessionId && s.id === c.sessionId) return true;
           if (s.scheduleId && c.scheduleId && s.scheduleId === c.scheduleId && s.date === c.date) return true;
-          // Misma fecha, tipo entrenamiento y mismos equipos
-          if (s.date === c.date && s.type === 'training') {
-            const sTeams = Array.isArray(s.teamIds) && s.teamIds.length > 0 ? s.teamIds : (s.teamId ? [s.teamId] : []);
-            const sTeamsSortedStr = sTeams.slice().sort().join(',');
-            if (sTeamsSortedStr === targetTeamsSortedStr) return true;
+          if (s.date === c.date && s.type === c.type) {
+            if (c.type === 'match') {
+              if (c.rival && s.rival && c.rival.toLowerCase().trim() === s.rival.toLowerCase().trim()) return true;
+              if (!c.rival && !s.rival) return true;
+            } else {
+              const sTeams = Array.isArray(s.teamIds) && s.teamIds.length > 0 ? s.teamIds : (s.teamId ? [s.teamId] : []);
+              const sTeamsSortedStr = sTeams.slice().sort().join(',');
+              if (sTeamsSortedStr === targetTeamsSortedStr) return true;
+            }
           }
           return false;
         });
 
-        if (!exists) {
-          const autoTitle = c.title || (targetTeamIds.length > 1
-            ? 'Entrenamiento (' + targetTeamIds.map(tid => { const tm = this.team(tid); return tm ? tm.name : ''; }).filter(Boolean).join(' / ') + ')'
-            : (targetTeamIds[0] && this.team(targetTeamIds[0]) ? 'Entrenamiento ' + this.team(targetTeamIds[0]).name : 'Entrenamiento'));
+        if (exists) {
+          if (!c.sessionId) c.sessionId = exists.id;
+          if (!exists.convocationId) exists.convocationId = c.id;
+          if (exists.timerStartedAt == null && exists.elapsedMs === 0) {
+            if (c.time && !exists.time) exists.time = c.time;
+            if (c.venue && !exists.venue) exists.venue = c.venue;
+            if (c.address && !exists.address) exists.address = c.address;
+            if (c.rival && !exists.rival) exists.rival = c.rival;
+          }
+        } else {
+          const autoTitle = c.title || (c.type === 'match'
+            ? (c.rival ? 'Partido vs ' + c.rival : 'Partido')
+            : (targetTeamIds.length > 1
+              ? 'Entrenamiento (' + targetTeamIds.map(tid => { const tm = this.team(tid); return tm ? tm.name : ''; }).filter(Boolean).join(' / ') + ')'
+              : (targetTeamIds[0] && this.team(targetTeamIds[0]) ? 'Entrenamiento ' + this.team(targetTeamIds[0]).name : 'Entrenamiento')));
 
           const newSession = {
-            id: uid('s'),
+            id: c.sessionId || uid('s'),
             convocationId: c.id,
             scheduleId: c.scheduleId || '',
-            type: 'training',
+            type: c.type || 'training',
             date: c.date,
             time: c.time || '18:00',
             endTime: c.endTime || '',
             duration: c.duration || 90,
             createdAt: Date.now(),
             title: autoTitle,
-            rival: '',
+            rival: c.rival || '',
             venue: c.venue || '',
             address: c.address || '',
             teamId: targetTeamIds[0] || '',
@@ -2591,7 +2615,7 @@
             timerStartedAt: null,
             slots: [null, null],
             enabledStats: null,
-            attendance: {},
+            attendance: c.list || {},
             score: { home: 0, away: 0 },
             period: 'B1',
             zones: [],

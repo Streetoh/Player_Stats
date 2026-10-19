@@ -2060,14 +2060,76 @@
     if (window.Store && window.Store.autoCreateTodayScheduledSessions) {
       window.Store.autoCreateTodayScheduledSessions();
     }
-    const totalPlayers = Store.state.players.length;
     const todayIso = getTodayIso();
     const tomorrowIso = getTomorrowIso();
+
+    // Sincronización garantizada de convocatorias para hoy y mañana
+    const allConvs = Store.state.convocations || [];
+    let stateModified = false;
+    allConvs.forEach(c => {
+      if (!c || !c.date) return;
+      if (c.date === todayIso || c.date === tomorrowIso) {
+        let s = c.sessionId ? Store.session(c.sessionId) : null;
+        if (!s) {
+          s = (Store.state.sessions || []).find(sess => sess.convocationId === c.id || (c.sessionId && sess.id === c.sessionId) || (sess.date === c.date && sess.type === c.type));
+        }
+        if (!s) {
+          const targetTeamIds = Array.isArray(c.teamIds) && c.teamIds.length > 0 ? c.teamIds : (c.teamId ? [c.teamId] : []);
+          const autoTitle = c.title || (c.type === 'match'
+            ? (c.rival ? 'Partido vs ' + c.rival : 'Partido')
+            : (targetTeamIds.length > 1
+              ? 'Entrenamiento (' + targetTeamIds.map(tid => { const tm = Store.team(tid); return tm ? tm.name : ''; }).filter(Boolean).join(' / ') + ')'
+              : (targetTeamIds[0] && Store.team(targetTeamIds[0]) ? 'Entrenamiento ' + Store.team(targetTeamIds[0]).name : 'Entrenamiento')));
+
+          s = {
+            id: c.sessionId || ('s_' + (c.id || Date.now())),
+            convocationId: c.id,
+            scheduleId: c.scheduleId || '',
+            type: c.type || 'training',
+            date: c.date,
+            time: c.time || '18:00',
+            endTime: c.endTime || '',
+            duration: c.duration || 90,
+            createdAt: Date.now(),
+            title: autoTitle,
+            rival: c.rival || '',
+            venue: c.venue || '',
+            address: c.address || '',
+            teamId: targetTeamIds[0] || '',
+            teamIds: targetTeamIds,
+            notes: c.notes || '',
+            status: 'active',
+            elapsedMs: 0,
+            timerStartedAt: null,
+            slots: [null, null],
+            enabledStats: null,
+            attendance: c.list || {},
+            score: { home: 0, away: 0 },
+            period: 'B1',
+            zones: [],
+            stats: {},
+            log: []
+          };
+          c.sessionId = s.id;
+          Store.state.sessions = Store.state.sessions || [];
+          Store.state.sessions.unshift(s);
+          stateModified = true;
+        } else {
+          if (!c.sessionId) { c.sessionId = s.id; stateModified = true; }
+          if (!s.convocationId) { s.convocationId = c.id; stateModified = true; }
+        }
+      }
+    });
+    if (stateModified) {
+      Store.save();
+    }
+
+    const totalPlayers = Store.state.players.length;
     const allSessions = Store.state.sessions || [];
-    const todaySessions = allSessions.filter(s => s.date === todayIso);
-    const tomorrowSessions = allSessions.filter(s => s.date === tomorrowIso);
-    const pastSessions = allSessions.filter(s => s.date < todayIso).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-    const futureSessions = allSessions.filter(s => s.date > tomorrowIso).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    const todaySessions = allSessions.filter(s => s.date === todayIso).sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+    const tomorrowSessions = allSessions.filter(s => s.date === tomorrowIso).sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+    const pastSessions = allSessions.filter(s => s.date < todayIso).sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.time || '').localeCompare(a.time || ''));
+    const futureSessions = allSessions.filter(s => s.date > tomorrowIso).sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.time || '').localeCompare(b.time || ''));
 
     let html = `
       <div class="topbar">
@@ -2534,7 +2596,9 @@
     });
     const hasAtt = attKeys.length > 0;
     const todayIso = getTodayIso();
+    const tomorrowIso = getTomorrowIso();
     const isToday = (s.date === todayIso);
+    const isTomorrow = (s.date === tomorrowIso);
     const isPast = Boolean(s.date && s.date < todayIso);
     const cardStyle = getEventCardStyle(s, { isPast, isToday, isMatch: s.type === 'match' });
 
@@ -2595,6 +2659,7 @@
             <div class="meta" style="margin-top: 4px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
               <span>📅 ${formatDateDDMMAAAA(s.date)}</span>
               ${isToday ? `<span class="badge badge-today-glow" style="background: rgba(34, 211, 238, 0.25); color: #22d3ee; border: 1px solid rgba(34, 211, 238, 0.6); font-weight: 900; font-size: 10px;">🌟 ${t('today', 'HOY')}</span>` : ''}
+              ${isTomorrow ? `<span class="badge" style="background: rgba(165, 180, 252, 0.22); color: #c7d2fe; border: 1px solid rgba(165, 180, 252, 0.6); font-weight: 900; font-size: 10px;">🌅 ${t('tomorrow', 'MAÑANA')}</span>` : ''}
               <span>•</span>
               <span>⏱️ ${Store.fmtTime(Store.elapsed(s), s)}</span>
               ${isLive ? `<span class="badge live">${t('live')}</span>` : `<span class="badge match" style="font-size: 10px; padding: 2px 6px;">${typeLabel}</span>`}
@@ -2624,6 +2689,7 @@
             </div>
             <div style="display: flex; align-items: center; gap: 4px;">
               ${isToday ? `<span class="badge badge-today-glow" style="background: rgba(34, 211, 238, 0.25); color: #22d3ee; border: 1px solid rgba(34, 211, 238, 0.6); font-weight: 900; font-size: 10px;">🌟 ${t('today', 'HOY')}</span>` : ''}
+              ${isTomorrow ? `<span class="badge" style="background: rgba(165, 180, 252, 0.22); color: #c7d2fe; border: 1px solid rgba(165, 180, 252, 0.6); font-weight: 900; font-size: 10px;">🌅 ${t('tomorrow', 'MAÑANA')}</span>` : ''}
               ${isLive ? `<span class="badge live">${t('live')}</span>` : `<span class="badge training">${typeLabel}</span>`}
             </div>
           </div>
