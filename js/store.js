@@ -1129,7 +1129,7 @@
     },
 
     /* Registro de acciones (+1 / -1) */
-    record(sessionId, playerId, key, delta) {
+    record(sessionId, playerId, key, delta, author = 'coach') {
       const s = this.session(sessionId);
       if (!s || !playerId || !STAT_MAP[key]) return null;
       s.type = s.type === 'match' ? 'match' : 'training';
@@ -1160,7 +1160,15 @@
         goalDeltaHome = delta;
       }
 
-      const entry = { t: Date.now(), m: this.elapsed(s), p: playerId, k: applied, d: delta, type: s.type };
+      const entry = {
+        t: Date.now(),
+        m: this.elapsed(s),
+        p: playerId,
+        k: applied,
+        d: delta,
+        type: s.type,
+        author: author || 'coach'
+      };
       if (goalDeltaHome > 0) {
         entry.goalScoreHome = goalDeltaHome;
       }
@@ -1170,7 +1178,7 @@
     },
 
     /* Registro atómico de duelo 1v1 (1-Tap para ambos jugadores) */
-    recordDuel1v1Outcome(sessionId, outcomeType, pAId, pBId) {
+    recordDuel1v1Outcome(sessionId, outcomeType, pAId, pBId, author = 'coach') {
       const s = this.session(sessionId);
       if (!s || !pAId || !pBId) return null;
       s.type = s.type === 'match' ? 'match' : 'training';
@@ -1231,19 +1239,26 @@
         pB: pBId,
         changesA,
         changesB,
-        type: s.type
+        type: s.type,
+        author: author || 'coach'
       };
       s.log.push(logEntry);
       this.save();
       return logEntry;
     },
 
-    /* Deshacer (Undo) silencioso por jugador o por duelo */
-    undo(sessionId, playerId) {
+    /* Deshacer (Undo) silencioso por jugador o por duelo con filtro de autor opcional ('coach' | 'assistant') */
+    undo(sessionId, playerId, authorFilter = null) {
       const s = this.session(sessionId);
       if (!s) return null;
       for (let i = s.log.length - 1; i >= 0; i--) {
         const e = s.log[i];
+        if (authorFilter) {
+          const entryAuthor = e.author || 'coach';
+          if (entryAuthor !== authorFilter) {
+            continue;
+          }
+        }
         if (e.isDuel1v1 && (e.pA === playerId || e.pB === playerId || !playerId)) {
           const stA = s.stats[e.pA] || {};
           const stB = s.stats[e.pB] || {};

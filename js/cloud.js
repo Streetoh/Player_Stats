@@ -2652,23 +2652,28 @@
         }, (err) => console.warn('[Cloud] Error escuchando doc live tracker:', err));
         unsubs.push(unsubDoc);
 
-        // 2. Escuchar la subcolección de acciones del asistente
+        // 2. Escuchar la subcolección de acciones del asistente (soporta múltiples asistentes y dispositivos simultáneos)
         const processedActionIds = new Set();
-        const startTime = Date.now() - 5000;
+        let isInitialLoad = true;
         const unsubActions = trackerRef.collection('actions')
           .orderBy('timestamp', 'desc')
-          .limit(25)
+          .limit(50)
           .onSnapshot((snapshot) => {
+            if (isInitialLoad) {
+              snapshot.forEach((doc) => {
+                processedActionIds.add(doc.id);
+              });
+              isInitialLoad = false;
+              return;
+            }
             snapshot.docChanges().forEach((change) => {
               if (change.type === 'added') {
                 const actionId = change.doc.id;
                 if (!processedActionIds.has(actionId)) {
                   processedActionIds.add(actionId);
                   const actionData = change.doc.data();
-                  if (actionData && (!actionData.timestamp || actionData.timestamp >= startTime)) {
-                    if (typeof onAction === 'function') {
-                      onAction(actionData, actionId);
-                    }
+                  if (actionData && typeof onAction === 'function') {
+                    onAction(actionData, actionId);
                   }
                 }
               }
@@ -2686,30 +2691,51 @@
     },
 
     closeLiveTrackerSession: async function (code) {
-      if (!this.init() || !code) return;
+      if (!this.init() || !code) return false;
       try {
-        await db.collection('clubs').doc(CLUB_ID).collection('live_trackers').doc(code).update({
+        const sCode = String(code).trim();
+        await db.collection('clubs').doc(CLUB_ID).collection('live_trackers').doc(sCode).set({
           active: false,
+          disconnectedByCoach: true,
           closedAt: Date.now()
-        });
-      } catch (e) {}
+        }, { merge: true });
+        return true;
+      } catch (e) {
+        console.error('[Cloud] Error cerrando live tracker:', e);
+        return false;
+      }
     },
 
-    joinLiveTrackerSession: async function (code, onUpdate, onClosed) {
+    joinLiveTrackerSession: async function (code, assistantNameOrOnUpdate, onUpdateOrOnClosed, maybeOnClosed) {
       if (!this.init() || !code) return null;
+      let assistantName = 'Asistente';
+      let onUpdate = null;
+      let onClosed = null;
+
+      if (typeof assistantNameOrOnUpdate === 'function') {
+        onUpdate = assistantNameOrOnUpdate;
+        onClosed = onUpdateOrOnClosed;
+      } else {
+        assistantName = assistantNameOrOnUpdate || 'Asistente';
+        onUpdate = onUpdateOrOnClosed;
+        onClosed = maybeOnClosed;
+      }
+
       try {
-        const trackerRef = db.collection('clubs').doc(CLUB_ID).collection('live_trackers').doc(code);
+        const sCode = String(code).trim();
+        const trackerRef = db.collection('clubs').doc(CLUB_ID).collection('live_trackers').doc(sCode);
         const doc = await trackerRef.get();
         if (!doc || !doc.exists) {
           throw new Error('NOT_FOUND');
         }
         const data = doc.data();
-        if (data.active === false) {
+        if (data.active === false || data.disconnectedByCoach === true) {
           throw new Error('INACTIVE');
         }
 
         await trackerRef.set({
           assistantConnected: true,
+          lastAssistantName: assistantName,
           assistantConnectedAt: Date.now()
         }, { merge: true });
 
@@ -2719,7 +2745,7 @@
             return;
           }
           const cur = snap.data();
-          if (cur.active === false) {
+          if (cur.active === false || cur.disconnectedByCoach === true) {
             if (typeof onClosed === 'function') onClosed('FINISHED');
             return;
           }
@@ -2735,13 +2761,16 @@
     sendLiveTrackerAction: async function (code, action) {
       if (!this.init() || !code || !action) return false;
       try {
-        const actionsCol = db.collection('clubs').doc(CLUB_ID).collection('live_trackers').doc(code).collection('actions');
+        const sCode = String(code).trim();
+        const actionsCol = db.collection('clubs').doc(CLUB_ID).collection('live_trackers').doc(sCode).collection('actions');
         await actionsCol.add({
           type: action.type || 'stat',
           playerId: action.playerId,
           statKey: action.statKey || '',
           delta: action.delta || 1,
           author: 'assistant',
+          assistantId: action.assistantId || 'asst_default',
+          assistantName: action.assistantName || 'Asistente',
           timestamp: Date.now()
         });
         return true;
@@ -2751,14 +2780,17 @@
       }
     },
 
-    sendLiveTrackerUndo: async function (code, playerId) {
+    sendLiveTrackerUndo: async function (code, playerId, assistantId, assistantName) {
       if (!this.init() || !code || !playerId) return false;
       try {
-        const actionsCol = db.collection('clubs').doc(CLUB_ID).collection('live_trackers').doc(code).collection('actions');
+        const sCode = String(code).trim();
+        const actionsCol = db.collection('clubs').doc(CLUB_ID).collection('live_trackers').doc(sCode).collection('actions');
         await actionsCol.add({
           type: 'undo',
           playerId: playerId,
           author: 'assistant',
+          assistantId: assistantId || 'asst_default',
+          assistantName: assistantName || 'Asistente',
           timestamp: Date.now()
         });
         return true;

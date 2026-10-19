@@ -62,7 +62,7 @@ def main():
                 shutil.rmtree(dst)
             if src.exists():
                 shutil.copytree(src, dst)
-        for ext in ["*.html", "manifest*.json", "sw.js"]:
+        for ext in ["*.html", "manifest*.json", "*sw*.js"]:
             for f in PROJECT_DIR.glob(ext):
                 shutil.copy2(f, ASSETS_DIR / f.name)
 

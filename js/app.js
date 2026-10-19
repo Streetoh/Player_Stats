@@ -4072,7 +4072,7 @@
       btnUndo0.onclick = () => {
         const pid = session.slots ? session.slots[0] : null;
         if (pid) {
-          Store.undo(session.id, pid);
+          Store.undo(session.id, pid, 'coach');
           haptic(40);
           syncActiveLiveTracker(session);
           renderTracker();
@@ -4084,7 +4084,7 @@
       btnUndo1.onclick = () => {
         const pid = session.slots ? session.slots[1] : null;
         if (pid) {
-          Store.undo(session.id, pid);
+          Store.undo(session.id, pid, 'coach');
           haptic(40);
           syncActiveLiveTracker(session);
           renderTracker();
@@ -4497,7 +4497,7 @@
         undoBtn.onclick = () => {
           const playerId = session.slots[slotIdx];
           if (!playerId) return;
-          const entry = Store.undo(session.id, playerId);
+          const entry = Store.undo(session.id, playerId, 'coach');
           if (entry) {
             if (window.SyncEngine && SyncEngine.isLive()) {
               SyncEngine.sendUndo(session.id, playerId);
@@ -5356,12 +5356,12 @@
       if (actionData.type === 'undo') {
         const p = Store.player(actionData.playerId);
         const pName = p ? Store.playerName(p) : 'Jugador';
-        Store.undo(session.id, actionData.playerId);
-        haptic(50);
-        toast(`⚡ Asistente: Deshacer en ${pName}`, 'info');
+        Store.undo(session.id, actionData.playerId, 'assistant');
+        haptic(35);
 
         session._liveAssistantActions.push({
           desc: `↩️ Deshacer en ${pName}`,
+          author: actionData.assistantName || 'Asistente',
           time: nowStr
         });
 
@@ -5369,16 +5369,16 @@
         Cloud.updateLiveTrackerSession(code, { stats: session.stats || {} });
       } else {
         const delta = actionData.delta || 1;
-        const entry = Store.record(session.id, actionData.playerId, actionData.statKey, delta);
+        const entry = Store.record(session.id, actionData.playerId, actionData.statKey, delta, 'assistant');
         if (entry) {
-          haptic(45);
+          haptic(35);
           const p = Store.player(actionData.playerId);
           const pName = p ? Store.playerName(p) : 'Jugador';
           const statObj = Store.getSessionStats(session).find(s => s.key === actionData.statKey) || { short: actionData.statKey, emoji: '⚡' };
-          toast(`⚡ Asistente: +${delta} ${statObj.emoji} ${statObj.short} (${pName})`, 'success');
 
           session._liveAssistantActions.push({
             desc: `+${delta} ${statObj.emoji} ${statObj.short} (${pName})`,
+            author: actionData.assistantName || 'Asistente',
             time: nowStr
           });
 
@@ -5393,10 +5393,12 @@
       const feedEl = document.getElementById('live-assistant-log-list');
       const countEl = document.getElementById('live-assistant-count');
       if (feedEl) {
-        feedEl.innerHTML = session._liveAssistantActions.slice(-5).reverse().map(act => `
-          <div style="padding: 4px 0; border-bottom: 1px dashed rgba(255,255,255,0.08); display: flex; justify-content: space-between; color: #e2e8f0; font-size: 11.5px;">
-            <span>${escapeHtml(act.desc)}</span>
-            <span style="color: var(--muted); font-size: 10px;">${act.time}</span>
+        feedEl.innerHTML = session._liveAssistantActions.slice(-8).reverse().map(act => `
+          <div style="padding: 4px 0; border-bottom: 1px dashed rgba(255,255,255,0.08); display: flex; justify-content: space-between; align-items: center; color: #e2e8f0; font-size: 11.5px;">
+            <span style="min-width: 0; overflow: hidden; text-overflow: ellipsis;">
+              <b style="color: var(--cyan);">${escapeHtml(act.author || 'Asistente')}:</b> ${escapeHtml(act.desc)}
+            </span>
+            <span style="color: var(--muted); font-size: 10px; margin-left: 8px; flex-shrink: 0;">${act.time}</span>
           </div>
         `).join('');
       }
@@ -5532,16 +5534,14 @@
           </div>
 
           <!-- CÓDIGO QR PARA ESCANEAR -->
-          ${qrSvg ? `
-            <div style="text-align: center; margin-bottom: 16px;">
-              <div style="background: #fff; padding: 12px; border-radius: 16px; display: inline-block; box-shadow: 0 4px 20px rgba(0,0,0,0.5);">
-                ${qrSvg}
-              </div>
-              <div style="font-size: 11.5px; color: var(--muted); margin-top: 6px;">
-                📷 O escanea con la cámara de su móvil para abrir directamente el tracker
-              </div>
+          <div style="text-align: center; margin-bottom: 16px;">
+            <div id="live-tracker-qr-wrapper" style="background: #ffffff; padding: 12px; border-radius: 16px; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 4px 20px rgba(0,0,0,0.5); min-width: 224px; min-height: 224px; margin: 0 auto;">
+              <canvas id="live-tracker-qr-canvas" width="200" height="200" style="display: block; border-radius: 8px; width: 200px; height: 200px;"></canvas>
             </div>
-          ` : ''}
+            <div style="font-size: 11.5px; color: var(--muted); margin-top: 6px;">
+              📷 Escanea con la cámara de su móvil para abrir directamente el tracker
+            </div>
+          </div>
 
           <!-- REGISTRO EN VIVO DE ACCIONES DEL ASISTENTE -->
           <div id="live-assistant-feed" style="background: rgba(0,0,0,0.35); border: 1px solid var(--border); border-radius: 14px; padding: 12px; font-size: 12px;">
@@ -5551,10 +5551,12 @@
             </div>
             <div id="live-assistant-log-list" style="max-height: 110px; overflow-y: auto;">
               ${(session._liveAssistantActions && session._liveAssistantActions.length > 0)
-                ? session._liveAssistantActions.slice(-5).reverse().map(act => `
-                    <div style="padding: 4px 0; border-bottom: 1px dashed rgba(255,255,255,0.08); display: flex; justify-content: space-between; color: #e2e8f0; font-size: 11.5px;">
-                      <span>${escapeHtml(act.desc)}</span>
-                      <span style="color: var(--muted); font-size: 10px;">${act.time}</span>
+                ? session._liveAssistantActions.slice(-8).reverse().map(act => `
+                    <div style="padding: 5px 0; border-bottom: 1px dashed rgba(255,255,255,0.08); display: flex; justify-content: space-between; align-items: center; color: #e2e8f0; font-size: 11.5px;">
+                      <span style="min-width: 0; overflow: hidden; text-overflow: ellipsis;">
+                        <b style="color: var(--cyan);">${escapeHtml(act.author || 'Asistente')}:</b> ${escapeHtml(act.desc)}
+                      </span>
+                      <span style="color: var(--muted); font-size: 10px; margin-left: 8px; flex-shrink: 0;">${act.time}</span>
                     </div>
                   `).join('')
                 : `<span style="color: var(--muted); font-style: italic;">Esperando primeras pulsaciones del asistente...</span>`
@@ -5562,6 +5564,39 @@
             </div>
           </div>
         `;
+
+        // Renderizado garantizado del código QR (Canvas nativo + SVG fallback + imagen fallback)
+        const qrCanvas = body.querySelector('#live-tracker-qr-canvas');
+        const qrWrapper = body.querySelector('#live-tracker-qr-wrapper');
+
+        function fallbackQR() {
+          if (!qrWrapper) return;
+          try {
+            if (window.SyncEngine && SyncEngine.QR && SyncEngine.QR.toSVG) {
+              const svgStr = SyncEngine.QR.toSVG(finalShareUrl, 6);
+              if (svgStr) {
+                qrWrapper.innerHTML = svgStr;
+                return;
+              }
+            }
+          } catch (e) {}
+          qrWrapper.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(finalShareUrl)}" alt="QR Code" width="200" height="200" style="display:block;border-radius:8px;" />`;
+        }
+
+        if (qrCanvas && window.QRCode && window.QRCode.toCanvas) {
+          try {
+            window.QRCode.toCanvas(qrCanvas, finalShareUrl, { width: 200, margin: 2 }, function (err) {
+              if (err) {
+                console.warn('[QR] Error en QRCode.toCanvas:', err);
+                fallbackQR();
+              }
+            });
+          } catch (e) {
+            fallbackQR();
+          }
+        } else {
+          fallbackQR();
+        }
 
         const copyBtn = body.querySelector('#btn-copy-live-link');
         if (copyBtn) {
@@ -5619,17 +5654,20 @@
       foot.querySelector('#btn-close-live-modal').onclick = closeSheet;
 
       foot.querySelector('#btn-stop-live-tracker').onclick = () => {
-        confirmDialog('Finalizar conexión remota', '¿Deseas cerrar el tracker compartido? El asistente se desconectará.', () => {
+        confirmDialog('Finalizar conexión remota', '¿Deseas cerrar el tracker compartido? Los asistentes se desconectarán de inmediato y no podrán enviar más acciones.', async () => {
           if (activeLiveTrackerUnsub) {
             try { activeLiveTrackerUnsub(); } catch (e) {}
             activeLiveTrackerUnsub = null;
           }
-          Cloud.closeLiveTrackerSession(code);
+          if (code) {
+            await Cloud.closeLiveTrackerSession(code);
+          }
           session._liveTrackerActive = false;
           session._liveTrackerConnected = false;
+          session._liveTrackerCode = null;
           closeSheet();
           renderTracker();
-          toast('Tracker compartido finalizado', 'info');
+          toast('Tracker compartido finalizado y asistentes desconectados', 'info');
         });
       };
     });
@@ -5674,8 +5712,8 @@
             <div class="qr-box">
               <span class="muted" style="font-size: 12px; font-weight:700;">CÓDIGO DE SALA:</span>
               <div class="room-code-tag">${roomCode}</div>
-              <div style="background: #fff; padding: 12px; border-radius: 16px; box-shadow: 0 4px 16px rgba(0,0,0,0.3); display: inline-block;">
-                ${qrSvg}
+              <div id="live-sync-qr-wrapper" style="background: #fff; padding: 12px; border-radius: 16px; box-shadow: 0 4px 16px rgba(0,0,0,0.3); display: inline-flex; align-items: center; justify-content: center; min-width: 224px; min-height: 224px; margin: 0 auto;">
+                <canvas id="live-sync-qr-canvas" width="200" height="200" style="display: block; border-radius: 8px; width: 200px; height: 200px;"></canvas>
               </div>
               <p class="hint" style="margin-top: 8px;">
                 Escanea este código QR con la app o con la cámara de cualquier teléfono, o escribe el código <b>${roomCode}</b> en el otro móvil para sincronizar datos en directo.
@@ -5690,6 +5728,20 @@
               ${icon('stop', 16)} Desconectar y Finalizar En Vivo
             </button>
           `;
+
+          const syncCanvas = body.querySelector('#live-sync-qr-canvas');
+          const syncWrapper = body.querySelector('#live-sync-qr-wrapper');
+          if (syncCanvas && window.QRCode && window.QRCode.toCanvas) {
+            try {
+              window.QRCode.toCanvas(syncCanvas, qrData, { width: 200, margin: 2 }, function (err) {
+                if (err && syncWrapper) syncWrapper.innerHTML = SyncEngine.QR.toSVG(qrData, 6);
+              });
+            } catch (e) {
+              if (syncWrapper) syncWrapper.innerHTML = SyncEngine.QR.toSVG(qrData, 6);
+            }
+          } else if (syncWrapper) {
+            syncWrapper.innerHTML = SyncEngine.QR.toSVG(qrData, 6);
+          }
 
           body.querySelector('#btn-sync-disconnect').onclick = () => {
             SyncEngine.disconnect();

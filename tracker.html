@@ -9,19 +9,28 @@
   <meta name="theme-color" content="#060a13" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Live Tracker" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="description" content="Tracker independiente en directo conectado a la app del entrenador • Player Stats" />
   <title>Player Stats • Standalone Live Tracker</title>
-  <link rel="manifest" href="manifest.json" />
+
+  <!-- PWA MANIFEST & ICONS PARA INSTALACIÓN EN CHROME Y SAFARI -->
+  <link rel="manifest" href="manifest_tracker.json" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
-  <link rel="icon" type="image/png" href="icons/icon-192.png" />
+  <link rel="apple-touch-icon" sizes="192x192" href="icons/icon-192.png" />
+  <link rel="apple-touch-icon" sizes="512x512" href="icons/icon-512.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-192.png" />
+
   <style>
     :root {
       --bg: #060a13;
       --bg2: #0d1527;
       --surface: #131f38;
       --surface2: #1c2c4e;
+      --surface-hover: #223762;
       --border: #223456;
+      --border-accent: #22d3ee;
       --text: #f8fafc;
       --muted: #94a3b8;
       --cyan: #22d3ee;
@@ -46,6 +55,7 @@
       width: 100%;
       height: 100%;
       overflow: hidden;
+      overflow-x: hidden !important;
       touch-action: manipulation;
     }
     body {
@@ -55,12 +65,64 @@
       height: 100dvh;
     }
 
+    /* BARRA DE IDIOMAS */
+    .lang-bar {
+      display: inline-flex;
+      align-items: center;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 2px;
+      gap: 2px;
+    }
+    .lang-btn {
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+      padding: 4px 8px;
+      border-radius: 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      transition: all 0.15s ease;
+    }
+    .lang-btn.active {
+      background: var(--cyan);
+      color: #060a13;
+      font-weight: 900;
+      box-shadow: 0 0 8px rgba(34, 211, 238, 0.4);
+    }
+
+    /* BOTÓN INSTALAR PWA */
+    .btn-install-pwa {
+      display: none;
+      align-items: center;
+      gap: 5px;
+      background: rgba(34, 211, 238, 0.15);
+      border: 1px solid rgba(34, 211, 238, 0.35);
+      color: var(--cyan);
+      font-size: 11px;
+      font-weight: 800;
+      padding: 4px 10px;
+      border-radius: 14px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .btn-install-pwa:active {
+      transform: scale(0.95);
+      background: rgba(34, 211, 238, 0.25);
+    }
+
     /* PANTALLAS */
     .screen {
       display: none;
       width: 100%;
       height: 100%;
       flex-direction: column;
+      overflow-x: hidden !important;
     }
     .screen.active {
       display: flex;
@@ -68,20 +130,30 @@
 
     /* PANTALLA PIN DE ENTRADA */
     #screen-pin {
-      padding: calc(var(--safe-top) + 20px) 20px calc(var(--safe-bottom) + 20px);
+      padding: calc(var(--safe-top) + 10px) 16px calc(var(--safe-bottom) + 14px);
       align-items: center;
       justify-content: center;
       overflow-y: auto;
+    }
+    .pin-top-tools {
+      width: 100%;
+      max-width: 420px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      gap: 8px;
     }
     .pin-card {
       background: var(--surface);
       border: 1.5px solid var(--border);
       border-radius: 24px;
-      padding: 24px 20px;
+      padding: 20px 18px;
       width: 100%;
       max-width: 420px;
       text-align: center;
       box-shadow: 0 16px 40px rgba(0,0,0,0.6);
+      box-sizing: border-box;
     }
     .pin-badge {
       display: inline-flex;
@@ -95,34 +167,73 @@
       background: rgba(34, 211, 238, 0.15);
       color: var(--cyan);
       border: 1px solid rgba(34, 211, 238, 0.3);
-      margin-bottom: 12px;
+      margin-bottom: 10px;
     }
     .pin-title {
-      font-size: 22px;
+      font-size: 21px;
       font-weight: 900;
       color: #fff;
-      margin-bottom: 6px;
+      margin-bottom: 4px;
     }
     .pin-desc {
-      font-size: 13px;
+      font-size: 12.5px;
       color: var(--muted);
-      line-height: 1.45;
-      margin-bottom: 20px;
+      line-height: 1.4;
+      margin-bottom: 14px;
     }
+
+    /* CAMPO DE NOMBRE DEL ASISTENTE */
+    .pin-name-field {
+      text-align: left;
+      margin-bottom: 14px;
+      background: var(--bg2);
+      border: 1.5px solid var(--border);
+      border-radius: 14px;
+      padding: 10px 12px;
+      transition: border-color 0.15s;
+    }
+    .pin-name-field:focus-within {
+      border-color: var(--cyan);
+      box-shadow: 0 0 10px rgba(34, 211, 238, 0.25);
+    }
+    .pin-name-label {
+      display: block;
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--cyan);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+    .asst-name-input {
+      width: 100%;
+      background: transparent;
+      border: none;
+      color: #fff;
+      font-size: 14.5px;
+      font-weight: 800;
+      outline: none;
+      box-sizing: border-box;
+    }
+    .asst-name-input::placeholder {
+      color: #64748b;
+      font-weight: 600;
+    }
+
     .pin-input-row {
       display: flex;
       justify-content: center;
-      gap: 8px;
-      margin-bottom: 20px;
+      gap: 7px;
+      margin-bottom: 14px;
     }
     .pin-box {
-      width: 46px;
-      height: 56px;
+      width: 44px;
+      height: 52px;
       border-radius: 12px;
       border: 2px solid var(--border);
       background: var(--bg2);
       color: #fff;
-      font-size: 26px;
+      font-size: 24px;
       font-weight: 900;
       text-align: center;
       outline: none;
@@ -135,7 +246,7 @@
     }
     .btn-connect {
       width: 100%;
-      padding: 14px;
+      padding: 13px;
       border-radius: 14px;
       border: none;
       background: linear-gradient(135deg, #06b6d4, #0284c7);
@@ -152,20 +263,20 @@
     .pin-keypad {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-      margin-top: 20px;
-      max-width: 300px;
+      gap: 8px;
+      margin-top: 14px;
+      max-width: 290px;
       margin-left: auto;
       margin-right: auto;
     }
     .key-btn {
       background: var(--surface2);
       border: 1px solid var(--border);
-      border-radius: 14px;
+      border-radius: 12px;
       color: #fff;
-      font-size: 20px;
+      font-size: 19px;
       font-weight: 800;
-      padding: 14px 0;
+      padding: 11px 0;
       cursor: pointer;
       transition: background 0.1s, transform 0.1s;
     }
@@ -174,11 +285,11 @@
       transform: scale(0.94);
     }
     .key-btn.action {
-      font-size: 15px;
+      font-size: 14px;
       color: var(--muted);
     }
     .alert-box {
-      margin-top: 14px;
+      margin-top: 12px;
       padding: 10px 14px;
       border-radius: 12px;
       font-size: 12.5px;
@@ -199,6 +310,7 @@
       height: 100vh;
       height: 100dvh;
       overflow: hidden;
+      overflow-x: hidden !important;
     }
     #screen-tracker.active {
       display: flex;
@@ -206,13 +318,13 @@
 
     /* BARRA SUPERIOR */
     .top-bar {
-      padding: calc(var(--safe-top) + 8px) 14px 8px;
+      padding: calc(var(--safe-top) + 6px) 12px 6px;
       background: var(--surface);
       border-bottom: 1px solid var(--border);
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 10px;
+      gap: 8px;
       flex-shrink: 0;
     }
     .top-bar-left {
@@ -226,18 +338,19 @@
       background: rgba(239, 68, 68, 0.12);
       border: 1px solid rgba(239, 68, 68, 0.3);
       color: #fca5a5;
-      padding: 6px 10px;
-      border-radius: 10px;
-      font-size: 11.5px;
+      padding: 5px 9px;
+      border-radius: 8px;
+      font-size: 11px;
       font-weight: 800;
       cursor: pointer;
       flex-shrink: 0;
     }
     .top-title-wrap {
       min-width: 0;
+      flex: 1;
     }
     .top-match-title {
-      font-size: 13.5px;
+      font-size: 13px;
       font-weight: 900;
       color: #fff;
       white-space: nowrap;
@@ -245,17 +358,37 @@
       text-overflow: ellipsis;
     }
     .top-match-sub {
-      font-size: 10.5px;
+      font-size: 10px;
       color: var(--muted);
       font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .asst-pill-badge {
+      background: rgba(34, 211, 238, 0.15);
+      color: var(--cyan);
+      font-weight: 900;
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-size: 9.5px;
+    }
+    .top-bar-right {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
     }
     .live-indicator {
       display: inline-flex;
       align-items: center;
-      gap: 5px;
-      padding: 3px 8px;
+      gap: 4px;
+      padding: 3px 7px;
       border-radius: 12px;
-      font-size: 10px;
+      font-size: 9.5px;
       font-weight: 900;
       background: rgba(34, 197, 94, 0.15);
       color: #86efac;
@@ -263,11 +396,11 @@
       flex-shrink: 0;
     }
     .live-dot {
-      width: 6px;
-      height: 6px;
+      width: 5px;
+      height: 5px;
       border-radius: 50%;
       background: #22c55e;
-      box-shadow: 0 0 8px #22c55e;
+      box-shadow: 0 0 6px #22c55e;
       animation: pulse 1.5s infinite;
     }
     @keyframes pulse {
@@ -276,28 +409,30 @@
       100% { opacity: 1; transform: scale(1); }
     }
 
-    /* MATCH CENTER (CRONO, MARCADOR, PERIODO) */
+    /* MATCH CENTER & CONMUTADOR DE MODO (1 JUGADOR / 2 JUGADORES) */
     .match-center-bar {
       background: var(--bg2);
       border-bottom: 1px solid var(--border);
-      padding: 6px 14px;
+      padding: 4px 12px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      font-size: 12px;
+      font-size: 11.5px;
       flex-shrink: 0;
+      gap: 6px;
     }
     .period-badge {
       background: var(--surface2);
       border: 1px solid var(--border);
       color: var(--yellow);
       font-weight: 900;
-      font-size: 11px;
-      padding: 3px 8px;
+      font-size: 10.5px;
+      padding: 2px 7px;
       border-radius: 6px;
+      flex-shrink: 0;
     }
     .score-box {
-      font-size: 16px;
+      font-size: 15px;
       font-weight: 900;
       color: #fff;
       letter-spacing: 2px;
@@ -305,15 +440,16 @@
     .chrono-box {
       display: inline-flex;
       align-items: center;
-      gap: 5px;
+      gap: 4px;
       font-family: monospace;
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 900;
       color: #86efac;
       background: rgba(34, 197, 94, 0.12);
-      padding: 3px 8px;
-      border-radius: 8px;
+      padding: 2px 7px;
+      border-radius: 6px;
       border: 1px solid rgba(34, 197, 94, 0.25);
+      flex-shrink: 0;
     }
     .chrono-box.paused {
       color: var(--muted);
@@ -321,16 +457,70 @@
       border-color: var(--border);
     }
 
-    /* TARJETA DEL JUGADOR ACTIVO */
-    .player-card {
+    /* SELECTOR DE MODO (1 JUGADOR / 2 JUGADORES) */
+    .mode-bar {
       background: var(--surface);
-      border-bottom: 1.5px solid var(--border);
-      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      padding: 6px 12px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 12px;
+      gap: 8px;
       flex-shrink: 0;
+    }
+    .mode-toggle-group {
+      display: inline-flex;
+      background: var(--bg2);
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      padding: 2px;
+      gap: 2px;
+    }
+    .mode-toggle-btn {
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+      padding: 4px 10px;
+      border-radius: 9px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.15s ease;
+    }
+    .mode-toggle-btn.active {
+      background: linear-gradient(135deg, #06b6d4, #0284c7);
+      color: #fff;
+      font-weight: 900;
+      box-shadow: 0 2px 8px rgba(6, 182, 212, 0.3);
+    }
+    .active-target-banner {
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--cyan);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 50%;
+    }
+
+    /* CONTENEDOR DE JUGADORES */
+    .players-section {
+      background: var(--surface);
+      border-bottom: 1.5px solid var(--border);
+      padding: 8px 12px;
+      flex-shrink: 0;
+    }
+
+    /* TARJETA MODO 1 JUGADOR */
+    .single-player-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      width: 100%;
     }
     .player-card-main {
       display: flex;
@@ -365,7 +555,7 @@
       flex: 1;
     }
     .player-name {
-      font-size: 15px;
+      font-size: 14.5px;
       font-weight: 900;
       color: #fff;
       white-space: nowrap;
@@ -373,7 +563,7 @@
       text-overflow: ellipsis;
     }
     .player-meta {
-      font-size: 11.5px;
+      font-size: 11px;
       font-weight: 700;
       color: var(--muted);
       display: flex;
@@ -384,7 +574,7 @@
     .player-pos-badge {
       background: rgba(34, 211, 238, 0.15);
       color: var(--cyan);
-      font-size: 10px;
+      font-size: 9.5px;
       font-weight: 900;
       padding: 1px 5px;
       border-radius: 4px;
@@ -398,6 +588,7 @@
       padding: 3px 8px;
       border-radius: 6px;
       cursor: pointer;
+      flex-shrink: 0;
     }
     .btn-undo {
       background: var(--surface2);
@@ -420,32 +611,150 @@
       color: var(--yellow);
     }
 
+    /* MODO 2 JUGADORES (DUAL SLOTS) */
+    .dual-slots-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      width: 100%;
+    }
+    .slot-card {
+      background: var(--surface2);
+      border: 2px solid var(--border);
+      border-radius: 14px;
+      padding: 7px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      cursor: pointer;
+      position: relative;
+      transition: all 0.15s ease;
+      min-width: 0;
+      overflow: hidden;
+    }
+    .slot-card.active {
+      border-color: var(--cyan);
+      background: rgba(34, 211, 238, 0.08);
+      box-shadow: 0 0 14px rgba(34, 211, 238, 0.25);
+    }
+    .slot-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 4px;
+    }
+    .slot-indicator-badge {
+      font-size: 9px;
+      font-weight: 900;
+      padding: 1px 5px;
+      border-radius: 4px;
+      background: var(--surface);
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+    .slot-card.active .slot-indicator-badge {
+      background: var(--cyan);
+      color: #060a13;
+      border-color: var(--cyan);
+    }
+    .slot-undo-mini {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--muted);
+      font-size: 11px;
+      padding: 2px 5px;
+      cursor: pointer;
+    }
+    .slot-undo-mini:active {
+      color: var(--yellow);
+      border-color: var(--yellow);
+    }
+    .slot-card-body {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+    }
+    .slot-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--surface);
+      border: 1.5px solid var(--cyan);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 900;
+      color: #fff;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .slot-avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .slot-info {
+      min-width: 0;
+      flex: 1;
+    }
+    .slot-name {
+      font-size: 12px;
+      font-weight: 900;
+      color: #fff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .slot-ratios {
+      font-size: 9.5px;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .slot-change-btn {
+      background: rgba(34, 211, 238, 0.1);
+      border: 1px solid rgba(34, 211, 238, 0.25);
+      color: var(--cyan);
+      font-size: 9px;
+      font-weight: 800;
+      padding: 1px 5px;
+      border-radius: 4px;
+      cursor: pointer;
+      display: inline-block;
+      margin-top: 2px;
+    }
+
     /* REJILLA DE BOTONES DE ACCIÓN */
     .button-grid-container {
       flex: 1;
-      padding: 10px;
+      padding: 8px 10px;
       overflow-y: auto;
       display: flex;
       flex-direction: column;
+      overflow-x: hidden !important;
     }
     .button-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
+      gap: 8px;
       width: 100%;
       margin: auto 0;
     }
     .stat-btn {
       background: var(--surface);
       border: 2px solid var(--border);
-      border-radius: 16px;
-      padding: 12px 6px;
-      min-height: 86px;
+      border-radius: 14px;
+      padding: 10px 4px;
+      min-height: 80px;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 4px;
+      gap: 3px;
       cursor: pointer;
       position: relative;
       overflow: hidden;
@@ -461,18 +770,17 @@
       background: linear-gradient(135deg, rgba(34, 197, 94, 0.18), rgba(15, 23, 42, 0.6));
     }
     .stat-emoji {
-      font-size: 26px;
+      font-size: 24px;
       line-height: 1;
     }
     .stat-val {
-      font-size: 22px;
+      font-size: 20px;
       font-weight: 900;
       color: #fff;
       line-height: 1;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
     .stat-lbl {
-      font-size: 11px;
+      font-size: 10px;
       font-weight: 800;
       color: var(--muted);
       text-transform: uppercase;
@@ -482,14 +790,14 @@
       overflow: hidden;
       text-overflow: ellipsis;
       max-width: 100%;
-      padding: 0 4px;
+      padding: 0 2px;
     }
 
     /* ANIMACIÓN FLOATER (+1) */
     .floater {
       position: absolute;
       pointer-events: none;
-      font-size: 24px;
+      font-size: 22px;
       font-weight: 900;
       color: #86efac;
       text-shadow: 0 2px 10px rgba(0,0,0,0.8);
@@ -509,12 +817,16 @@
     .sheet-overlay {
       position: fixed;
       inset: 0;
-      background: rgba(0,0,0,0.7);
+      background: rgba(0,0,0,0.75);
       backdrop-filter: blur(4px);
       z-index: 999;
       display: none;
       align-items: flex-end;
       justify-content: center;
+      overflow: hidden !important;
+      width: 100vw;
+      max-width: 100vw;
+      box-sizing: border-box;
     }
     .sheet-overlay.active {
       display: flex;
@@ -524,12 +836,14 @@
       border-top: 1.5px solid var(--border);
       border-radius: 24px 24px 0 0;
       width: 100%;
-      max-width: 500px;
-      max-height: 80vh;
+      max-width: 520px;
+      max-height: 82vh;
       display: flex;
       flex-direction: column;
-      padding: calc(var(--safe-bottom) + 16px) 16px calc(var(--safe-bottom) + 16px);
+      padding: 14px 14px calc(var(--safe-bottom) + 14px);
       animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      box-sizing: border-box;
+      overflow-x: hidden !important;
     }
     @keyframes slideUp {
       from { transform: translateY(100%); }
@@ -539,14 +853,18 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding-bottom: 12px;
+      padding-bottom: 10px;
       border-bottom: 1px solid var(--border);
-      margin-bottom: 12px;
+      margin-bottom: 10px;
+      flex-shrink: 0;
     }
     .sheet-title {
-      font-size: 16px;
+      font-size: 15px;
       font-weight: 900;
       color: #fff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .sheet-close {
       background: none;
@@ -556,27 +874,81 @@
       cursor: pointer;
       padding: 4px 8px;
     }
+    .player-search-bar {
+      margin-bottom: 10px;
+      flex-shrink: 0;
+    }
+    .player-search-input {
+      width: 100%;
+      background: var(--bg2);
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      padding: 8px 12px;
+      color: #fff;
+      font-size: 13px;
+      outline: none;
+      box-sizing: border-box;
+    }
+    .player-search-input:focus {
+      border-color: var(--cyan);
+    }
     .players-list-grid {
       overflow-y: auto;
+      overflow-x: hidden !important;
       display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 8px;
-      max-height: 55vh;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 7px;
+      width: 100%;
+      box-sizing: border-box;
+      max-height: 52vh;
+      -webkit-overflow-scrolling: touch;
     }
     .player-select-btn {
       background: var(--surface2);
       border: 1.5px solid var(--border);
-      border-radius: 14px;
-      padding: 10px;
+      border-radius: 12px;
+      padding: 8px 10px;
       display: flex;
       align-items: center;
       gap: 8px;
       cursor: pointer;
       text-align: left;
+      min-width: 0;
+      width: 100%;
+      box-sizing: border-box;
+      overflow: hidden !important;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .player-select-btn:active {
+      transform: scale(0.97);
     }
     .player-select-btn.active {
       border-color: var(--cyan);
       background: rgba(34, 211, 238, 0.15);
+    }
+    .player-select-btn .player-info-wrap {
+      min-width: 0;
+      flex: 1;
+      overflow: hidden;
+    }
+    .player-select-btn .player-name-text {
+      font-size: 12.5px;
+      font-weight: 800;
+      color: #fff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: block;
+      width: 100%;
+    }
+    .player-select-btn .player-pos-text {
+      font-size: 10px;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: block;
+      margin-top: 1px;
     }
 
     /* PANTALLA DE SESIÓN FINALIZADA */
@@ -594,12 +966,30 @@
        PANTALLA 1: INTRODUCIR CÓDIGO PIN (6 DÍGITOS)
        ========================================================= -->
   <div class="screen active" id="screen-pin">
+    <div class="pin-top-tools">
+      <button type="button" class="btn-install-pwa" id="btn-pwa-install">
+        📲 <span id="lbl-install-pwa">Instalar App</span>
+      </button>
+      <div class="lang-bar" id="lang-bar-pin" style="margin-left: auto;">
+        <button type="button" class="lang-btn" data-lang="es">🇪🇸 ES</button>
+        <button type="button" class="lang-btn" data-lang="en">🇬🇧 EN</button>
+        <button type="button" class="lang-btn" data-lang="et">🇪🇪 ET</button>
+        <button type="button" class="lang-btn" data-lang="ru">🇷🇺 RU</button>
+      </div>
+    </div>
+
     <div class="pin-card">
-      <span class="pin-badge">⚡ ASISTENTE REMOTO • STANDALONE</span>
-      <h1 class="pin-title">Conectar al Tracker</h1>
-      <p class="pin-desc">
-        Introduce el código de 6 dígitos que te muestra el entrenador para trackear a un jugador en tiempo real.
+      <span class="pin-badge" id="lbl-pin-badge">⚡ ASISTENTE REMOTO • STANDALONE</span>
+      <h1 class="pin-title" id="lbl-pin-title">Conectar al Tracker</h1>
+      <p class="pin-desc" id="lbl-pin-desc">
+        Introduce tu nombre y el código de 6 dígitos que te muestra el entrenador para registrar datos en tiempo real.
       </p>
+
+      <!-- CAMPO NOMBRE OBLIGATORIO -->
+      <div class="pin-name-field">
+        <label class="pin-name-label" for="asst-name-input" id="lbl-asst-name">👤 Tu Nombre (Requerido):</label>
+        <input type="text" class="asst-name-input" id="asst-name-input" placeholder="Ej: Carlos" maxlength="30" autocomplete="name" />
+      </div>
 
       <div class="pin-input-row" id="pin-boxes">
         <input type="tel" class="pin-box" maxlength="1" id="p0" autocomplete="off" />
@@ -627,13 +1017,13 @@
         <button type="button" class="key-btn" data-key="7">7</button>
         <button type="button" class="key-btn" data-key="8">8</button>
         <button type="button" class="key-btn" data-key="9">9</button>
-        <button type="button" class="key-btn action" data-key="clear">Borrar</button>
+        <button type="button" class="key-btn action" data-key="clear" id="btn-key-clear">Borrar</button>
         <button type="button" class="key-btn" data-key="0">0</button>
         <button type="button" class="key-btn action" data-key="back">⌫</button>
       </div>
 
-      <div style="font-size: 11px; color: var(--muted); margin-top: 18px;">
-        ⚽ Player Stats • Sin instalación de APK requerida
+      <div style="font-size: 11px; color: var(--muted); margin-top: 16px;" id="lbl-pin-footer">
+        ⚽ Player Stats • Compatible con Chrome y Safari
       </div>
     </div>
   </div>
@@ -648,12 +1038,23 @@
         <button type="button" class="btn-exit" id="btn-disconnect">✕ Salir</button>
         <div class="top-title-wrap">
           <div class="top-match-title" id="t-match-title">Partido vs Rival</div>
-          <div class="top-match-sub" id="t-match-sub">Sesión conectada</div>
+          <div class="top-match-sub">
+            <span class="asst-pill-badge" id="t-asst-name-display">👤 Asistente</span>
+            <span id="t-match-sub">Sesión conectada</span>
+          </div>
         </div>
       </div>
-      <div class="live-indicator">
-        <span class="live-dot"></span>
-        <span>EN VIVO</span>
+      <div class="top-bar-right">
+        <div class="lang-bar" id="lang-bar-tracker" style="transform: scale(0.9); transform-origin: right center;">
+          <button type="button" class="lang-btn" data-lang="es">ES</button>
+          <button type="button" class="lang-btn" data-lang="en">EN</button>
+          <button type="button" class="lang-btn" data-lang="et">ET</button>
+          <button type="button" class="lang-btn" data-lang="ru">RU</button>
+        </div>
+        <div class="live-indicator">
+          <span class="live-dot"></span>
+          <span id="lbl-live-badge">EN VIVO</span>
+        </div>
       </div>
     </header>
 
@@ -664,22 +1065,75 @@
       <div class="chrono-box" id="t-chrono">⏱️ 00:00</div>
     </div>
 
-    <!-- TARJETA DEL JUGADOR ACTIVO TRACKEADO -->
-    <div class="player-card">
-      <div class="player-card-main" id="player-card-click">
-        <div class="player-avatar" id="t-player-avatar">#10</div>
-        <div class="player-details">
-          <div class="player-name" id="t-player-name">Cargando jugador...</div>
-          <div class="player-meta">
-            <span class="player-pos-badge" id="t-player-pos">MC</span>
-            <span id="t-player-ratios">Pases: 0% • Tiros: 0%</span>
-            <button type="button" class="player-btn-change" id="btn-open-player-picker">Cambiar ▾</button>
+    <!-- SELECTOR DE MODO: 1 JUGADOR / 2 JUGADORES -->
+    <div class="mode-bar">
+      <div class="mode-toggle-group">
+        <button type="button" class="mode-toggle-btn active" id="btn-mode-1">
+          👤 <span id="lbl-mode-1">1 Jugador</span>
+        </button>
+        <button type="button" class="mode-toggle-btn" id="btn-mode-2">
+          👥 <span id="lbl-mode-2">2 Jugadores</span>
+        </button>
+      </div>
+      <div class="active-target-banner" id="active-target-banner">
+        <!-- Nombre del jugador activo -->
+      </div>
+    </div>
+
+    <!-- SECCIÓN DE JUGADORES TRACKEADOS -->
+    <div class="players-section">
+      <!-- MODO 1 JUGADOR -->
+      <div class="single-player-card" id="single-player-container">
+        <div class="player-card-main" id="single-card-click">
+          <div class="player-avatar" id="t-player-avatar">#10</div>
+          <div class="player-details">
+            <div class="player-name" id="t-player-name">Cargando jugador...</div>
+            <div class="player-meta">
+              <span class="player-pos-badge" id="t-player-pos">MC</span>
+              <span id="t-player-ratios">Pases: 0% • Tiros: 0%</span>
+              <button type="button" class="player-btn-change" id="btn-open-picker-single">Cambiar ▾</button>
+            </div>
+          </div>
+        </div>
+        <button type="button" class="btn-undo" id="btn-tracker-undo" title="Deshacer última acción">
+          ↩️
+        </button>
+      </div>
+
+      <!-- MODO 2 JUGADORES (DUAL SLOTS) -->
+      <div class="dual-slots-grid" id="dual-slots-container" style="display: none;">
+        <!-- SLOT 0 -->
+        <div class="slot-card active" id="slot-card-0" data-slot="0">
+          <div class="slot-card-header">
+            <span class="slot-indicator-badge" id="slot-badge-0">● ACTIVO</span>
+            <button type="button" class="slot-undo-mini" id="slot-undo-0" title="Deshacer Slot 1">↩️ Deshacer</button>
+          </div>
+          <div class="slot-card-body">
+            <div class="slot-avatar" id="slot-avatar-0">#--</div>
+            <div class="slot-info">
+              <div class="slot-name" id="slot-name-0">Jugador 1</div>
+              <div class="slot-ratios" id="slot-ratios-0">Pases: 0% • Tiros: 0%</div>
+              <span class="slot-change-btn" id="slot-change-0">Cambiar ▾</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- SLOT 1 -->
+        <div class="slot-card" id="slot-card-1" data-slot="1">
+          <div class="slot-card-header">
+            <span class="slot-indicator-badge" id="slot-badge-1">SELECCIONAR</span>
+            <button type="button" class="slot-undo-mini" id="slot-undo-1" title="Deshacer Slot 2">↩️ Deshacer</button>
+          </div>
+          <div class="slot-card-body">
+            <div class="slot-avatar" id="slot-avatar-1">#--</div>
+            <div class="slot-info">
+              <div class="slot-name" id="slot-name-1">Jugador 2</div>
+              <div class="slot-ratios" id="slot-ratios-1">Pases: 0% • Tiros: 0%</div>
+              <span class="slot-change-btn" id="slot-change-1">Cambiar ▾</span>
+            </div>
           </div>
         </div>
       </div>
-      <button type="button" class="btn-undo" id="btn-tracker-undo" title="Deshacer última acción">
-        ↩️
-      </button>
     </div>
 
     <!-- REJILLA DE BOTONES DE ACCIÓN (GOL, TIRO, PASE, ETC.) -->
@@ -691,16 +1145,16 @@
   </div>
 
   <!-- =========================================================
-       PANTALLA 3: SESIÓN FINALIZADA
+       PANTALLA 3: SESIÓN FINALIZADA / DESCONECTADA POR EL ENTRENADOR
        ========================================================= -->
   <div class="screen" id="screen-finished">
     <div class="pin-card">
       <div style="font-size: 48px; margin-bottom: 10px;">🏁</div>
-      <h1 class="pin-title">Sesión Finalizada</h1>
-      <p class="pin-desc">
-        El entrenador ha dado por concluida la sesión. Todas las acciones registradas se han sincronizado con éxito.
+      <h1 class="pin-title" id="lbl-finished-title">Sesión Desconectada</h1>
+      <p class="pin-desc" id="lbl-finished-desc">
+        El entrenador ha finalizado la sesión remota o te ha desconectado. Las acciones han quedado guardadas con éxito.
       </p>
-      <button type="button" class="btn-connect" onclick="window.location.reload();">
+      <button type="button" class="btn-connect" id="lbl-finished-btn" onclick="window.location.reload();">
         Conectar a otra sesión ➔
       </button>
     </div>
@@ -712,8 +1166,11 @@
   <div class="sheet-overlay" id="sheet-player-picker">
     <div class="sheet-panel">
       <div class="sheet-header">
-        <div class="sheet-title">👥 Seleccionar Jugador a Trackear</div>
+        <div class="sheet-title" id="lbl-sheet-title">👥 Seleccionar Jugador</div>
         <button type="button" class="sheet-close" id="btn-close-player-picker">✕</button>
+      </div>
+      <div class="player-search-bar">
+        <input type="text" id="player-search-input" class="player-search-input" placeholder="Buscar por nombre o dorsal..." autocomplete="off" />
       </div>
       <div class="players-list-grid" id="players-picker-list">
         <!-- Renderizado de jugadores de la sesión -->
@@ -731,11 +1188,395 @@
     (function () {
       'use strict';
 
+      /* ---------------------------------------------------------
+         REGISTRO DE SERVICE WORKER PARA INSTALACIÓN EN CHROME Y SAFARI
+         --------------------------------------------------------- */
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('sw_tracker.js').catch(err => {
+            console.warn('[SW] Registration failed:', err);
+          });
+        });
+      }
+
+      let deferredInstallPrompt = null;
+      window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredInstallPrompt = e;
+        const btnInstall = document.getElementById('btn-pwa-install');
+        if (btnInstall) btnInstall.style.display = 'inline-flex';
+      });
+
+      const btnInstallPwa = document.getElementById('btn-pwa-install');
+      if (btnInstallPwa) {
+        btnInstallPwa.addEventListener('click', async () => {
+          if (deferredInstallPrompt) {
+            deferredInstallPrompt.prompt();
+            const { outcome } = await deferredInstallPrompt.userChoice;
+            if (outcome === 'accepted') {
+              btnInstallPwa.style.display = 'none';
+            }
+            deferredInstallPrompt = null;
+          } else {
+            alert('En Safari (iPhone/iPad): pulsa el botón Compartir (cuadrado con flecha) y selecciona "Añadir a pantalla de inicio".\n\nEn Chrome: pulsa en los 3 puntos y selecciona "Instalar aplicación" o "Crear acceso directo".');
+          }
+        });
+      }
+
+      /* ---------------------------------------------------------
+         SISTEMA DE IDIOMAS (ES, EN, ET, RU)
+         * CERO OCURRENCIAS DE LA PALABRA 'r-ü-h-m' EN ESTONIO
+         --------------------------------------------------------- */
+      const I18N_DICT = {
+        es: {
+          pinBadge: "⚡ ASISTENTE REMOTO • STANDALONE",
+          pinTitle: "Conectar al Tracker",
+          pinDesc: "Introduce tu nombre y el código de 6 dígitos que te muestra el entrenador para registrar datos en tiempo real.",
+          pinNameLabel: "👤 Tu Nombre (Requerido):",
+          pinNamePlaceholder: "Ej: Carlos",
+          pinBtn: "Conectar y Trackear ➔",
+          pinFooter: "⚽ Player Stats • Compatible con Chrome y Safari",
+          pinErrorName: "Por favor, introduce tu nombre antes de conectar.",
+          pinErrorComplete: "Introduce el código completo de 6 dígitos.",
+          pinErrorNotFound: "Código no encontrado. Verifica los 6 dígitos con el entrenador.",
+          pinErrorInactive: "Esta sesión ya no se encuentra activa.",
+          pinErrorNet: "Error conectando a la sesión. Comprueba tu conexión a internet.",
+          installApp: "Instalar App",
+          exit: "✕ Salir",
+          live: "EN VIVO",
+          mode1: "1 Jugador",
+          mode2: "2 Jugadores",
+          slot1: "Ranura 1",
+          slot2: "Ranura 2",
+          active: "● ACTIVO",
+          select: "SELECCIONAR",
+          change: "Cambiar ▾",
+          recordingFor: "Grabando para",
+          undoTooltip: "Deshacer última acción",
+          undoBtnText: "↩️ Deshacer",
+          searchPlayer: "Buscar por nombre o dorsal...",
+          selectPlayerTitle: "👥 Seleccionar Jugador",
+          disconnectConfirm: "¿Deseas desconectarte del tracker?",
+          finishedTitle: "Sesión Desconectada",
+          finishedDesc: "El entrenador ha finalizado la sesión remota o te ha desconectado. Las acciones han quedado guardadas con éxito.",
+          finishedBtn: "Conectar a otra sesión ➔",
+          clear: "Borrar",
+          passes: "Pases",
+          shots: "Tiros",
+          matchOfficial: "Partido Oficial",
+          trainingSession: "Sesión de Entrenamiento",
+          stats: {
+            goal: "Gol",
+            shotOn: "Tiro OK",
+            shotOff: "Tiro Ko",
+            passOk: "Pase OK",
+            passKo: "Pase Ko",
+            recovery: "Recup.",
+            loss: "Pérdida",
+            assist: "Asist.",
+            touches: "Toques",
+            yellowCard: "Amarilla",
+            redCard: "Roja",
+            foulCommitted: "Falta Com.",
+            foulReceived: "Falta Rec."
+          }
+        },
+        en: {
+          pinBadge: "⚡ REMOTE ASSISTANT • STANDALONE",
+          pinTitle: "Connect to Tracker",
+          pinDesc: "Enter your name and the 6-digit code shown by the coach to record data in real time.",
+          pinNameLabel: "👤 Your Name (Required):",
+          pinNamePlaceholder: "e.g. Carlos",
+          pinBtn: "Connect & Track ➔",
+          pinFooter: "⚽ Player Stats • Compatible with Chrome and Safari",
+          pinErrorName: "Please enter your name before connecting.",
+          pinErrorComplete: "Enter the complete 6-digit code.",
+          pinErrorNotFound: "Code not found. Please verify the 6 digits with the coach.",
+          pinErrorInactive: "This session is no longer active.",
+          pinErrorNet: "Error connecting to session. Please check your internet connection.",
+          installApp: "Install App",
+          exit: "✕ Exit",
+          live: "LIVE",
+          mode1: "1 Player",
+          mode2: "2 Players",
+          slot1: "Slot 1",
+          slot2: "Slot 2",
+          active: "● ACTIVE",
+          select: "SELECT",
+          change: "Change ▾",
+          recordingFor: "Recording for",
+          undoTooltip: "Undo last action",
+          undoBtnText: "↩️ Undo",
+          searchPlayer: "Search by name or number...",
+          selectPlayerTitle: "👥 Select Player",
+          disconnectConfirm: "Do you want to disconnect from the tracker?",
+          finishedTitle: "Session Disconnected",
+          finishedDesc: "The coach has ended the remote session or disconnected your device. All actions were safely stored.",
+          finishedBtn: "Connect to another session ➔",
+          clear: "Clear",
+          passes: "Passes",
+          shots: "Shots",
+          matchOfficial: "Official Match",
+          trainingSession: "Training Session",
+          stats: {
+            goal: "Goal",
+            shotOn: "Shot ON",
+            shotOff: "Shot OFF",
+            passOk: "Pass OK",
+            passKo: "Pass KO",
+            recovery: "Recovery",
+            loss: "Turnover",
+            assist: "Assist",
+            touches: "Touches",
+            yellowCard: "Yellow Card",
+            redCard: "Red Card",
+            foulCommitted: "Foul Com.",
+            foulReceived: "Foul Rec."
+          }
+        },
+        et: {
+          pinBadge: "⚡ KAUGASSISTENT • ERIREŽIIM",
+          pinTitle: "Ühendu jälgijaga",
+          pinDesc: "Sisesta oma nimi ja treeneri näidatud 6-kohaline kood reaalajas andmete salvestamiseks.",
+          pinNameLabel: "👤 Sinu nimi (Nõutud):",
+          pinNamePlaceholder: "nt Carlos",
+          pinBtn: "Ühenda ja jälgi ➔",
+          pinFooter: "⚽ Player Stats • Töötab Chrome'is ja Safaris",
+          pinErrorName: "Palun sisesta enne ühendamist oma nimi.",
+          pinErrorComplete: "Sisesta täielik 6-kohaline kood.",
+          pinErrorNotFound: "Koodi ei leitud. Palun kontrolli 6 numbrit treeneriga.",
+          pinErrorInactive: "See sessioon ei ole enam aktiivne.",
+          pinErrorNet: "Viga sessiooniga ühendumisel. Kontrolli internetiühendust.",
+          installApp: "Paigalda äpp",
+          exit: "✕ Välju",
+          live: "OTSE",
+          mode1: "1 Mängija",
+          mode2: "2 Mängijat",
+          slot1: "Pesa 1",
+          slot2: "Pesa 2",
+          active: "● AKTIIVNE",
+          select: "VALI",
+          change: "Muuda ▾",
+          recordingFor: "Salvestamine mängijale",
+          undoTooltip: "Võta viimane tegevus tagasi",
+          undoBtnText: "↩️ Tagasi",
+          searchPlayer: "Otsi nime või numbri järgi...",
+          selectPlayerTitle: "👥 Vali mängija",
+          disconnectConfirm: "Kas soovid jälgijast lahkuda?",
+          finishedTitle: "Sessioon lahti ühendatud",
+          finishedDesc: "Treener lõpetas kaugseansi või katkestas ühenduse. Kõik tegevused salvestati edukalt.",
+          finishedBtn: "Ühendu teise sessiooniga ➔",
+          clear: "Kustuta",
+          passes: "Söödud",
+          shots: "Löögid",
+          matchOfficial: "Ametlik mäng",
+          trainingSession: "Treeningu sessioon",
+          stats: {
+            goal: "Värav",
+            shotOn: "Raami",
+            shotOff: "Mööda",
+            passOk: "Sööt OK",
+            passKo: "Valesööt",
+            recovery: "Vaheltlõige",
+            loss: "Pallikaotus",
+            assist: "Väravasööt",
+            touches: "Puuted",
+            yellowCard: "Kollane kaart",
+            redCard: "Punane kaart",
+            foulCommitted: "Tehtud viga",
+            foulReceived: "Saadud viga"
+          }
+        },
+        ru: {
+          pinBadge: "⚡ УДАЛЕННЫЙ АССИСТЕНТ • STANDALONE",
+          pinTitle: "Подключиться к трекеру",
+          pinDesc: "Введите ваше имя и 6-значный код, показанный тренером, для записи данных в реальном времени.",
+          pinNameLabel: "👤 Ваше имя (Обязательно):",
+          pinNamePlaceholder: "напр: Карлос",
+          pinBtn: "Подключиться и трекать ➔",
+          pinFooter: "⚽ Player Stats • Совместимо с Chrome и Safari",
+          pinErrorName: "Пожалуйста, введите ваше имя перед подключением.",
+          pinErrorComplete: "Введите полный 6-значный код.",
+          pinErrorNotFound: "Код не найден. Уточните 6 цифр у тренера.",
+          pinErrorInactive: "Эта сессия больше не активна.",
+          pinErrorNet: "Ошибка подключения к сессии. Проверьте интернет-соединение.",
+          installApp: "Установить приложение",
+          exit: "✕ Выход",
+          live: "В ЭФИРЕ",
+          mode1: "1 Игрок",
+          mode2: "2 Игрока",
+          slot1: "Слот 1",
+          slot2: "Слот 2",
+          active: "● АКТИВЕН",
+          select: "ВЫБРАТЬ",
+          change: "Сменить ▾",
+          recordingFor: "Запись для",
+          undoTooltip: "Отменить последнее действие",
+          undoBtnText: "↩️ Отмена",
+          searchPlayer: "Поиск по имени или номеру...",
+          selectPlayerTitle: "👥 Выберите игрока",
+          disconnectConfirm: "Вы действительно хотите отключиться от трекера?",
+          finishedTitle: "Сессия отключена",
+          finishedDesc: "Тренер завершил сессию или отключил помощников. Все действия успешно сохранены.",
+          finishedBtn: "Подключиться к другой сессии ➔",
+          clear: "Очистить",
+          passes: "Пасы",
+          shots: "Удары",
+          matchOfficial: "Официальный матч",
+          trainingSession: "Тренировочная сессия",
+          stats: {
+            goal: "Гол",
+            shotOn: "В створ",
+            shotOff: "Мимо",
+            passOk: "Пас OK",
+            passKo: "Пас Ko",
+            recovery: "Перехват",
+            loss: "Потеря",
+            assist: "Ассист",
+            touches: "Касания",
+            yellowCard: "Желтая карточка",
+            redCard: "Красная карточка",
+            foulCommitted: "Фол совершен",
+            foulReceived: "Фол получен"
+          }
+        }
+      };
+
+      let currentLang = 'es';
+      try {
+        const saved = localStorage.getItem('ps_tracker_lang');
+        if (saved && I18N_DICT[saved]) currentLang = saved;
+      } catch (e) {}
+
+      function T(key) {
+        const d = I18N_DICT[currentLang] || I18N_DICT.es;
+        return d[key] !== undefined ? d[key] : (I18N_DICT.es[key] || key);
+      }
+
+      function TStat(statKey, fallback) {
+        const d = I18N_DICT[currentLang] || I18N_DICT.es;
+        if (d.stats && d.stats[statKey]) return d.stats[statKey];
+        if (I18N_DICT.es.stats && I18N_DICT.es.stats[statKey]) return I18N_DICT.es.stats[statKey];
+        return fallback || statKey;
+      }
+
+      function setLanguage(lang) {
+        if (!I18N_DICT[lang]) return;
+        currentLang = lang;
+        try { localStorage.setItem('ps_tracker_lang', lang); } catch (e) {}
+        updateStaticI18nLabels();
+        if (currentSessionData) {
+          onSessionUpdated(currentSessionData);
+        }
+      }
+
+      function updateStaticI18nLabels() {
+        document.querySelectorAll('.lang-btn[data-lang]').forEach(btn => {
+          if (btn.getAttribute('data-lang') === currentLang) {
+            btn.classList.add('active');
+          } else {
+            btn.classList.remove('active');
+          }
+        });
+
+        // Pantalla PIN
+        const lblPinBadge = document.getElementById('lbl-pin-badge');
+        if (lblPinBadge) lblPinBadge.textContent = T('pinBadge');
+        const lblPinTitle = document.getElementById('lbl-pin-title');
+        if (lblPinTitle) lblPinTitle.textContent = T('pinTitle');
+        const lblPinDesc = document.getElementById('lbl-pin-desc');
+        if (lblPinDesc) lblPinDesc.textContent = T('pinDesc');
+        const lblAsstName = document.getElementById('lbl-asst-name');
+        if (lblAsstName) lblAsstName.textContent = T('pinNameLabel');
+        const inpAsstName = document.getElementById('asst-name-input');
+        if (inpAsstName) inpAsstName.placeholder = T('pinNamePlaceholder');
+        const btnSubmitPin = document.getElementById('btn-submit-pin');
+        if (btnSubmitPin) btnSubmitPin.textContent = T('pinBtn');
+        const btnKeyClear = document.getElementById('btn-key-clear');
+        if (btnKeyClear) btnKeyClear.textContent = T('clear');
+        const lblPinFooter = document.getElementById('lbl-pin-footer');
+        if (lblPinFooter) lblPinFooter.textContent = T('pinFooter');
+        const lblInstall = document.getElementById('lbl-install-pwa');
+        if (lblInstall) lblInstall.textContent = T('installApp');
+
+        // Pantalla Tracker
+        const btnDisconnect = document.getElementById('btn-disconnect');
+        if (btnDisconnect) btnDisconnect.textContent = T('exit');
+        const lblLive = document.getElementById('lbl-live-badge');
+        if (lblLive) lblLive.textContent = T('live');
+        const lblMode1 = document.getElementById('lbl-mode-1');
+        if (lblMode1) lblMode1.textContent = T('mode1');
+        const lblMode2 = document.getElementById('lbl-mode-2');
+        if (lblMode2) lblMode2.textContent = T('mode2');
+
+        const btnChangeSingle = document.getElementById('btn-open-picker-single');
+        if (btnChangeSingle) btnChangeSingle.textContent = T('change');
+        const change0 = document.getElementById('slot-change-0');
+        if (change0) change0.textContent = T('change');
+        const change1 = document.getElementById('slot-change-1');
+        if (change1) change1.textContent = T('change');
+
+        const undo0 = document.getElementById('slot-undo-0');
+        if (undo0) undo0.textContent = T('undoBtnText');
+        const undo1 = document.getElementById('slot-undo-1');
+        if (undo1) undo1.textContent = T('undoBtnText');
+
+        const searchInp = document.getElementById('player-search-input');
+        if (searchInp) searchInp.placeholder = T('searchPlayer');
+        const sheetTitle = document.getElementById('lbl-sheet-title');
+        if (sheetTitle) sheetTitle.textContent = T('selectPlayerTitle');
+
+        // Finalizada
+        const finTitle = document.getElementById('lbl-finished-title');
+        if (finTitle) finTitle.textContent = T('finishedTitle');
+        const finDesc = document.getElementById('lbl-finished-desc');
+        if (finDesc) finDesc.textContent = T('finishedDesc');
+        const finBtn = document.getElementById('lbl-finished-btn');
+        if (finBtn) finBtn.textContent = T('finishedBtn');
+      }
+
+      /* ---------------------------------------------------------
+         IDENTIFICADOR Y NOMBRE DE ESTE ASISTENTE
+         --------------------------------------------------------- */
+      const assistantId = (function () {
+        let id = '';
+        try {
+          id = sessionStorage.getItem('ps_asst_id');
+          if (!id) {
+            id = 'asst_' + Math.random().toString(36).slice(2, 10);
+            sessionStorage.setItem('ps_asst_id', id);
+          }
+        } catch (e) {
+          id = 'asst_' + Math.random().toString(36).slice(2, 10);
+        }
+        return id;
+      })();
+
+      let currentAssistantName = '';
+      try {
+        currentAssistantName = localStorage.getItem('ps_asst_name') || '';
+      } catch (e) {}
+
+      /* ---------------------------------------------------------
+         ESTADO DE LA APLICACIÓN
+         --------------------------------------------------------- */
       let currentCode = '';
+      let isSessionActive = false;
       let currentSessionData = null;
-      let activePlayerId = null;
       let sessionUnsubscribe = null;
       let timerInterval = null;
+
+      // Modo de seguimiento: 'single' (1 jugador) o 'dual' (2 jugadores)
+      let trackingMode = 'single';
+      try {
+        const savedMode = localStorage.getItem('ps_tracker_mode');
+        if (savedMode === 'single' || savedMode === 'dual') trackingMode = savedMode;
+      } catch (e) {}
+
+      // Ranuras de jugadores seleccionados
+      const slots = [null, null]; // [playerIdSlot0, playerIdSlot1]
+      let activeSlotIdx = 0;      // 0 o 1
+      let slotPickingTarget = 0;  // cuál slot está abriendo el selector
 
       // Elementos del DOM
       const screenPin = document.getElementById('screen-pin');
@@ -751,6 +1592,7 @@
       ];
       const pinAlert = document.getElementById('pin-alert');
       const btnSubmitPin = document.getElementById('btn-submit-pin');
+      const asstNameInput = document.getElementById('asst-name-input');
 
       // Helper para vibración táctil
       function haptic(ms) {
@@ -778,6 +1620,16 @@
       }
 
       /* ---------------------------------------------------------
+         MANEJO DE IDIOMAS EN UI
+         --------------------------------------------------------- */
+      document.querySelectorAll('.lang-btn[data-lang]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          haptic(20);
+          setLanguage(btn.getAttribute('data-lang'));
+        });
+      });
+
+      /* ---------------------------------------------------------
          MANEJO DE ENTRADA DEL PIN (Cajas + Teclado)
          --------------------------------------------------------- */
       function getPinValue() {
@@ -795,7 +1647,7 @@
       }
 
       pinBoxes.forEach((box, idx) => {
-        box.addEventListener('input', (e) => {
+        box.addEventListener('input', () => {
           clearError();
           const val = box.value.replace(/\D/g, '');
           box.value = val.slice(0, 1);
@@ -803,7 +1655,7 @@
             pinBoxes[idx + 1].focus();
           }
           if (getPinValue().length === 6) {
-            connectToSession(getPinValue());
+            triggerConnection();
           }
         });
 
@@ -818,7 +1670,7 @@
           const pasted = (e.clipboardData || window.clipboardData).getData('text');
           setPinValue(pasted);
           if (getPinValue().length === 6) {
-            connectToSession(getPinValue());
+            triggerConnection();
           }
         });
       });
@@ -838,68 +1690,171 @@
             if (current.length < 6) {
               setPinValue(current + k);
               if (current.length + 1 === 6) {
-                connectToSession(getPinValue());
+                triggerConnection();
               }
             }
           }
         });
       });
 
-      btnSubmitPin.addEventListener('click', () => {
-        const pin = getPinValue();
-        if (pin.length !== 6) {
-          showError('Introduce el código completo de 6 dígitos.');
+      function triggerConnection() {
+        const nameVal = (asstNameInput ? asstNameInput.value : '').trim();
+        if (!nameVal) {
+          showError(T('pinErrorName'));
+          if (asstNameInput) asstNameInput.focus();
           return;
         }
-        connectToSession(pin);
-      });
+        const pin = getPinValue();
+        if (pin.length !== 6) {
+          showError(T('pinErrorComplete'));
+          return;
+        }
+        currentAssistantName = nameVal;
+        try { localStorage.setItem('ps_asst_name', nameVal); } catch (e) {}
+        connectToSession(pin, nameVal);
+      }
+
+      btnSubmitPin.addEventListener('click', triggerConnection);
 
       /* ---------------------------------------------------------
          CONEXIÓN CON FIRESTORE
          --------------------------------------------------------- */
-      async function connectToSession(pin) {
+      async function connectToSession(pin, asstName) {
         clearError();
         btnSubmitPin.disabled = true;
-        btnSubmitPin.textContent = 'Conectando...';
+        btnSubmitPin.textContent = '...';
 
         try {
           if (!window.Cloud) {
-            throw new Error('Módulo Cloud no encontrado.');
+            throw new Error('Cloud missing');
           }
 
           if (sessionUnsubscribe) {
-            sessionUnsubscribe();
+            try { sessionUnsubscribe(); } catch (e) {}
             sessionUnsubscribe = null;
           }
 
           currentCode = pin;
+          currentAssistantName = asstName || 'Asistente';
 
-          sessionUnsubscribe = await Cloud.joinLiveTrackerSession(pin, (data) => {
+          const asstDisplay = document.getElementById('t-asst-name-display');
+          if (asstDisplay) asstDisplay.textContent = `👤 ${currentAssistantName}`;
+
+          sessionUnsubscribe = await Cloud.joinLiveTrackerSession(pin, currentAssistantName, (data) => {
+            if (!data || data.active === false || data.disconnectedByCoach === true) {
+              handleSessionTerminated();
+              return;
+            }
+            isSessionActive = true;
             onSessionUpdated(data);
-          }, (reason) => {
-            if (timerInterval) clearInterval(timerInterval);
-            showScreen('finished');
+          }, () => {
+            handleSessionTerminated();
           });
 
+          isSessionActive = true;
           haptic(50);
           showScreen('tracker');
         } catch (err) {
+          isSessionActive = false;
           btnSubmitPin.disabled = false;
-          btnSubmitPin.textContent = 'Conectar y Trackear ➔';
+          btnSubmitPin.textContent = T('pinBtn');
           if (err.message === 'NOT_FOUND') {
-            showError('Código no encontrado. Verifica los 6 dígitos con el entrenador.');
+            showError(T('pinErrorNotFound'));
           } else if (err.message === 'INACTIVE') {
-            showError('Esta sesión ya no se encuentra activa.');
+            showError(T('pinErrorInactive'));
           } else {
-            showError('Error conectando a la sesión. Comprueba tu conexión a internet.');
+            showError(T('pinErrorNet'));
           }
         }
       }
+
+      function handleSessionTerminated() {
+        isSessionActive = false;
+        currentCode = '';
+        if (sessionUnsubscribe) {
+          try { sessionUnsubscribe(); } catch (e) {}
+          sessionUnsubscribe = null;
+        }
+        if (timerInterval) {
+          clearInterval(timerInterval);
+          timerInterval = null;
+        }
+        showScreen('finished');
+      }
+
+      /* ---------------------------------------------------------
+         CONMUTACIÓN DE MODO 1 JUGADOR / 2 JUGADORES
+         --------------------------------------------------------- */
+      const btnMode1 = document.getElementById('btn-mode-1');
+      const btnMode2 = document.getElementById('btn-mode-2');
+      const singleContainer = document.getElementById('single-player-container');
+      const dualContainer = document.getElementById('dual-slots-container');
+
+      function setTrackingMode(mode) {
+        trackingMode = mode;
+        try { localStorage.setItem('ps_tracker_mode', mode); } catch (e) {}
+
+        if (mode === 'dual') {
+          btnMode1.classList.remove('active');
+          btnMode2.classList.add('active');
+          singleContainer.style.display = 'none';
+          dualContainer.style.display = 'grid';
+        } else {
+          btnMode2.classList.remove('active');
+          btnMode1.classList.add('active');
+          dualContainer.style.display = 'none';
+          singleContainer.style.display = 'flex';
+          activeSlotIdx = 0;
+        }
+
+        if (currentSessionData) {
+          updatePlayersUI(currentSessionData);
+          renderButtons(currentSessionData);
+        }
+      }
+
+      btnMode1.addEventListener('click', () => {
+        haptic(25);
+        setTrackingMode('single');
+      });
+      btnMode2.addEventListener('click', () => {
+        haptic(25);
+        setTrackingMode('dual');
+      });
+
+      // Selección de ranura activa en modo dual
+      const cardSlot0 = document.getElementById('slot-card-0');
+      const cardSlot1 = document.getElementById('slot-card-1');
+
+      function setActiveSlot(slotIdx) {
+        activeSlotIdx = slotIdx;
+        haptic(20);
+        if (currentSessionData) {
+          updatePlayersUI(currentSessionData);
+          renderButtons(currentSessionData);
+        }
+      }
+
+      cardSlot0.addEventListener('click', (e) => {
+        if (!e.target.closest('#slot-change-0') && !e.target.closest('#slot-undo-0')) {
+          setActiveSlot(0);
+        }
+      });
+      cardSlot1.addEventListener('click', (e) => {
+        if (!e.target.closest('#slot-change-1') && !e.target.closest('#slot-undo-1')) {
+          setActiveSlot(1);
+        }
+      });
 
       /* ---------------------------------------------------------
          ACTUALIZACIÓN DE LA SESIÓN EN TIEMPO REAL
          --------------------------------------------------------- */
       function onSessionUpdated(data) {
+        if (!data || data.active === false || data.disconnectedByCoach === true) {
+          handleSessionTerminated();
+          return;
+        }
+
         currentSessionData = data;
 
         // 1. Título y subtítulo
@@ -907,10 +1862,10 @@
         const matchSub = document.getElementById('t-match-sub');
         if (data.type === 'match') {
           matchTitle.textContent = data.rival ? `vs ${data.rival}` : data.title;
-          matchSub.textContent = `Partido Oficial • ${data.date || ''}`;
+          matchSub.textContent = `• ${data.date || T('matchOfficial')}`;
         } else {
-          matchTitle.textContent = data.title || 'Entrenamiento';
-          matchSub.textContent = `Sesión de Entrenamiento • ${data.date || ''}`;
+          matchTitle.textContent = data.title || T('trainingSession');
+          matchSub.textContent = `• ${data.date || T('trainingSession')}`;
         }
 
         // 2. Marcador y periodo
@@ -927,10 +1882,13 @@
         // 3. Cronómetro en vivo
         startLocalChrono(data);
 
-        // 4. Jugador asignado
-        resolveActivePlayer(data);
+        // 4. Resolver jugadores en las ranuras
+        resolveSlots(data);
 
-        // 5. Renderizar o refrescar botones
+        // 5. Actualizar interfaz de jugadores
+        updatePlayersUI(data);
+
+        // 6. Renderizar o refrescar botones
         renderButtons(data);
       }
 
@@ -958,57 +1916,125 @@
         }
       }
 
-      function resolveActivePlayer(data) {
+      function resolveSlots(data) {
         const players = data.players || [];
         if (players.length === 0) return;
 
-        // Si el entrenador fijó un targetPlayerId específico y existe
-        if (data.targetPlayerId && (!activePlayerId || data.targetSlot !== 'any')) {
-          activePlayerId = data.targetPlayerId;
+        // Slot 0
+        if (!slots[0] || !players.find(p => p.id === slots[0])) {
+          if (data.targetPlayerId && players.find(p => p.id === data.targetPlayerId)) {
+            slots[0] = data.targetPlayerId;
+          } else if (data.slots && data.slots[0] && players.find(p => p.id === data.slots[0])) {
+            slots[0] = data.slots[0];
+          } else {
+            slots[0] = players[0].id;
+          }
         }
 
-        // Si no hay jugador activo o ya no está en la lista, tomar el primero
-        if (!activePlayerId || !players.find(p => p.id === activePlayerId)) {
-          activePlayerId = data.targetPlayerId || players[0].id;
+        // Slot 1
+        if (!slots[1] || !players.find(p => p.id === slots[1])) {
+          if (data.slots && data.slots[1] && data.slots[1] !== slots[0] && players.find(p => p.id === data.slots[1])) {
+            slots[1] = data.slots[1];
+          } else {
+            const other = players.find(p => p.id !== slots[0]);
+            slots[1] = other ? other.id : players[0].id;
+          }
         }
-
-        const curPlayer = players.find(p => p.id === activePlayerId) || players[0];
-        updatePlayerCardUI(curPlayer, data);
       }
 
-      function updatePlayerCardUI(player, data) {
-        if (!player) return;
-        const nameEl = document.getElementById('t-player-name');
-        const posEl = document.getElementById('t-player-pos');
-        const avatarEl = document.getElementById('t-player-avatar');
-        const ratiosEl = document.getElementById('t-player-ratios');
-        const btnChange = document.getElementById('btn-open-player-picker');
+      function getActivePlayerId() {
+        if (trackingMode === 'dual') {
+          return slots[activeSlotIdx] || slots[0];
+        }
+        return slots[0];
+      }
 
-        nameEl.textContent = `#${player.dorsal || '-'} ${player.name}`;
-        posEl.textContent = player.position || 'MC';
+      function updatePlayersUI(data) {
+        const players = data.players || [];
+        const p0 = players.find(p => p.id === slots[0]);
+        const p1 = players.find(p => p.id === slots[1]);
 
-        if (player.photo && player.photo.length > 50) {
-          avatarEl.innerHTML = `<img src="${player.photo}" alt="${player.name}" />`;
-        } else {
-          avatarEl.textContent = `#${player.dorsal || '-'}`;
+        // Banner del jugador activo
+        const activePid = getActivePlayerId();
+        const activePlayer = players.find(p => p.id === activePid);
+        const bannerEl = document.getElementById('active-target-banner');
+        if (activePlayer && bannerEl) {
+          bannerEl.textContent = `${T('recordingFor')}: #${activePlayer.dorsal || '-'} ${activePlayer.name}`;
         }
 
-        // Ratios
-        const pStats = (data.stats && data.stats[player.id]) || {};
+        // MODO 1 JUGADOR
+        if (p0) {
+          const nameEl = document.getElementById('t-player-name');
+          const posEl = document.getElementById('t-player-pos');
+          const avatarEl = document.getElementById('t-player-avatar');
+          const ratiosEl = document.getElementById('t-player-ratios');
+          const btnChange = document.getElementById('btn-open-picker-single');
+
+          nameEl.textContent = `#${p0.dorsal || '-'} ${p0.name}`;
+          posEl.textContent = p0.position || 'MC';
+
+          if (p0.photo && p0.photo.length > 50) {
+            avatarEl.innerHTML = `<img src="${p0.photo}" alt="${p0.name}" />`;
+          } else {
+            avatarEl.textContent = `#${p0.dorsal || '-'}`;
+          }
+
+          const r0 = computeRatios(p0.id, data.stats);
+          ratiosEl.textContent = `${T('passes')}: ${r0.pass !== null ? r0.pass + '%' : '—'} • ${T('shots')}: ${r0.shot !== null ? r0.shot + '%' : '—'}`;
+          btnChange.style.display = players.length > 1 ? 'inline-block' : 'none';
+        }
+
+        // MODO 2 JUGADORES (DUAL)
+        cardSlot0.classList.toggle('active', activeSlotIdx === 0);
+        cardSlot1.classList.toggle('active', activeSlotIdx === 1);
+
+        const badge0 = document.getElementById('slot-badge-0');
+        const badge1 = document.getElementById('slot-badge-1');
+        badge0.textContent = activeSlotIdx === 0 ? T('active') : T('select');
+        badge1.textContent = activeSlotIdx === 1 ? T('active') : T('select');
+
+        if (p0) {
+          const av0 = document.getElementById('slot-avatar-0');
+          const nm0 = document.getElementById('slot-name-0');
+          const rt0 = document.getElementById('slot-ratios-0');
+          nm0.textContent = `#${p0.dorsal || '-'} ${p0.name}`;
+          if (p0.photo && p0.photo.length > 50) {
+            av0.innerHTML = `<img src="${p0.photo}" alt="${p0.name}" />`;
+          } else {
+            av0.textContent = `#${p0.dorsal || '-'}`;
+          }
+          const r0 = computeRatios(p0.id, data.stats);
+          rt0.textContent = `${T('passes')}: ${r0.pass !== null ? r0.pass + '%' : '—'} • ${T('shots')}: ${r0.shot !== null ? r0.shot + '%' : '—'}`;
+        }
+
+        if (p1) {
+          const av1 = document.getElementById('slot-avatar-1');
+          const nm1 = document.getElementById('slot-name-1');
+          const rt1 = document.getElementById('slot-ratios-1');
+          nm1.textContent = `#${p1.dorsal || '-'} ${p1.name}`;
+          if (p1.photo && p1.photo.length > 50) {
+            av1.innerHTML = `<img src="${p1.photo}" alt="${p1.name}" />`;
+          } else {
+            av1.textContent = `#${p1.dorsal || '-'}`;
+          }
+          const r1 = computeRatios(p1.id, data.stats);
+          rt1.textContent = `${T('passes')}: ${r1.pass !== null ? r1.pass + '%' : '—'} • ${T('shots')}: ${r1.shot !== null ? r1.shot + '%' : '—'}`;
+        }
+      }
+
+      function computeRatios(pid, stats) {
+        const pStats = (stats && stats[pid]) || {};
         const passOk = pStats.passOk || 0;
         const passKo = pStats.passKo || 0;
         const passTot = passOk + passKo;
-        const passAcc = passTot > 0 ? Math.round((passOk / passTot) * 100) : null;
+        const pass = passTot > 0 ? Math.round((passOk / passTot) * 100) : null;
 
         const shotOn = pStats.shotOn || 0;
         const shotOff = pStats.shotOff || 0;
         const shotTot = shotOn + shotOff;
-        const shotAcc = shotTot > 0 ? Math.round((shotOn / shotTot) * 100) : null;
+        const shot = shotTot > 0 ? Math.round((shotOn / shotTot) * 100) : null;
 
-        ratiosEl.textContent = `Pases: ${passAcc !== null ? passAcc + '%' : '—'} • Tiros: ${shotAcc !== null ? shotAcc + '%' : '—'}`;
-
-        // El botón de cambiar está disponible si hay más de 1 jugador
-        btnChange.style.display = (data.players && data.players.length > 1) ? 'inline-block' : 'none';
+        return { pass, shot };
       }
 
       /* ---------------------------------------------------------
@@ -1032,21 +2058,36 @@
               { key: 'touches', name: 'Toques', short: 'Toques', emoji: '⚽', color: '#94a3b8' }
             ];
 
-        const playerStats = (data.stats && activePlayerId && data.stats[activePlayerId]) || {};
+        const activePid = getActivePlayerId();
+        const playerStats = (data.stats && activePid && data.stats[activePid]) || {};
+
+        // Verificamos si los botones ya existen para solo refrescar números y textos
+        const existingBtns = root.querySelectorAll('.stat-btn[data-key]');
+        if (existingBtns.length === statsList.length) {
+          existingBtns.forEach(btn => {
+            const key = btn.getAttribute('data-key');
+            const cntEl = btn.querySelector('.stat-val');
+            const lblEl = btn.querySelector('.stat-lbl');
+            if (cntEl) cntEl.textContent = playerStats[key] || 0;
+            if (lblEl) lblEl.textContent = TStat(key, lblEl.textContent);
+          });
+          return;
+        }
 
         root.innerHTML = statsList.map(st => {
           const count = playerStats[st.key] || 0;
           const isGoal = st.key === 'goal';
+          const label = TStat(st.key, st.short || st.name);
           return `
             <button type="button" class="stat-btn ${isGoal ? 'btn-goal' : ''}" data-key="${st.key}" style="border-color: ${st.color || 'var(--border)'};">
               <span class="stat-emoji">${st.emoji || '⚡'}</span>
               <span class="stat-val" id="cnt-${st.key}">${count}</span>
-              <span class="stat-lbl">${st.short || st.name}</span>
+              <span class="stat-lbl">${label}</span>
             </button>
           `;
         }).join('');
 
-        // Bindeo de pulsación
+        // Bindeo de pulsación táctil inmediata
         root.querySelectorAll('.stat-btn[data-key]').forEach(btn => {
           btn.addEventListener('click', (e) => {
             e.preventDefault();
@@ -1060,7 +2101,13 @@
          PULSACIÓN DE ACCIÓN Y EMISIÓN EN TIEMPO REAL
          --------------------------------------------------------- */
       function onButtonTapped(btn, statKey) {
-        if (!activePlayerId || !currentCode) return;
+        if (!isSessionActive || !currentCode) {
+          handleSessionTerminated();
+          return;
+        }
+
+        const activePid = getActivePlayerId();
+        if (!activePid) return;
         haptic(35);
 
         // Efecto visual +1 flotante
@@ -1073,19 +2120,21 @@
           valEl.textContent = curVal + 1;
         }
 
-        // Actualizar ratios locales inmediatos
-        if (currentSessionData && currentSessionData.stats) {
-          currentSessionData.stats[activePlayerId] = currentSessionData.stats[activePlayerId] || {};
-          currentSessionData.stats[activePlayerId][statKey] = (currentSessionData.stats[activePlayerId][statKey] || 0) + 1;
-          const pl = (currentSessionData.players || []).find(p => p.id === activePlayerId);
-          if (pl) updatePlayerCardUI(pl, currentSessionData);
+        // Actualizar estadísticas locales en memoria
+        if (currentSessionData) {
+          currentSessionData.stats = currentSessionData.stats || {};
+          currentSessionData.stats[activePid] = currentSessionData.stats[activePid] || {};
+          currentSessionData.stats[activePid][statKey] = (currentSessionData.stats[activePid][statKey] || 0) + 1;
+          updatePlayersUI(currentSessionData);
         }
 
-        // Enviar acción a Firestore (el coach la recibe en milisegundos)
+        // Enviar acción a Firestore con identificador y nombre del asistente
         Cloud.sendLiveTrackerAction(currentCode, {
-          playerId: activePlayerId,
+          playerId: activePid,
           statKey: statKey,
-          delta: 1
+          delta: 1,
+          assistantId: assistantId,
+          assistantName: currentAssistantName || 'Asistente'
         });
       }
 
@@ -1100,46 +2149,95 @@
         setTimeout(() => f.remove(), 600);
       }
 
-      // Botón Deshacer (Undo)
+      // Deshacer (Undo) modo 1 jugador
       document.getElementById('btn-tracker-undo').addEventListener('click', () => {
-        if (!activePlayerId || !currentCode) return;
-        haptic(45);
-        Cloud.sendLiveTrackerUndo(currentCode, activePlayerId);
+        if (!isSessionActive || !currentCode) {
+          handleSessionTerminated();
+          return;
+        }
+        const pid = slots[0];
+        if (!pid) return;
+        haptic(40);
+        Cloud.sendLiveTrackerUndo(currentCode, pid, assistantId, currentAssistantName);
       });
 
-      // Salir / Desconectar
+      // Deshacer (Undo) en ranura 0 (modo dual)
+      document.getElementById('slot-undo-0').addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!isSessionActive || !currentCode) {
+          handleSessionTerminated();
+          return;
+        }
+        const pid = slots[0];
+        if (!pid) return;
+        haptic(40);
+        Cloud.sendLiveTrackerUndo(currentCode, pid, assistantId, currentAssistantName);
+      });
+
+      // Deshacer (Undo) en ranura 1 (modo dual)
+      document.getElementById('slot-undo-1').addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!isSessionActive || !currentCode) {
+          handleSessionTerminated();
+          return;
+        }
+        const pid = slots[1];
+        if (!pid) return;
+        haptic(40);
+        Cloud.sendLiveTrackerUndo(currentCode, pid, assistantId, currentAssistantName);
+      });
+
+      // Salir / Desconectar manualmente
       document.getElementById('btn-disconnect').addEventListener('click', () => {
-        if (confirm('¿Deseas desconectarte del tracker?')) {
-          if (sessionUnsubscribe) sessionUnsubscribe();
-          if (timerInterval) clearInterval(timerInterval);
+        if (confirm(T('disconnectConfirm'))) {
+          handleSessionTerminated();
           window.location.reload();
         }
       });
 
       /* ---------------------------------------------------------
-         BOTTOM SHEET SELECTOR DE JUGADOR
+         BOTTOM SHEET: SELECTOR DE JUGADOR (SIN SCROLL HORIZONTAL)
          --------------------------------------------------------- */
       const sheetPicker = document.getElementById('sheet-player-picker');
-      const btnOpenPicker = document.getElementById('btn-open-player-picker');
       const btnClosePicker = document.getElementById('btn-close-player-picker');
       const pickerList = document.getElementById('players-picker-list');
+      const searchInput = document.getElementById('player-search-input');
 
-      function openPlayerPicker() {
+      function openPlayerPicker(slotIndex) {
+        slotPickingTarget = slotIndex || 0;
+        searchInput.value = '';
+        renderPickerList('');
+        sheetPicker.classList.add('active');
+        setTimeout(() => searchInput.focus(), 150);
+      }
+
+      function closePlayerPicker() {
+        sheetPicker.classList.remove('active');
+      }
+
+      function renderPickerList(filterText) {
         if (!currentSessionData || !currentSessionData.players) return;
         const players = currentSessionData.players;
+        const currentSelectedId = slots[slotPickingTarget];
+        const term = (filterText || '').trim().toLowerCase();
 
-        pickerList.innerHTML = players.map(p => {
-          const isSelected = p.id === activePlayerId;
+        const filtered = players.filter(p => {
+          if (!term) return true;
+          const dStr = String(p.dorsal || '');
+          const nStr = (p.name || '').toLowerCase();
+          return dStr.includes(term) || nStr.includes(term);
+        });
+
+        pickerList.innerHTML = filtered.map(p => {
+          const isSelected = p.id === currentSelectedId;
           return `
             <button type="button" class="player-select-btn ${isSelected ? 'active' : ''}" data-pid="${p.id}">
-              <div class="player-avatar" style="width: 34px; height: 34px; font-size: 13px;">
+              <div class="player-avatar" style="width: 32px; height: 32px; font-size: 12px; border-width: 1.5px;">
                 ${(p.photo && p.photo.length > 50) ? `<img src="${p.photo}" alt="${p.name}" />` : '#' + (p.dorsal || '-')}
               </div>
-              <div style="min-width: 0; flex: 1;">
-                <div style="font-size: 13px; font-weight: 800; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                  #${p.dorsal || '-'} ${p.name}
-                </div>
-                <div style="font-size: 10.5px; color: var(--muted);">${p.position || 'MC'}</div>
+              <div class="player-info-wrap">
+                <span class="player-name-text">#${p.dorsal || '-'} ${p.name}</span>
+                <span class="player-pos-text">${p.position || 'MC'}</span>
               </div>
             </button>
           `;
@@ -1148,40 +2246,67 @@
         pickerList.querySelectorAll('.player-select-btn').forEach(btn => {
           btn.addEventListener('click', () => {
             const pid = btn.getAttribute('data-pid');
-            activePlayerId = pid;
+            slots[slotPickingTarget] = pid;
             haptic(30);
             closePlayerPicker();
-            const pl = players.find(p => p.id === pid);
-            if (pl) updatePlayerCardUI(pl, currentSessionData);
+            updatePlayersUI(currentSessionData);
             renderButtons(currentSessionData);
           });
         });
-
-        sheetPicker.classList.add('active');
       }
 
-      function closePlayerPicker() {
-        sheetPicker.classList.remove('active');
-      }
-
-      btnOpenPicker.addEventListener('click', openPlayerPicker);
-      document.getElementById('player-card-click').addEventListener('click', (e) => {
-        if (e.target !== btnOpenPicker) openPlayerPicker();
+      searchInput.addEventListener('input', () => {
+        renderPickerList(searchInput.value);
       });
+
+      document.getElementById('btn-open-picker-single').addEventListener('click', (e) => {
+        e.stopPropagation();
+        openPlayerPicker(0);
+      });
+      document.getElementById('single-card-click').addEventListener('click', (e) => {
+        if (e.target.id !== 'btn-open-picker-single') {
+          openPlayerPicker(0);
+        }
+      });
+
+      document.getElementById('slot-change-0').addEventListener('click', (e) => {
+        e.stopPropagation();
+        openPlayerPicker(0);
+      });
+      document.getElementById('slot-change-1').addEventListener('click', (e) => {
+        e.stopPropagation();
+        openPlayerPicker(1);
+      });
+
       btnClosePicker.addEventListener('click', closePlayerPicker);
       sheetPicker.addEventListener('click', (e) => {
         if (e.target === sheetPicker) closePlayerPicker();
       });
 
       /* ---------------------------------------------------------
-         AUTO-CONEXIÓN VÍA URL (?c=123456 o ?code=123456)
+         INICIALIZACIÓN
          --------------------------------------------------------- */
       window.addEventListener('DOMContentLoaded', () => {
+        setTrackingMode(trackingMode);
+        updateStaticI18nLabels();
+
+        // Rellenar nombre guardado previamente si existe
+        if (asstNameInput && currentAssistantName) {
+          asstNameInput.value = currentAssistantName;
+        }
+
+        // Auto-conexión por query string ?c=123456 o ?code=123456
         const params = new URLSearchParams(window.location.search);
         const codeParam = params.get('c') || params.get('code') || params.get('join');
         if (codeParam && /^\d{6}$/.test(codeParam.trim())) {
           setPinValue(codeParam.trim());
-          connectToSession(codeParam.trim());
+          if (currentAssistantName) {
+            connectToSession(codeParam.trim(), currentAssistantName);
+          } else if (asstNameInput) {
+            asstNameInput.focus();
+          }
+        } else if (!currentAssistantName && asstNameInput) {
+          asstNameInput.focus();
         } else {
           pinBoxes[0].focus();
         }

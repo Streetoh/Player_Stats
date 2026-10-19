@@ -227,16 +227,24 @@
     }
 
     function toSVG(text, pixelSize) {
+      const targetPx = (pixelSize || 6) * 35;
       if (typeof window !== 'undefined' && window.QRCode && window.QRCode.toString) {
         let svgOut = '';
-        window.QRCode.toString(String(text || ''), { type: 'svg', margin: 4 }, (err, str) => {
-          if (!err && str) svgOut = str;
-        });
-        if (svgOut) return svgOut;
+        try {
+          window.QRCode.toString(String(text || ''), { type: 'svg', margin: 2 }, (err, str) => {
+            if (!err && str) svgOut = str;
+          });
+        } catch (e) {}
+        if (svgOut) {
+          if (!svgOut.includes('width=')) {
+            svgOut = svgOut.replace('<svg ', `<svg width="${targetPx}" height="${targetPx}" style="width:${targetPx}px;height:${targetPx}px;display:block;margin:0 auto;border-radius:8px;" `);
+          }
+          return svgOut;
+        }
       }
       pixelSize = pixelSize || 7;
       const { size, matrix } = generateMatrix(text);
-      const margin = 4;
+      const margin = 3;
       const totalSize = (size + margin * 2) * pixelSize;
       let paths = '';
       for (let y = 0; y < size; y++) {
@@ -248,7 +256,7 @@
           }
         }
       }
-      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalSize} ${totalSize}" width="${totalSize}" height="${totalSize}" style="border-radius: 8px; background: #ffffff; padding: 6px; display: block; margin: 0 auto;">
+      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalSize} ${totalSize}" width="${totalSize}" height="${totalSize}" style="border-radius: 8px; background: #ffffff; padding: 6px; display: block; margin: 0 auto; width:${totalSize}px; height:${totalSize}px;">
         <rect width="100%" height="100%" fill="#ffffff"/>
         <path d="${paths}" fill="#060a13"/>
       </svg>`;
