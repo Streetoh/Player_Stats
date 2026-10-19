@@ -2159,6 +2159,8 @@
           title: '',
           teamId: '',
           teamIds: [],
+          excludedPlayerIds: [],
+          includedPlayerIds: [],
           daysOfWeek: [2, 4], // 1=Lun, 2=Mar, 3=Mie, 4=Jue, 5=Vie, 6=Sab, 0=Dom
           time: '18:00',
           endTime: '19:30',
@@ -2178,10 +2180,98 @@
         // Deduplicar cualquier horario previo con mismo id
         this.state.recurringSchedules = this.state.recurringSchedules.filter(r => r.id !== item.id);
         this.state.recurringSchedules.push(item);
+      } else {
+        if (Array.isArray(data.excludedPlayerIds)) {
+          item.excludedPlayerIds = [...data.excludedPlayerIds];
+        }
+        if (Array.isArray(data.includedPlayerIds)) {
+          item.includedPlayerIds = [...data.includedPlayerIds];
+        }
       }
       this.save();
       this.generateRecurringConvocations(30, item.startDate, item.endDate);
       return item;
+    },
+
+    removePlayerFromRecurringSchedule(schedId, playerId) {
+      if (!playerId) return 0;
+      let removedCount = 0;
+
+      // 1. Marcar como excluido en el horario recurrente si se conoce
+      if (schedId) {
+        const sched = this.recurringSchedule(schedId);
+        if (sched) {
+          sched.excludedPlayerIds = Array.isArray(sched.excludedPlayerIds) ? sched.excludedPlayerIds : [];
+          if (!sched.excludedPlayerIds.includes(playerId)) {
+            sched.excludedPlayerIds.push(playerId);
+          }
+          if (Array.isArray(sched.includedPlayerIds)) {
+            sched.includedPlayerIds = sched.includedPlayerIds.filter(id => id !== playerId);
+          }
+        }
+      }
+
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, '0');
+      const d = String(now.getDate()).padStart(2, '0');
+      const todayStr = `${y}-${m}-${d}`;
+
+      // 2. Eliminar al jugador de todas las convocatorias de hoy y futuras de este horario recurrente
+      (this.state.convocations || []).forEach(c => {
+        if (!c) return;
+        const isTargetSched = schedId 
+          ? (c.scheduleId === schedId || (c.id && c.id.startsWith(`rec_${schedId}_`)))
+          : (c.isRecurring || (c.id && c.id.startsWith('rec_')));
+        if (isTargetSched && c.date >= todayStr) {
+          if (c.list && c.list[playerId]) {
+            delete c.list[playerId];
+            removedCount++;
+          }
+          if (c.responses && c.responses[playerId]) {
+            delete c.responses[playerId];
+          }
+        }
+      });
+
+      // 3. Eliminar al jugador de sesiones vinculadas no disputadas
+      (this.state.sessions || []).forEach(s => {
+        if (!s) return;
+        const isTargetSess = schedId
+          ? (s.scheduleId === schedId || (s.convocationId && s.convocationId.startsWith(`rec_${schedId}_`)))
+          : (s.scheduleId || (s.convocationId && s.convocationId.startsWith('rec_')));
+        if (isTargetSess && s.date >= todayStr && (s.elapsedMs === 0 || s.elapsedMs == null)) {
+          if (s.attendance && s.attendance[playerId]) {
+            delete s.attendance[playerId];
+          }
+          if (Array.isArray(s.slots)) {
+            s.slots = s.slots.map(x => (x === playerId ? null : x));
+          }
+        }
+      });
+
+      this.save();
+      return removedCount;
+    },
+
+    includePlayerInRecurringSchedule(schedId, playerId) {
+      if (!schedId || !playerId) return;
+      const sched = this.recurringSchedule(schedId);
+      if (sched) {
+        if (Array.isArray(sched.excludedPlayerIds)) {
+          sched.excludedPlayerIds = sched.excludedPlayerIds.filter(id => id !== playerId);
+        }
+        const p = this.player(playerId);
+        const targetTeamIds = Array.isArray(sched.teamIds) && sched.teamIds.length > 0 ? sched.teamIds : (sched.teamId ? [sched.teamId] : []);
+        if (p && targetTeamIds.length > 0 && !targetTeamIds.includes(p.teamId)) {
+          sched.includedPlayerIds = Array.isArray(sched.includedPlayerIds) ? sched.includedPlayerIds : [];
+          if (!sched.includedPlayerIds.includes(playerId)) {
+            sched.includedPlayerIds.push(playerId);
+          }
+        }
+      }
+      this.generateRecurringConvocations(30);
+      this.save();
     },
 
     deleteRecurringSchedule(id) {
@@ -2401,10 +2491,18 @@
           ? sched.teamIds
           : (sched.teamId ? [sched.teamId] : []);
 
+        const excludedPlayerIds = new Set(sched.excludedPlayerIds || []);
+        const includedPlayerIds = new Set(sched.includedPlayerIds || []);
+
         const teamPlayers = this.state.players.filter(p => {
+          if (!p || !p.id) return false;
+          if (excludedPlayerIds.has(p.id)) return false;
+          if (includedPlayerIds.has(p.id)) return true;
           if (!targetTeamIds.length) return true;
           return targetTeamIds.includes(p.teamId);
         });
+
+        const allowedPlayerIds = new Set(teamPlayers.map(p => p.id));
 
         let curEndD = null;
         const targetEndStr = endDateStr || sched.endDate || '';
@@ -2458,6 +2556,15 @@
                 existingConv.teamIds = targetTeamIds;
                 existingConv.teamId = targetTeamIds[0] || '';
                 if (!existingConv.list) existingConv.list = {};
+
+                // Limpiar jugadores excluidos o de otros equipos que ya no deban estar convocados en este horario recurrente
+                Object.keys(existingConv.list).forEach(pid => {
+                  if (!allowedPlayerIds.has(pid)) {
+                    delete existingConv.list[pid];
+                    if (existingConv.responses) delete existingConv.responses[pid];
+                  }
+                });
+
                 teamPlayers.forEach(p => {
                   if (!existingConv.list[p.id]) {
                     existingConv.list[p.id] = 'called';

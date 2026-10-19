@@ -11315,6 +11315,13 @@
           }
         });
 
+        const isRecurringConv = !!(conv.isRecurring || conv.scheduleId || (conv.id && conv.id.startsWith('rec_')));
+        let convSchedId = conv.scheduleId || '';
+        if (!convSchedId && conv.id && conv.id.startsWith('rec_')) {
+          const parts = conv.id.split('_');
+          if (parts.length >= 3) convSchedId = parts[1];
+        }
+
         body.innerHTML = `
           <!-- Cabecera del evento -->
           <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 10px; flex-wrap: wrap;">
@@ -11323,6 +11330,23 @@
             </span>
             ${team ? `<span class="badge" style="background: rgba(34, 211, 238, 0.15); color: var(--cyan); border-color: rgba(34, 211, 238, 0.3);">🛡️ ${escapeHtml(team.name)}</span>` : ''}
           </div>
+
+          ${isRecurringConv ? `
+            <div style="background: rgba(34, 211, 238, 0.08); border: 1.5px solid rgba(34, 211, 238, 0.35); border-radius: 12px; padding: 9px 12px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+              <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+                <span style="font-size: 18px;">🔄</span>
+                <div style="min-width: 0;">
+                  <b style="font-size: 12.5px; color: var(--cyan); display: block;">${t('recurringTraining', 'Entrenamiento Recurrente')}</b>
+                  <small style="font-size: 10.5px; color: var(--muted); display: block;">Elimina a un jugador de toda la serie recurrente con el botón 🗑️</small>
+                </div>
+              </div>
+              ${convSchedId ? `
+                <button type="button" class="btn sm" id="btn-manage-rec-players" style="background: var(--surface2); color: #fff; border: 1px solid rgba(34, 211, 238, 0.4); font-size: 11px; height: 30px; padding: 0 9px; font-weight: 800; white-space: nowrap; flex-shrink: 0; border-radius: 8px;">
+                  👥 ${t('managePlayers', 'Plantilla')}
+                </button>
+              ` : ''}
+            </div>
+          ` : ''}
 
           <div class="conv-detail-meta" style="margin-bottom: 12px; font-size: 13px; line-height: 1.5; background: var(--bg2); padding: 12px; border-radius: 12px; border: 1px solid var(--border);">
             <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; flex-wrap: wrap;">
@@ -11382,6 +11406,15 @@
                         <div style="display: flex; align-items: center; gap: 6px;">
                           <span class="badge" style="background: rgba(34, 197, 94, 0.25); color: #86efac; border: 1px solid rgba(34, 197, 94, 0.6); font-size: 11px; font-weight: 800;">🟢 ASISTE</span>
                           <button type="button" class="btn sm ghost" data-toggle-resp="${p.id}" style="padding: 3px 6px; font-size: 11px;">Cambiar</button>
+                          ${isRecurringConv ? `
+                            <button type="button" class="btn sm danger ghost btn-del-player-rec" data-pid="${p.id}" title="${t('removeFromRecurring', 'Eliminar de todas las convocatorias recurrentes')}" style="padding: 3px 7px; font-size: 11.5px; height: 28px; border-radius: 7px; flex-shrink: 0; border-color: rgba(239, 68, 68, 0.45);">
+                              🗑️
+                            </button>
+                          ` : `
+                            <button type="button" class="btn sm danger ghost btn-del-player-single" data-pid="${p.id}" title="${t('removeFromConvocation', 'Quitar de esta convocatoria')}" style="padding: 3px 7px; font-size: 11.5px; height: 28px; border-radius: 7px; flex-shrink: 0; border-color: rgba(239, 68, 68, 0.45);">
+                              🗑️
+                            </button>
+                          `}
                         </div>
                       </div>
                     `;
@@ -11406,6 +11439,15 @@
                         <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0; margin-left: 8px;">
                           <span class="badge" style="background: rgba(239, 68, 68, 0.25); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.6); font-size: 11px; font-weight: 800;">❌ BAJA</span>
                           <button type="button" class="btn sm ghost" data-toggle-resp="${p.id}" style="padding: 3px 6px; font-size: 11px;">Cambiar</button>
+                          ${isRecurringConv ? `
+                            <button type="button" class="btn sm danger ghost btn-del-player-rec" data-pid="${p.id}" title="${t('removeFromRecurring', 'Eliminar de todas las convocatorias recurrentes')}" style="padding: 3px 7px; font-size: 11.5px; height: 28px; border-radius: 7px; flex-shrink: 0; border-color: rgba(239, 68, 68, 0.45);">
+                              🗑️
+                            </button>
+                          ` : `
+                            <button type="button" class="btn sm danger ghost btn-del-player-single" data-pid="${p.id}" title="${t('removeFromConvocation', 'Quitar de esta convocatoria')}" style="padding: 3px 7px; font-size: 11.5px; height: 28px; border-radius: 7px; flex-shrink: 0; border-color: rgba(239, 68, 68, 0.45);">
+                              🗑️
+                            </button>
+                          `}
                         </div>
                       </div>
                     `;
@@ -11454,6 +11496,15 @@
                           <button type="button" class="btn sm" data-quick-decline="${p.id}" style="background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.5); padding: 4px 8px; font-size: 11px; font-weight: 700;">
                             ✕ ${t('attendanceShortNo', 'Baja')}
                           </button>
+                          ${isRecurringConv ? `
+                            <button type="button" class="btn sm danger ghost btn-del-player-rec" data-pid="${p.id}" title="${t('removeFromRecurring', 'Eliminar de todas las convocatorias recurrentes')}" style="padding: 4px 7px; font-size: 11.5px; height: 28px; border-radius: 7px; flex-shrink: 0; border-color: rgba(239, 68, 68, 0.45);">
+                              🗑️
+                            </button>
+                          ` : `
+                            <button type="button" class="btn sm danger ghost btn-del-player-single" data-pid="${p.id}" title="${t('removeFromConvocation', 'Quitar de esta convocatoria')}" style="padding: 4px 7px; font-size: 11.5px; height: 28px; border-radius: 7px; flex-shrink: 0; border-color: rgba(239, 68, 68, 0.45);">
+                              🗑️
+                            </button>
+                          `}
                         </div>
                       </div>
                     `;
@@ -11576,6 +11627,74 @@
             renderDetails();
           };
         });
+
+        body.querySelectorAll('.btn-del-player-rec').forEach(b => {
+          b.onclick = (e) => {
+            e.stopPropagation();
+            const pid = b.getAttribute('data-pid');
+            const pl = Store.player(pid);
+            const plName = pl ? Store.playerName(pl) : 'este jugador';
+            confirmDialog(
+              t('removeFromRecurring', 'Eliminar de todas las convocatorias recurrentes'),
+              t('confirmRemovePlayerFromRecurring', `¿Deseas eliminar a ${plName} de esta y de TODAS las convocatorias recurrentes de este horario?\n\nDejará de aparecer convocado en las fechas creadas para este grupo.`),
+              () => {
+                Store.removePlayerFromRecurringSchedule(convSchedId, pid);
+                if (window.Cloud && window.Cloud.pushCoachState) {
+                  window.Cloud.pushCoachState(Store.state, true);
+                }
+                haptic(35);
+                toast(`✅ ${plName} eliminado de las convocatorias recurrentes`, 'success');
+                conv = Store.convocation(conv.id) || conv;
+                renderDetails();
+                if (onDone) onDone();
+                if (currentTab === 'home' || currentTab === 'convocations') {
+                  const view = document.getElementById('view');
+                  if (view) {
+                    if (currentTab === 'home') renderHomeView(view);
+                    else if (currentTab === 'convocations') renderConvocationsView(view);
+                  }
+                }
+              }
+            );
+          };
+        });
+
+        body.querySelectorAll('.btn-del-player-single').forEach(b => {
+          b.onclick = (e) => {
+            e.stopPropagation();
+            const pid = b.getAttribute('data-pid');
+            const pl = Store.player(pid);
+            const plName = pl ? Store.playerName(pl) : 'este jugador';
+            confirmDialog(
+              t('removeFromConvocation', 'Quitar de la convocatoria'),
+              `¿Deseas quitar a ${plName} de esta convocatoria?`,
+              () => {
+                conv.list = conv.list || {};
+                delete conv.list[pid];
+                if (conv.responses) delete conv.responses[pid];
+                Store.save();
+                if (window.Cloud && window.Cloud.pushCoachState) {
+                  window.Cloud.pushCoachState(Store.state, true);
+                }
+                haptic(30);
+                toast(`✅ ${plName} quitado de la convocatoria`, 'info');
+                renderDetails();
+                if (onDone) onDone();
+              }
+            );
+          };
+        });
+
+        const btnManageRec = body.querySelector('#btn-manage-rec-players');
+        if (btnManageRec) {
+          btnManageRec.onclick = () => {
+            showRecurringSchedulePlayersModal(convSchedId, () => {
+              conv = Store.convocation(conv.id) || conv;
+              renderDetails();
+              if (onDone) onDone();
+            });
+          };
+        }
       }
 
       renderDetails();
@@ -11993,6 +12112,16 @@
             `;
           }).join('')}
         </div>
+
+        ${(c.scheduleId || (c.id && c.id.startsWith('rec_'))) ? `
+          <div style="background: rgba(34, 211, 238, 0.08); border: 1.5px solid rgba(34, 211, 238, 0.35); border-radius: 12px; padding: 10px 12px; margin-top: 12px; display: flex; align-items: flex-start; gap: 9px;">
+            <input type="checkbox" id="conv-apply-to-recurring" style="width: 18px; height: 18px; margin-top: 2px; accent-color: var(--cyan); cursor: pointer;" />
+            <label for="conv-apply-to-recurring" style="font-size: 12px; color: #fff; cursor: pointer; line-height: 1.35; margin: 0;">
+              🔄 <b>${t('applyToAllRecurring', 'Aplicar cambios de convocados a todas las convocatorias de este horario')}</b>
+              <small style="display: block; color: var(--muted); font-size: 11px; margin-top: 2px;">Los jugadores desmarcados se eliminarán de todas las convocatorias recurrentes creadas para este grupo.</small>
+            </label>
+          </div>
+        ` : ''}
       `;
 
       function updateCounterChips() {
@@ -12284,6 +12413,23 @@
           list
         });
 
+        const applyToRecChk = document.getElementById('conv-apply-to-recurring');
+        if (applyToRecChk && applyToRecChk.checked) {
+          let targetSchedId = c.scheduleId || '';
+          if (!targetSchedId && c.id && c.id.startsWith('rec_')) {
+            const parts = c.id.split('_');
+            if (parts.length >= 3) targetSchedId = parts[1];
+          }
+          if (targetSchedId) {
+            const prevPlayerIds = Object.keys(c.list || {});
+            prevPlayerIds.forEach(pid => {
+              if (!list[pid] || list[pid] === 'absent') {
+                Store.removePlayerFromRecurringSchedule(targetSchedId, pid);
+              }
+            });
+          }
+        }
+
         // Sincronizar bidireccionalmente con la sesión correspondiente en Inicio y Sesiones
         let linkedSess = null;
         if (savedConv.sessionId) {
@@ -12344,6 +12490,272 @@
           showConvocationDetailsModal(savedConv, onDone);
         }, 180);
       };
+    });
+  }
+
+  /* =========================================================
+     GESTIÓN DE JUGADORES DE UN HORARIO RECURRENTE
+     ========================================================= */
+  function showRecurringSchedulePlayersModal(schedId, onDone) {
+    let sched = Store.recurringSchedule(schedId);
+    if (!sched && schedId) {
+      sched = (Store.state.recurringSchedules || []).find(r => r.id === schedId);
+    }
+    if (!sched) {
+      toast('Horario recurrente no encontrado', 'error');
+      return;
+    }
+
+    openSheet(`${t('managePlayers', 'Gestionar Jugadores')} - ${escapeHtml(sched.title || 'Horario')}`, (body) => {
+      function renderList() {
+        const targetTeamIds = (Array.isArray(sched.teamIds) && sched.teamIds.length > 0)
+          ? sched.teamIds
+          : (sched.teamId ? [sched.teamId] : []);
+        const excludedSet = new Set(sched.excludedPlayerIds || []);
+        const includedSet = new Set(sched.includedPlayerIds || []);
+
+        const allPlayers = Store.sortedPlayers();
+        // Jugadores del equipo asignado
+        const basePlayers = allPlayers.filter(p => {
+          if (!targetTeamIds.length) return true;
+          return targetTeamIds.includes(p.teamId);
+        });
+
+        // Jugadores invitados de otros equipos
+        const guestPlayers = allPlayers.filter(p => includedSet.has(p.id) && !basePlayers.some(bp => bp.id === p.id));
+
+        const candidatePlayers = [...basePlayers, ...guestPlayers];
+        const summonedPlayers = candidatePlayers.filter(p => !excludedSet.has(p.id));
+        const excludedPlayers = candidatePlayers.filter(p => excludedSet.has(p.id));
+
+        body.innerHTML = `
+          <div style="font-size: 12px; color: var(--muted); margin-bottom: 12px; line-height: 1.4;">
+            ${t('summonedPlayersDesc', 'Desmarca o elimina los jugadores que no deben aparecer convocados en las fechas de este grupo.')}
+          </div>
+
+          <div style="display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap;">
+            <span class="badge" style="background: rgba(34, 197, 94, 0.18); color: #86efac; font-size: 12px; font-weight: 800; padding: 4px 10px;">
+              🟢 ${summonedPlayers.length} Convocados
+            </span>
+            ${excludedPlayers.length > 0 ? `
+              <span class="badge" style="background: rgba(239, 68, 68, 0.18); color: #fca5a5; font-size: 12px; font-weight: 800; padding: 4px 10px;">
+                ❌ ${excludedPlayers.length} Excluidos
+              </span>
+            ` : ''}
+          </div>
+
+          <div class="section-title" style="margin-top: 10px; margin-bottom: 8px;">
+            <span>🟢 JUGADORES CONVOCADOS EN CADA FECHA (${summonedPlayers.length})</span>
+          </div>
+
+          ${summonedPlayers.length === 0 ? `
+            <div style="text-align: center; padding: 20px; color: var(--muted); background: var(--surface2); border-radius: 12px; font-size: 12px; margin-bottom: 14px;">
+              No hay jugadores convocados en este horario recurrente.
+            </div>
+          ` : `
+            <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px;">
+              ${summonedPlayers.map(p => {
+                const pTeam = Store.team(p.teamId);
+                const isGuest = targetTeamIds.length > 0 && p.teamId && !targetTeamIds.includes(p.teamId);
+                return `
+                  <div class="card" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-radius: 12px; background: var(--surface2); border: 1.5px solid var(--border);">
+                    <div style="display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1;">
+                      ${renderAvatar(p, 'sm')}
+                      <div style="min-width: 0; flex: 1;">
+                        <b style="font-size: 13.5px; color: #fff; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                          #${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(Store.playerName(p))}
+                        </b>
+                        <div style="display: flex; align-items: center; gap: 6px; margin-top: 2px;">
+                          <small style="color: var(--muted); font-size: 11px;">${p.mainPosition || 'Jugador'}</small>
+                          ${pTeam ? `
+                            <span class="badge" style="background: ${pTeam.color || 'var(--cyan)'}22; color: ${pTeam.color || 'var(--cyan)'}; font-size: 10px; padding: 1px 6px;">
+                              ${escapeHtml(pTeam.name)}
+                            </span>
+                          ` : ''}
+                          ${isGuest ? `
+                            <span class="badge" style="background: rgba(234, 179, 8, 0.2); color: #fde047; font-size: 9.5px; padding: 1px 5px;">
+                              ⭐ Invitado
+                            </span>
+                          ` : ''}
+                        </div>
+                      </div>
+                    </div>
+                    <button type="button" class="btn sm danger ghost btn-sched-remove-p" data-pid="${p.id}" style="font-weight: 800; font-size: 11.5px; height: 32px; padding: 0 10px; border-radius: 8px; border-color: rgba(239, 68, 68, 0.4); flex-shrink: 0;" title="${t('removeFromRecurring', 'Eliminar de todas las convocatorias')}">
+                      🗑️ ${t('delete', 'Eliminar')}
+                    </button>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          `}
+
+          ${excludedPlayers.length > 0 ? `
+            <div class="section-title" style="margin-top: 14px; margin-bottom: 8px;">
+              <span>❌ JUGADORES EXCLUIDOS DE ESTE HORARIO (${excludedPlayers.length})</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px;">
+              ${excludedPlayers.map(p => {
+                const pTeam = Store.team(p.teamId);
+                return `
+                  <div class="card" style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-radius: 12px; background: rgba(239, 68, 68, 0.05); border: 1.5px dashed rgba(239, 68, 68, 0.35); opacity: 0.85;">
+                    <div style="display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1;">
+                      ${renderAvatar(p, 'sm')}
+                      <div style="min-width: 0; flex: 1;">
+                        <span style="font-size: 13px; color: var(--muted); text-decoration: line-through; display: block;">
+                          #${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(Store.playerName(p))}
+                        </span>
+                        <small style="color: #fca5a5; font-size: 10.5px;">${t('excludedFromSchedule', 'Excluido de este horario')}</small>
+                      </div>
+                    </div>
+                    <button type="button" class="btn sm ghost btn-sched-restore-p" data-pid="${p.id}" style="font-weight: 800; font-size: 11px; height: 30px; padding: 0 8px; color: #86efac; border-color: rgba(34, 197, 94, 0.4); flex-shrink: 0;">
+                      ➕ ${t('reIncludePlayer', 'Reincorporar')}
+                    </button>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          ` : ''}
+
+          <!-- Botón para añadir jugador externo puntual a este horario -->
+          <button type="button" class="btn sm secondary block" id="btn-add-external-player" style="font-size: 12px; height: 38px; font-weight: 800; margin-top: 10px;">
+            ➕ Convocar a otro jugador del club en este horario
+          </button>
+        `;
+
+        body.querySelectorAll('.btn-sched-remove-p').forEach(b => {
+          b.onclick = () => {
+            const pid = b.getAttribute('data-pid');
+            const pl = Store.player(pid);
+            const plName = pl ? Store.playerName(pl) : 'este jugador';
+            confirmDialog(
+              t('removeFromRecurring', 'Eliminar de todas las convocatorias recurrentes'),
+              t('confirmRemovePlayerFromRecurring', `¿Deseas eliminar a ${plName} de todas las convocatorias recurrentes creadas para este horario?`),
+              () => {
+                Store.removePlayerFromRecurringSchedule(sched.id, pid);
+                if (window.Cloud && window.Cloud.pushCoachState) {
+                  window.Cloud.pushCoachState(Store.state, true);
+                }
+                haptic(35);
+                toast(`✅ ${plName} eliminado de este horario y sus convocatorias`, 'success');
+                renderList();
+                if (onDone) onDone();
+              }
+            );
+          };
+        });
+
+        body.querySelectorAll('.btn-sched-restore-p').forEach(b => {
+          b.onclick = () => {
+            const pid = b.getAttribute('data-pid');
+            const pl = Store.player(pid);
+            const plName = pl ? Store.playerName(pl) : 'este jugador';
+            Store.includePlayerInRecurringSchedule(sched.id, pid);
+            if (window.Cloud && window.Cloud.pushCoachState) {
+              window.Cloud.pushCoachState(Store.state, true);
+            }
+            haptic(25);
+            toast(`✅ ${plName} reincorporado al horario`, 'success');
+            renderList();
+            if (onDone) onDone();
+          };
+        });
+
+        const btnAddExt = body.querySelector('#btn-add-external-player');
+        if (btnAddExt) {
+          btnAddExt.onclick = () => {
+            showAddPlayerToRecurringScheduleModal(sched.id, () => {
+              renderList();
+              if (onDone) onDone();
+            });
+          };
+        }
+      }
+
+      renderList();
+    });
+  }
+
+  function showAddPlayerToRecurringScheduleModal(schedId, onAdded) {
+    const sched = Store.recurringSchedule(schedId);
+    if (!sched) return;
+
+    openSheet('➕ Convocar Jugador al Horario', (body) => {
+      const allPlayers = Store.sortedPlayers();
+      const targetTeamIds = (Array.isArray(sched.teamIds) && sched.teamIds.length > 0)
+        ? sched.teamIds
+        : (sched.teamId ? [sched.teamId] : []);
+      const excludedSet = new Set(sched.excludedPlayerIds || []);
+      const includedSet = new Set(sched.includedPlayerIds || []);
+
+      const nonSummonedPlayers = allPlayers.filter(p => {
+        const isBase = (!targetTeamIds.length || targetTeamIds.includes(p.teamId));
+        if (isBase && !excludedSet.has(p.id)) return false; // Ya está convocado
+        if (includedSet.has(p.id) && !excludedSet.has(p.id)) return false; // Ya está incluido
+        return true;
+      });
+
+      body.innerHTML = `
+        <div style="font-size: 12px; color: var(--muted); margin-bottom: 12px;">
+          Selecciona un jugador para añadirlo a todas las convocatorias recurrentes de este horario:
+        </div>
+
+        <input type="text" id="inp-search-rec-player" placeholder="${t('searchPlayerPlaceholder', 'Buscar por nombre o dorsal...')}" style="width: 100%; margin-bottom: 12px; font-size: 13px;" />
+
+        <div id="rec-add-player-list" style="display: flex; flex-direction: column; gap: 6px; max-height: 48vh; overflow-y: auto;">
+          ${nonSummonedPlayers.length === 0 ? `
+            <div style="text-align: center; color: var(--muted); padding: 20px; font-size: 12px;">
+              Todos los jugadores disponibles ya están convocados en este horario.
+            </div>
+          ` : nonSummonedPlayers.map(p => {
+            const pTeam = Store.team(p.teamId);
+            return `
+              <div class="card rec-candidate-item" data-pid="${p.id}" data-text="${escapeHtml(Store.playerName(p).toLowerCase())} ${p.mainDorsal || ''}" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-radius: 12px; cursor: pointer; background: var(--surface2); border: 1px solid var(--border);">
+                <div style="display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1;">
+                  ${renderAvatar(p, 'sm')}
+                  <div style="min-width: 0; flex: 1;">
+                    <b style="font-size: 13px; color: #fff; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                      #${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(Store.playerName(p))}
+                    </b>
+                    <small style="color: var(--muted); font-size: 10.5px;">
+                      ${p.mainPosition || 'Jugador'}${pTeam ? ' • ' + escapeHtml(pTeam.name) : ''}
+                    </small>
+                  </div>
+                </div>
+                <button type="button" class="btn sm primary" style="font-weight: 800; font-size: 11px; height: 30px; padding: 0 10px; border-radius: 7px; flex-shrink: 0;">
+                  ➕ Añadir
+                </button>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+
+      const searchInp = body.querySelector('#inp-search-rec-player');
+      if (searchInp) {
+        searchInp.oninput = () => {
+          const q = searchInp.value.toLowerCase().trim();
+          body.querySelectorAll('.rec-candidate-item').forEach(el => {
+            const txt = el.getAttribute('data-text') || '';
+            el.style.display = (!q || txt.includes(q)) ? 'flex' : 'none';
+          });
+        };
+      }
+
+      body.querySelectorAll('.rec-candidate-item').forEach(el => {
+        el.onclick = () => {
+          const pid = el.getAttribute('data-pid');
+          const pl = Store.player(pid);
+          const plName = pl ? Store.playerName(pl) : 'jugador';
+          Store.includePlayerInRecurringSchedule(sched.id, pid);
+          if (window.Cloud && window.Cloud.pushCoachState) {
+            window.Cloud.pushCoachState(Store.state, true);
+          }
+          haptic(35);
+          toast(`✅ ${plName} convocado al horario recurrente`, 'success');
+          closeSheet();
+          if (onAdded) onAdded();
+        };
+      });
     });
   }
 
@@ -12447,6 +12859,9 @@
                       <button type="button" class="btn sm" data-edit-sched="${sc.id}" style="flex: 1; height: 34px; font-size: 12px; font-weight: 800;">
                         ✏️ ${t('edit', 'Editar')}
                       </button>
+                      <button type="button" class="btn sm" data-manage-sched-players="${sc.id}" style="background: var(--surface2); color: var(--cyan); border-color: rgba(34,211,238,0.3); font-size: 12px; font-weight: 800; height: 34px; padding: 0 10px; display: inline-flex; align-items: center; gap: 5px;" title="${t('managePlayers', 'Gestionar Jugadores')}">
+                        👥 ${t('players', 'Jugadores')}
+                      </button>
                       <button type="button" class="btn sm danger ghost" data-delete-sched="${sc.id}" style="height: 34px; font-size: 12px; font-weight: 800; padding: 0 10px;">
                         🗑️
                       </button>
@@ -12478,6 +12893,16 @@
           b.onclick = () => {
             const sid = b.getAttribute('data-edit-sched');
             showEditScheduleForm(sid);
+          };
+        });
+
+        body.querySelectorAll('[data-manage-sched-players]').forEach(b => {
+          b.onclick = () => {
+            const sid = b.getAttribute('data-manage-sched-players');
+            showRecurringSchedulePlayersModal(sid, () => {
+              renderSchedulesList();
+              if (onDone) onDone();
+            });
           };
         });
 
@@ -12522,6 +12947,8 @@
               ? [...existing.teamIds] 
               : (existing.teamId ? [existing.teamId] : [])) 
           : [];
+        let excludedPlayerIds = existing && Array.isArray(existing.excludedPlayerIds) ? [...existing.excludedPlayerIds] : [];
+        let includedPlayerIds = existing && Array.isArray(existing.includedPlayerIds) ? [...existing.includedPlayerIds] : [];
         let selectedDays = existing ? (existing.daysOfWeek || [2, 4]) : [2, 4];
         let defaultDuration = existing ? (existing.duration || 90) : 90;
         let dayTimes = Object.assign({}, (existing && existing.dayTimes) ? existing.dayTimes : {});
@@ -12628,6 +13055,20 @@
                 }).join('')}
               </div>
             `}
+          </div>
+
+          <!-- Selección moderna de jugadores convocados en este horario -->
+          <div class="field" style="margin-bottom: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px;">
+              <label style="margin: 0; font-size: 13px; font-weight: 900; color: #fff;">
+                👥 ${t('summonedPlayers', 'Jugadores Convocados')}
+              </label>
+              <span style="font-size: 11.5px; font-weight: 800; color: var(--cyan);" id="sched-players-count-lbl"></span>
+            </div>
+            <p style="font-size: 11px; color: var(--muted); margin: 0 0 10px; line-height: 1.4;">
+              ${t('summonedPlayersDesc', 'Desmarca los jugadores que no deben aparecer convocados en las fechas de este grupo.')}
+            </p>
+            <div id="sched-players-container" style="max-height: 200px; overflow-y: auto; background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 6px 10px;"></div>
           </div>
 
           <div class="field">
@@ -12832,6 +13273,68 @@
           };
         });
 
+        function renderSchedPlayersList() {
+          const container = body.querySelector('#sched-players-container');
+          const countLbl = body.querySelector('#sched-players-count-lbl');
+          if (!container) return;
+
+          const allPlayers = Store.sortedPlayers();
+          const basePlayers = allPlayers.filter(p => {
+            if (!selectedTeamIds.length) return true;
+            return selectedTeamIds.includes(p.teamId);
+          });
+          const extraPlayers = allPlayers.filter(p => includedPlayerIds.includes(p.id) && !basePlayers.some(bp => bp.id === p.id));
+          const candidatePlayers = [...basePlayers, ...extraPlayers];
+
+          const activeCount = candidatePlayers.filter(p => !excludedPlayerIds.includes(p.id)).length;
+          if (countLbl) {
+            countLbl.textContent = `${activeCount} convocados de ${candidatePlayers.length}`;
+          }
+
+          if (candidatePlayers.length === 0) {
+            container.innerHTML = `<div style="font-size: 12px; color: var(--muted); text-align: center; padding: 12px;">No hay jugadores en los equipos seleccionados</div>`;
+            return;
+          }
+
+          container.innerHTML = candidatePlayers.map(p => {
+            const isExcluded = excludedPlayerIds.includes(p.id);
+            const isCalled = !isExcluded;
+            const pTeam = Store.team(p.teamId);
+            return `
+              <div class="sched-player-row" data-pid="${p.id}" style="display: flex; align-items: center; justify-content: space-between; padding: 8px 6px; border-bottom: 1px solid rgba(255,255,255,0.06); cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1;">
+                  ${renderAvatar(p, 'sm')}
+                  <div style="min-width: 0; flex: 1;">
+                    <b style="font-size: 12.5px; color: ${isCalled ? '#fff' : 'var(--muted)'}; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; ${isCalled ? '' : 'text-decoration: line-through;'}">
+                      #${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(Store.playerName(p))}
+                    </b>
+                    <small style="color: var(--muted); font-size: 10.5px;">
+                      ${p.mainPosition || 'Jugador'}${pTeam ? ' • ' + escapeHtml(pTeam.name) : ''}
+                    </small>
+                  </div>
+                </div>
+                <div class="sched-p-check" style="width: 20px; height: 20px; border-radius: 6px; border: 1.5px solid ${isCalled ? 'var(--cyan)' : 'var(--border)'}; background: ${isCalled ? 'var(--cyan)' : 'transparent'}; color: ${isCalled ? '#000' : 'transparent'}; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 900; flex-shrink: 0;">
+                  ✓
+                </div>
+              </div>
+            `;
+          }).join('');
+
+          container.querySelectorAll('.sched-player-row').forEach(row => {
+            row.onclick = () => {
+              const pid = row.getAttribute('data-pid');
+              if (!pid) return;
+              haptic(20);
+              if (excludedPlayerIds.includes(pid)) {
+                excludedPlayerIds = excludedPlayerIds.filter(id => id !== pid);
+              } else {
+                excludedPlayerIds.push(pid);
+              }
+              renderSchedPlayersList();
+            };
+          });
+        }
+
         function updateTeamsSelectionUI() {
           const isAll = selectedTeamIds.length === 0;
           const countLbl = body.querySelector('#sched-teams-count-lbl');
@@ -12896,6 +13399,8 @@
               }
             }
           });
+
+          renderSchedPlayersList();
         }
 
         updateTeamsSelectionUI();
@@ -12987,6 +13492,8 @@
             title: title,
             teamId: finalTeamId,
             teamIds: finalTeamIds,
+            excludedPlayerIds: excludedPlayerIds,
+            includedPlayerIds: includedPlayerIds,
             daysOfWeek: selectedDays,
             time: defaultTime,
             endTime: defaultEndTime,
