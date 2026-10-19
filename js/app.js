@@ -3465,6 +3465,10 @@
 
   function closeTracker() {
     stopTimerTicker();
+    if (activeLiveTrackerUnsub) {
+      try { activeLiveTrackerUnsub(); } catch (e) {}
+      activeLiveTrackerUnsub = null;
+    }
     activeSessionId = null;
     const el = document.getElementById('tracker-fullscreen');
     if (el) el.remove();
@@ -3828,6 +3832,12 @@
             📋${hasAttendance ? `<span style="font-size: 10px; font-weight: 900; margin-left: 1px;">${attPresentCount}</span>` : ''}
           </button>
 
+          <!-- Compartir Tracker con Asistente Remoto (Standalone) -->
+          <button class="icon-btn ${s._liveTrackerConnected ? 'accent' : ''}" id="tracker-btn-share-assistant" title="Compartir con Asistente Remoto" style="${s._liveTrackerConnected ? 'background: rgba(34, 197, 94, 0.2); border-color: #22c55e; color: #86efac;' : ''}">
+            ${s._liveTrackerConnected ? '<span class="live-dot" style="margin-right:2px; background:#22c55e;"></span>' : ''}
+            ${icon('share', 16)}
+          </button>
+
           <button class="icon-btn" id="tracker-btn-filter-buttons" title="${t('customizeButtons')}">
             ${icon('sliders', 16)}
           </button>
@@ -3970,6 +3980,7 @@
       Store.toggleTimer(session);
       haptic(30);
       renderTracker();
+      syncActiveLiveTracker(session);
     };
 
     container.querySelector('#tracker-btn-back').onclick = () => {
@@ -3979,6 +3990,10 @@
     container.querySelector('#tracker-btn-finish').onclick = () => {
       const isMatch = session.type === 'match';
       confirmDialog(t('finishSession', 'Finalizar Sesión'), isMatch ? '¿Deseas finalizar el partido?' : '¿Deseas finalizar el entrenamiento?', () => {
+        if (session._liveTrackerCode && window.Cloud) {
+          window.Cloud.closeLiveTrackerSession(session._liveTrackerCode);
+          session._liveTrackerActive = false;
+        }
         Store.finishSession(session.id);
         closeTracker();
         Store.evaluateAutoWeeklyMissions(Object.keys(session.stats || {}));
@@ -3998,6 +4013,9 @@
 
     const btnAtt = container.querySelector('#tracker-btn-attendance');
     if (btnAtt) btnAtt.onclick = () => showSessionAttendanceModal(session.id);
+
+    const btnShareAssistant1v1 = container.querySelector('#tracker-btn-share-assistant');
+    if (btnShareAssistant1v1) btnShareAssistant1v1.onclick = () => showLiveTrackerShareModal(session);
 
     container.querySelector('#tracker-btn-filter-buttons').onclick = () => {
       showCustomizeSessionButtonsModal(session);
@@ -4056,6 +4074,7 @@
         if (pid) {
           Store.undo(session.id, pid);
           haptic(40);
+          syncActiveLiveTracker(session);
           renderTracker();
         }
       };
@@ -4067,6 +4086,7 @@
         if (pid) {
           Store.undo(session.id, pid);
           haptic(40);
+          syncActiveLiveTracker(session);
           renderTracker();
         }
       };
@@ -4112,6 +4132,7 @@
         }
 
         Store.save();
+        syncActiveLiveTracker(session);
         renderTracker();
       };
     });
@@ -4181,6 +4202,12 @@
           <!-- Pasar Lista / Asistencia -->
           <button class="icon-btn ${hasAttendance ? 'accent' : ''}" id="tracker-btn-attendance" title="${t('rollCallTitle', 'Pasar Lista')}">
             📋${hasAttendance ? `<span style="font-size: 10px; font-weight: 900; margin-left: 1px;">${attPresentCount}</span>` : ''}
+          </button>
+
+          <!-- Compartir Tracker con Asistente Remoto (Standalone) -->
+          <button class="icon-btn ${s._liveTrackerConnected ? 'accent' : ''}" id="tracker-btn-share-assistant" title="Compartir con Asistente Remoto" style="${s._liveTrackerConnected ? 'background: rgba(34, 197, 94, 0.2); border-color: #22c55e; color: #86efac;' : ''}">
+            ${s._liveTrackerConnected ? '<span class="live-dot" style="margin-right:2px; background:#22c55e;"></span>' : ''}
+            ${icon('share', 16)}
           </button>
 
           <!-- Sincronización en vivo Dual QR -->
@@ -4328,6 +4355,7 @@
       Store.toggleTimer(session);
       haptic(30);
       renderTracker();
+      syncActiveLiveTracker(session);
     };
 
     container.querySelector('#tracker-btn-back').onclick = () => {
@@ -4341,6 +4369,7 @@
         Store.save();
         haptic(35);
         renderTracker();
+        syncActiveLiveTracker(session);
         toast(session.type === 'match' ? '🏆 Cambiado a Partido' : '⚽ Cambiado a Entrenamiento', 'info');
       };
     }
@@ -4351,6 +4380,7 @@
       Store.save();
       haptic(40);
       renderTracker();
+      syncActiveLiveTracker(session);
     };
 
     const btnAtt = container.querySelector('#tracker-btn-attendance');
@@ -4375,6 +4405,7 @@
       if (window.SyncEngine && SyncEngine.isLive()) SyncEngine.sendScore(session.id, session.score.home, session.score.away);
       haptic(20);
       updateScoreUI();
+      syncActiveLiveTracker(session);
     };
 
     const btnShp = container.querySelector('#btn-score-home-p');
@@ -4385,6 +4416,7 @@
       if (window.SyncEngine && SyncEngine.isLive()) SyncEngine.sendScore(session.id, session.score.home, session.score.away);
       haptic(25);
       updateScoreUI();
+      syncActiveLiveTracker(session);
     };
 
     const btnSam = container.querySelector('#btn-score-away-m');
@@ -4395,6 +4427,7 @@
       if (window.SyncEngine && SyncEngine.isLive()) SyncEngine.sendScore(session.id, session.score.home, session.score.away);
       haptic(20);
       updateScoreUI();
+      syncActiveLiveTracker(session);
     };
 
     const btnSap = container.querySelector('#btn-score-away-p');
@@ -4405,11 +4438,16 @@
       if (window.SyncEngine && SyncEngine.isLive()) SyncEngine.sendScore(session.id, session.score.home, session.score.away);
       haptic(25);
       updateScoreUI();
+      syncActiveLiveTracker(session);
     };
 
     // Periodo (1T, Descanso, 2T...)
     const btnPeriod = container.querySelector('#btn-period-picker');
     if (btnPeriod) btnPeriod.onclick = () => showPeriodPickerModal(session);
+
+    // Compartir Tracker con Asistente Remoto (Standalone)
+    const btnShareAssistant = container.querySelector('#tracker-btn-share-assistant');
+    if (btnShareAssistant) btnShareAssistant.onclick = () => showLiveTrackerShareModal(session);
 
     // Sincronización en vivo Dual QR
     const btnSyncQr = container.querySelector('#tracker-btn-sync-qr');
@@ -4432,6 +4470,10 @@
           if (session.timerStartedAt) Store.toggleTimer(session);
           session.status = 'finished';
           Store.save();
+          if (session._liveTrackerCode && window.Cloud) {
+            window.Cloud.closeLiveTrackerSession(session._liveTrackerCode);
+            session._liveTrackerActive = false;
+          }
           if (window.SyncEngine && SyncEngine.isLive()) {
             SyncEngine.broadcastSessionFinished(session);
           }
@@ -4462,6 +4504,7 @@
             }
             haptic(50);
             renderTracker();
+            syncActiveLiveTracker(session);
           }
         };
       }
@@ -4512,6 +4555,7 @@
 
           createFloater(btn, '+1', false);
           updateHeaderRatios(session, playerId);
+          syncActiveLiveTracker(session);
 
           // Prompt de zonas del campo táctico para tiros, goles, pérdidas, recuperaciones y asistencias
           if (['shotOn', 'shotOff', 'goal', 'loss', 'recovery', 'assist'].includes(statKey) && Store.state.settings.askZoneOnShots !== false) {
@@ -5100,6 +5144,7 @@
           const val = btn.getAttribute('data-period');
           Store.updatePeriod(session.id, val);
           if (window.SyncEngine && SyncEngine.isLive()) SyncEngine.sendPeriod(session.id, val);
+          syncActiveLiveTracker(session);
           closeSheet();
           haptic(25);
           renderTracker();
@@ -5268,6 +5313,325 @@
         <button class="btn block ghost" id="btn-skip-zone">${t('cancel')}</button>
       `;
       foot.querySelector('#btn-skip-zone').onclick = closeSheet;
+    });
+  }
+
+  /* =========================================================
+     MODAL DE ASISTENTE REMOTO / TRACKER INDEPENDIENTE (STANDALONE)
+     ========================================================= */
+  let activeLiveTrackerUnsub = null;
+
+  function syncActiveLiveTracker(session) {
+    if (!session || !session._liveTrackerCode || !session._liveTrackerActive || !window.Cloud) return;
+    try {
+      let targetPid = null;
+      if (session._liveTrackerTargetSlot === 0 && session.slots) targetPid = session.slots[0];
+      else if (session._liveTrackerTargetSlot === 1 && session.slots) targetPid = session.slots[1];
+      else if (typeof session._liveTrackerTargetSlot === 'string' && session._liveTrackerTargetSlot !== 'any') targetPid = session._liveTrackerTargetSlot;
+
+      window.Cloud.updateLiveTrackerSession(session._liveTrackerCode, {
+        score: session.score || { home: 0, away: 0 },
+        period: session.period || '1T',
+        stats: session.stats || {},
+        elapsedMs: (typeof Store !== 'undefined' && Store.elapsed) ? Store.elapsed(session) : (session.elapsedMs || 0),
+        timerStartedAt: session.timerStartedAt || null,
+        targetPlayerId: targetPid
+      });
+    } catch (e) {
+      console.warn('[LiveTracker] Error syncing state:', e);
+    }
+  }
+
+  function setupLiveTrackerListener(session, code) {
+    if (activeLiveTrackerUnsub) {
+      try { activeLiveTrackerUnsub(); } catch (e) {}
+      activeLiveTrackerUnsub = null;
+    }
+
+    session._liveAssistantActions = session._liveAssistantActions || [];
+
+    activeLiveTrackerUnsub = Cloud.listenToLiveTrackerActions(code, (actionData, actionId) => {
+      const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+      if (actionData.type === 'undo') {
+        const p = Store.player(actionData.playerId);
+        const pName = p ? Store.playerName(p) : 'Jugador';
+        Store.undo(session.id, actionData.playerId);
+        haptic(50);
+        toast(`⚡ Asistente: Deshacer en ${pName}`, 'info');
+
+        session._liveAssistantActions.push({
+          desc: `↩️ Deshacer en ${pName}`,
+          time: nowStr
+        });
+
+        renderTracker();
+        Cloud.updateLiveTrackerSession(code, { stats: session.stats || {} });
+      } else {
+        const delta = actionData.delta || 1;
+        const entry = Store.record(session.id, actionData.playerId, actionData.statKey, delta);
+        if (entry) {
+          haptic(45);
+          const p = Store.player(actionData.playerId);
+          const pName = p ? Store.playerName(p) : 'Jugador';
+          const statObj = Store.getSessionStats(session).find(s => s.key === actionData.statKey) || { short: actionData.statKey, emoji: '⚡' };
+          toast(`⚡ Asistente: +${delta} ${statObj.emoji} ${statObj.short} (${pName})`, 'success');
+
+          session._liveAssistantActions.push({
+            desc: `+${delta} ${statObj.emoji} ${statObj.short} (${pName})`,
+            time: nowStr
+          });
+
+          renderTracker();
+          Cloud.updateLiveTrackerSession(code, {
+            stats: session.stats || {},
+            score: session.score || { home: 0, away: 0 }
+          });
+        }
+      }
+
+      const feedEl = document.getElementById('live-assistant-log-list');
+      const countEl = document.getElementById('live-assistant-count');
+      if (feedEl) {
+        feedEl.innerHTML = session._liveAssistantActions.slice(-5).reverse().map(act => `
+          <div style="padding: 4px 0; border-bottom: 1px dashed rgba(255,255,255,0.08); display: flex; justify-content: space-between; color: #e2e8f0; font-size: 11.5px;">
+            <span>${escapeHtml(act.desc)}</span>
+            <span style="color: var(--muted); font-size: 10px;">${act.time}</span>
+          </div>
+        `).join('');
+      }
+      if (countEl) countEl.textContent = session._liveAssistantActions.length;
+    }, (statusDoc) => {
+      if (statusDoc) {
+        const wasConnected = session._liveTrackerConnected;
+        session._liveTrackerConnected = !!statusDoc.assistantConnected;
+        if (!wasConnected && session._liveTrackerConnected) {
+          haptic(60);
+          toast('🟢 ¡Asistente remoto conectado a la sesión!', 'success');
+          renderTracker();
+        }
+        const badgeEl = document.getElementById('live-tracker-status-badge');
+        if (badgeEl) {
+          badgeEl.innerHTML = `
+            <span class="live-dot" style="background: ${session._liveTrackerConnected ? '#22c55e' : '#22d3ee'};"></span>
+            <span>${session._liveTrackerConnected ? '🟢 ASISTENTE CONECTADO' : '⏳ ESPERANDO ASISTENTE'}</span>
+          `;
+        }
+      }
+    });
+  }
+
+  async function showLiveTrackerShareModal(session) {
+    if (!window.Cloud) {
+      toast('Módulo Cloud no disponible', 'error');
+      return;
+    }
+
+    const playerIds = Store.sessionPlayerIds(session);
+    let sessionPlayers = playerIds.map(id => Store.player(id)).filter(Boolean);
+    if (sessionPlayers.length === 0) {
+      sessionPlayers = Store.sortedPlayers('all');
+    }
+    const playersList = sessionPlayers.map(p => ({
+      id: p.id,
+      name: Store.playerName(p),
+      dorsal: p.mainDorsal != null ? p.mainDorsal : (p.dorsal != null ? p.dorsal : '-'),
+      position: p.position || 'MC',
+      photo: p.photo || ''
+    }));
+
+    const statsList = Store.getSessionStats(session).map(st => ({
+      key: st.key,
+      short: st.short || st.key,
+      name: st.label || st.key,
+      emoji: st.emoji,
+      color: st.color
+    }));
+
+    let currentTarget = session._liveTrackerTargetSlot !== undefined ? session._liveTrackerTargetSlot : 0;
+
+    const code = await Cloud.startLiveTrackerSession(session, currentTarget, playersList, statsList);
+    if (!code) {
+      toast('Error al conectar con la nube Firestore', 'error');
+      return;
+    }
+
+    session._liveTrackerCode = code;
+    session._liveTrackerActive = true;
+
+    let baseUrl = window.location.href.split('?')[0].replace(/[^/]*$/, '');
+    const isLocalhostOrFile = location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.protocol === 'file:';
+    const finalShareUrl = isLocalhostOrFile 
+      ? 'https://streetoh.github.io/Player_Stats/tracker.html?c=' + code 
+      : baseUrl + 'tracker.html?c=' + code;
+
+    setupLiveTrackerListener(session, code);
+
+    openSheet('📡 ' + t('shareTracker', 'Asistente Remoto (Tracker Independiente)'), (body) => {
+      function renderModal() {
+        let qrSvg = '';
+        if (window.SyncEngine && SyncEngine.QR && SyncEngine.QR.toSVG) {
+          qrSvg = SyncEngine.QR.toSVG(finalShareUrl, 6);
+        }
+
+        const slotAPlayer = (session.slots && session.slots[0]) ? Store.player(session.slots[0]) : null;
+        const slotBPlayer = (session.slots && session.slots[1]) ? Store.player(session.slots[1]) : null;
+
+        body.innerHTML = `
+          <div style="text-align: center; margin-bottom: 14px;">
+            <div id="live-tracker-status-badge" style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 800; background: rgba(34, 211, 238, 0.15); color: var(--cyan); border: 1px solid rgba(34, 211, 238, 0.3);">
+              <span class="live-dot" style="background: ${session._liveTrackerConnected ? '#22c55e' : '#22d3ee'};"></span>
+              <span>${session._liveTrackerConnected ? '🟢 ASISTENTE CONECTADO' : '⏳ ESPERANDO ASISTENTE'}</span>
+            </div>
+            <p style="font-size: 12.5px; color: var(--muted); margin-top: 8px; line-height: 1.4;">
+              Cualquier persona puede trackear en directo desde su teléfono <b>sin instalar ninguna aplicación</b>.
+            </p>
+          </div>
+
+          <!-- TARJETA DEL CÓDIGO PIN DE 6 DÍGITOS -->
+          <div style="background: linear-gradient(135deg, rgba(34, 211, 238, 0.12), rgba(15, 23, 42, 0.7)); border: 2px solid var(--cyan); border-radius: 18px; padding: 16px; text-align: center; margin-bottom: 16px; box-shadow: 0 8px 24px rgba(34, 211, 238, 0.18);">
+            <div style="font-size: 11px; font-weight: 800; color: var(--cyan); letter-spacing: 1px; text-transform: uppercase;">
+              CÓDIGO DE ACCESO (6 DÍGITOS)
+            </div>
+            <div style="font-size: 42px; font-weight: 900; letter-spacing: 10px; color: #fff; margin: 8px 0; font-family: monospace; text-shadow: 0 0 20px rgba(34, 211, 238, 0.4);">
+              ${code.slice(0, 3)} ${code.slice(3)}
+            </div>
+            <div style="font-size: 12px; color: #94a3b8;">
+              El asistente debe entrar a <b style="color: #22d3ee;">tracker.html</b> e introducir este número.
+            </div>
+          </div>
+
+          <!-- ACCIONES RÁPIDAS: COPIAR Y COMPARTIR ENLACE -->
+          <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+            <button type="button" class="btn" id="btn-copy-live-link" style="flex: 1; background: var(--surface2); border: 1.5px solid var(--border); color: #fff; font-weight: 800; font-size: 12.5px; padding: 11px; border-radius: 12px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+              📋 Copiar Enlace Directo
+            </button>
+            ${navigator.share ? `
+              <button type="button" class="btn" id="btn-native-share-link" style="flex: 1; background: rgba(34, 211, 238, 0.2); border: 1.5px solid var(--cyan); color: var(--cyan); font-weight: 800; font-size: 12.5px; padding: 11px; border-radius: 12px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                📤 Compartir Enlace
+              </button>
+            ` : ''}
+          </div>
+
+          <!-- ASIGNACIÓN DE JUGADOR AL ASISTENTE -->
+          <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border); border-radius: 14px; padding: 14px; margin-bottom: 16px;">
+            <label style="display: block; font-size: 11.5px; font-weight: 800; color: var(--muted); margin-bottom: 8px;">
+              🎯 ¿A QUIÉN VA A TRACKEAR EL ASISTENTE?
+            </label>
+            <select id="select-assistant-slot" style="width: 100%; padding: 11px; border-radius: 10px; background: var(--bg2); color: #fff; border: 1.5px solid var(--border); font-size: 13.5px; font-weight: 700; outline: none;">
+              <option value="0" ${currentTarget === 0 ? 'selected' : ''}>
+                Ranura A: ${slotAPlayer ? '#' + (slotAPlayer.mainDorsal || '-') + ' ' + Store.playerName(slotAPlayer) : 'Jugador Superior'}
+              </option>
+              <option value="1" ${currentTarget === 1 ? 'selected' : ''}>
+                Ranura B: ${slotBPlayer ? '#' + (slotBPlayer.mainDorsal || '-') + ' ' + Store.playerName(slotBPlayer) : 'Jugador Inferior'}
+              </option>
+              <option value="any" ${currentTarget === 'any' ? 'selected' : ''}>
+                ⭐ Libre (El asistente puede elegir a cualquier jugador de la plantilla)
+              </option>
+            </select>
+          </div>
+
+          <!-- CÓDIGO QR PARA ESCANEAR -->
+          ${qrSvg ? `
+            <div style="text-align: center; margin-bottom: 16px;">
+              <div style="background: #fff; padding: 12px; border-radius: 16px; display: inline-block; box-shadow: 0 4px 20px rgba(0,0,0,0.5);">
+                ${qrSvg}
+              </div>
+              <div style="font-size: 11.5px; color: var(--muted); margin-top: 6px;">
+                📷 O escanea con la cámara de su móvil para abrir directamente el tracker
+              </div>
+            </div>
+          ` : ''}
+
+          <!-- REGISTRO EN VIVO DE ACCIONES DEL ASISTENTE -->
+          <div id="live-assistant-feed" style="background: rgba(0,0,0,0.35); border: 1px solid var(--border); border-radius: 14px; padding: 12px; font-size: 12px;">
+            <div style="font-weight: 800; color: var(--muted); margin-bottom: 6px; display: flex; justify-content: space-between;">
+              <span>⚡ Acciones remotas recibidas:</span>
+              <span id="live-assistant-count" style="color: var(--cyan); font-weight: 900;">${(session._liveAssistantActions || []).length}</span>
+            </div>
+            <div id="live-assistant-log-list" style="max-height: 110px; overflow-y: auto;">
+              ${(session._liveAssistantActions && session._liveAssistantActions.length > 0)
+                ? session._liveAssistantActions.slice(-5).reverse().map(act => `
+                    <div style="padding: 4px 0; border-bottom: 1px dashed rgba(255,255,255,0.08); display: flex; justify-content: space-between; color: #e2e8f0; font-size: 11.5px;">
+                      <span>${escapeHtml(act.desc)}</span>
+                      <span style="color: var(--muted); font-size: 10px;">${act.time}</span>
+                    </div>
+                  `).join('')
+                : `<span style="color: var(--muted); font-style: italic;">Esperando primeras pulsaciones del asistente...</span>`
+              }
+            </div>
+          </div>
+        `;
+
+        const copyBtn = body.querySelector('#btn-copy-live-link');
+        if (copyBtn) {
+          copyBtn.onclick = () => {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              navigator.clipboard.writeText(finalShareUrl).then(() => {
+                toast('¡Enlace directo copiado al portapapeles!', 'success');
+              }).catch(() => {
+                copyPrompt(finalShareUrl);
+              });
+            } else {
+              copyPrompt(finalShareUrl);
+            }
+          };
+        }
+
+        const nativeShareBtn = body.querySelector('#btn-native-share-link');
+        if (nativeShareBtn) {
+          nativeShareBtn.onclick = () => {
+            navigator.share({
+              title: 'Tracker en directo • ' + Store.sessionTitle(session),
+              text: `Conéctate para trackear al jugador en directo. Código: ${code}`,
+              url: finalShareUrl
+            }).catch(() => {});
+          };
+        }
+
+        const selectSlot = body.querySelector('#select-assistant-slot');
+        if (selectSlot) {
+          selectSlot.onchange = () => {
+            const val = selectSlot.value === 'any' ? 'any' : parseInt(selectSlot.value, 10);
+            currentTarget = val;
+            session._liveTrackerTargetSlot = val;
+            let targetPid = null;
+            if (val === 0 && session.slots) targetPid = session.slots[0];
+            else if (val === 1 && session.slots) targetPid = session.slots[1];
+            Cloud.updateLiveTrackerSession(code, {
+              targetSlot: val,
+              targetPlayerId: targetPid
+            });
+            toast('Asignación de jugador actualizada en el asistente', 'info');
+          };
+        }
+      }
+
+      renderModal();
+    }, (foot) => {
+      foot.innerHTML = `
+        <div class="btn-row">
+          <button class="btn danger ghost" id="btn-stop-live-tracker">Desconectar</button>
+          <button class="btn primary" id="btn-close-live-modal">Mantener activo ✓</button>
+        </div>
+      `;
+
+      foot.querySelector('#btn-close-live-modal').onclick = closeSheet;
+
+      foot.querySelector('#btn-stop-live-tracker').onclick = () => {
+        confirmDialog('Finalizar conexión remota', '¿Deseas cerrar el tracker compartido? El asistente se desconectará.', () => {
+          if (activeLiveTrackerUnsub) {
+            try { activeLiveTrackerUnsub(); } catch (e) {}
+            activeLiveTrackerUnsub = null;
+          }
+          Cloud.closeLiveTrackerSession(code);
+          session._liveTrackerActive = false;
+          session._liveTrackerConnected = false;
+          closeSheet();
+          renderTracker();
+          toast('Tracker compartido finalizado', 'info');
+        });
+      };
     });
   }
 

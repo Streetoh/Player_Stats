@@ -34,7 +34,7 @@ filesToTest.forEach(relPath => {
 });
 
 // Audit HTML files
-const htmlFiles = ['index.html', 'jugadores.html', 'convocatoria.html'];
+const htmlFiles = ['index.html', 'jugadores.html', 'convocatoria.html', 'tracker.html'];
 htmlFiles.forEach(relPath => {
   const fullPath = path.join(__dirname, '..', relPath);
   try {

@@ -14,6 +14,8 @@
       // Si se solicita explícitamente modo coach mediante ?coach o desde la app Android Coach en localhost
       if (params.has('coach') || (window.AndroidBridge && (location.hostname === 'localhost' || location.hostname === '127.0.0.1'))) {
         window.location.replace('coach.html' + search);
+      } else if (params.has('tracker') || params.has('c') || params.has('code') || params.has('join')) {
+        window.location.replace('tracker.html' + search);
       } else {
         // Redirigir por defecto al portal de jugadores
         window.location.replace('jugadores.html' + search);
