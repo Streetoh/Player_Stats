@@ -114,6 +114,7 @@
       convocations: [],
       recurringSchedules: [],
       deletedRecurringIds: [],
+      lateVoteAttempts: {},
       coachProfile: {
         name: 'Entrenador Principal',
         title: 'Director Técnico / Head Coach',
@@ -175,6 +176,7 @@
       }
       return true;
     });
+    s.lateVoteAttempts = (s.lateVoteAttempts && typeof s.lateVoteAttempts === 'object') ? s.lateVoteAttempts : {};
     s.recurringSchedules = Array.isArray(s.recurringSchedules) ? s.recurringSchedules : [];
     const validScheduleIds = new Set(s.recurringSchedules.map(r => r.id));
     const nowNorm = new Date();
@@ -358,6 +360,31 @@
 
       if (typeof window.onPlayerAttendanceResponse === 'function') {
         window.onPlayerAttendanceResponse(resp, isInitialSync);
+      }
+    },
+
+    handleIncomingLateVoteAttempt(attempt) {
+      if (!attempt || !attempt.convId || !attempt.playerId) return;
+      this.state.lateVoteAttempts = this.state.lateVoteAttempts || {};
+      const key = `${attempt.convId}_${attempt.playerId}`;
+      this.state.lateVoteAttempts[key] = attempt;
+
+      let conv = this.convocation(attempt.convId);
+      if (!conv && this.state.convocations) {
+        conv = this.state.convocations.find(c => c && (c.sessionId === attempt.convId || c.id === attempt.convId || (c.scheduleId && c.scheduleId === attempt.convId)));
+      }
+      if (conv) {
+        conv.lateAttempts = conv.lateAttempts || {};
+        conv.lateAttempts[attempt.playerId] = {
+          attemptedStatus: attempt.attemptedStatus,
+          timestamp: attempt.timestamp || Date.now(),
+          playerName: attempt.playerName || ''
+        };
+      }
+      this.save();
+
+      if (typeof window.onLateVoteAttempt === 'function') {
+        window.onLateVoteAttempt(attempt);
       }
     },
 

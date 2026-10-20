@@ -1126,6 +1126,32 @@
           });
         }
       });
+
+      // Sincronizar también intentos de voto fuera de plazo en notificaciones
+      const lateAttempts = conv.lateAttempts || {};
+      Object.keys(lateAttempts).forEach(pid => {
+        const late = lateAttempts[pid];
+        if (!late) return;
+        const notifId = `late_vote_${conv.id}_${pid}`;
+        if (DismissedNotifs.has(notifId)) return;
+        const p = Store.player(pid);
+        const pName = late.playerName || (p ? Store.playerName(p) : 'Jugador');
+        const isYes = (late.attemptedStatus === 'called' || late.attemptedStatus === 'attending' || late.attemptedStatus === 'yes');
+        const statusLabel = isYes ? t('attemptedYes', 'Intentó Asistir') : t('attemptedNo', 'Intentó Baja');
+        const timeFormatted = late.timestamp && window.formatAttendanceDateTime ? window.formatAttendanceDateTime(late.timestamp) : '';
+        const title = `⚠️ ${t('lateVoteNotifTitle', 'Intento fuera de plazo')}`;
+        const body = `${pName} • ${statusLabel}${convTitle ? ' (' + convTitle + ')' : ''}${timeFormatted ? ' • 🕒 ' + timeFormatted : ''}`;
+        if (!existingMap.has(notifId)) {
+          NotifManager.add({
+            id: notifId,
+            type: 'late_vote',
+            title: title,
+            body: body,
+            targetId: conv.id,
+            time: late.timestamp || now
+          });
+        }
+      });
     });
   }
 
@@ -1907,7 +1933,7 @@
 
             if (type === 'profile_req' || type === 'creation_req' || type === 'claim_req') {
               showProfileRequestsModal();
-            } else if (type === 'attendance') {
+            } else if (type === 'attendance' || type === 'late_vote') {
               navigate('convocations');
               if (targetId) {
                 const conv = Store.convocation(targetId);
@@ -1966,6 +1992,50 @@
   });
 
   const _attendanceToastDedup = new Map();
+
+  window.onLateVoteAttempt = function(attempt) {
+    if (!attempt || !attempt.convId || !attempt.playerId) return;
+    const notifId = `late_vote_${attempt.convId}_${attempt.playerId}`;
+    const p = (window.Store && window.Store.player) ? window.Store.player(attempt.playerId) : null;
+    const pName = attempt.playerName || (p ? (window.Store.playerName ? window.Store.playerName(p) : (p.name || 'Jugador')) : 'Jugador');
+    const isYes = (attempt.attemptedStatus === 'called' || attempt.attemptedStatus === 'attending' || attempt.attemptedStatus === 'yes');
+    const statusLabel = isYes ? t('attemptedYes', 'Intentó Asistir') : t('attemptedNo', 'Intentó Baja');
+    const timeFormatted = window.formatAttendanceDateTime ? window.formatAttendanceDateTime(attempt.timestamp || Date.now()) : '';
+
+    let convTitle = attempt.convTitle || '';
+    if (!convTitle && window.Store && window.Store.convocation) {
+      const conv = window.Store.convocation(attempt.convId);
+      if (conv) convTitle = conv.title || (conv.type === 'match' ? ('vs ' + (conv.rival || 'Rival')) : 'Entrenamiento');
+    }
+
+    const title = `⚠️ ${t('lateVoteNotifTitle', 'Intento fuera de plazo')}`;
+    const body = `${pName} • ${statusLabel}${convTitle ? ' (' + convTitle + ')' : ''}${timeFormatted ? ' • 🕒 ' + timeFormatted : ''}`;
+
+    NotifManager.add({
+      id: notifId,
+      type: 'late_vote',
+      title: title,
+      body: body,
+      targetId: attempt.convId,
+      time: attempt.timestamp || Date.now()
+    });
+
+    updateRequestsBadge();
+    toast(`${title}: ${pName} (${statusLabel})`, 'warning', () => {
+      const conv = window.Store && window.Store.convocation ? window.Store.convocation(attempt.convId) : null;
+      if (conv) showConvocationDetailsModal(conv);
+    });
+
+    if (window.AndroidBridge && window.AndroidBridge.showSystemNotification) {
+      try { window.AndroidBridge.showSystemNotification('Player Stats', `${pName}: ${statusLabel} fuera de plazo`, notifId); } catch (e) {}
+    } else if ('Notification' in window && Notification.permission === 'granted') {
+      try { new Notification('Player Stats', { body: `${pName}: ${statusLabel} fuera de plazo`, icon: 'icons/icon-192.png', tag: notifId }); } catch (e) {}
+    }
+
+    if (currentTab === 'convocations') renderConvocationsView();
+    else if (currentTab === 'home') renderHomeView();
+    if (typeof window.activeConvocationModalRefresh === 'function') window.activeConvocationModalRefresh();
+  };
 
   window.onPlayerAttendanceResponse = function (resp, isInitialSync = false) {
     if (!resp || !resp.convId || !resp.playerId) return;
@@ -2105,6 +2175,14 @@
       if (window.Cloud.listenToProfileClaimRequests) {
         window.Cloud.listenToProfileClaimRequests((requests) => {
           handleIncomingProfileClaimRequests(requests);
+        });
+      }
+      if (window.Cloud.listenToLateVoteAttempts) {
+        window.Cloud.listenToLateVoteAttempts((attempt, isInitialSync) => {
+          Store.handleIncomingLateVoteAttempt(attempt);
+          if (!isInitialSync && window.onLateVoteAttempt) {
+            window.onLateVoteAttempt(attempt);
+          }
         });
       }
       if (window.ChatUI && window.ChatUI.initGlobalUnreadListener) {
@@ -2342,6 +2420,7 @@
             if (n.type === 'profile_req') ic = '🔄';
             else if (n.type === 'creation_req') ic = '➕';
             else if (n.type === 'claim_req') ic = '🔑';
+            else if (n.type === 'late_vote') ic = '⚠️';
             else if (n.type === 'attendance') ic = (n.title && n.title.includes('🟢')) ? '🟢' : '❌';
             else if (n.type === 'chat') ic = '💬';
 
@@ -2422,7 +2501,7 @@
 
         if (type === 'profile_req' || type === 'creation_req' || type === 'claim_req') {
           showProfileRequestsModal();
-        } else if (type === 'attendance' && targetId) {
+        } else if ((type === 'attendance' || type === 'late_vote') && targetId) {
           const conv = Store.convocation(targetId);
           if (conv) showConvocationDetailsModal(conv);
           else refreshHomeNotifications(true);
@@ -3010,15 +3089,6 @@
       </div>
     ` : '';
 
-    const attMap = s.attendance || {};
-    const attKeys = Object.keys(attMap);
-    let attPresent = 0;
-    attKeys.forEach(k => {
-      const rec = attMap[k];
-      const st = (typeof rec === 'object' && rec !== null) ? rec.status : rec;
-      if (st === 'present' || st === 'late') attPresent++;
-    });
-    const hasAtt = attKeys.length > 0;
     const todayIso = getTodayIso();
     const tomorrowIso = getTomorrowIso();
     const isToday = (s.date === todayIso);
@@ -3026,22 +3096,11 @@
     const isPast = Boolean(s.date && s.date < todayIso);
     const cardStyle = getEventCardStyle(s, { isPast, isToday, isMatch: s.type === 'match' });
 
-    const attChipHtml = hasAtt ? `
-      <span class="btn-quick-att" data-att-sid="${s.id}" title="${t('rollCallTitle', 'Pasar Lista')}" style="cursor: pointer; display: inline-flex; align-items: center; gap: 3px; background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.35); font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 6px;">
-        📋 ${attPresent} ${t('present', 'Presentes')}
-      </span>
-    ` : (isToday ? `
-      <span class="btn-quick-att pulse-att" data-att-sid="${s.id}" title="${t('rollCallTitle', 'Pasar Lista')}" style="cursor: pointer; display: inline-flex; align-items: center; gap: 3px; background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.5); font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 6px;">
-        📋 ${t('rollCallBtn', 'Pasar Lista')}
-      </span>
-    ` : `
-      <span class="btn-quick-att" data-att-sid="${s.id}" title="${t('rollCallTitle', 'Pasar Lista')}" style="cursor: pointer; display: inline-flex; align-items: center; gap: 3px; background: var(--surface2); color: var(--muted); border: 1px solid var(--border); font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 6px;">
-        📋 ${t('attendance', 'Asistencia')}
-      </span>
-    `);
+    // Obtener convocatoria vinculada para datos de hora, duración, convocados y votos
+    const linkedConv = s.convocationId
+      ? Store.convocation(s.convocationId)
+      : (Store.state.convocations || []).find(cv => cv.sessionId === s.id || (cv.date === s.date && cv.type === s.type && (!cv.rival || !s.rival || cv.rival === s.rival)));
 
-    // Obtener hora de inicio y duración programada de la sesión o de su convocatoria vinculada
-    const linkedConv = s.convocationId ? Store.convocation(s.convocationId) : (Store.state.convocations || []).find(cv => cv.sessionId === s.id || (cv.date === s.date && cv.type === s.type));
     const schedStartTime = s.time || (linkedConv && linkedConv.time) || '';
     const schedEndTime = s.endTime || (linkedConv && linkedConv.endTime) || '';
     const schedDuration = s.duration || (linkedConv && linkedConv.duration) || 90;
@@ -3054,6 +3113,65 @@
         ⏱️ ${schedDuration} min
       </span>
     ` : '');
+
+    // Calcular datos de convocatoria: número de convocados y votos de participación (verde, rojo, amarillo)
+    const responses = (linkedConv && linkedConv.responses) || s.responses || {};
+    const cList = (linkedConv && linkedConv.list) || s.list || {};
+    let calledPids = [];
+    if (cList && Object.keys(cList).length > 0) {
+      calledPids = Object.keys(cList).filter(pid => cList[pid] !== 'not_called');
+    } else {
+      const convTeams = (linkedConv && Array.isArray(linkedConv.teamIds) && linkedConv.teamIds.length > 0)
+        ? linkedConv.teamIds.map(String)
+        : (linkedConv && linkedConv.teamId
+          ? [String(linkedConv.teamId)]
+          : (Array.isArray(s.teamIds) && s.teamIds.length > 0 ? s.teamIds.map(String) : (s.teamId ? [String(s.teamId)] : [])));
+      calledPids = (Store.state.players || [])
+        .filter(p => convTeams.length === 0 || (p.teamId && convTeams.includes(String(p.teamId))))
+        .map(p => p.id);
+    }
+    const totalCalled = calledPids.length;
+
+    let nAccepted = 0;
+    let nRejected = 0;
+    let nPending = 0;
+
+    calledPids.forEach(pid => {
+      const r = responses[pid];
+      const respStatus = (r && typeof r === 'object') ? r.status : r;
+      const listStatus = cList[pid];
+
+      if (respStatus === 'attending' || respStatus === 'yes') {
+        nAccepted++;
+      } else if (respStatus === 'absent' || respStatus === 'no' || (!respStatus && listStatus === 'absent')) {
+        nRejected++;
+      } else {
+        nPending++;
+      }
+    });
+
+    const lateAttemptsMap = (linkedConv && linkedConv.lateAttempts) || (s && s.lateAttempts) || {};
+    const nLateAttempts = Object.keys(lateAttemptsMap).length;
+
+    const convBadgesHtml = `
+      <span class="badge" style="background: var(--surface2); color: #cbd5e1; border: 1px solid var(--border); font-weight: 800; font-size: 10.5px; padding: 2px 6px;">
+        👤 ${totalCalled} ${t('calledPlayers', 'Convocados')}
+      </span>
+      <span class="badge" style="background: rgba(34, 197, 94, 0.16); color: #86efac; border: 1px solid rgba(34, 197, 94, 0.4); font-weight: 800; font-size: 10.5px; padding: 2px 6px;">
+        🟢 ${nAccepted}
+      </span>
+      <span class="badge" style="background: rgba(239, 68, 68, 0.16); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.4); font-weight: 800; font-size: 10.5px; padding: 2px 6px;">
+        ❌ ${nRejected}
+      </span>
+      <span class="badge" style="background: rgba(250, 204, 21, 0.16); color: #fde047; border: 1px solid rgba(250, 204, 21, 0.4); font-weight: 800; font-size: 10.5px; padding: 2px 6px;">
+        ⏳ ${nPending}
+      </span>
+      ${nLateAttempts > 0 ? `
+        <span class="badge" style="background: rgba(239, 68, 68, 0.22); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.55); font-weight: 800; font-size: 10.5px; padding: 2px 6px;" title="${nLateAttempts} ${t('lateVoteAttemptsTitle', 'Intentos fuera de plazo')}">
+          ⚠️ ${nLateAttempts} ${t('attemptedLateVoteBadge', 'fuera de plazo')}
+        </span>
+      ` : ''}
+    `;
 
     if (s.type === 'match') {
       const matchTeams = cardStyle.teams;
@@ -3104,7 +3222,9 @@
               <span>⏱️ ${Store.fmtTime(Store.elapsed(s), s)}</span>
               ${isLive ? `<span class="badge live">${t('live')}</span>` : `<span class="badge match" style="font-size: 10px; padding: 2px 6px;">${typeLabel}</span>`}
               <span>•</span>
-              ${attChipHtml}
+              <div style="display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap;">
+                ${convBadgesHtml}
+              </div>
             </div>
           </div>
           ${mvpHtml || (players.length > 0 ? `
@@ -3150,7 +3270,9 @@
             <span>•</span>
             <span>⏱️ ${Store.fmtTime(Store.elapsed(s), s)}</span>
             <span>•</span>
-            ${attChipHtml}
+            <div style="display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap;">
+              ${convBadgesHtml}
+            </div>
           </div>
         </div>
         ${players.length > 0 ? `
@@ -12718,6 +12840,19 @@
             .map(p => p.id);
         }
 
+        const lateAttemptsMap = Object.assign({}, conv.lateAttempts || {});
+        Object.keys(Store.state.lateVoteAttempts || {}).forEach(k => {
+          const att = Store.state.lateVoteAttempts[k];
+          if (att && (att.convId === conv.id || att.convId === conv.sessionId)) {
+            lateAttemptsMap[att.playerId] = {
+              attemptedStatus: att.attemptedStatus,
+              timestamp: att.timestamp,
+              playerName: att.playerName
+            };
+          }
+        });
+        const latePlayerIds = Object.keys(lateAttemptsMap);
+
         const respondedYes = [];
         const respondedNo = [];
         const pending = [];
@@ -12831,6 +12966,47 @@
               </button>
             </div>
           ` : `
+            ${latePlayerIds.length > 0 ? `
+              <!-- SECCIÓN: Intentos de Voto Fuera de Plazo -->
+              <div style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.16) 0%, rgba(245, 158, 11, 0.12) 100%); border: 1.5px solid rgba(239, 68, 68, 0.5); border-radius: 12px; padding: 10px 14px; margin-bottom: 14px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px;">
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <span style="font-size: 16px;">⚠️</span>
+                    <b style="font-size: 13px; color: #fca5a5;">${t('lateVoteAttemptsTitle', 'Intentos fuera de plazo')} (${latePlayerIds.length})</b>
+                  </div>
+                  <span class="badge" style="background: rgba(239, 68, 68, 0.3); color: #fee2e2; border: 1px solid rgba(239, 68, 68, 0.6); font-size: 10px; font-weight: 800;">
+                    🔒 ${t('deadlineExpiredBadge', 'PLAZO CERRADO')}
+                  </span>
+                </div>
+                <p style="font-size: 11.5px; color: #fed7aa; margin: 0 0 8px; line-height: 1.4;">
+                  ${t('lateVoteAttemptsDesc', 'Jugadores que intentaron marcar su participación después de cerrar el plazo (2 horas antes del inicio):')}
+                </p>
+                <div style="display: flex; flex-direction: column; gap: 6px;">
+                  ${latePlayerIds.map(pid => {
+                    const lateInfo = lateAttemptsMap[pid];
+                    const p = allPlayersMap[pid] || Store.player(pid) || { name: lateInfo.playerName || 'Jugador' };
+                    const isYes = (lateInfo.attemptedStatus === 'called' || lateInfo.attemptedStatus === 'attending' || lateInfo.attemptedStatus === 'yes');
+                    const timeStr = lateInfo.timestamp && window.formatAttendanceDateTime ? window.formatAttendanceDateTime(lateInfo.timestamp) : '';
+                    return `
+                      <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(0, 0, 0, 0.35); border: 1px dashed rgba(239, 68, 68, 0.4); border-radius: 8px; padding: 6px 10px; gap: 8px; flex-wrap: wrap;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                          <b style="font-size: 12.5px; color: #fff;">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(Store.playerName(p))}</b>
+                          <span class="badge" style="background: ${isYes ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)'}; color: ${isYes ? '#86efac' : '#fca5a5'}; border: 1px solid ${isYes ? 'rgba(34, 197, 94, 0.5)' : 'rgba(239, 68, 68, 0.5)'}; font-size: 10px; font-weight: 800;">
+                            ${isYes ? '🟢 ' + t('attemptedYes', 'Intentó Asistir') : '❌ ' + t('attemptedNo', 'Intentó Baja')}
+                          </span>
+                        </div>
+                        ${timeStr ? `
+                          <span style="font-size: 11px; color: #fde047; font-weight: 700;">
+                            🕒 ${escapeHtml(timeStr)}
+                          </span>
+                        ` : ''}
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+            ` : ''}
+
             <!-- SECCIÓN 1: Respuestas Recibidas -->
             <div class="conv-detail-group" style="margin-bottom: 14px;">
               <div class="conv-detail-group-title" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1.5px solid rgba(34, 197, 94, 0.4); padding-bottom: 4px; margin-bottom: 8px;">
@@ -12950,6 +13126,11 @@
                             <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
                               <b style="font-size: 13px; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px;">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(Store.playerName(p))}</b>
                               <span class="badge" style="background: rgba(250, 204, 21, 0.25); color: #fde047; border: 1px solid rgba(250, 204, 21, 0.7); font-size: 9.5px; font-weight: 800; padding: 1px 5px; border-radius: 5px;">⏳ ${t('noResponsePending', 'Sin respuesta')}</span>
+                              ${lateAttemptsMap[p.id] ? `
+                                <span class="badge" style="background: rgba(239, 68, 68, 0.28); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.65); font-size: 9.5px; font-weight: 800; padding: 1px 5px; border-radius: 5px;" title="${t('lateVoteWarningBadge', 'Intento fuera de plazo')}">
+                                  ⚠️ ${t('lateVoteWarningBadge', 'Intento fuera de plazo')} (${(lateAttemptsMap[p.id].attemptedStatus === 'called' || lateAttemptsMap[p.id].attemptedStatus === 'yes') ? 'Asiste' : 'Baja'})
+                                </span>
+                              ` : ''}
                             </div>
                             <small style="display: block; color: var(--muted); font-size: 11px;">${p.mainPosition || 'Jugador'}</small>
                           </div>
@@ -15132,6 +15313,11 @@
               <span class="badge" style="background: rgba(250, 204, 21, 0.16); color: #fde047; border: 1px solid rgba(250, 204, 21, 0.4); font-weight: 800; font-size: 11px; padding: 3px 8px;">
                 ⏳ ${nPending}
               </span>
+              ${(c.lateAttempts && Object.keys(c.lateAttempts).length > 0) ? `
+                <span class="badge" style="background: rgba(239, 68, 68, 0.22); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.55); font-weight: 800; font-size: 11px; padding: 3px 8px;" title="${Object.keys(c.lateAttempts).length} ${t('lateVoteAttemptsTitle', 'Intentos fuera de plazo')}">
+                  ⚠️ ${Object.keys(c.lateAttempts).length} ${t('attemptedLateVoteBadge', 'fuera de plazo')}
+                </span>
+              ` : ''}
             </div>
           </div>
         `;

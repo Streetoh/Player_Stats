@@ -2322,6 +2322,65 @@
     /* =========================================================
        RECORDATORIOS DE ASISTENCIA A CONVOCATORIAS
        ========================================================= */
+    recordLateVoteAttempt: async function (convId, playerId, playerName, attemptedStatus, convTitle) {
+      if (!this.init() || !convId || !playerId) return false;
+      try {
+        const docId = `${convId}_${playerId}`;
+        const payload = {
+          id: docId,
+          convId: convId,
+          playerId: playerId,
+          playerName: playerName || '',
+          attemptedStatus: attemptedStatus || 'called',
+          convTitle: convTitle || '',
+          timestamp: Date.now(),
+          serverTime: global.firebase.firestore.FieldValue.serverTimestamp()
+        };
+        await db.collection('clubs')
+          .doc(CLUB_ID)
+          .collection('late_vote_attempts')
+          .doc(docId)
+          .set(payload, { merge: true });
+        return true;
+      } catch (err) {
+        console.warn('[Cloud] Error registrando intento fuera de plazo:', err);
+        return false;
+      }
+    },
+
+    listenToLateVoteAttempts: function (callback) {
+      if (!this.init()) return null;
+      let isFirst = true;
+      try {
+        return db.collection('clubs')
+          .doc(CLUB_ID)
+          .collection('late_vote_attempts')
+          .onSnapshot((snapshot) => {
+            if (isFirst) {
+              snapshot.forEach(doc => {
+                const data = doc.data() || {};
+                data.id = data.id || doc.id;
+                if (typeof callback === 'function') callback(data, true);
+              });
+              isFirst = false;
+              return;
+            }
+            snapshot.docChanges().forEach(change => {
+              if (change.type === 'added' || change.type === 'modified') {
+                const data = change.doc.data() || {};
+                data.id = data.id || change.doc.id;
+                if (typeof callback === 'function') callback(data, false);
+              }
+            });
+          }, (err) => {
+            console.warn('[Cloud] Error escuchando intentos fuera de plazo:', err);
+          });
+      } catch (err) {
+        console.error('[Cloud] Error en listener late_vote_attempts:', err);
+        return null;
+      }
+    },
+
     sendConvocationReminder: async function (reminderData) {
       if (!this.init()) return false;
       if (!reminderData || !reminderData.id) return false;
