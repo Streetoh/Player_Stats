@@ -2997,11 +2997,57 @@
     return count;
   }
 
+  // Obtiene la marca de tiempo exacta (ms) en la que un partido fue finalizado
+  function getMatchFinishedTimestamp(s) {
+    if (!s) return 0;
+    if (s.endedAt) {
+      const n = Number(s.endedAt);
+      if (!isNaN(n) && n > 0) return n;
+    }
+    if (s.finishedAt) {
+      const n = Number(s.finishedAt);
+      if (!isNaN(n) && n > 0) return n;
+    }
+    if (s.date) {
+      const timePart = s.time ? (s.time.length === 5 ? s.time : s.time.slice(0, 5)) : '12:00';
+      const parsed = new Date(`${s.date}T${timePart}:00`).getTime();
+      if (!isNaN(parsed) && parsed > 0) return parsed;
+      const parsedDate = new Date(s.date).getTime();
+      if (!isNaN(parsedDate) && parsedDate > 0) return parsedDate;
+    }
+    return 0;
+  }
+
+  // Comprueba si la votación de MVP está activa:
+  // Estrictamente hasta 24 horas tras marcar el partido como finalizado.
+  // Pasadas 24 horas, no se podrá votar ni aparecerá la votación.
+  function isMatchMvpVotingActive(s) {
+    if (!s) return false;
+    const isFin = !!(
+      s.finished ||
+      s.isFinished ||
+      s.status === 'finished' ||
+      s.status === 'completed' ||
+      s.endedAt != null ||
+      s.finishedAt != null
+    );
+    if (!isFin) return false;
+    const matchEndTs = getMatchFinishedTimestamp(s);
+    if (!matchEndTs) return false;
+    const nowTs = Date.now();
+    return (nowTs - matchEndTs <= 24 * 3600 * 1000) && (matchEndTs <= nowTs + 300000);
+  }
+
   // 👑 Modal de Votación del MVP de Partido en la App de Jugadores
   function showMatchMvpVoteModal(session) {
     if (!session) return;
     const myP = getMyPlayer();
     if (!myP) return;
+
+    if (!isMatchMvpVotingActive(session)) {
+      toast(t('votingClosed', 'Votación finalizada'), 'warning');
+      return;
+    }
 
     // Convocados y presentes / que participaron en este partido
     const matchPlayerIds = new Set();
@@ -3088,6 +3134,10 @@
 
     async function executeVote(targetId) {
       if (!targetId || targetId === myP.id) return;
+      if (!isMatchMvpVotingActive(session)) {
+        toast(t('votingClosed', 'Votación finalizada'), 'warning');
+        return;
+      }
       const targetPlayer = players.find(p => p.id === targetId);
       try {
         if (window.Cloud && window.Cloud.voteMatchMvp) {
@@ -5585,14 +5635,7 @@
   function computeMatchMvpState(session, clubData, myP) {
     if (!session) return null;
     const nowTs = Date.now();
-    let matchEndTs = 0;
-    if (session.endedAt) matchEndTs = Number(session.endedAt);
-    else if (session.finishedAt) matchEndTs = Number(session.finishedAt);
-    else if (session.date) {
-      const timePart = session.time ? (session.time.length === 5 ? session.time : session.time.slice(0, 5)) : '12:00';
-      const parsed = new Date(`${session.date}T${timePart}:00`).getTime();
-      matchEndTs = isNaN(parsed) ? new Date(session.date).getTime() : parsed;
-    }
+    const matchEndTs = getMatchFinishedTimestamp(session);
 
     // Participantes reales del partido
     const participantSet = new Set();
@@ -5639,13 +5682,10 @@
     const allParticipatedVoted = (totalParticipants > 0 && votedParticipants.length >= totalParticipants);
 
     // Regla de duración de la votación:
-    // 48h desde que finalizó el partido.
-    // Cuando todos los jugadores que han participado han votado, la votación terminará 24h tras la finalización.
-    let deadlineTs = matchEndTs ? (matchEndTs + 48 * 3600 * 1000) : (nowTs + 48 * 3600 * 1000);
-    if (allParticipatedVoted && matchEndTs) {
-      deadlineTs = Math.min(deadlineTs, matchEndTs + 24 * 3600 * 1000);
-    }
-    const isVotingActive = (nowTs < deadlineTs);
+    // Estrictamente hasta 24 horas tras marcar el partido como finalizado.
+    // Pasadas 24 horas, no se podrá votar ni aparecerá la votación.
+    const deadlineTs = matchEndTs ? (matchEndTs + 24 * 3600 * 1000) : 0;
+    const isVotingActive = deadlineTs > 0 && (nowTs < deadlineTs);
     const remainingMs = Math.max(0, deadlineTs - nowTs);
     const remHours = Math.floor(remainingMs / 3600000);
     const remMins = Math.floor((remainingMs % 3600000) / 60000);
@@ -5799,16 +5839,8 @@
         );
         if (!isFin) return false; // NUNCA se vota en partidos no finalizados o futuros
 
-        // Ventana de tiempo: abierta durante 72h tras finalizar (NUNCA descartar por reloj local)
-        let matchEndTs = 0;
-        if (s.endedAt) matchEndTs = Number(s.endedAt);
-        else if (s.finishedAt) matchEndTs = Number(s.finishedAt);
-        else if (s.date) {
-          const timePart = s.time ? (s.time.length === 5 ? s.time : s.time.slice(0, 5)) : '12:00';
-          const parsed = new Date(`${s.date}T${timePart}:00`).getTime();
-          matchEndTs = isNaN(parsed) ? new Date(s.date).getTime() : parsed;
-        }
-        if (matchEndTs && (nowTs - matchEndTs > 72 * 3600 * 1000)) return false;
+        // Ventana de tiempo: abierta SOLO durante 24h tras finalizar el partido
+        if (!isMatchMvpVotingActive(s)) return false;
 
         // Comprobar equipos del partido
         const sTeams = Array.isArray(s.teamIds) && s.teamIds.length > 0
@@ -5951,8 +5983,8 @@
       const mDate = sm.date || '';
       const isFin = !!(sm.finished || sm.isFinished || sm.status === 'finished' || sm.status === 'completed' || sm.endedAt != null || sm.finishedAt != null);
       if (!isFin && mDate < todayIso) return;
-      const mTs = sm.endedAt ? Number(sm.endedAt) : (mDate ? new Date(mDate).getTime() : 0);
-      const isRecent = (mDate === todayIso) || (mTs && (nowD.getTime() - mTs < 72 * 3600 * 1000));
+      const mTs = getMatchFinishedTimestamp(sm);
+      const isRecent = (mDate === todayIso) || (mTs && (nowD.getTime() - mTs < 24 * 3600 * 1000));
       if (!isRecent && mDate !== todayIso) return;
 
       const rawSessId = sm.id ? String(sm.id).replace(/^sess_sess_/, 'sess_') : '';
@@ -7216,8 +7248,8 @@
             </div>
           </div>
 
-          <!-- Panel de Votación del MVP de Partido -->
-          ${isMatchFin ? `
+          <!-- Panel de Votación del MVP de Partido (SOLO visible si la votación está activa <= 24h) -->
+          ${(isMatchFin && isMatchMvpVotingActive(effSessionForMvp)) ? `
             <div id="modal-match-mvp-card" style="background: linear-gradient(135deg, rgba(234, 179, 8, 0.22) 0%, rgba(202, 138, 4, 0.35) 100%); border: 2px solid #eab308; border-radius: 14px; padding: 13px 14px; box-shadow: 0 4px 16px rgba(234, 179, 8, 0.25); cursor: pointer;">
               <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
                 <div style="display: flex; align-items: center; gap: 10px;">
@@ -7251,7 +7283,23 @@
                 </button>
               </div>
             </div>
-          ` : ''}
+          ` : (isMatchFin && (effSessionForMvp.officialMvpId || effSessionForMvp.mvpOfficialId) ? `
+            <div style="background: rgba(15, 23, 42, 0.7); border: 1.5px solid rgba(234, 179, 8, 0.35); border-radius: 14px; padding: 12px 14px; display: flex; align-items: center; gap: 10px;">
+              <span style="font-size: 24px;">🏆</span>
+              <div>
+                <b style="font-size: 13px; color: #facc15; display: block;">
+                  ${t('mvpOfficial', 'MVP Oficial del Partido')}
+                </b>
+                <span style="font-size: 12.5px; color: #fff; font-weight: 800;">
+                  ${(() => {
+                    const offId = effSessionForMvp.officialMvpId || effSessionForMvp.mvpOfficialId;
+                    const offP = (clubData.players || []).find(p => p.id === offId);
+                    return offP ? `${escapeHtml(offP.name || '')} ${escapeHtml(offP.lastName || '')} #${offP.mainDorsal || ''}` : '';
+                  })()}
+                </span>
+              </div>
+            </div>
+          ` : '')}
 
           <!-- Attendance Response Box -->
           <div style="background: rgba(34, 197, 94, 0.08); border: 1.5px solid rgba(34, 197, 94, 0.3); border-radius: 14px; padding: 12px;">
@@ -8354,7 +8402,7 @@
         }
       }
       unique.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (Number(b.endedAt || b.finishedAt || 0)) - (Number(a.endedAt || a.finishedAt || 0)));
-      statsMvpMatch = unique.find(s => s && (s.type === 'match' || s.rival) && (s.isFinished || s.finished || s.status === 'finished' || s.endedAt != null)) || null;
+      statsMvpMatch = unique.find(s => s && (s.type === 'match' || s.rival) && isMatchMvpVotingActive(s)) || null;
 
       if (statsMvpMatch) {
         const isOfficialSet = !!(statsMvpMatch.officialMvpId || statsMvpMatch.mvpOfficialId);

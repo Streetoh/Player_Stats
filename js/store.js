@@ -356,7 +356,7 @@
         this.save();
       }
 
-      if (!isInitialSync && typeof window.onPlayerAttendanceResponse === 'function') {
+      if (typeof window.onPlayerAttendanceResponse === 'function') {
         window.onPlayerAttendanceResponse(resp, isInitialSync);
       }
     },

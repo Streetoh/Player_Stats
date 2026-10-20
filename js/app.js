@@ -854,9 +854,77 @@
   /* =========================================================
      CENTRO DE NOTIFICACIONES Y GESTIÓN DE SOLICITUDES
      ========================================================= */
+  const DismissedNotifs = {
+    getAll() {
+      try {
+        const raw = localStorage.getItem('coach_dismissed_notifs_v1');
+        return raw ? new Set(JSON.parse(raw)) : new Set();
+      } catch (e) {
+        return new Set();
+      }
+    },
+    add(id) {
+      if (!id) return;
+      const set = this.getAll();
+      set.add(id);
+      try {
+        localStorage.setItem('coach_dismissed_notifs_v1', JSON.stringify(Array.from(set).slice(-200)));
+      } catch (e) {}
+    },
+    remove(id) {
+      if (!id) return;
+      const set = this.getAll();
+      set.delete(id);
+      try {
+        localStorage.setItem('coach_dismissed_notifs_v1', JSON.stringify(Array.from(set).slice(-200)));
+      } catch (e) {}
+    },
+    has(id) {
+      return this.getAll().has(id);
+    }
+  };
+
+  // Purga inmediata de notificaciones antiguas (más de 36 horas o de convocatorias pasadas)
+  function purgeOldNotifications() {
+    try {
+      const raw = localStorage.getItem('coach_notifications_v2');
+      if (!raw) return;
+      const list = JSON.parse(raw);
+      if (!Array.isArray(list)) return;
+
+      const now = Date.now();
+      const todayIso = (typeof getTodayIso === 'function') ? getTodayIso() : new Date().toISOString().slice(0, 10);
+      const maxAgeMs = 36 * 3600 * 1000; // 36 horas
+
+      const cleaned = list.filter(n => {
+        if (!n) return false;
+        // Solicitudes pendientes de perfil se mantienen vivas hasta ser gestionadas
+        if (n.type === 'profile_req' || n.type === 'creation_req' || n.type === 'claim_req') {
+          return true;
+        }
+        // Notificaciones de asistencia: descartar si la fecha del evento ya pasó (< hoy) o si tienen >36h
+        if (n.type === 'attendance') {
+          if (n.targetId && window.Store && typeof Store.convocation === 'function') {
+            const conv = Store.convocation(n.targetId);
+            if (conv && conv.date && conv.date < todayIso) return false;
+          }
+          if (n.time && (now - n.time > maxAgeMs)) return false;
+        }
+        // Cualquier otra notificación con más de 48 horas se elimina
+        if (n.time && (now - n.time > 48 * 3600 * 1000)) return false;
+        return true;
+      });
+
+      if (cleaned.length !== list.length) {
+        localStorage.setItem('coach_notifications_v2', JSON.stringify(cleaned));
+      }
+    } catch (e) {}
+  }
+
   const NotifManager = {
     getAll() {
       try {
+        purgeOldNotifications();
         const raw = localStorage.getItem('coach_notifications_v2');
         return raw ? JSON.parse(raw) : [];
       } catch (e) {
@@ -888,12 +956,14 @@
       this.save(list);
     },
     remove(id) {
+      if (id) DismissedNotifs.add(id);
       let list = this.getAll();
       list = list.filter(n => n.id !== id && n.targetId !== id);
       this.save(list);
     },
     removeByTarget(targetId) {
       if (!targetId) return;
+      DismissedNotifs.add(targetId);
       let list = this.getAll();
       list = list.filter(n => n.targetId !== targetId && n.id !== targetId && n.id !== ('create_' + targetId) && n.id !== ('req_' + targetId) && n.id !== ('chat_' + targetId));
       this.save(list);
@@ -910,12 +980,75 @@
       this.save(list);
     },
     clearAll() {
+      const list = this.getAll();
+      list.forEach(n => { if (n.id) DismissedNotifs.add(n.id); });
       this.save([]);
     },
     getUnreadCount() {
       return this.getAll().filter(n => !n.read).length;
     }
   };
+
+  // Sincroniza SOLO respuestas de convocatorias ACTIVAS (hoy o futuras, dentro de 24h)
+  function syncAttendanceNotificationsFromConvocations() {
+    if (!window.Store || !Store.state || !Array.isArray(Store.state.convocations)) return;
+    const now = Date.now();
+    const todayIso = (typeof getTodayIso === 'function') ? getTodayIso() : new Date().toISOString().slice(0, 10);
+    const recentCutoff = now - (24 * 3600 * 1000); // Solo respuestas de las últimas 24h
+
+    const existingList = NotifManager.getAll();
+    const existingMap = new Map(existingList.map(n => [n.id, n]));
+
+    Store.state.convocations.forEach(conv => {
+      if (!conv || !conv.responses) return;
+      // NUNCA generar notificaciones para eventos pasados (< hoy)
+      if (!conv.date || conv.date < todayIso) return;
+
+      const convTitle = conv.title || (conv.type === 'match' ? ('vs ' + (conv.rival || 'Rival')) : 'Entrenamiento');
+
+      Object.entries(conv.responses).forEach(([pid, r]) => {
+        if (!r) return;
+        const status = (typeof r === 'object') ? r.status : r;
+        if (!status || status === 'pending') return;
+
+        const rTime = (typeof r === 'object' && (r.timestamp || r.time)) ? Number(r.timestamp || r.time) : 0;
+        // Solo considerar respuestas emitidas en las últimas 24 horas
+        if (rTime && (now - rTime > recentCutoff)) return;
+
+        const notifId = 'att_' + (conv.id || 'c') + '_' + pid;
+        if (DismissedNotifs.has(notifId)) return;
+
+        const isAttending = (status === 'called' || status === 'attending' || status === 'yes');
+        const p = Store.player(pid);
+        const pName = (typeof r === 'object' && r.playerName) || (p ? (Store.playerName ? Store.playerName(p) : (p.name || 'Jugador')) : 'Jugador');
+        const notes = (typeof r === 'object' && r.notes) ? r.notes : '';
+
+        const timeFormatted = window.formatAttendanceDateTime ? window.formatAttendanceDateTime(rTime || now) : '';
+        const notifTitle = isAttending ? `🟢 Asistencia confirmada` : `❌ Baja comunicada`;
+        const notifBody = `${pName} • ${convTitle}${timeFormatted ? ' (' + timeFormatted + ')' : ''}${notes ? ' - ' + notes : ''}`;
+
+        const existing = existingMap.get(notifId);
+        if (!existing) {
+          NotifManager.add({
+            id: notifId,
+            type: 'attendance',
+            title: notifTitle,
+            body: notifBody,
+            targetId: conv.id,
+            time: rTime || now,
+            read: false
+          });
+        } else if (existing.title !== notifTitle || existing.body !== notifBody) {
+          NotifManager.add({
+            ...existing,
+            title: notifTitle,
+            body: notifBody,
+            time: rTime || now
+          });
+        }
+      });
+    });
+  }
 
   window.NotifManager = NotifManager;
 
@@ -1546,24 +1679,24 @@
 
                 const dateStr = n.time ? new Date(n.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
                 return `
-                  <div class="notif-card" data-nid="${n.id}" data-target="${n.targetId || ''}" data-type="${n.type}" style="background: ${n.read ? 'var(--surface)' : 'rgba(34, 211, 238, 0.08)'}; border: 1.5px solid ${n.read ? 'var(--border)' : 'rgba(34, 211, 238, 0.4)'}; border-radius: 12px; padding: 10px 12px; display: flex; align-items: flex-start; gap: 10px; cursor: pointer; position: relative;">
+                  <div class="notif-card" data-nid="${n.id}" data-target="${n.targetId || ''}" data-type="${n.type}" style="background: ${n.read ? 'rgba(15, 23, 42, 0.7)' : 'rgba(30, 41, 59, 0.85)'}; border: 1.5px solid ${n.read ? 'rgba(148, 163, 184, 0.2)' : 'rgba(34, 211, 238, 0.4)'}; border-radius: 12px; padding: 10px 12px; display: flex; align-items: flex-start; gap: 10px; cursor: pointer; position: relative;">
                     <span style="font-size: 20px; line-height: 1; flex-shrink: 0; margin-top: 2px;">${ic}</span>
                     <div style="flex: 1; min-width: 0;">
                       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
-                        <b style="font-size: 13px; color: ${n.read ? '#cbd5e1' : '#fff'}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                        <b style="font-size: 13.5px; color: #ffffff; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
                           ${escapeHtml(n.title)}
                         </b>
-                        <span style="font-size: 10.5px; color: var(--muted); margin-left: 6px; flex-shrink: 0;">${dateStr}</span>
+                        <span style="font-size: 11px; color: #94a3b8; margin-left: 6px; flex-shrink: 0; font-weight: 600;">${dateStr}</span>
                       </div>
-                      <div style="font-size: 12px; color: ${n.read ? 'var(--muted)' : '#e2e8f0'}; line-height: 1.35; word-break: break-word;">
+                      <div style="font-size: 12px; color: #cbd5e1; line-height: 1.35; word-break: break-word;">
                         ${escapeHtml(n.body)}
                       </div>
                     </div>
-                    <button type="button" class="icon-btn ghost" data-delete-nid="${n.id}" style="width: 28px; height: 28px; color: var(--muted); flex-shrink: 0; margin-left: 2px;" title="Eliminar">
+                    <button type="button" class="icon-btn ghost" data-delete-nid="${n.id}" style="width: 28px; height: 28px; color: #94a3b8; flex-shrink: 0; margin-left: 2px;" title="Eliminar">
                       🗑️
                     </button>
                     ${!n.read ? `
-                      <span style="position: absolute; top: 6px; right: 6px; width: 6px; height: 6px; border-radius: 50%; background: #22d3ee; box-shadow: 0 0 6px #22d3ee;"></span>
+                      <span style="position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; border-radius: 50%; background: #22d3ee; box-shadow: 0 0 6px #22d3ee;"></span>
                     ` : ''}
                   </div>
                 `;
@@ -1667,30 +1800,23 @@
   const _attendanceToastDedup = new Map();
 
   window.onPlayerAttendanceResponse = function (resp, isInitialSync = false) {
-    if (!resp) return;
-    if (isInitialSync) return; // NUNCA mostrar notificaciones durante la sincronización inicial
-    // Si la respuesta tiene timestamp antiguo (más de 2 minutos), es un evento histórico y no se notifica
-    if (resp.timestamp && (Date.now() - resp.timestamp > 120000)) return;
+    if (!resp || !resp.convId || !resp.playerId) return;
 
+    const notifId = 'att_' + (resp.convId || 'c') + '_' + resp.playerId;
     const isPending = (resp.status === 'pending' || !resp.status);
-    const p = (window.Store && window.Store.player) ? window.Store.player(resp.playerId) : null;
-    const pName = resp.playerName || (p ? (window.Store.playerName ? window.Store.playerName(p) : (p.name || 'Jugador')) : 'Jugador');
 
     if (isPending) {
+      NotifManager.remove(notifId);
+      DismissedNotifs.add(notifId);
+      updateRequestsBadge();
       if (currentTab === 'convocations') navigate('convocations');
       if (typeof window.activeConvocationModalRefresh === 'function') window.activeConvocationModalRefresh();
-      updateRequestsBadge();
       return;
     }
 
-    const dedupKey = `${resp.convId || ''}_${resp.playerId || ''}_${resp.status || ''}`;
-    const now = Date.now();
-    if (_attendanceToastDedup.has(dedupKey) && (now - _attendanceToastDedup.get(dedupKey) < 8000)) {
-      return; // Evitar duplicado en ventana corta
-    }
-    _attendanceToastDedup.set(dedupKey, now);
-
     const isAttending = (resp.status === 'called' || resp.status === 'attending' || resp.status === 'yes');
+    const p = (window.Store && window.Store.player) ? window.Store.player(resp.playerId) : null;
+    const pName = resp.playerName || (p ? (window.Store.playerName ? window.Store.playerName(p) : (p.name || 'Jugador')) : 'Jugador');
 
     // Buscar título descriptivo de la convocatoria si está disponible
     let convTitle = '';
@@ -1701,50 +1827,62 @@
       }
     } catch (e) {}
 
-    const timeFormatted = window.formatAttendanceDateTime ? window.formatAttendanceDateTime(resp.timestamp || Date.now()) : '';
+    const rTimestamp = Number(resp.timestamp || resp.time || Date.now());
+    const timeFormatted = window.formatAttendanceDateTime ? window.formatAttendanceDateTime(rTimestamp) : '';
     const notifTitle = isAttending ? `🟢 Asistencia confirmada` : `❌ Baja comunicada`;
     const notifBody = convTitle
       ? `${pName} • ${convTitle}${timeFormatted ? ' (' + timeFormatted + ')' : ''}${resp.notes ? ' - ' + resp.notes : ''}`
       : `${pName} (${isAttending ? 'Asistirá' : 'No asistirá'}${timeFormatted ? ' • ' + timeFormatted : ''}${resp.notes ? ' - ' + resp.notes : ''})`;
 
+    DismissedNotifs.remove(notifId);
     NotifManager.add({
-      id: 'att_' + (resp.convId || 'c') + '_' + resp.playerId + '_' + (resp.timestamp || Date.now()),
+      id: notifId,
       type: 'attendance',
       title: notifTitle,
       body: notifBody,
       targetId: resp.convId || null,
-      time: Date.now()
+      time: rTimestamp
     });
 
-    toast(
-      isAttending
-        ? `🟢 ${pName} ha confirmado asistencia${timeFormatted ? ' (' + timeFormatted + ')' : ''}`
-        : `❌ ${pName} no puede asistir${timeFormatted ? ' (' + timeFormatted + ')' : ''}`,
-      isAttending ? 'success' : 'info'
-    );
-    haptic(35);
-
-    // Notificación nativa en la barra de Android
-    if (window.AndroidBridge && typeof window.AndroidBridge.showSystemNotification === 'function') {
-      try {
-        window.AndroidBridge.showSystemNotification(
-          notifTitle,
-          notifBody,
-          'att_' + (resp.convId || '') + '_' + resp.playerId
-        );
-      } catch (e) {
-        console.error('Error enviando notificación AndroidBridge:', e);
-      }
-    } else if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-      try {
-        new Notification(notifTitle, {
-          body: notifBody,
-          icon: 'icons/icon-192.png'
-        });
-      } catch (e) {}
-    }
-
     updateRequestsBadge();
+
+    // Solo emitir avisos emergentes (toast / vibración / notificación nativa) si es un cambio en vivo reciente
+    const isRecent = !isInitialSync && (Date.now() - rTimestamp < 120000);
+    if (isRecent) {
+      const dedupKey = `${resp.convId || ''}_${resp.playerId || ''}_${resp.status || ''}`;
+      const now = Date.now();
+      if (!_attendanceToastDedup.has(dedupKey) || (now - _attendanceToastDedup.get(dedupKey) >= 8000)) {
+        _attendanceToastDedup.set(dedupKey, now);
+
+        toast(
+          isAttending
+            ? `🟢 ${pName} ha confirmado asistencia${timeFormatted ? ' (' + timeFormatted + ')' : ''}`
+            : `❌ ${pName} no puede asistir${timeFormatted ? ' (' + timeFormatted + ')' : ''}`,
+          isAttending ? 'success' : 'info'
+        );
+        haptic(35);
+
+        // Notificación nativa en la barra de Android
+        if (window.AndroidBridge && typeof window.AndroidBridge.showSystemNotification === 'function') {
+          try {
+            window.AndroidBridge.showSystemNotification(
+              notifTitle,
+              notifBody,
+              notifId
+            );
+          } catch (e) {
+            console.error('Error enviando notificación AndroidBridge:', e);
+          }
+        } else if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+          try {
+            new Notification(notifTitle, {
+              body: notifBody,
+              icon: 'icons/icon-192.png'
+            });
+          } catch (e) {}
+        }
+      }
+    }
 
     if (currentTab === 'convocations') {
       navigate('convocations');
@@ -1924,81 +2062,77 @@
   /* =========================================================
      VISTA 1: INICIO (HOME)
      ========================================================= */
-  let _homeNotifsExpanded = false;
-
   function renderHomeNotificationsHtml() {
+    purgeOldNotifications();
+    syncAttendanceNotificationsFromConvocations();
+
     const notifs = NotifManager.getAll();
+    const unreadNotifs = notifs.filter(n => !n.read);
     const pendingReqsCount = (pendingProfileRequests || []).length + (pendingPlayerCreationRequests || []).length + (pendingProfileClaimRequests || []).length;
-    const totalCount = Math.max(NotifManager.getUnreadCount(), pendingReqsCount);
-    const displayedNotifs = (notifs.length > 1 && !_homeNotifsExpanded) ? notifs.slice(0, 1) : notifs.slice(0, 15);
+    const totalCount = Math.max(unreadNotifs.length, pendingReqsCount);
+
+    // Si no hay notificaciones no leídas ni solicitudes pendientes, mantener la pantalla de Inicio 100% limpia y sin bloquear
+    if (totalCount === 0) {
+      return '';
+    }
+
+    const displayedNotifs = unreadNotifs.slice(0, 3);
 
     return `
-      <div class="card" style="margin-bottom: 16px; border: 1.5px solid ${totalCount > 0 ? 'rgba(34, 211, 238, 0.4)' : 'var(--border)'}; background: ${totalCount > 0 ? 'rgba(34, 211, 238, 0.04)' : 'var(--surface)'};">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+      <div class="card" style="margin-bottom: 14px; border: 1.5px solid rgba(34, 211, 238, 0.45); background: rgba(15, 23, 42, 0.92); box-shadow: 0 4px 20px rgba(0,0,0,0.4); padding: 12px 14px; border-radius: 16px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 8px;">
           <div style="display: flex; align-items: center; gap: 8px;">
-            <span style="font-size: 16px;">🔔</span>
-            <b style="font-size: 14px; color: #fff;">${t('notificationCenter', 'Centro de Notificaciones')}</b>
-            ${totalCount > 0 ? `<span class="badge" style="background: #ef4444; color: #fff; font-size: 11px; font-weight: 900; padding: 2px 7px; border-radius: 999px;">${totalCount}</span>` : ''}
+            <span style="font-size: 17px; line-height: 1;">🔔</span>
+            <b style="font-size: 13.5px; color: #ffffff; font-weight: 800;">${t('notificationCenter', 'Centro de Notificaciones')}</b>
+            <span class="badge" style="background: #ef4444; color: #ffffff; font-size: 11px; font-weight: 900; padding: 2px 7px; border-radius: 999px;">${totalCount}</span>
           </div>
-          <div style="display: flex; gap: 6px;">
-            ${pendingReqsCount > 0 ? `
-              <button type="button" class="btn sm primary" id="btn-home-open-requests" style="font-size: 11.5px; padding: 4px 10px; font-weight: 800;">
-                👥 ${t('requests', 'Solicitudes')} (${pendingReqsCount})
-              </button>
-            ` : ''}
-            ${notifs.length > 0 ? `
-              <button type="button" class="btn sm ghost" id="btn-home-notif-mark-all" style="font-size: 11px; padding: 3px 8px; font-weight: 700;">
-                ✓ ${t('markAllRead', 'Leídas')}
-              </button>
-              <button type="button" class="btn sm danger ghost" id="btn-home-notif-clear-all" style="font-size: 11px; padding: 3px 8px; font-weight: 700;">
-                🗑️
-              </button>
-            ` : ''}
+          <div style="display: flex; gap: 6px; align-items: center;">
+            <button type="button" class="btn sm ghost" id="btn-home-notif-mark-all" style="font-size: 11px; padding: 3px 8px; font-weight: 800; color: #38bdf8;">
+              ✓ ${t('markAllRead', 'Marcar leídas')}
+            </button>
+            <button type="button" class="btn sm ghost" id="btn-home-open-modal-center" style="font-size: 11px; padding: 3px 8px; font-weight: 800; color: #94a3b8;" title="Ver todas">
+              Ver todas ➔
+            </button>
           </div>
         </div>
 
-        ${(notifs.length === 0 && pendingReqsCount === 0) ? `
-          <div style="padding: 14px; text-align: center; color: var(--muted); font-size: 12.5px;">
-            🎉 ¡Todo al día! No tienes notificaciones ni solicitudes pendientes.
-          </div>
-        ` : `
-          <div style="display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow-y: auto; padding: 2px;">
-            ${displayedNotifs.map(n => {
-              let ic = '🔔';
-              if (n.type === 'profile_req') ic = '🔄';
-              else if (n.type === 'creation_req') ic = '➕';
-              else if (n.type === 'claim_req') ic = '🔑';
-              else if (n.type === 'attendance') ic = (n.title && n.title.includes('🟢')) ? '🟢' : '❌';
-              else if (n.type === 'chat') ic = '💬';
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          ${displayedNotifs.map(n => {
+            let ic = '🔔';
+            if (n.type === 'profile_req') ic = '🔄';
+            else if (n.type === 'creation_req') ic = '➕';
+            else if (n.type === 'claim_req') ic = '🔑';
+            else if (n.type === 'attendance') ic = (n.title && n.title.includes('🟢')) ? '🟢' : '❌';
+            else if (n.type === 'chat') ic = '💬';
 
-              const dateStr = n.time ? new Date(n.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-              return `
-                <div class="home-notif-item" data-nid="${n.id}" data-target="${n.targetId || ''}" data-type="${n.type}" style="background: ${n.read ? 'var(--surface2)' : 'rgba(34, 211, 238, 0.1)'}; border: 1px solid ${n.read ? 'var(--border)' : 'rgba(34, 211, 238, 0.45)'}; border-radius: 10px; padding: 8px 10px; display: flex; align-items: flex-start; gap: 8px; cursor: pointer; position: relative;">
-                  <span style="font-size: 16px; line-height: 1; flex-shrink: 0; margin-top: 2px;">${ic}</span>
-                  <div style="flex: 1; min-width: 0;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
-                      <b style="font-size: 12.5px; color: ${n.read ? '#cbd5e1' : '#fff'}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                        ${escapeHtml(n.title)}
-                      </b>
-                      <span style="font-size: 10px; color: var(--muted); margin-left: 6px; flex-shrink: 0;">${dateStr}</span>
-                    </div>
-                    <div style="font-size: 11.5px; color: ${n.read ? 'var(--muted)' : '#e2e8f0'}; line-height: 1.3; word-break: break-word;">
-                      ${escapeHtml(n.body)}
-                    </div>
+            const dateStr = n.time ? new Date(n.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+            return `
+              <div class="home-notif-item" data-nid="${n.id}" data-target="${n.targetId || ''}" data-type="${n.type}" style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 12px; padding: 9px 12px; display: flex; align-items: flex-start; gap: 10px; cursor: pointer; position: relative;">
+                <span style="font-size: 18px; line-height: 1; flex-shrink: 0; margin-top: 1px;">${ic}</span>
+                <div style="flex: 1; min-width: 0;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+                    <b style="font-size: 13px; color: #ffffff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 800;">
+                      ${escapeHtml(n.title)}
+                    </b>
+                    <span style="font-size: 10.5px; color: #94a3b8; margin-left: 6px; flex-shrink: 0; font-weight: 600;">${dateStr}</span>
                   </div>
-                  <button type="button" class="icon-btn ghost" data-home-delete-nid="${n.id}" style="width: 24px; height: 24px; font-size: 11px; color: var(--muted); flex-shrink: 0;" title="Eliminar">✕</button>
+                  <div style="font-size: 12px; color: #cbd5e1; line-height: 1.35; word-break: break-word;">
+                    ${escapeHtml(n.body)}
+                  </div>
                 </div>
-              `;
-            }).join('')}
-          </div>
+                <button type="button" class="icon-btn ghost" data-home-delete-nid="${n.id}" style="width: 24px; height: 24px; font-size: 12px; color: #94a3b8; flex-shrink: 0;" title="Eliminar">✕</button>
+              </div>
+            `;
+          }).join('')}
+        </div>
 
-          ${notifs.length > 1 ? `
-            <button type="button" class="btn sm ghost block" id="btn-home-toggle-notifs" style="width: 100%; margin-top: 8px; font-size: 11.5px; font-weight: 800; border-radius: 8px; border: 1px dashed rgba(34, 211, 238, 0.4); color: var(--cyan); padding: 5px 8px; display: flex; align-items: center; justify-content: center; gap: 6px;">
-              <span>${_homeNotifsExpanded ? '▲' : '▼'}</span>
-              <span>${_homeNotifsExpanded ? t('showLessNotifs', 'Plegar notificaciones') : t('showMoreNotifs', 'Ver {count} notificaciones más').replace('{count}', notifs.length - 1)}</span>
+        ${unreadNotifs.length > 3 ? `
+          <div style="text-align: center; margin-top: 8px;">
+            <button type="button" class="btn sm ghost" id="btn-home-see-more-notifs" style="font-size: 11.5px; font-weight: 800; color: #38bdf8;">
+              ${t('showMoreNotifs', 'Ver {count} notificaciones más').replace('{count}', unreadNotifs.length - 3)}
             </button>
-          ` : ''}
-        `}
+          </div>
+        ` : ''}
       </div>
     `;
   }
@@ -2009,26 +2143,17 @@
     const btnHomeReqs = container.querySelector('#btn-home-open-requests');
     if (btnHomeReqs) btnHomeReqs.onclick = () => showProfileRequestsModal();
 
+    const btnHomeModal = container.querySelector('#btn-home-open-modal-center');
+    if (btnHomeModal) btnHomeModal.onclick = () => showNotificationsCenterModal();
+
+    const btnSeeMore = container.querySelector('#btn-home-see-more-notifs');
+    if (btnSeeMore) btnSeeMore.onclick = () => showNotificationsCenterModal();
+
     const btnHomeMarkAll = container.querySelector('#btn-home-notif-mark-all');
     if (btnHomeMarkAll) {
       btnHomeMarkAll.onclick = () => {
         NotifManager.markAllAsRead();
-        refreshHomeNotifications();
-      };
-    }
-
-    const btnHomeClearAll = container.querySelector('#btn-home-notif-clear-all');
-    if (btnHomeClearAll) {
-      btnHomeClearAll.onclick = () => {
-        NotifManager.clearAll();
-        refreshHomeNotifications();
-      };
-    }
-
-    const btnToggleNotifs = container.querySelector('#btn-home-toggle-notifs');
-    if (btnToggleNotifs) {
-      btnToggleNotifs.onclick = () => {
-        _homeNotifsExpanded = !_homeNotifsExpanded;
+        updateRequestsBadge();
         refreshHomeNotifications();
       };
     }
@@ -2038,6 +2163,7 @@
         e.stopPropagation();
         const nid = b.getAttribute('data-home-delete-nid');
         NotifManager.remove(nid);
+        updateRequestsBadge();
         refreshHomeNotifications();
       };
     });
@@ -2048,6 +2174,7 @@
         const type = card.getAttribute('data-type');
         const targetId = card.getAttribute('data-target');
         NotifManager.markAsRead(nid);
+        updateRequestsBadge();
 
         if (type === 'profile_req' || type === 'creation_req' || type === 'claim_req') {
           showProfileRequestsModal();
@@ -2096,6 +2223,12 @@
   };
 
   function renderHomeView(view) {
+    if (!view) view = document.getElementById('view');
+    if (!view) return;
+
+    syncAttendanceNotificationsFromConvocations();
+    updateRequestsBadge();
+
     if (window.Store && window.Store.autoCreateTodayScheduledSessions) {
       window.Store.autoCreateTodayScheduledSessions();
     }
@@ -2178,7 +2311,13 @@
             <span class="sub">${t('appSubtitle')}</span>
           </div>
         </div>
-        ${renderLangButton()}
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <button type="button" class="icon-btn" id="btn-profile-requests" title="${t('notificationCenter', 'Centro de Notificaciones')}" style="position: relative; width: 40px; height: 40px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface2); color: #fff; display: flex; align-items: center; justify-content: center;">
+            <span style="font-size: 19px; line-height: 1;">🔔</span>
+            <span id="requests-badge" class="badge danger" style="position: absolute; top: -3px; right: -3px; font-size: 10px; font-weight: 900; padding: 1px 5px; border-radius: 999px; min-width: 18px; text-align: center; border: 2px solid #060a13; display: none;">0</span>
+          </button>
+          ${renderLangButton()}
+        </div>
       </div>
 
       <!-- Notificaciones y Solicitudes en Inicio (Ventana Expandible) -->
@@ -2258,6 +2397,7 @@
     `;
 
     view.innerHTML = html;
+    updateRequestsBadge();
 
     const btnLang = view.querySelector('#btn-toggle-lang');
     if (btnLang) btnLang.onclick = toggleLanguage;
@@ -4545,6 +4685,10 @@
         () => {
           if (session.timerStartedAt) Store.toggleTimer(session);
           session.status = 'finished';
+          session.finished = true;
+          session.isFinished = true;
+          session.endedAt = session.endedAt || Date.now();
+          session.finishedAt = session.finishedAt || Date.now();
           Store.save();
           if (session._liveTrackerCode && window.Cloud) {
             window.Cloud.closeLiveTrackerSession(session._liveTrackerCode);
