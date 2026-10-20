@@ -854,6 +854,36 @@
   /* =========================================================
      CENTRO DE NOTIFICACIONES Y GESTIÓN DE SOLICITUDES
      ========================================================= */
+  function updateBadgeCountersOnly() {
+    const unreadCount = NotifManager.getUnreadCount();
+    const reqsCount = (pendingProfileRequests || []).length + (pendingPlayerCreationRequests || []).length + (pendingProfileClaimRequests || []).length;
+    const count = Math.max(unreadCount, reqsCount);
+    document.querySelectorAll('#requests-badge').forEach(badge => {
+      if (count > 0) {
+        badge.textContent = count > 99 ? '99+' : count;
+        badge.style.display = 'block';
+      } else {
+        badge.style.display = 'none';
+      }
+    });
+
+    const homeTabBtns = document.querySelectorAll('#tabbar [data-tab="home"], #portal-tabbar [data-tab="home"]');
+    homeTabBtns.forEach(homeTabBtn => {
+      let dot = homeTabBtn.querySelector('.home-notif-dot');
+      if (count > 0) {
+        if (!dot) {
+          dot = document.createElement('span');
+          dot.className = 'home-notif-dot';
+          dot.style.cssText = 'position: absolute; top: 4px; right: calc(50% - 16px); width: 10px; height: 10px; border-radius: 50%; background: #22d3ee; border: 2px solid #0f172a; box-shadow: 0 0 6px #22d3ee; pointer-events: none; z-index: 5;';
+          homeTabBtn.style.position = 'relative';
+          homeTabBtn.appendChild(dot);
+        }
+      } else {
+        if (dot) dot.remove();
+      }
+    });
+  }
+
   const DismissedNotifs = {
     getAll() {
       try {
@@ -935,7 +965,8 @@
       try {
         localStorage.setItem('coach_notifications_v2', JSON.stringify((list || []).slice(0, 80)));
       } catch (e) {}
-      updateRequestsBadge();
+      // Actualizar badges en DOM sin invocar ciclo recursivo de re-render
+      updateBadgeCountersOnly();
     },
     add(notif) {
       const list = this.getAll();
@@ -2063,20 +2094,55 @@
      VISTA 1: INICIO (HOME)
      ========================================================= */
   function renderHomeNotificationsHtml() {
-    purgeOldNotifications();
-    syncAttendanceNotificationsFromConvocations();
-
     const notifs = NotifManager.getAll();
     const unreadNotifs = notifs.filter(n => !n.read);
-    const pendingReqsCount = (pendingProfileRequests || []).length + (pendingPlayerCreationRequests || []).length + (pendingProfileClaimRequests || []).length;
+
+    // Recopilar solicitudes pendientes en vivo para que NUNCA quede una caja vacía
+    const pendingItems = [];
+    (pendingProfileRequests || []).forEach(r => {
+      pendingItems.push({
+        id: 'req_' + r.id,
+        targetId: r.id,
+        type: 'profile_req',
+        title: t('profileRequests', 'Solicitud de cambio de perfil'),
+        body: `${r.fromPlayerName || 'Jugador'} ➔ ${r.toPlayerName || 'Nuevo perfil'}`,
+        time: r.createdAt || Date.now(),
+        isPendingReq: true
+      });
+    });
+    (pendingPlayerCreationRequests || []).forEach(cr => {
+      pendingItems.push({
+        id: 'create_' + cr.id,
+        targetId: cr.id,
+        type: 'creation_req',
+        title: t('requestCoachProfileTitle', 'Solicitud de alta de jugador'),
+        body: `${cr.name || 'Nuevo jugador'} (${cr.dorsal ? '#' + cr.dorsal + ' - ' : ''}${cr.position || 'Jugador'})`,
+        time: cr.createdAt || Date.now(),
+        isPendingReq: true
+      });
+    });
+    (pendingProfileClaimRequests || []).forEach(cl => {
+      pendingItems.push({
+        id: 'claim_' + cl.id,
+        targetId: cl.id,
+        type: 'claim_req',
+        title: 'Solicitud de acceso a perfil',
+        body: `${cl.playerName || 'Jugador'} (Código ${cl.securityCode || '—'})`,
+        time: cl.createdAt || Date.now(),
+        isPendingReq: true
+      });
+    });
+
+    const pendingReqsCount = pendingItems.length;
+    const allActiveItems = [...pendingItems, ...unreadNotifs];
     const totalCount = Math.max(unreadNotifs.length, pendingReqsCount);
 
-    // Si no hay notificaciones no leídas ni solicitudes pendientes, mantener la pantalla de Inicio 100% limpia y sin bloquear
-    if (totalCount === 0) {
+    // Si no hay nada pendiente ni sin leer, mantener Inicio 100% limpio y despejado
+    if (totalCount === 0 || allActiveItems.length === 0) {
       return '';
     }
 
-    const displayedNotifs = unreadNotifs.slice(0, 3);
+    const displayedItems = allActiveItems.slice(0, 2);
 
     return `
       <div class="card" style="margin-bottom: 14px; border: 1.5px solid rgba(34, 211, 238, 0.45); background: rgba(15, 23, 42, 0.92); box-shadow: 0 4px 20px rgba(0,0,0,0.4); padding: 12px 14px; border-radius: 16px;">
@@ -2087,9 +2153,16 @@
             <span class="badge" style="background: #ef4444; color: #ffffff; font-size: 11px; font-weight: 900; padding: 2px 7px; border-radius: 999px;">${totalCount}</span>
           </div>
           <div style="display: flex; gap: 6px; align-items: center;">
-            <button type="button" class="btn sm ghost" id="btn-home-notif-mark-all" style="font-size: 11px; padding: 3px 8px; font-weight: 800; color: #38bdf8;">
-              ✓ ${t('markAllRead', 'Marcar leídas')}
-            </button>
+            ${pendingReqsCount > 0 ? `
+              <button type="button" class="btn sm primary" id="btn-home-open-requests" style="font-size: 11px; padding: 3px 8px; font-weight: 800;">
+                👥 ${t('requests', 'Solicitudes')} (${pendingReqsCount})
+              </button>
+            ` : ''}
+            ${unreadNotifs.length > 0 ? `
+              <button type="button" class="btn sm ghost" id="btn-home-notif-mark-all" style="font-size: 11px; padding: 3px 8px; font-weight: 800; color: #38bdf8;">
+                ✓ ${t('markAllRead', 'Marcar leídas')}
+              </button>
+            ` : ''}
             <button type="button" class="btn sm ghost" id="btn-home-open-modal-center" style="font-size: 11px; padding: 3px 8px; font-weight: 800; color: #94a3b8;" title="Ver todas">
               Ver todas ➔
             </button>
@@ -2097,7 +2170,7 @@
         </div>
 
         <div style="display: flex; flex-direction: column; gap: 8px;">
-          ${displayedNotifs.map(n => {
+          ${displayedItems.map(n => {
             let ic = '🔔';
             if (n.type === 'profile_req') ic = '🔄';
             else if (n.type === 'creation_req') ic = '➕';
@@ -2120,16 +2193,20 @@
                     ${escapeHtml(n.body)}
                   </div>
                 </div>
-                <button type="button" class="icon-btn ghost" data-home-delete-nid="${n.id}" style="width: 24px; height: 24px; font-size: 12px; color: #94a3b8; flex-shrink: 0;" title="Eliminar">✕</button>
+                ${n.isPendingReq ? `
+                  <span class="badge" style="background: rgba(34, 211, 238, 0.2); color: #38bdf8; font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 6px; flex-shrink: 0;">Revisar</span>
+                ` : `
+                  <button type="button" class="icon-btn ghost" data-home-delete-nid="${n.id}" style="width: 24px; height: 24px; font-size: 12px; color: #94a3b8; flex-shrink: 0;" title="Eliminar">✕</button>
+                `}
               </div>
             `;
           }).join('')}
         </div>
 
-        ${unreadNotifs.length > 3 ? `
+        ${allActiveItems.length > 2 ? `
           <div style="text-align: center; margin-top: 8px;">
             <button type="button" class="btn sm ghost" id="btn-home-see-more-notifs" style="font-size: 11.5px; font-weight: 800; color: #38bdf8;">
-              ${t('showMoreNotifs', 'Ver {count} notificaciones más').replace('{count}', unreadNotifs.length - 3)}
+              ${t('showMoreNotifs', 'Ver {count} notificaciones más').replace('{count}', allActiveItems.length - 2)}
             </button>
           </div>
         ` : ''}
@@ -2198,13 +2275,17 @@
   let _refreshHomeNotifTimer = null;
   function refreshHomeNotifications() {
     if (currentTab !== 'home') return;
-    if (_refreshHomeNotifTimer) cancelAnimationFrame(_refreshHomeNotifTimer);
-    _refreshHomeNotifTimer = requestAnimationFrame(() => {
+    if (_refreshHomeNotifTimer) clearTimeout(_refreshHomeNotifTimer);
+    _refreshHomeNotifTimer = setTimeout(() => {
       const container = document.getElementById('home-notifications-container');
       if (!container) return;
-      container.innerHTML = renderHomeNotificationsHtml();
-      bindHomeNotificationsEvents(container);
-    });
+      const newHtml = renderHomeNotificationsHtml();
+      if (container.dataset.lastHtml !== newHtml) {
+        container.dataset.lastHtml = newHtml;
+        container.innerHTML = newHtml;
+        bindHomeNotificationsEvents(container);
+      }
+    }, 60);
   }
   window.refreshHomeNotifications = refreshHomeNotifications;
 
