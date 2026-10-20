@@ -1665,16 +1665,16 @@
   });
 
   const _attendanceToastDedup = new Map();
-  const _coachAppBootTime = Date.now();
 
   window.onPlayerAttendanceResponse = function (resp, isInitialSync = false) {
     if (!resp) return;
-    if (isInitialSync) return; // NUNCA mostrar toasts durante la sincronización inicial
-    if (Date.now() - _coachAppBootTime < 4000) return; // Silencio de arranque de 4s para evitar toasts al entrar a la app
+    if (isInitialSync) return; // NUNCA mostrar notificaciones durante la sincronización inicial
+    // Si la respuesta tiene timestamp antiguo (más de 2 minutos), es un evento histórico y no se notifica
+    if (resp.timestamp && (Date.now() - resp.timestamp > 120000)) return;
 
     const isPending = (resp.status === 'pending' || !resp.status);
-    const p = Store.player(resp.playerId);
-    const pName = resp.playerName || (p ? Store.playerName(p) : 'Jugador');
+    const p = (window.Store && window.Store.player) ? window.Store.player(resp.playerId) : null;
+    const pName = resp.playerName || (p ? (window.Store.playerName ? window.Store.playerName(p) : (p.name || 'Jugador')) : 'Jugador');
 
     if (isPending) {
       if (currentTab === 'convocations') navigate('convocations');
@@ -1686,17 +1686,31 @@
     const dedupKey = `${resp.convId || ''}_${resp.playerId || ''}_${resp.status || ''}`;
     const now = Date.now();
     if (_attendanceToastDedup.has(dedupKey) && (now - _attendanceToastDedup.get(dedupKey) < 8000)) {
-      return; // Evitar toast duplicado
+      return; // Evitar duplicado en ventana corta
     }
     _attendanceToastDedup.set(dedupKey, now);
 
     const isAttending = (resp.status === 'called' || resp.status === 'attending' || resp.status === 'yes');
 
+    // Buscar título descriptivo de la convocatoria si está disponible
+    let convTitle = '';
+    try {
+      const conv = (window.Store && window.Store.convocation) ? window.Store.convocation(resp.convId) : null;
+      if (conv) {
+        convTitle = conv.title || (conv.type === 'match' ? ('vs ' + (conv.rival || 'Rival')) : 'Entrenamiento');
+      }
+    } catch (e) {}
+
+    const notifTitle = isAttending ? `🟢 Asistencia confirmada` : `❌ Baja comunicada`;
+    const notifBody = convTitle
+      ? `${pName} • ${convTitle}${resp.notes ? ' (' + resp.notes + ')' : ''}`
+      : `${pName} (${isAttending ? 'Asistirá' : 'No asistirá'}${resp.notes ? ' - ' + resp.notes : ''})`;
+
     NotifManager.add({
-      id: 'att_' + (resp.convId || 'c') + '_' + resp.playerId,
+      id: 'att_' + (resp.convId || 'c') + '_' + resp.playerId + '_' + (resp.timestamp || Date.now()),
       type: 'attendance',
-      title: isAttending ? `🟢 Asistencia confirmada` : `❌ Baja comunicada`,
-      body: `${pName} (${isAttending ? 'Asistirá' : 'No asistirá'})`,
+      title: notifTitle,
+      body: notifBody,
       targetId: resp.convId || null,
       time: Date.now()
     });
@@ -1706,6 +1720,28 @@
       isAttending ? 'success' : 'info'
     );
     haptic(35);
+
+    // Notificación nativa en la barra de Android
+    if (window.AndroidBridge && typeof window.AndroidBridge.showSystemNotification === 'function') {
+      try {
+        window.AndroidBridge.showSystemNotification(
+          notifTitle,
+          notifBody,
+          'att_' + (resp.convId || '') + '_' + resp.playerId
+        );
+      } catch (e) {
+        console.error('Error enviando notificación AndroidBridge:', e);
+      }
+    } else if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      try {
+        new Notification(notifTitle, {
+          body: notifBody,
+          icon: 'icons/icon-192.png'
+        });
+      } catch (e) {}
+    }
+
+    updateRequestsBadge();
 
     if (currentTab === 'convocations') {
       navigate('convocations');

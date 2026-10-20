@@ -942,8 +942,13 @@
             if (isFirstSnapshot) {
               // Carga inicial: sincroniza estado silenciosamente sin spamear toasts
               snapshot.forEach((doc) => {
-                const data = doc.data();
-                if (data && data.convId && data.playerId) {
+                const data = doc.data() || {};
+                const parts = doc.id.split('_');
+                const convId = data.convId || parts[0];
+                const playerId = data.playerId || (parts.length > 1 ? parts.slice(1).join('_') : '');
+                if (convId && playerId) {
+                  data.convId = convId;
+                  data.playerId = playerId;
                   if (typeof onResponseCallback === 'function') {
                     onResponseCallback(data, true);
                   }
@@ -955,27 +960,27 @@
 
             // Cambios en vivo recibidos tras el inicio
             snapshot.docChanges().forEach((change) => {
+              const data = change.doc.data() || {};
+              const parts = change.doc.id.split('_');
+              const convId = data.convId || parts[0];
+              const playerId = data.playerId || (parts.length > 1 ? parts.slice(1).join('_') : '');
+              if (!convId || !playerId) return;
+
+              data.convId = convId;
+              data.playerId = playerId;
+
               if (change.type === 'removed') {
-                const data = change.doc.data() || {};
-                const parts = change.doc.id.split('_');
-                const convId = data.convId || parts[0];
-                const playerId = data.playerId || parts[1];
-                if (convId && playerId) {
-                  const pendingData = Object.assign({}, data, { convId, playerId, status: 'pending' });
-                  if (typeof onResponseCallback === 'function') {
-                    onResponseCallback(pendingData, false);
-                  } else if (typeof window !== 'undefined' && typeof window.onPlayerAttendanceResponse === 'function') {
-                    window.onPlayerAttendanceResponse(pendingData, false);
-                  }
+                const pendingData = Object.assign({}, data, { convId, playerId, status: 'pending' });
+                if (typeof onResponseCallback === 'function') {
+                  onResponseCallback(pendingData, false);
+                } else if (typeof window !== 'undefined' && typeof window.onPlayerAttendanceResponse === 'function') {
+                  window.onPlayerAttendanceResponse(pendingData, false);
                 }
               } else if (change.type === 'added' || change.type === 'modified') {
-                const data = change.doc.data();
-                if (data && data.convId && data.playerId) {
-                  if (typeof onResponseCallback === 'function') {
-                    onResponseCallback(data, false);
-                  } else if (typeof window !== 'undefined' && typeof window.onPlayerAttendanceResponse === 'function') {
-                    window.onPlayerAttendanceResponse(data, false);
-                  }
+                if (typeof onResponseCallback === 'function') {
+                  onResponseCallback(data, false);
+                } else if (typeof window !== 'undefined' && typeof window.onPlayerAttendanceResponse === 'function') {
+                  window.onPlayerAttendanceResponse(data, false);
                 }
               }
             });

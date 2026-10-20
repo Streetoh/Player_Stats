@@ -29,6 +29,8 @@ public class BackgroundNotificationService extends Service {
     public static final String KEY_NOTIFIED_IDS = "notified_req_ids";
     public static final String KEY_NOTIFIED_CHAT_MSGS = "notified_chat_msgs";
     public static final String KEY_LAST_CHAT_TIME = "last_chat_time";
+    public static final String KEY_NOTIFIED_ATTENDANCE_SIGS = "notified_attendance_sigs";
+    public static final String KEY_LAST_ATTENDANCE_TIME = "last_attendance_time";
 
     private static final String SERVICE_CHANNEL_ID = "coach_service_channel";
     private static final String ALERT_CHANNEL_ID = "player_stats_channel";
@@ -51,6 +53,18 @@ public class BackgroundNotificationService extends Service {
             prefs.edit().putLong(KEY_LAST_CHAT_TIME, target).apply();
         } catch (Exception e) {
             Log.e(TAG, "Error syncLastChatTime", e);
+        }
+    }
+
+    public static void syncLastAttendanceTime(Context ctx, long timestamp) {
+        if (ctx == null) return;
+        try {
+            SharedPreferences prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+            long cur = prefs.getLong(KEY_LAST_ATTENDANCE_TIME, 0L);
+            long target = Math.max(cur, timestamp > 0 ? timestamp : System.currentTimeMillis());
+            prefs.edit().putLong(KEY_LAST_ATTENDANCE_TIME, target).apply();
+        } catch (Exception e) {
+            Log.e(TAG, "Error syncLastAttendanceTime", e);
         }
     }
 
@@ -189,6 +203,7 @@ public class BackgroundNotificationService extends Service {
                             checkProfileRequests();
                             checkProfileClaimRequests();
                             checkNewChatMessages();
+                            checkAttendanceResponses();
                         }
                     } catch (Throwable t) {
                         Log.e(TAG, "Error en comprobación de notificaciones: " + t.getMessage());
@@ -471,6 +486,112 @@ public class BackgroundNotificationService extends Service {
             }
         } catch (Exception e) {
             Log.e(TAG, "checkNewChatMessages error", e);
+        }
+    }
+
+    private Set<String> getNotifiedAttendanceSignatures() {
+        Set<String> set = getPrefs().getStringSet(KEY_NOTIFIED_ATTENDANCE_SIGS, null);
+        return set != null ? new HashSet<>(set) : new HashSet<String>();
+    }
+
+    private void markAttendanceSignatureNotified(String sig) {
+        Set<String> set = getNotifiedAttendanceSignatures();
+        set.add(sig);
+        if (set.size() > 300) {
+            set.clear();
+            set.add(sig);
+        }
+        getPrefs().edit().putStringSet(KEY_NOTIFIED_ATTENDANCE_SIGS, set).apply();
+    }
+
+    private void checkAttendanceResponses() {
+        String url = "https://firestore.googleapis.com/v1/projects/player-stats-2ac9d/databases/(default)/documents/clubs/default_club/responses";
+        String json = fetchJson(url);
+        if (json == null) return;
+
+        try {
+            JSONObject obj = new JSONObject(json);
+            if (!obj.has("documents")) return;
+            JSONArray docs = obj.getJSONArray("documents");
+
+            SharedPreferences prefs = getPrefs();
+            long lastKnownTime = prefs.getLong(KEY_LAST_ATTENDANCE_TIME, 0L);
+            if (lastKnownTime == 0L) {
+                long maxTime = System.currentTimeMillis();
+                for (int i = 0; i < docs.length(); i++) {
+                    JSONObject fields = docs.getJSONObject(i).optJSONObject("fields");
+                    if (fields != null) {
+                        long t = getFieldLong(fields, "timestamp");
+                        if (t > maxTime) maxTime = t;
+                    }
+                }
+                prefs.edit().putLong(KEY_LAST_ATTENDANCE_TIME, maxTime).apply();
+                return;
+            }
+
+            Set<String> notifiedSigs = getNotifiedAttendanceSignatures();
+            long highestTime = lastKnownTime;
+
+            for (int i = 0; i < docs.length(); i++) {
+                JSONObject doc = docs.getJSONObject(i);
+                String docName = doc.optString("name", "");
+                String docId = docName.contains("/") ? docName.substring(docName.lastIndexOf('/') + 1) : docName;
+                JSONObject fields = doc.optJSONObject("fields");
+                if (fields == null) continue;
+
+                String status = getFieldString(fields, "status");
+                if (status == null || status.isEmpty() || "pending".equalsIgnoreCase(status)) {
+                    continue;
+                }
+
+                long respTime = getFieldLong(fields, "timestamp");
+                if (respTime <= 0L) {
+                    String strTime = getFieldString(fields, "timestamp");
+                    if (!strTime.isEmpty()) {
+                        try { respTime = Long.parseLong(strTime); } catch (Exception ignored) {}
+                    }
+                }
+
+                String sig = docId + "_" + status + "_" + respTime;
+                if (notifiedSigs.contains(sig)) {
+                    continue;
+                }
+
+                if (respTime > 0L && respTime <= lastKnownTime) {
+                    continue;
+                }
+
+                if (respTime > highestTime) highestTime = respTime;
+
+                boolean isAttending = "called".equalsIgnoreCase(status) || "attending".equalsIgnoreCase(status) || "yes".equalsIgnoreCase(status);
+                boolean isAbsent = "absent".equalsIgnoreCase(status) || "no".equalsIgnoreCase(status);
+
+                if (!isAttending && !isAbsent) continue;
+
+                String playerName = getFieldString(fields, "playerName");
+                if (playerName == null || playerName.trim().isEmpty()) {
+                    playerName = "Un jugador";
+                }
+
+                String notes = getFieldString(fields, "notes");
+                String title = isAttending ? "🟢 Asistencia confirmada" : "❌ Baja comunicada";
+                String message;
+                if (isAttending) {
+                    message = playerName + " ha confirmado asistencia";
+                } else {
+                    message = playerName + " no puede asistir" + (!notes.isEmpty() ? (" (" + notes + ")") : "");
+                }
+
+                int notifId = ("att_" + docId).hashCode();
+                postAlertNotification(title, message, notifId);
+                markAttendanceSignatureNotified(sig);
+            }
+
+            if (highestTime > lastKnownTime) {
+                prefs.edit().putLong(KEY_LAST_ATTENDANCE_TIME, highestTime).apply();
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "checkAttendanceResponses error", e);
         }
     }
 

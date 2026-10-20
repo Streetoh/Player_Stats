@@ -533,6 +533,7 @@ public class MainActivity extends Activity {
                         nm.notify(notifId, builder.build());
                         // Sincronizar tiempo de chat para que el servicio secundario sepa que ya fue notificado
                         BackgroundNotificationService.syncLastChatTime(MainActivity.this, System.currentTimeMillis());
+                        BackgroundNotificationService.syncLastAttendanceTime(MainActivity.this, System.currentTimeMillis());
                     } catch (Exception e) {
                         Log.e(TAG, "Error showing system notification", e);
                     }
@@ -570,6 +571,7 @@ public class MainActivity extends Activity {
                             nm.cancelAll();
                         }
                         BackgroundNotificationService.syncLastChatTime(MainActivity.this, System.currentTimeMillis());
+                        BackgroundNotificationService.syncLastAttendanceTime(MainActivity.this, System.currentTimeMillis());
                     } catch (Exception e) {
                         Log.e(TAG, "Error clearing notifications", e);
                     }
@@ -643,6 +645,7 @@ public class MainActivity extends Activity {
         super.onResume();
         BackgroundNotificationService.setAppInForeground(true);
         BackgroundNotificationService.syncLastChatTime(this, System.currentTimeMillis());
+        BackgroundNotificationService.syncLastAttendanceTime(this, System.currentTimeMillis());
     }
 
     @Override
@@ -650,6 +653,7 @@ public class MainActivity extends Activity {
         super.onPause();
         BackgroundNotificationService.setAppInForeground(false);
         BackgroundNotificationService.syncLastChatTime(this, System.currentTimeMillis());
+        BackgroundNotificationService.syncLastAttendanceTime(this, System.currentTimeMillis());
     }
 
     private void setupWebView() {

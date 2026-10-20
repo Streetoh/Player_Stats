@@ -330,26 +330,29 @@
 
     handleIncomingPlayerResponse(resp, isInitialSync = false) {
       if (!resp || !resp.convId || !resp.playerId) return;
-      const conv = this.convocation(resp.convId);
-      if (!conv) return;
-
-      conv.list = conv.list || {};
-      conv.responses = conv.responses || {};
-
-      if (resp.status === 'pending' || !resp.status) {
-        delete conv.responses[resp.playerId];
-      } else {
-        const isAttending = (resp.status === 'called' || resp.status === 'attending' || resp.status === 'yes');
-        const statusKey = isAttending ? 'attending' : 'absent';
-        conv.responses[resp.playerId] = {
-          status: statusKey,
-          playerName: resp.playerName || '',
-          notes: resp.notes || '',
-          time: resp.timestamp || Date.now()
-        };
+      let conv = this.convocation(resp.convId);
+      if (!conv && this.state.convocations) {
+        conv = this.state.convocations.find(c => c && (c.sessionId === resp.convId || c.id === resp.convId || (c.scheduleId && c.scheduleId === resp.convId)));
       }
 
-      this.save();
+      if (conv) {
+        conv.list = conv.list || {};
+        conv.responses = conv.responses || {};
+
+        if (resp.status === 'pending' || !resp.status) {
+          delete conv.responses[resp.playerId];
+        } else {
+          const isAttending = (resp.status === 'called' || resp.status === 'attending' || resp.status === 'yes');
+          const statusKey = isAttending ? 'attending' : 'absent';
+          conv.responses[resp.playerId] = {
+            status: statusKey,
+            playerName: resp.playerName || '',
+            notes: resp.notes || '',
+            time: resp.timestamp || Date.now()
+          };
+        }
+        this.save();
+      }
 
       if (!isInitialSync && typeof window.onPlayerAttendanceResponse === 'function') {
         window.onPlayerAttendanceResponse(resp, isInitialSync);
