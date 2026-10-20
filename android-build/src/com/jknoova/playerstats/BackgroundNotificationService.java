@@ -377,6 +377,14 @@ public class BackgroundNotificationService extends Service {
 
                 String status = getFieldString(fields, "status");
                 if ("pending".equalsIgnoreCase(status)) {
+                    long createdAt = getFieldLong(fields, "createdAt");
+                    long now = System.currentTimeMillis();
+                    // Si la solicitud tiene más de 15 minutos, solo marcar como notificada sin sonar
+                    if (createdAt > 0 && (now - createdAt > 15 * 60 * 1000L)) {
+                        markNotified(docId);
+                        continue;
+                    }
+
                     String playerName = getFieldString(fields, "targetPlayerName");
                     String code = getFieldString(fields, "securityCode");
 

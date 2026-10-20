@@ -1639,8 +1639,9 @@
           .onSnapshot((snapshot) => {
             const requests = [];
             snapshot.forEach(doc => {
-              const data = doc.data();
+              const data = doc.data() || {};
               if (data && data.status === 'pending') {
+                if (!data.id) data.id = doc.id;
                 requests.push(data);
               }
             });
@@ -2008,8 +2009,9 @@
           .onSnapshot((snapshot) => {
             const requests = [];
             snapshot.forEach(doc => {
-              const data = doc.data();
+              const data = doc.data() || {};
               if (data && data.status === 'pending') {
+                if (!data.id) data.id = doc.id;
                 requests.push(data);
               }
             });

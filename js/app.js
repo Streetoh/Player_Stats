@@ -100,6 +100,7 @@
     const defaultSheetH = Math.min(window.innerHeight * 0.70, 560);
     sheet.style.height = `${defaultSheetH}px`;
     sheet.style.maxHeight = '96vh';
+    sheet.style.overflowX = 'hidden';
 
     sheet.innerHTML = `
       <div class="sheet-handle"></div>
@@ -116,6 +117,11 @@
     document.body.appendChild(backdrop);
 
     const bodyEl = sheet.querySelector('#sheet-body-content');
+    if (bodyEl) {
+      bodyEl.style.overflowX = 'hidden';
+      bodyEl.style.maxWidth = '100%';
+      bodyEl.style.boxSizing = 'border-box';
+    }
     if (typeof renderBody === 'function') renderBody(bodyEl);
 
     if (renderFoot && typeof renderFoot === 'function') {
@@ -1134,16 +1140,32 @@
     }
   };
 
+  function getPersistentNotifiedSet(storageKey) {
+    try {
+      const raw = localStorage.getItem(storageKey);
+      return new Set(raw ? JSON.parse(raw) : []);
+    } catch (e) {
+      return new Set();
+    }
+  }
+
+  function savePersistentNotifiedSet(storageKey, setInstance) {
+    try {
+      const arr = Array.from(setInstance).slice(-300);
+      localStorage.setItem(storageKey, JSON.stringify(arr));
+    } catch (e) {}
+  }
+
   let pendingProfileRequests = [];
-  let knownProfileRequestIds = new Set();
+  let knownProfileRequestIds = getPersistentNotifiedSet('ps_notified_profile_req_ids');
   let isFirstRequestsSnapshot = true;
 
   let pendingPlayerCreationRequests = [];
-  let knownPlayerCreationRequestIds = new Set();
+  let knownPlayerCreationRequestIds = getPersistentNotifiedSet('ps_notified_creation_req_ids');
   let isFirstCreationRequestsSnapshot = true;
 
   let pendingProfileClaimRequests = [];
-  let knownProfileClaimRequestIds = new Set();
+  let knownProfileClaimRequestIds = getPersistentNotifiedSet('ps_notified_claim_ids');
   let isFirstClaimRequestsSnapshot = true;
 
   function updateRequestsBadge() {
@@ -1208,22 +1230,39 @@
 
     updateRequestsBadge();
 
+    const now = Date.now();
     if (!isFirstRequestsSnapshot) {
-      requests.forEach(r => {
-        if (!knownProfileRequestIds.has(r.id)) {
+      (requests || []).forEach(r => {
+        const reqId = String(r.id || 'unknown');
+        const reqTimeMs = (r.createdAt && typeof r.createdAt.toMillis === 'function')
+          ? r.createdAt.toMillis()
+          : (r.createdAt && r.createdAt.seconds ? r.createdAt.seconds * 1000 : (Number(r.createdAt) || 0));
+        const isRecent = reqTimeMs > 0 ? (now - reqTimeMs < 5 * 60 * 1000) : false;
+
+        if (isRecent && !knownProfileRequestIds.has(reqId)) {
+          knownProfileRequestIds.add(reqId);
+          savePersistentNotifiedSet('ps_notified_profile_req_ids', knownProfileRequestIds);
+
           const reqPlayerName = r.toPlayerName || 'Jugador';
           toast(`🔔 ${t('newProfileRequest', 'Nueva solicitud de cambio de perfil')}: ${reqPlayerName}`, 'info', () => showNotificationsCenterModal());
           haptic(50);
           if (window.AndroidBridge && window.AndroidBridge.showSystemNotification) {
-            try { window.AndroidBridge.showSystemNotification('Player Stats', `Nueva solicitud de perfil: ${reqPlayerName}`); } catch(e) {}
+            try { window.AndroidBridge.showSystemNotification('Player Stats', `Nueva solicitud de perfil: ${reqPlayerName}`, 'prof_' + reqId); } catch(e) {}
           } else if ('Notification' in window && Notification.permission === 'granted') {
-            try { new Notification('Player Stats', { body: `Nueva solicitud de perfil: ${reqPlayerName}`, icon: 'icons/icon-192.png' }); } catch(e) {}
+            try { new Notification('Player Stats', { body: `Nueva solicitud de perfil: ${reqPlayerName}`, icon: 'icons/icon-192.png', tag: 'prof_' + reqId }); } catch(e) {}
           }
+        } else {
+          knownProfileRequestIds.add(reqId);
         }
       });
+      savePersistentNotifiedSet('ps_notified_profile_req_ids', knownProfileRequestIds);
+    } else {
+      (requests || []).forEach(r => {
+        if (r.id) knownProfileRequestIds.add(String(r.id));
+      });
+      savePersistentNotifiedSet('ps_notified_profile_req_ids', knownProfileRequestIds);
     }
     isFirstRequestsSnapshot = false;
-    knownProfileRequestIds = new Set((requests || []).map(r => r.id));
   }
 
   function handleIncomingPlayerCreationRequests(requests) {
@@ -1252,22 +1291,39 @@
 
     updateRequestsBadge();
 
+    const now = Date.now();
     if (!isFirstCreationRequestsSnapshot) {
-      requests.forEach(r => {
-        if (!knownPlayerCreationRequestIds.has(r.id)) {
+      (requests || []).forEach(r => {
+        const createId = String(r.id || 'unknown');
+        const reqTimeMs = (r.createdAt && typeof r.createdAt.toMillis === 'function')
+          ? r.createdAt.toMillis()
+          : (r.createdAt && r.createdAt.seconds ? r.createdAt.seconds * 1000 : (Number(r.createdAt) || 0));
+        const isRecent = reqTimeMs > 0 ? (now - reqTimeMs < 5 * 60 * 1000) : false;
+
+        if (isRecent && !knownPlayerCreationRequestIds.has(createId)) {
+          knownPlayerCreationRequestIds.add(createId);
+          savePersistentNotifiedSet('ps_notified_creation_req_ids', knownPlayerCreationRequestIds);
+
           const reqPlayerName = r.name || 'Nuevo Jugador';
           toast(`➕ ${t('requestCoachProfileTitle', 'Solicitud de alta de jugador')}: ${reqPlayerName}`, 'info', () => showNotificationsCenterModal());
           haptic(50);
           if (window.AndroidBridge && window.AndroidBridge.showSystemNotification) {
-            try { window.AndroidBridge.showSystemNotification('Player Stats', `Solicitud de alta: ${reqPlayerName}`); } catch(e) {}
+            try { window.AndroidBridge.showSystemNotification('Player Stats', `Solicitud de alta: ${reqPlayerName}`, 'create_' + createId); } catch(e) {}
           } else if ('Notification' in window && Notification.permission === 'granted') {
-            try { new Notification('Player Stats', { body: `Solicitud de alta: ${reqPlayerName}`, icon: 'icons/icon-192.png' }); } catch(e) {}
+            try { new Notification('Player Stats', { body: `Solicitud de alta: ${reqPlayerName}`, icon: 'icons/icon-192.png', tag: 'create_' + createId }); } catch(e) {}
           }
+        } else {
+          knownPlayerCreationRequestIds.add(createId);
         }
       });
+      savePersistentNotifiedSet('ps_notified_creation_req_ids', knownPlayerCreationRequestIds);
+    } else {
+      (requests || []).forEach(r => {
+        if (r.id) knownPlayerCreationRequestIds.add(String(r.id));
+      });
+      savePersistentNotifiedSet('ps_notified_creation_req_ids', knownPlayerCreationRequestIds);
     }
     isFirstCreationRequestsSnapshot = false;
-    knownPlayerCreationRequestIds = new Set((requests || []).map(r => r.id));
   }
 
   function handleIncomingProfileClaimRequests(requests) {
@@ -1307,23 +1363,44 @@
 
     updateRequestsBadge();
 
+    const now = Date.now();
     if (!isFirstClaimRequestsSnapshot) {
       dedupedRequests.forEach(r => {
-        if (!knownProfileClaimRequestIds.has(r.id)) {
+        const claimId = String(r.id || r.targetPlayerId || 'unknown');
+        const reqTimeMs = (r.createdAt && typeof r.createdAt.toMillis === 'function')
+          ? r.createdAt.toMillis()
+          : (r.createdAt && r.createdAt.seconds ? r.createdAt.seconds * 1000 : (Number(r.createdAt) || 0));
+        const isRecent = reqTimeMs > 0 ? (now - reqTimeMs < 5 * 60 * 1000) : false;
+
+        // Solo notificar si la solicitud es reciente (< 5 min) y no se ha notificado previamente
+        if (isRecent && !knownProfileClaimRequestIds.has(claimId)) {
+          knownProfileClaimRequestIds.add(claimId);
+          savePersistentNotifiedSet('ps_notified_claim_ids', knownProfileClaimRequestIds);
+
           const reqPlayerName = r.targetPlayerName || 'Jugador';
-          const rTime = formatRequestTime(r.createdAt || Date.now());
+          const rTime = formatRequestTime(reqTimeMs || now);
           toast(`🔐 Acceso: ${reqPlayerName} (Código ${r.securityCode})${rTime ? ` [${rTime}]` : ''}`, 'info', () => showNotificationsCenterModal());
           haptic(50);
           if (window.AndroidBridge && window.AndroidBridge.showSystemNotification) {
-            try { window.AndroidBridge.showSystemNotification('Player Stats', `Solicitud de acceso: ${reqPlayerName} (Código ${r.securityCode})${rTime ? ` a las ${rTime}` : ''}`); } catch (e) {}
+            try { window.AndroidBridge.showSystemNotification('Player Stats', `Solicitud de acceso: ${reqPlayerName} (Código ${r.securityCode})${rTime ? ` a las ${rTime}` : ''}`, 'claim_' + claimId); } catch (e) {}
           } else if ('Notification' in window && Notification.permission === 'granted') {
-            try { new Notification('Player Stats', { body: `Solicitud de acceso: ${reqPlayerName} (Código ${r.securityCode})${rTime ? ` a las ${rTime}` : ''}`, icon: 'icons/icon-192.png' }); } catch (e) {}
+            try { new Notification('Player Stats', { body: `Solicitud de acceso: ${reqPlayerName} (Código ${r.securityCode})${rTime ? ` a las ${rTime}` : ''}`, icon: 'icons/icon-192.png', tag: 'claim_' + claimId }); } catch (e) {}
           }
+        } else {
+          // Si es vieja o ya conocida, guardarla en el conjunto persistente para suprimir spam
+          knownProfileClaimRequestIds.add(claimId);
         }
       });
+      savePersistentNotifiedSet('ps_notified_claim_ids', knownProfileClaimRequestIds);
+    } else {
+      // En el snapshot inicial, registrar todas las existentes para que nunca alerten
+      dedupedRequests.forEach(r => {
+        const claimId = String(r.id || r.targetPlayerId || 'unknown');
+        knownProfileClaimRequestIds.add(claimId);
+      });
+      savePersistentNotifiedSet('ps_notified_claim_ids', knownProfileClaimRequestIds);
     }
     isFirstClaimRequestsSnapshot = false;
-    knownProfileClaimRequestIds = new Set(dedupedRequests.map(r => r.id));
   }
 
   window.__handleAppBack = function () {
@@ -2963,6 +3040,21 @@
       </span>
     `);
 
+    // Obtener hora de inicio y duración programada de la sesión o de su convocatoria vinculada
+    const linkedConv = s.convocationId ? Store.convocation(s.convocationId) : (Store.state.convocations || []).find(cv => cv.sessionId === s.id || (cv.date === s.date && cv.type === s.type));
+    const schedStartTime = s.time || (linkedConv && linkedConv.time) || '';
+    const schedEndTime = s.endTime || (linkedConv && linkedConv.endTime) || '';
+    const schedDuration = s.duration || (linkedConv && linkedConv.duration) || 90;
+    const timeBadgeHtml = schedStartTime ? `
+      <span style="color: #38bdf8; font-weight: 800; display: inline-flex; align-items: center; gap: 3px; background: rgba(56, 189, 248, 0.12); padding: 1px 6px; border-radius: 6px; border: 1px solid rgba(56, 189, 248, 0.3); font-size: 10.5px;">
+        ⏰ ${schedStartTime}${schedEndTime ? ' - ' + schedEndTime : ''}${schedDuration ? ' (' + schedDuration + ' min)' : ''}
+      </span>
+    ` : (schedDuration ? `
+      <span style="color: #38bdf8; font-weight: 800; display: inline-flex; align-items: center; gap: 3px; background: rgba(56, 189, 248, 0.12); padding: 1px 6px; border-radius: 6px; border: 1px solid rgba(56, 189, 248, 0.3); font-size: 10.5px;">
+        ⏱️ ${schedDuration} min
+      </span>
+    ` : '');
+
     if (s.type === 'match') {
       const matchTeams = cardStyle.teams;
       let teamObj = matchTeams[0] || null;
@@ -3005,6 +3097,7 @@
             </div>
             <div class="meta" style="margin-top: 4px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
               <span>📅 ${formatDateDDMMAAAA(s.date)}</span>
+              ${timeBadgeHtml ? `<span>•</span>${timeBadgeHtml}` : ''}
               ${isToday ? `<span class="badge badge-today-glow" style="background: rgba(34, 211, 238, 0.25); color: #22d3ee; border: 1px solid rgba(34, 211, 238, 0.6); font-weight: 900; font-size: 10px;">🌟 ${t('today', 'HOY')}</span>` : ''}
               ${isTomorrow ? `<span class="badge" style="background: rgba(165, 180, 252, 0.22); color: #c7d2fe; border: 1px solid rgba(165, 180, 252, 0.6); font-weight: 900; font-size: 10px;">🌅 ${t('tomorrow', 'MAÑANA')}</span>` : ''}
               <span>•</span>
@@ -3051,6 +3144,7 @@
           ` : ''}
           <div class="meta" style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
             <span>📅 ${formatDateDDMMAAAA(s.date)}</span>
+            ${timeBadgeHtml ? `<span>•</span>${timeBadgeHtml}` : ''}
             <span>•</span>
             <span>${totalActions} ${t('actions')}</span>
             <span>•</span>
@@ -3136,7 +3230,7 @@
         </div>
 
         <!-- Píldoras de Estado -->
-        <div id="att-counters-ribbon" style="display: flex; gap: 6px; overflow-x: auto; margin-bottom: 12px; padding-bottom: 2px;"></div>
+        <div id="att-counters-ribbon" style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px;"></div>
 
         <!-- Lista de Jugadores -->
         <div id="att-players-list" style="display: flex; flex-direction: column; gap: 8px;"></div>
@@ -12753,8 +12847,8 @@
                     const rTime = item.resp ? (item.resp.timestamp || item.resp.time) : null;
                     const timeStr = rTime && window.formatAttendanceDateTime ? window.formatAttendanceDateTime(rTime) : '';
                     return `
-                      <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: linear-gradient(135deg, rgba(34, 197, 94, 0.24) 0%, rgba(16, 185, 129, 0.08) 60%, var(--surface, #1e293b) 100%); border: 1.5px solid rgba(34, 197, 94, 0.65); border-radius: 12px; box-shadow: 0 2px 8px rgba(34, 197, 94, 0.12);">
-                        <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;">
+                      <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; background: linear-gradient(135deg, rgba(34, 197, 94, 0.24) 0%, rgba(16, 185, 129, 0.08) 60%, var(--surface, #1e293b) 100%); border: 1.5px solid rgba(34, 197, 94, 0.65); border-radius: 12px; box-shadow: 0 2px 8px rgba(34, 197, 94, 0.12); gap: 8px; flex-wrap: wrap;">
+                        <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 130px;">
                           ${renderAvatar(p, 'sm')}
                           <div style="flex: 1; min-width: 0;">
                             <b style="font-size: 13px; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block;">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(Store.playerName(p))}</b>
@@ -12768,15 +12862,15 @@
                             </div>
                           </div>
                         </div>
-                        <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0; margin-left: 8px;">
-                          <span class="badge" style="background: rgba(34, 197, 94, 0.25); color: #86efac; border: 1px solid rgba(34, 197, 94, 0.6); font-size: 11px; font-weight: 800;">🟢 ASISTE</span>
-                          <button type="button" class="btn sm ghost" data-toggle-resp="${p.id}" style="padding: 3px 6px; font-size: 11px;">Cambiar</button>
+                        <div style="display: flex; align-items: center; gap: 5px; flex-shrink: 0; justify-content: flex-end; flex-wrap: wrap;">
+                          <span class="badge" style="background: rgba(34, 197, 94, 0.25); color: #86efac; border: 1px solid rgba(34, 197, 94, 0.6); font-size: 10.5px; font-weight: 800; padding: 2px 6px;">🟢 ASISTE</span>
+                          <button type="button" class="btn sm ghost" data-toggle-resp="${p.id}" style="padding: 2px 6px; font-size: 11px; height: 26px;">Cambiar</button>
                           ${isRecurringConv ? `
-                            <button type="button" class="btn sm danger ghost btn-del-player-rec" data-pid="${p.id}" title="${t('removeFromRecurring', 'Eliminar de todas las convocatorias recurrentes')}" style="padding: 3px 7px; font-size: 11.5px; height: 28px; border-radius: 7px; flex-shrink: 0; border-color: rgba(239, 68, 68, 0.45);">
+                            <button type="button" class="btn sm danger ghost btn-del-player-rec" data-pid="${p.id}" title="${t('removeFromRecurring', 'Eliminar de todas las convocatorias recurrentes')}" style="padding: 2px 6px; font-size: 11.5px; height: 26px; border-radius: 6px; flex-shrink: 0; border-color: rgba(239, 68, 68, 0.45);">
                               🗑️
                             </button>
                           ` : `
-                            <button type="button" class="btn sm danger ghost btn-del-player-single" data-pid="${p.id}" title="${t('removeFromConvocation', 'Quitar de esta convocatoria')}" style="padding: 3px 7px; font-size: 11.5px; height: 28px; border-radius: 7px; flex-shrink: 0; border-color: rgba(239, 68, 68, 0.45);">
+                            <button type="button" class="btn sm danger ghost btn-del-player-single" data-pid="${p.id}" title="${t('removeFromConvocation', 'Quitar de esta convocatoria')}" style="padding: 2px 6px; font-size: 11.5px; height: 26px; border-radius: 6px; flex-shrink: 0; border-color: rgba(239, 68, 68, 0.45);">
                               🗑️
                             </button>
                           `}
@@ -12790,8 +12884,8 @@
                     const rTime = item.resp ? (item.resp.timestamp || item.resp.time) : null;
                     const timeStr = rTime && window.formatAttendanceDateTime ? window.formatAttendanceDateTime(rTime) : '';
                     return `
-                      <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: linear-gradient(135deg, rgba(239, 68, 68, 0.24) 0%, rgba(220, 38, 38, 0.08) 60%, var(--surface, #1e293b) 100%); border: 1.5px solid rgba(239, 68, 68, 0.65); border-radius: 12px; box-shadow: 0 2px 8px rgba(239, 68, 68, 0.12);">
-                        <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;">
+                      <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; background: linear-gradient(135deg, rgba(239, 68, 68, 0.24) 0%, rgba(220, 38, 38, 0.08) 60%, var(--surface, #1e293b) 100%); border: 1.5px solid rgba(239, 68, 68, 0.65); border-radius: 12px; box-shadow: 0 2px 8px rgba(239, 68, 68, 0.12); gap: 8px; flex-wrap: wrap;">
+                        <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 130px;">
                           ${renderAvatar(p, 'sm')}
                           <div style="flex: 1; min-width: 0;">
                             <b style="font-size: 13px; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block;">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(Store.playerName(p))}</b>
@@ -12810,15 +12904,15 @@
                             ` : ''}
                           </div>
                         </div>
-                        <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0; margin-left: 8px;">
-                          <span class="badge" style="background: rgba(239, 68, 68, 0.25); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.6); font-size: 11px; font-weight: 800;">❌ BAJA</span>
-                          <button type="button" class="btn sm ghost" data-toggle-resp="${p.id}" style="padding: 3px 6px; font-size: 11px;">Cambiar</button>
+                        <div style="display: flex; align-items: center; gap: 5px; flex-shrink: 0; justify-content: flex-end; flex-wrap: wrap;">
+                          <span class="badge" style="background: rgba(239, 68, 68, 0.25); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.6); font-size: 10.5px; font-weight: 800; padding: 2px 6px;">❌ BAJA</span>
+                          <button type="button" class="btn sm ghost" data-toggle-resp="${p.id}" style="padding: 2px 6px; font-size: 11px; height: 26px;">Cambiar</button>
                           ${isRecurringConv ? `
-                            <button type="button" class="btn sm danger ghost btn-del-player-rec" data-pid="${p.id}" title="${t('removeFromRecurring', 'Eliminar de todas las convocatorias recurrentes')}" style="padding: 3px 7px; font-size: 11.5px; height: 28px; border-radius: 7px; flex-shrink: 0; border-color: rgba(239, 68, 68, 0.45);">
+                            <button type="button" class="btn sm danger ghost btn-del-player-rec" data-pid="${p.id}" title="${t('removeFromRecurring', 'Eliminar de todas las convocatorias recurrentes')}" style="padding: 2px 6px; font-size: 11.5px; height: 26px; border-radius: 6px; flex-shrink: 0; border-color: rgba(239, 68, 68, 0.45);">
                               🗑️
                             </button>
                           ` : `
-                            <button type="button" class="btn sm danger ghost btn-del-player-single" data-pid="${p.id}" title="${t('removeFromConvocation', 'Quitar de esta convocatoria')}" style="padding: 3px 7px; font-size: 11.5px; height: 28px; border-radius: 7px; flex-shrink: 0; border-color: rgba(239, 68, 68, 0.45);">
+                            <button type="button" class="btn sm danger ghost btn-del-player-single" data-pid="${p.id}" title="${t('removeFromConvocation', 'Quitar de esta convocatoria')}" style="padding: 2px 6px; font-size: 11.5px; height: 26px; border-radius: 6px; flex-shrink: 0; border-color: rgba(239, 68, 68, 0.45);">
                               🗑️
                             </button>
                           `}
@@ -12849,33 +12943,33 @@
                   ${pending.map(item => {
                     const p = item.player;
                     return `
-                      <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: linear-gradient(135deg, rgba(250, 204, 21, 0.22) 0%, rgba(234, 179, 8, 0.08) 60%, var(--surface, #1e293b) 100%); border: 1.5px solid rgba(250, 204, 21, 0.6); border-radius: 12px; box-shadow: 0 2px 8px rgba(250, 204, 21, 0.10);">
-                        <div style="display: flex; align-items: center; gap: 8px;">
+                      <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; background: linear-gradient(135deg, rgba(250, 204, 21, 0.22) 0%, rgba(234, 179, 8, 0.08) 60%, var(--surface, #1e293b) 100%); border: 1.5px solid rgba(250, 204, 21, 0.6); border-radius: 12px; box-shadow: 0 2px 8px rgba(250, 204, 21, 0.10); gap: 8px; flex-wrap: wrap;">
+                        <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 130px;">
                           ${renderAvatar(p, 'sm')}
-                          <div>
-                            <div style="display: flex; align-items: center; gap: 6px;">
-                              <b style="font-size: 13px; color: #fff;">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(Store.playerName(p))}</b>
-                              <span class="badge" style="background: rgba(250, 204, 21, 0.25); color: #fde047; border: 1px solid rgba(250, 204, 21, 0.7); font-size: 9.5px; font-weight: 800; padding: 1px 6px; border-radius: 5px;">⏳ ${t('noResponsePending', 'Sin respuesta')}</span>
+                          <div style="flex: 1; min-width: 0;">
+                            <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                              <b style="font-size: 13px; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px;">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(Store.playerName(p))}</b>
+                              <span class="badge" style="background: rgba(250, 204, 21, 0.25); color: #fde047; border: 1px solid rgba(250, 204, 21, 0.7); font-size: 9.5px; font-weight: 800; padding: 1px 5px; border-radius: 5px;">⏳ ${t('noResponsePending', 'Sin respuesta')}</span>
                             </div>
                             <small style="display: block; color: var(--muted); font-size: 11px;">${p.mainPosition || 'Jugador'}</small>
                           </div>
                         </div>
-                        <div style="display: flex; gap: 6px; align-items: center;">
-                          <button type="button" class="btn sm" data-single-remind="${p.id}" title="${t('sendReminderToPlayer', 'Enviar recordatorio a este jugador')}" style="background: rgba(245, 158, 11, 0.2); color: #fcd34d; border: 1px solid rgba(245, 158, 11, 0.5); padding: 4px 8px; font-size: 13px; font-weight: 700; border-radius: 6px; cursor: pointer;">
+                        <div style="display: flex; gap: 4px; align-items: center; flex-wrap: wrap; justify-content: flex-end; flex-shrink: 0;">
+                          <button type="button" class="btn sm" data-single-remind="${p.id}" title="${t('sendReminderToPlayer', 'Enviar recordatorio a este jugador')}" style="background: rgba(245, 158, 11, 0.2); color: #fcd34d; border: 1px solid rgba(245, 158, 11, 0.5); padding: 3px 6px; font-size: 12px; font-weight: 700; border-radius: 6px; cursor: pointer; height: 28px;">
                             🔔
                           </button>
-                          <button type="button" class="btn sm" data-quick-confirm="${p.id}" style="background: rgba(34, 197, 94, 0.2); color: #86efac; border: 1px solid rgba(34, 197, 94, 0.5); padding: 4px 8px; font-size: 11px; font-weight: 700;">
+                          <button type="button" class="btn sm" data-quick-confirm="${p.id}" style="background: rgba(34, 197, 94, 0.2); color: #86efac; border: 1px solid rgba(34, 197, 94, 0.5); padding: 3px 7px; font-size: 11px; font-weight: 700; border-radius: 6px; height: 28px;">
                             ✓ ${t('attendanceShortYes', 'Asiste')}
                           </button>
-                          <button type="button" class="btn sm" data-quick-decline="${p.id}" style="background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.5); padding: 4px 8px; font-size: 11px; font-weight: 700;">
+                          <button type="button" class="btn sm" data-quick-decline="${p.id}" style="background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.5); padding: 3px 7px; font-size: 11px; font-weight: 700; border-radius: 6px; height: 28px;">
                             ✕ ${t('attendanceShortNo', 'Baja')}
                           </button>
                           ${isRecurringConv ? `
-                            <button type="button" class="btn sm danger ghost btn-del-player-rec" data-pid="${p.id}" title="${t('removeFromRecurring', 'Eliminar de todas las convocatorias recurrentes')}" style="padding: 4px 7px; font-size: 11.5px; height: 28px; border-radius: 7px; flex-shrink: 0; border-color: rgba(239, 68, 68, 0.45);">
+                            <button type="button" class="btn sm danger ghost btn-del-player-rec" data-pid="${p.id}" title="${t('removeFromRecurring', 'Eliminar de todas las convocatorias recurrentes')}" style="padding: 3px 6px; font-size: 11.5px; height: 28px; border-radius: 6px; flex-shrink: 0; border-color: rgba(239, 68, 68, 0.45);">
                               🗑️
                             </button>
                           ` : `
-                            <button type="button" class="btn sm danger ghost btn-del-player-single" data-pid="${p.id}" title="${t('removeFromConvocation', 'Quitar de esta convocatoria')}" style="padding: 4px 7px; font-size: 11.5px; height: 28px; border-radius: 7px; flex-shrink: 0; border-color: rgba(239, 68, 68, 0.45);">
+                            <button type="button" class="btn sm danger ghost btn-del-player-single" data-pid="${p.id}" title="${t('removeFromConvocation', 'Quitar de esta convocatoria')}" style="padding: 3px 6px; font-size: 11.5px; height: 28px; border-radius: 6px; flex-shrink: 0; border-color: rgba(239, 68, 68, 0.45);">
                               🗑️
                             </button>
                           `}

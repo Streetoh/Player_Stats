@@ -313,9 +313,14 @@
   const DICT = {
     en: {
       "coachAngryTitle": "⚠️ VOTING DEADLINE CLOSED!",
+      "coachAngryWhyTitle": "Why are you seeing this?",
+      "coachAngryWhyText": "The deadline to confirm your attendance for this session has closed. Voting closes automatically 2 hours before training starts so the coach can properly plan the session.",
       "coachAngryText": "You haven't marked your attendance. The coach is VERY angry. Get your muscles ready for push-ups.",
-      "coachAngryForgivePhrase": "I'm sorry, it won't happen again",
-      "typeToUnlockPrompt": "Type the following phrase to unlock:",
+      "coachAngryForgivePhrase": "I'm sorry, coach.",
+      "langSpanish": "Spanish",
+      "langEnglish": "English",
+      "langEstonian": "Estonian",
+      "typeToUnlockPrompt": "Type the following phrase in {lang} to unlock:",
       "typeExactPhrasePlaceholder": "Type the exact phrase here...",
       "votingTimeRemaining": "⏳ Voting deadline: {time} remaining",
       "votingLastHour": "⚠️ Last hour! {time} remaining to vote",
@@ -737,6 +742,19 @@
       "vote": "vote"
     },
     ee: {
+      "coachAngryTitle": "⚠️ HÄÄLETAMISE TÄHTAEG ON MÖÖDAS!",
+      "coachAngryWhyTitle": "Miks sa seda teadet näed?",
+      "coachAngryWhyText": "Selle sessiooni osalemise kinnitamise tähtaeg on lõppenud. Hääletamine suletakse automaatselt 2 tundi enne treeningu algust, et treener saaks sessiooni korralikult planeerida.",
+      "coachAngryText": "Sa ei märkinud oma osalemist. Treener on VÄGA vihane. Valmista oma lihased ette kätekõverdusteks.",
+      "coachAngryForgivePhrase": "Vabandust, treener.",
+      "langSpanish": "hispaania keeles",
+      "langEnglish": "inglise keeles",
+      "langEstonian": "eesti keeles",
+      "typeToUnlockPrompt": "Kirjuta avamiseks järgmine lause ({lang}):",
+      "typeExactPhrasePlaceholder": "Kirjuta siia täpne lause...",
+      "votingTimeRemaining": "⏳ Hääletamise tähtaeg: {time} jäänud",
+      "votingLastHour": "⚠️ Viimane tund! {time} jäänud hääletamiseks",
+      "votingClosedDeadline": "🔒 Hääletamine suletud (2h enne algust)",
       "appName": "Player stats (Mängija)",
       "convocations": "Kutsed",
       "myProfile": "Minu Profiil",
@@ -1155,9 +1173,14 @@
     },
     es: {
       "coachAngryTitle": "⚠️ ¡PLAZO DE VOTACIÓN CERRADO!",
+      "coachAngryWhyTitle": "¿Por qué aparece este aviso?",
+      "coachAngryWhyText": "El plazo para indicar tu asistencia a esta sesión ha finalizado. La votación se cierra automáticamente 2 horas antes del inicio del entrenamiento para que el entrenador pueda planificarlo adecuadamente.",
       "coachAngryText": "No has indicado tu participación. El entrenador está MUY enfadado. Prepara tus músculos para hacer flexiones.",
-      "coachAngryForgivePhrase": "Lo siento, no volverá a ocurrir",
-      "typeToUnlockPrompt": "Escribe la siguiente frase para desbloquear:",
+      "coachAngryForgivePhrase": "Lo siento, entrenador.",
+      "langSpanish": "español",
+      "langEnglish": "inglés",
+      "langEstonian": "estonio",
+      "typeToUnlockPrompt": "Escribe la siguiente frase en {lang} para desbloquear:",
       "typeExactPhrasePlaceholder": "Escribe aquí la frase exacta...",
       "votingTimeRemaining": "⏳ Plazo para votar: {time} restantes",
       "votingLastHour": "⚠️ ¡Última hora! Quedan {time} para votar",
@@ -1580,10 +1603,15 @@
     },
     ru: {
       "coachAngryTitle": "⚠️ СРОК ГОЛОСОВАНИЯ ИСТЁК!",
-      "coachAngryText": "Ты не отметил своё участие. Тренер ОЧЕНЬ зол. Готовь мышцы к отжиманиям.",
-      "coachAngryForgivePhrase": "Простите, больше такого не повторится",
-      "typeToUnlockPrompt": "Напиши следующую фразу для разблокировки:",
-      "typeExactPhrasePlaceholder": "Напиши здесь точную фразу...",
+      "coachAngryWhyTitle": "Почему появилось это предупреждение?",
+      "coachAngryWhyText": "Срок подтверждения участия в этой тренировке истек. Голосование автоматически закрывается за 2 часа до начала, чтобы тренер мог спланировать занятие.",
+      "coachAngryText": "Вы не указали свое участие. Тренер ОЧЕНЬ зол. Готовьте мышцы к отжиманиям.",
+      "coachAngryForgivePhrase": "Извините, тренер.",
+      "langSpanish": "испанском",
+      "langEnglish": "английском",
+      "langEstonian": "эстонском",
+      "typeToUnlockPrompt": "Напишите следующую фразу на {lang} для разблокировки:",
+      "typeExactPhrasePlaceholder": "Напишите здесь точную фразу...",
       "votingTimeRemaining": "⏳ Время на голосование: осталось {time}",
       "votingLastHour": "⚠️ Последний час! Осталось {time} для голосования",
       "votingClosedDeadline": "🔒 Голосование закрыто (за 2ч до начала)",
@@ -3753,15 +3781,7 @@
     const axesLabels = {
       en: { pas: 'PASS', tir: 'SHOT', reg: 'DRIB', fis: 'PHYS', def: 'DEF' },
       ee: { pas: 'SÖÖT', tir: 'LÖÖK', reg: 'TRIB', fis: 'FÜÜS', def: 'KAIT' },
-      et: {
-      "coachAngryTitle": "⚠️ HÄÄLETAMISE TÄHTAEG ON MÖÖDAS!",
-      "coachAngryText": "Sa ei märkinud oma osalemist. Treener on VÄGA vihane. Valmista oma lihased ette kätekõverdusteks.",
-      "coachAngryForgivePhrase": "Vabandan, seda enam ei kordu",
-      "typeToUnlockPrompt": "Kirjuta avamiseks järgmine lause:",
-      "typeExactPhrasePlaceholder": "Kirjuta siia täpne lause...",
-      "votingTimeRemaining": "⏳ Hääletamise tähtaeg: {time} jäänud",
-      "votingLastHour": "⚠️ Viimane tund! {time} jäänud hääletamiseks",
-      "votingClosedDeadline": "🔒 Hääletamine suletud (2h enne algust)", pas: 'SÖÖT', tir: 'LÖÖK', reg: 'TRIB', fis: 'FÜÜS', def: 'KAIT' },
+      et: { pas: 'SÖÖT', tir: 'LÖÖK', reg: 'TRIB', fis: 'FÜÜS', def: 'KAIT' },
       es: { pas: 'PASE', tir: 'TIRO', reg: 'REG',  fis: 'FÍS',  def: 'DEF' },
       ru: { pas: 'ПАС',  tir: 'УДАР', reg: 'ДРИБ', fis: 'ФИЗ',  def: 'ЗАЩ' }
     };
@@ -6246,8 +6266,33 @@
     try { localStorage.setItem('ps_coach_punishment_pending', '1'); } catch (e) {}
     haptic(50);
 
-    const requiredPhrase = t('coachAngryForgivePhrase', 'Lo siento, no volverá a ocurrir');
+    const PUNISHMENT_PHRASES = {
+      es: { langKey: 'langSpanish', defaultName: 'español', phrase: 'Lo siento, entrenador.' },
+      en: { langKey: 'langEnglish', defaultName: 'inglés', phrase: "I'm sorry, coach." },
+      et: { langKey: 'langEstonian', defaultName: 'estonio', phrase: 'Vabandust, treener.' }
+    };
+    const PUNISHMENT_LANGS = ['es', 'en', 'et'];
+
+    let targetLang = null;
+    try {
+      targetLang = localStorage.getItem('ps_coach_punishment_active_lang');
+    } catch (e) {}
+
+    if (!targetLang || !PUNISHMENT_PHRASES[targetLang]) {
+      let lastLang = null;
+      try { lastLang = localStorage.getItem('ps_coach_punishment_last_lang'); } catch (e) {}
+      const available = PUNISHMENT_LANGS.filter(l => l !== lastLang);
+      targetLang = available[Math.floor(Math.random() * available.length)] || 'es';
+      try {
+        localStorage.setItem('ps_coach_punishment_active_lang', targetLang);
+        localStorage.setItem('ps_coach_punishment_last_lang', targetLang);
+      } catch (e) {}
+    }
+
+    const cfg = PUNISHMENT_PHRASES[targetLang];
+    const requiredPhrase = cfg.phrase;
     const normRequired = normalizeForgivePhrase(requiredPhrase);
+    const langLabel = t(cfg.langKey, cfg.defaultName);
 
     // Evitar que el botón atrás de Android o del navegador cierre esta ventana
     const prevBackHandler = window.__handleAppBack;
@@ -6269,34 +6314,42 @@
     overlay.id = 'dlg-coach-angry-punishment';
     overlay.style.cssText = `
       position: fixed; inset: 0; z-index: 999999;
-      background: rgba(0, 0, 0, 0.92);
+      background: rgba(0, 0, 0, 0.94);
       backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
       display: flex; align-items: center; justify-content: center;
       padding: 16px; animation: fadeIn 0.3s ease-out;
     `;
 
     overlay.innerHTML = `
-      <div style="background: linear-gradient(180deg, #1e1b1e 0%, #170f12 100%); border: 2.5px solid #ef4444; border-radius: 22px; padding: 24px 20px; max-width: 440px; width: 100%; box-shadow: 0 0 35px rgba(239, 68, 68, 0.45); text-align: center; max-height: 94vh; overflow-y: auto;">
+      <div style="background: linear-gradient(180deg, #1e1b1e 0%, #170f12 100%); border: 2.5px solid #ef4444; border-radius: 22px; padding: 22px 18px; max-width: 440px; width: 100%; box-shadow: 0 0 35px rgba(239, 68, 68, 0.5); text-align: center; max-height: 94vh; overflow-y: auto;">
         <!-- Título de alerta -->
-        <div style="font-size: 13px; font-weight: 900; color: #fca5a5; letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 8px;">
+        <div style="font-size: 13px; font-weight: 900; color: #fca5a5; letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 6px;">
           ${t('coachAngryTitle', '⚠️ ¡PLAZO DE VOTACIÓN CERRADO!')}
         </div>
 
         <!-- Imagen Angry Emoji muy grande -->
-        <div style="margin: 6px auto 14px; position: relative;">
-          <img src="assets/angry_emoji.png" onerror="this.onerror=null; this.src='assets/angry emoji.png';" alt="Angry Coach Emoji" style="width: 175px; height: 175px; max-width: 60vw; max-height: 26vh; object-fit: contain; margin: 0 auto; display: block; filter: drop-shadow(0 0 20px rgba(239, 68, 68, 0.75)); animation: angryRumble 0.5s ease-in-out infinite alternate;" />
+        <div style="margin: 4px auto 12px; position: relative;">
+          <img src="assets/angry_emoji.png" onerror="this.onerror=null; this.src='assets/angry emoji.png';" alt="Angry Coach Emoji" style="width: 175px; height: 175px; max-width: 58vw; max-height: 25vh; object-fit: contain; margin: 0 auto; display: block; filter: drop-shadow(0 0 20px rgba(239, 68, 68, 0.8)); animation: angryRumble 0.5s ease-in-out infinite alternate;" />
+        </div>
+
+        <!-- Explicación de por qué aparece este mensaje (en el idioma seleccionado de la app) -->
+        <div style="font-size: 12.5px; font-weight: 600; color: #fed7aa; line-height: 1.45; margin-bottom: 12px; background: rgba(245, 158, 11, 0.12); border: 1.5px solid rgba(245, 158, 11, 0.4); border-radius: 12px; padding: 10px 12px; text-align: left;">
+          ℹ️ <b style="color: #fbbf24;">${t('coachAngryWhyTitle', '¿Por qué aparece este aviso?')}:</b>
+          <div style="margin-top: 4px; color: #fef3c7; font-size: 12px; line-height: 1.4;">
+            ${t('coachAngryWhyText', 'El plazo para indicar tu asistencia a esta sesión ha finalizado. La votación se cierra automáticamente 2 horas antes del inicio del entrenamiento para que el entrenador pueda planificarlo adecuadamente.')}
+          </div>
         </div>
 
         <!-- Mensaje principal del entrenador -->
-        <div style="font-size: 14.5px; font-weight: 800; color: #fee2e2; line-height: 1.45; margin-bottom: 16px; background: rgba(239, 68, 68, 0.15); border: 1.5px solid rgba(239, 68, 68, 0.4); border-radius: 12px; padding: 12px 14px; text-shadow: 0 1px 3px rgba(0,0,0,0.8);">
+        <div style="font-size: 14px; font-weight: 800; color: #fee2e2; line-height: 1.45; margin-bottom: 14px; background: rgba(239, 68, 68, 0.18); border: 1.5px solid rgba(239, 68, 68, 0.45); border-radius: 12px; padding: 11px 12px; text-shadow: 0 1px 3px rgba(0,0,0,0.8);">
           ${t('coachAngryText', 'No has indicado tu participación. El entrenador está MUY enfadado. Prepara tus músculos para hacer flexiones.')}
         </div>
 
-        <!-- Instrucción de desbloqueo -->
-        <div style="font-size: 11.5px; color: #cbd5e1; margin-bottom: 6px; font-weight: 700;">
-          ${t('typeToUnlockPrompt', 'Escribe la siguiente frase para desbloquear:')}
+        <!-- Instrucción de desbloqueo indicando idioma de la frase -->
+        <div style="font-size: 12px; color: #cbd5e1; margin-bottom: 6px; font-weight: 700;">
+          ${t('typeToUnlockPrompt', 'Escribe la siguiente frase en {lang} para desbloquear:').replace('{lang}', langLabel)}
         </div>
-        <div style="font-size: 13px; font-weight: 900; color: #fef08a; background: rgba(0,0,0,0.5); border: 1px dashed rgba(254, 240, 138, 0.5); border-radius: 8px; padding: 7px 10px; margin-bottom: 12px; user-select: none;">
+        <div style="font-size: 13.5px; font-weight: 900; color: #fef08a; background: rgba(0,0,0,0.55); border: 1.5px dashed rgba(254, 240, 138, 0.6); border-radius: 8px; padding: 8px 10px; margin-bottom: 12px; user-select: none;">
           "${escapeHtml(requiredPhrase)}"
         </div>
 
@@ -6349,7 +6402,10 @@
     if (btnClose) {
       btnClose.onclick = function () {
         if (btnClose.disabled) return;
-        try { localStorage.removeItem('ps_coach_punishment_pending'); } catch (e) {}
+        try {
+          localStorage.removeItem('ps_coach_punishment_pending');
+          localStorage.removeItem('ps_coach_punishment_active_lang');
+        } catch (e) {}
         window.removeEventListener('popstate', onPopStateLock);
         window.__handleAppBack = prevBackHandler;
         overlay.remove();
