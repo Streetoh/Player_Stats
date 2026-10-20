@@ -453,6 +453,11 @@
       "passesAccurate": "accurate passes",
       "shotAccuracy": "Shot Accuracy",
       "shotsOnTarget": "on target",
+      "nonDominantFoot": "Non-Dominant Foot",
+      "passAccNonDom": "Pass Acc. (Non-Dominant)",
+      "shotAccNonDom": "Shot Acc. (Non-Dominant)",
+      "noNonDomActions": "No records yet",
+      "ambidextrousNote": "Ambidextrous player: uses both feet equally",
       "ballTouches": "Ball Touches",
       "dribblesWon": "Successful Take-ons",
       "duelsWon": "Duels Won",
@@ -892,6 +897,11 @@
       "passesAccurate": "täpset söötu",
       "shotAccuracy": "Löökide Täpsus",
       "shotsOnTarget": "raami",
+      "nonDominantFoot": "Nõrgem jalg",
+      "passAccNonDom": "Söödu täpsus (Nõrgem jalg)",
+      "shotAccNonDom": "Löögi täpsus (Nõrgem jalg)",
+      "noNonDomActions": "Kirjeid pole",
+      "ambidextrousNote": "Mõlemajalaline mängija: valdab mõlemat jalga võrdselt",
       "ballTouches": "Pallipuuted",
       "dribblesWon": "Edukad Triblingud",
       "duelsWon": "Võidetud Kahevõitlused",
@@ -1331,6 +1341,11 @@
       "passesAccurate": "pases acertados",
       "shotAccuracy": "Efectividad Tiro",
       "shotsOnTarget": "a puerta",
+      "nonDominantFoot": "Pie No Dominante",
+      "passAccNonDom": "% Pase (Pie No Dominante)",
+      "shotAccNonDom": "Precisión Disparo (Pie No Dominante)",
+      "noNonDomActions": "Sin registros",
+      "ambidextrousNote": "Jugador ambidiestro: domina ambas piernas por igual",
       "ballTouches": "Toques Balón",
       "dribblesWon": "Regates con Éxito",
       "duelsWon": "Duelos Ganados",
@@ -1770,6 +1785,11 @@
       "passesAccurate": "точных передач",
       "shotAccuracy": "Точность ударов",
       "shotsOnTarget": "Удары в створ",
+      "nonDominantFoot": "Нерабочая нога",
+      "passAccNonDom": "% паса (Нерабочая нога)",
+      "shotAccNonDom": "Точность ударов (Нерабочая нога)",
+      "noNonDomActions": "Нет записей",
+      "ambidextrousNote": "Обе ноги рабочие: одинаково владеет обеими ногами",
       "ballTouches": "Касания мяча",
       "dribblesWon": "Успешные обводки",
       "duelsWon": "Выигранные единоборства",
@@ -2056,6 +2076,11 @@
       "coachHighlightDefault": "Отличная игра и отношение к матчу.",
       "matchStats": "Статистика матча",
       "shotsOnTarget": "Удары в створ",
+      "nonDominantFoot": "Нерабочая нога",
+      "passAccNonDom": "% паса (Нерабочая нога)",
+      "shotAccNonDom": "Точность ударов (Нерабочая нога)",
+      "noNonDomActions": "Нет записей",
+      "ambidextrousNote": "Обе ноги рабочие: одинаково владеет обеими ногами",
       "duelsWon": "Выигранные единоборства",
       "noPlayersInMatch": "В этом матче нет зарегистрированных игроков",
       "oneVotePerPlayer": "1 голос на игрока",
@@ -2481,6 +2506,16 @@
     return t('footRight');
   }
 
+  function isNonDominantFoot(p, foot) {
+    if (!p || !p.foot || !foot) return false;
+    const f = String(p.foot).toLowerCase();
+    const target = String(foot).toLowerCase();
+    if (f.includes('ambi') || f.includes('both')) return false;
+    if ((f.includes('diestro') || f.includes('right')) && target === 'left') return true;
+    if ((f.includes('zurdo') || f.includes('left')) && target === 'right') return true;
+    return false;
+  }
+
   /* -------------------------------------------------------------
      ALGORITMO OFICIAL DE NOTA DE RENDIMIENTO (MATCH RATING 1.0 - 10.0)
      Calibración realista: 6.0 estándar, 7.5-8.5 muy bueno, 8.5-9.2 sobresaliente, 9.5+ casi imposible
@@ -2514,20 +2549,23 @@
     const d1v1Turnover = stats.duel1v1LostTurnover || 0;
     const d1v1LostGoal = stats.duel1v1LostGoal || 0;
 
+    const goalBonus = goal + (stats.goal_nonDominant || 0);
+    const d1v1GoalBonus = d1v1Goal + (stats.duel1v1WonGoal_nonDominant || 0);
+
     const passes = passOk + passKo;
-    const totalActions = goal + assist + shotOn + shotOff + passes + keyPass +
+    const totalActions = goalBonus + assist + shotOn + shotOff + passes + keyPass +
       dribbleOk + dribbleKo + recovery + loss + duelWon + duelLost + save + foul + yellow + red +
-      d1v1Goal + d1v1Stop + d1v1Turnover + d1v1LostGoal;
+      d1v1GoalBonus + d1v1Stop + d1v1Turnover + d1v1LostGoal;
 
     if (totalActions === 0 && touches === 0) return 6.0;
 
-    // Acciones positivas puras
+    // Acciones positivas puras (el gol con pie no dominante pesa el doble)
     let posScore = 0;
     if (passes > 0) {
       const passAcc = passOk / passes;
       posScore += (passOk * 0.05) + Math.max(0, (passAcc - 0.70) * 1.2);
     }
-    posScore += goal * 0.95;
+    posScore += goalBonus * 0.95;
     posScore += assist * 0.65;
     posScore += shotOn * 0.20;
     posScore += keyPass * 0.35;
@@ -2535,14 +2573,14 @@
     posScore += recovery * 0.28;
     posScore += duelWon * 0.20;
     posScore += save * 0.45;
-    posScore += d1v1Goal * 0.35;
+    posScore += d1v1GoalBonus * 0.35;
     posScore += d1v1Stop * 0.25;
 
     // Bonus posicional específico
     if (p.includes('POR') || p.includes('GK')) {
       posScore += save * 0.30;
     } else if (p.includes('DC') || p.includes('DEL') || p.includes('ST') || p.includes('CF') || p.includes('EXT') || p.includes('RW') || p.includes('LW')) {
-      posScore += (goal * 0.20) + (shotOn * 0.15);
+      posScore += (goalBonus * 0.20) + (shotOn * 0.15);
     } else if (p.includes('DFC') || p.includes('CB') || p.includes('DEF') || p.includes('RB') || p.includes('LB') || p.includes('MCD') || p.includes('DM')) {
       posScore += (recovery * 0.20) + (duelWon * 0.15);
     }
@@ -2935,6 +2973,24 @@
     res.passAcc = totalPass > 0 ? Math.round((res.passOk / totalPass) * 100) : 0;
     const totalShots = res.shotsOn + res.shotsOff;
     res.shotAcc = totalShots > 0 ? Math.round((res.shotsOn / totalShots) * 100) : 0;
+
+    // Métricas con pie no dominante
+    const ndFoot = isNonDominantFoot(p, 'left') ? 'left' : (isNonDominantFoot(p, 'right') ? 'right' : null);
+    const passOkNd = (res.totals.passOk_nonDominant || 0) || (ndFoot ? (res.totals['passOk_' + ndFoot] || 0) : 0);
+    const passKoNd = (res.totals.passKo_nonDominant || 0) || (ndFoot ? (res.totals['passKo_' + ndFoot] || 0) : 0);
+    const totalPassNd = passOkNd + passKoNd;
+    res.passAccNonDom = totalPassNd > 0 ? Math.round((passOkNd / totalPassNd) * 100) : null;
+    res.passOkNonDom = passOkNd;
+    res.totalPassNonDom = totalPassNd;
+
+    const shotOnNd = (res.totals.shotOn_nonDominant || 0) || (ndFoot ? (res.totals['shotOn_' + ndFoot] || 0) : 0);
+    const shotOffNd = (res.totals.shotOff_nonDominant || 0) || (ndFoot ? (res.totals['shotOff_' + ndFoot] || 0) : 0);
+    const totalShotsNd = shotOnNd + shotOffNd;
+    res.shotAccNonDom = totalShotsNd > 0 ? Math.round((shotOnNd / totalShotsNd) * 100) : null;
+    res.shotOnNonDom = shotOnNd;
+    res.totalShotsNonDom = totalShotsNd;
+    res.goalsNonDom = (res.totals.goal_nonDominant || 0) || (ndFoot ? (res.totals['goal_' + ndFoot] || 0) : 0);
+    res.nonDominantFoot = ndFoot;
 
     res.aggregatedRating = res.ratingsCount > 0
       ? (Math.round((res.ratingsSum / res.ratingsCount) * 10) / 10).toFixed(1)
@@ -8448,6 +8504,48 @@
           </div>
         </div>
 
+        <!-- Tarjeta de Pie No Dominante (% Pase y Precisión Tiro) -->
+        ${(() => {
+          const ndFoot = curStats.nonDominantFoot;
+          const isAmbi = !ndFoot && (myP.foot && (String(myP.foot).toLowerCase().includes('ambi') || String(myP.foot).toLowerCase().includes('both')));
+          return `
+            <div class="card" style="padding: 12px 14px; margin-bottom: 14px; border: 1px solid rgba(168, 85, 247, 0.35); background: linear-gradient(135deg, rgba(168, 85, 247, 0.1), rgba(15, 23, 42, 0.8)); border-radius: 14px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <span style="font-size: 11.5px; font-weight: 800; color: #c084fc; text-transform: uppercase;">
+                  🦶 ${t('nonDominantFoot', 'Pie No Dominante')}${ndFoot ? ` (${getPlayerFootLabel(ndFoot)})` : ''}
+                </span>
+                ${curStats.goalsNonDom > 0 ? `<span class="badge" style="background: rgba(34, 197, 94, 0.2); color: #86efac; border: 1px solid rgba(34, 197, 94, 0.3); font-size: 10px; font-weight: 800; padding: 2px 8px;">⚽ ${curStats.goalsNonDom} ${t('stat_goal', 'Gol')}</span>` : ''}
+              </div>
+              ${isAmbi ? `
+                <div style="font-size: 12px; color: var(--muted); text-align: center; padding: 6px 0;">
+                  ✨ ${t('ambidextrousNote', 'Jugador ambidiestro: domina ambas piernas por igual')}
+                </div>
+              ` : `
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                  <div style="background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 10px; padding: 8px 10px; text-align: center;">
+                    <div style="font-size: 10px; font-weight: 700; color: var(--muted); margin-bottom: 2px;">${t('passAccNonDom', '% Pase (Pie No Dominante)')}</div>
+                    <div style="font-size: 20px; font-weight: 900; color: ${curStats.passAccNonDom !== null ? '#c084fc' : 'var(--muted)'};">
+                      ${curStats.passAccNonDom !== null ? `${curStats.passAccNonDom}%` : '—'}
+                    </div>
+                    <div style="font-size: 10px; color: var(--muted); margin-top: 1px;">
+                      ${curStats.totalPassNonDom > 0 ? `${curStats.passOkNonDom}/${curStats.totalPassNonDom}` : t('noNonDomActions', 'Sin registros')}
+                    </div>
+                  </div>
+                  <div style="background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 10px; padding: 8px 10px; text-align: center;">
+                    <div style="font-size: 10px; font-weight: 700; color: var(--muted); margin-bottom: 2px;">${t('shotAccNonDom', 'Precisión Tiro (No Dominante)')}</div>
+                    <div style="font-size: 20px; font-weight: 900; color: ${curStats.shotAccNonDom !== null ? '#facc15' : 'var(--muted)'};">
+                      ${curStats.shotAccNonDom !== null ? `${curStats.shotAccNonDom}%` : '—'}
+                    </div>
+                    <div style="font-size: 10px; color: var(--muted); margin-top: 1px;">
+                      ${curStats.totalShotsNonDom > 0 ? `${curStats.shotOnNonDom}/${curStats.totalShotsNonDom}` : t('noNonDomActions', 'Sin registros')}
+                    </div>
+                  </div>
+                </div>
+              `}
+            </div>
+          `;
+        })()}
+
         <!-- Tarjeta Dedicada: ⚔️ Duelos 1v1 -->
         ${(() => {
           const dWonGoal = curAgg.totals.duel1v1WonGoal || 0;
@@ -9650,6 +9748,48 @@
             <div style="font-size: 18px; font-weight: 900; color: #38bdf8;">${curStats.recoveries}</div>
           </div>
         </div>
+
+        <!-- Tarjeta de Pie No Dominante (% Pase y Precisión Tiro) -->
+        ${(() => {
+          const ndFoot = curStats.nonDominantFoot;
+          const isAmbi = !ndFoot && (p.foot && (String(p.foot).toLowerCase().includes('ambi') || String(p.foot).toLowerCase().includes('both')));
+          return `
+            <div class="card" style="padding: 12px 14px; margin-bottom: 14px; border: 1px solid rgba(168, 85, 247, 0.35); background: linear-gradient(135deg, rgba(168, 85, 247, 0.1), rgba(15, 23, 42, 0.8)); border-radius: 14px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <span style="font-size: 11.5px; font-weight: 800; color: #c084fc; text-transform: uppercase;">
+                  🦶 ${t('nonDominantFoot', 'Pie No Dominante')}${ndFoot ? ` (${getPlayerFootLabel(ndFoot)})` : ''}
+                </span>
+                ${curStats.goalsNonDom > 0 ? `<span class="badge" style="background: rgba(34, 197, 94, 0.2); color: #86efac; border: 1px solid rgba(34, 197, 94, 0.3); font-size: 10px; font-weight: 800; padding: 2px 8px;">⚽ ${curStats.goalsNonDom} ${t('stat_goal', 'Gol')}</span>` : ''}
+              </div>
+              ${isAmbi ? `
+                <div style="font-size: 12px; color: var(--muted); text-align: center; padding: 6px 0;">
+                  ✨ ${t('ambidextrousNote', 'Jugador ambidiestro: domina ambas piernas por igual')}
+                </div>
+              ` : `
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                  <div style="background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 10px; padding: 8px 10px; text-align: center;">
+                    <div style="font-size: 10px; font-weight: 700; color: var(--muted); margin-bottom: 2px;">${t('passAccNonDom', '% Pase (Pie No Dominante)')}</div>
+                    <div style="font-size: 20px; font-weight: 900; color: ${curStats.passAccNonDom !== null ? '#c084fc' : 'var(--muted)'};">
+                      ${curStats.passAccNonDom !== null ? `${curStats.passAccNonDom}%` : '—'}
+                    </div>
+                    <div style="font-size: 10px; color: var(--muted); margin-top: 1px;">
+                      ${curStats.totalPassNonDom > 0 ? `${curStats.passOkNonDom}/${curStats.totalPassNonDom}` : t('noNonDomActions', 'Sin registros')}
+                    </div>
+                  </div>
+                  <div style="background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 10px; padding: 8px 10px; text-align: center;">
+                    <div style="font-size: 10px; font-weight: 700; color: var(--muted); margin-bottom: 2px;">${t('shotAccNonDom', 'Precisión Tiro (No Dominante)')}</div>
+                    <div style="font-size: 20px; font-weight: 900; color: ${curStats.shotAccNonDom !== null ? '#facc15' : 'var(--muted)'};">
+                      ${curStats.shotAccNonDom !== null ? `${curStats.shotAccNonDom}%` : '—'}
+                    </div>
+                    <div style="font-size: 10px; color: var(--muted); margin-top: 1px;">
+                      ${curStats.totalShotsNonDom > 0 ? `${curStats.shotOnNonDom}/${curStats.totalShotsNonDom}` : t('noNonDomActions', 'Sin registros')}
+                    </div>
+                  </div>
+                </div>
+              `}
+            </div>
+          `;
+        })()}
 
         <!-- Tarjeta Dedicada: ⚔️ Duelos 1v1 -->
         ${(() => {

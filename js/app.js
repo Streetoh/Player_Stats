@@ -11216,6 +11216,59 @@
             </div>
           </div>
 
+          <!-- Tarjeta de Pie No Dominante (% Pase y Precisión Tiro) -->
+          ${(() => {
+            const ndFoot = Store.isNonDominantFoot(p, 'left') ? 'left' : (Store.isNonDominantFoot(p, 'right') ? 'right' : null);
+            const isAmbi = !ndFoot && (p.foot && (String(p.foot).toLowerCase().includes('ambi') || String(p.foot).toLowerCase().includes('both')));
+            const passOkNd = (agg.totals.passOk_nonDominant || 0) || (ndFoot ? (agg.totals['passOk_' + ndFoot] || 0) : 0);
+            const passKoNd = (agg.totals.passKo_nonDominant || 0) || (ndFoot ? (agg.totals['passKo_' + ndFoot] || 0) : 0);
+            const totalPassNd = passOkNd + passKoNd;
+            const passPctNd = totalPassNd > 0 ? Math.round((passOkNd / totalPassNd) * 100) : null;
+
+            const shotOnNd = (agg.totals.shotOn_nonDominant || 0) || (ndFoot ? (agg.totals['shotOn_' + ndFoot] || 0) : 0);
+            const shotOffNd = (agg.totals.shotOff_nonDominant || 0) || (ndFoot ? (agg.totals['shotOff_' + ndFoot] || 0) : 0);
+            const totalShotsNd = shotOnNd + shotOffNd;
+            const shotPctNd = totalShotsNd > 0 ? Math.round((shotOnNd / totalShotsNd) * 100) : null;
+            const goalsNd = (agg.totals.goal_nonDominant || 0) || (ndFoot ? (agg.totals['goal_' + ndFoot] || 0) : 0);
+
+            return `
+              <div class="card" style="padding: 12px 14px; margin-bottom: 12px; border: 1px solid rgba(168, 85, 247, 0.35); background: linear-gradient(135deg, rgba(168, 85, 247, 0.1), rgba(15, 23, 42, 0.8)); border-radius: 14px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                  <span style="font-size: 11.5px; font-weight: 800; color: #c084fc; text-transform: uppercase;">
+                    🦶 ${t('nonDominantFoot', 'Pie No Dominante')}${ndFoot ? ` (${getPlayerFootLabel(ndFoot)})` : ''}
+                  </span>
+                  ${goalsNd > 0 ? `<span class="badge" style="background: rgba(34, 197, 94, 0.2); color: #86efac; border: 1px solid rgba(34, 197, 94, 0.3); font-size: 10px; font-weight: 800; padding: 2px 8px;">⚽ ${goalsNd} ${t('stat_goal', 'Gol')}</span>` : ''}
+                </div>
+                ${isAmbi ? `
+                  <div style="font-size: 12px; color: var(--muted); text-align: center; padding: 6px 0;">
+                    ✨ ${t('ambidextrousNote', 'Jugador ambidiestro: domina ambas piernas por igual')}
+                  </div>
+                ` : `
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                    <div style="background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 10px; padding: 8px 10px; text-align: center;">
+                      <div style="font-size: 10px; font-weight: 700; color: var(--muted); margin-bottom: 2px;">${t('passAccNonDom', '% Pase (Pie No Dominante)')}</div>
+                      <div style="font-size: 20px; font-weight: 900; color: ${passPctNd !== null ? '#c084fc' : 'var(--muted)'};">
+                        ${passPctNd !== null ? `${passPctNd}%` : '—'}
+                      </div>
+                      <div style="font-size: 10px; color: var(--muted); margin-top: 1px;">
+                        ${totalPassNd > 0 ? `${passOkNd}/${totalPassNd}` : t('noNonDomActions', 'Sin registros')}
+                      </div>
+                    </div>
+                    <div style="background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 10px; padding: 8px 10px; text-align: center;">
+                      <div style="font-size: 10px; font-weight: 700; color: var(--muted); margin-bottom: 2px;">${t('shotAccNonDom', 'Precisión Tiro (No Dominante)')}</div>
+                      <div style="font-size: 20px; font-weight: 900; color: ${shotPctNd !== null ? '#facc15' : 'var(--muted)'};">
+                        ${shotPctNd !== null ? `${shotPctNd}%` : '—'}
+                      </div>
+                      <div style="font-size: 10px; color: var(--muted); margin-top: 1px;">
+                        ${totalShotsNd > 0 ? `${shotOnNd}/${totalShotsNd}` : t('noNonDomActions', 'Sin registros')}
+                      </div>
+                    </div>
+                  </div>
+                `}
+              </div>
+            `;
+          })()}
+
           <!-- Radar de Habilidades -->
           <div class="section-title"><span>${t('skillRadar')} (${isMatch ? t('matchesTab') : t('trainingsTab')})</span></div>
           <div class="radar-container card" style="margin-bottom: 12px;">

@@ -1679,6 +1679,25 @@
       res.passAcc = totalPass > 0 ? Math.round((res.passOk / totalPass) * 100) : 0;
       const totalShots = res.shotsOn + res.shotsOff;
       res.shotAcc = totalShots > 0 ? Math.round((res.shotsOn / totalShots) * 100) : 0;
+
+      // Métricas con pie no dominante
+      const ndFoot = this.isNonDominantFoot(p, 'left') ? 'left' : (this.isNonDominantFoot(p, 'right') ? 'right' : null);
+      const passOkNd = (res.totals.passOk_nonDominant || 0) || (ndFoot ? (res.totals['passOk_' + ndFoot] || 0) : 0);
+      const passKoNd = (res.totals.passKo_nonDominant || 0) || (ndFoot ? (res.totals['passKo_' + ndFoot] || 0) : 0);
+      const totalPassNd = passOkNd + passKoNd;
+      res.passAccNonDom = totalPassNd > 0 ? Math.round((passOkNd / totalPassNd) * 100) : null;
+      res.passOkNonDom = passOkNd;
+      res.totalPassNonDom = totalPassNd;
+
+      const shotOnNd = (res.totals.shotOn_nonDominant || 0) || (ndFoot ? (res.totals['shotOn_' + ndFoot] || 0) : 0);
+      const shotOffNd = (res.totals.shotOff_nonDominant || 0) || (ndFoot ? (res.totals['shotOff_' + ndFoot] || 0) : 0);
+      const totalShotsNd = shotOnNd + shotOffNd;
+      res.shotAccNonDom = totalShotsNd > 0 ? Math.round((shotOnNd / totalShotsNd) * 100) : null;
+      res.shotOnNonDom = shotOnNd;
+      res.totalShotsNonDom = totalShotsNd;
+      res.goalsNonDom = (res.totals.goal_nonDominant || 0) || (ndFoot ? (res.totals['goal_' + ndFoot] || 0) : 0);
+      res.nonDominantFoot = ndFoot;
+
       res.aggregatedRating = res.ratingsCount > 0
         ? (Math.round((res.ratingsSum / res.ratingsCount) * 10) / 10).toFixed(1)
         : '6.0';
