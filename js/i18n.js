@@ -6,6 +6,14 @@
 
   const DICT = {
     es: {
+      "coachAngryTitle": "⚠️ ¡PLAZO DE VOTACIÓN CERRADO!",
+      "coachAngryText": "No has indicado tu participación. El entrenador está MUY enfadado. Prepara tus músculos para hacer flexiones.",
+      "coachAngryForgivePhrase": "Lo siento, no volverá a ocurrir",
+      "typeToUnlockPrompt": "Escribe la siguiente frase para desbloquear:",
+      "typeExactPhrasePlaceholder": "Escribe aquí la frase exacta...",
+      "votingTimeRemaining": "⏳ Plazo para votar: {time} restantes",
+      "votingLastHour": "⚠️ ¡Última hora! Quedan {time} para votar",
+      "votingClosedDeadline": "🔒 Plazo de votación cerrado (2h antes del inicio)",
       "appName": "Player stats (Coach)",
       "appSubtitle": "Seguimiento individual en vivo",
       "home": "Inicio",
@@ -740,6 +748,14 @@
       "viewFullAudit": "Ver Auditoría Completa de Acciones"
     },
     en: {
+      "coachAngryTitle": "⚠️ VOTING DEADLINE CLOSED!",
+      "coachAngryText": "You haven't marked your attendance. The coach is VERY angry. Get your muscles ready for push-ups.",
+      "coachAngryForgivePhrase": "I'm sorry, it won't happen again",
+      "typeToUnlockPrompt": "Type the following phrase to unlock:",
+      "typeExactPhrasePlaceholder": "Type the exact phrase here...",
+      "votingTimeRemaining": "⏳ Voting deadline: {time} remaining",
+      "votingLastHour": "⚠️ Last hour! {time} remaining to vote",
+      "votingClosedDeadline": "🔒 Voting deadline closed (2h before start)",
       "appName": "Player stats (Coach)",
       "appSubtitle": "Live individual tracking",
       "home": "Home",
@@ -1474,6 +1490,14 @@
       "viewFullAudit": "View Full Actions Audit"
     },
     et: {
+      "coachAngryTitle": "⚠️ HÄÄLETAMISE TÄHTAEG ON MÖÖDAS!",
+      "coachAngryText": "Sa ei märkinud oma osalemist. Treener on VÄGA vihane. Valmista oma lihased ette kätekõverdusteks.",
+      "coachAngryForgivePhrase": "Vabandan, seda enam ei kordu",
+      "typeToUnlockPrompt": "Kirjuta avamiseks järgmine lause:",
+      "typeExactPhrasePlaceholder": "Kirjuta siia täpne lause...",
+      "votingTimeRemaining": "⏳ Hääletamise tähtaeg: {time} jäänud",
+      "votingLastHour": "⚠️ Viimane tund! {time} jäänud hääletamiseks",
+      "votingClosedDeadline": "🔒 Hääletamine suletud (2h enne algust)",
       "appName": "Player stats (Coach)",
       "appSubtitle": "Reaalajas individuaalne jälgimine",
       "home": "Avaleht",
@@ -2208,6 +2232,14 @@
       "viewFullAudit": "Vaata täielikku tegevuste auditit"
     },
     ru: {
+      "coachAngryTitle": "⚠️ СРОК ГОЛОСОВАНИЯ ИСТЁК!",
+      "coachAngryText": "Ты не отметил своё участие. Тренер ОЧЕНЬ зол. Готовь мышцы к отжиманиям.",
+      "coachAngryForgivePhrase": "Простите, больше такого не повторится",
+      "typeToUnlockPrompt": "Напиши следующую фразу для разблокировки:",
+      "typeExactPhrasePlaceholder": "Напиши здесь точную фразу...",
+      "votingTimeRemaining": "⏳ Время на голосование: осталось {time}",
+      "votingLastHour": "⚠️ Последний час! Осталось {time} для голосования",
+      "votingClosedDeadline": "🔒 Голосование закрыто (за 2ч до начала)",
       "appName": "Player stats (Coach)",
       "appSubtitle": "Индивидуальный трекинг в реальном времени",
       "home": "Главная",
@@ -2975,6 +3007,53 @@
     return dict[key] !== undefined ? dict[key] : (DICT.es[key] !== undefined ? DICT.es[key] : (fallback || key));
   }
 
-  window.I18N = { DICT, getLang, setLang, t };
+  function formatAttendanceDateTime(ts) {
+    if (!ts) return '';
+    const d = new Date(ts);
+    if (isNaN(d.getTime())) return '';
+
+    const now = new Date();
+    const isToday = d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    const isYesterday = d.getDate() === yesterday.getDate() && d.getMonth() === yesterday.getMonth() && d.getFullYear() === yesterday.getFullYear();
+
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    const timeStr = hh + ':' + mm;
+
+    const lang = (currentLang === 'ee' ? 'et' : currentLang);
+
+    if (isToday) {
+      const todayLabels = { es: 'Hoy', en: 'Today', et: 'Täna', ru: 'Сегодня' };
+      return (todayLabels[lang] || todayLabels.es) + ', ' + timeStr;
+    }
+    if (isYesterday) {
+      const yestLabels = { es: 'Ayer', en: 'Yesterday', et: 'Eile', ru: 'Вчера' };
+      return (yestLabels[lang] || yestLabels.es) + ', ' + timeStr;
+    }
+
+    const monthsEs = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+    const monthsEn = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthsEt = ['jaan', 'veebr', 'märts', 'apr', 'mai', 'juun', 'juul', 'aug', 'sept', 'okt', 'nov', 'dets'];
+    const monthsRu = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+
+    let mArr = monthsEs;
+    if (lang === 'en') mArr = monthsEn;
+    else if (lang === 'et') mArr = monthsEt;
+    else if (lang === 'ru') mArr = monthsRu;
+
+    const day = d.getDate();
+    const mName = mArr[d.getMonth()] || '';
+
+    if (d.getFullYear() === now.getFullYear()) {
+      return day + ' ' + mName + ', ' + timeStr;
+    }
+    return day + ' ' + mName + ' ' + d.getFullYear() + ', ' + timeStr;
+  }
+
+  window.I18N = { DICT, getLang, setLang, t, formatAttendanceDateTime };
+  if (typeof window !== 'undefined') window.formatAttendanceDateTime = formatAttendanceDateTime;
   window.t = t;
 })();

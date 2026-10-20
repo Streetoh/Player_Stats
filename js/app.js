@@ -1701,10 +1701,11 @@
       }
     } catch (e) {}
 
+    const timeFormatted = window.formatAttendanceDateTime ? window.formatAttendanceDateTime(resp.timestamp || Date.now()) : '';
     const notifTitle = isAttending ? `🟢 Asistencia confirmada` : `❌ Baja comunicada`;
     const notifBody = convTitle
-      ? `${pName} • ${convTitle}${resp.notes ? ' (' + resp.notes + ')' : ''}`
-      : `${pName} (${isAttending ? 'Asistirá' : 'No asistirá'}${resp.notes ? ' - ' + resp.notes : ''})`;
+      ? `${pName} • ${convTitle}${timeFormatted ? ' (' + timeFormatted + ')' : ''}${resp.notes ? ' - ' + resp.notes : ''}`
+      : `${pName} (${isAttending ? 'Asistirá' : 'No asistirá'}${timeFormatted ? ' • ' + timeFormatted : ''}${resp.notes ? ' - ' + resp.notes : ''})`;
 
     NotifManager.add({
       id: 'att_' + (resp.convId || 'c') + '_' + resp.playerId + '_' + (resp.timestamp || Date.now()),
@@ -1716,7 +1717,9 @@
     });
 
     toast(
-      isAttending ? `🟢 ${pName} ha confirmado asistencia` : `❌ ${pName} no puede asistir`,
+      isAttending
+        ? `🟢 ${pName} ha confirmado asistencia${timeFormatted ? ' (' + timeFormatted + ')' : ''}`
+        : `❌ ${pName} no puede asistir${timeFormatted ? ' (' + timeFormatted + ')' : ''}`,
       isAttending ? 'success' : 'info'
     );
     haptic(35);
@@ -2902,6 +2905,8 @@
           const pwaVote = (conv && conv.responses && conv.responses[p.id]) ? conv.responses[p.id] : null;
           const pwaStatus = (typeof pwaVote === 'object' && pwaVote !== null) ? pwaVote.status : pwaVote;
           const pwaNotes = (typeof pwaVote === 'object' && pwaVote !== null) ? (pwaVote.notes || pwaVote.reason || '') : '';
+          const pwaTime = (typeof pwaVote === 'object' && pwaVote !== null) ? (pwaVote.timestamp || pwaVote.time) : null;
+          const pwaTimeFormatted = pwaTime && window.formatAttendanceDateTime ? window.formatAttendanceDateTime(pwaTime) : '';
           let curNote = (rec && rec.note) || '';
           if (!curNote && pwaNotes) {
             curNote = pwaNotes;
@@ -2919,10 +2924,15 @@
                   <div style="font-size: 11px; color: var(--muted); display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 1px;">
                     <span>${p.mainPosition || 'Jugador'}</span>
                     ${pwaVote ? (pwaStatus === 'yes' || pwaStatus === 'attending' || pwaStatus === 'called'
-                      ? `<span style="color: #4ade80; font-weight: 800;">🟢 PWA: ${t('attendanceConfirmed', 'Asistirá')}</span>`
-                      : `<span style="color: #f87171; font-weight: 800;">❌ PWA: ${t('absenceReported', 'No asistirá')}</span>`)
+                      ? `<span style="color: #4ade80; font-weight: 800; display: inline-flex; align-items: center; gap: 4px;">🟢 PWA: ${t('attendanceConfirmed', 'Asistirá')}${pwaTimeFormatted ? ` <span style="font-weight: 600; opacity: 0.9; font-size: 10px; color: #86efac; background: rgba(34, 197, 94, 0.15); padding: 1px 5px; border-radius: 4px;">🕒 ${escapeHtml(pwaTimeFormatted)}</span>` : ''}</span>`
+                      : `<span style="color: #f87171; font-weight: 800; display: inline-flex; align-items: center; gap: 4px;">❌ PWA: ${t('absenceReported', 'No asistirá')}${pwaTimeFormatted ? ` <span style="font-weight: 600; opacity: 0.9; font-size: 10px; color: #fca5a5; background: rgba(239, 68, 68, 0.15); padding: 1px 5px; border-radius: 4px;">🕒 ${escapeHtml(pwaTimeFormatted)}</span>` : ''}</span>`)
                       : ''}
                     ${pwaNotes ? `<span style="color: #fca5a5; font-style: italic; background: rgba(239, 68, 68, 0.15); padding: 1px 6px; border-radius: 4px; border: 1px solid rgba(239, 68, 68, 0.3);">💬 ${escapeHtml(pwaNotes)}</span>` : ''}
+                    ${(rec && rec.updatedAt) ? `
+                      <span style="font-size: 10px; color: #94a3b8; background: rgba(255,255,255,0.05); padding: 1px 5px; border-radius: 4px;" title="Registro manual">
+                        ✏️ ${escapeHtml(window.formatAttendanceDateTime ? window.formatAttendanceDateTime(rec.updatedAt) : '')}
+                      </span>
+                    ` : ''}
                   </div>
                 </div>
               </div>
@@ -12420,16 +12430,25 @@
                 <div style="display: flex; flex-direction: column; gap: 6px;">
                   ${respondedYes.map(item => {
                     const p = item.player;
+                    const rTime = item.resp ? (item.resp.timestamp || item.resp.time) : null;
+                    const timeStr = rTime && window.formatAttendanceDateTime ? window.formatAttendanceDateTime(rTime) : '';
                     return `
                       <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: linear-gradient(135deg, rgba(34, 197, 94, 0.24) 0%, rgba(16, 185, 129, 0.08) 60%, var(--surface, #1e293b) 100%); border: 1.5px solid rgba(34, 197, 94, 0.65); border-radius: 12px; box-shadow: 0 2px 8px rgba(34, 197, 94, 0.12);">
-                        <div style="display: flex; align-items: center; gap: 8px;">
+                        <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;">
                           ${renderAvatar(p, 'sm')}
-                          <div>
-                            <b style="font-size: 13px; color: #fff;">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(Store.playerName(p))}</b>
-                            <small style="display: block; color: var(--muted); font-size: 11px;">${p.mainPosition || 'Jugador'}</small>
+                          <div style="flex: 1; min-width: 0;">
+                            <b style="font-size: 13px; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block;">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(Store.playerName(p))}</b>
+                            <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 1px;">
+                              <small style="color: var(--muted); font-size: 11px;">${p.mainPosition || 'Jugador'}</small>
+                              ${timeStr ? `
+                                <span style="display: inline-flex; align-items: center; gap: 3px; font-size: 10px; font-weight: 700; color: #86efac; background: rgba(34, 197, 94, 0.2); padding: 1px 6px; border-radius: 4px; border: 1px solid rgba(34, 197, 94, 0.4);">
+                                  🕒 ${escapeHtml(timeStr)}
+                                </span>
+                              ` : ''}
+                            </div>
                           </div>
                         </div>
-                        <div style="display: flex; align-items: center; gap: 6px;">
+                        <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0; margin-left: 8px;">
                           <span class="badge" style="background: rgba(34, 197, 94, 0.25); color: #86efac; border: 1px solid rgba(34, 197, 94, 0.6); font-size: 11px; font-weight: 800;">🟢 ASISTE</span>
                           <button type="button" class="btn sm ghost" data-toggle-resp="${p.id}" style="padding: 3px 6px; font-size: 11px;">Cambiar</button>
                           ${isRecurringConv ? `
@@ -12448,13 +12467,22 @@
                   ${respondedNo.map(item => {
                     const p = item.player;
                     const reason = (item.resp && (item.resp.notes || item.resp.reason)) ? (item.resp.notes || item.resp.reason) : '';
+                    const rTime = item.resp ? (item.resp.timestamp || item.resp.time) : null;
+                    const timeStr = rTime && window.formatAttendanceDateTime ? window.formatAttendanceDateTime(rTime) : '';
                     return `
                       <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: linear-gradient(135deg, rgba(239, 68, 68, 0.24) 0%, rgba(220, 38, 38, 0.08) 60%, var(--surface, #1e293b) 100%); border: 1.5px solid rgba(239, 68, 68, 0.65); border-radius: 12px; box-shadow: 0 2px 8px rgba(239, 68, 68, 0.12);">
                         <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;">
                           ${renderAvatar(p, 'sm')}
                           <div style="flex: 1; min-width: 0;">
-                            <b style="font-size: 13px; color: #fff;">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(Store.playerName(p))}</b>
-                            <small style="display: block; color: var(--muted); font-size: 11px;">${p.mainPosition || 'Jugador'}</small>
+                            <b style="font-size: 13px; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block;">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(Store.playerName(p))}</b>
+                            <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 1px;">
+                              <small style="color: var(--muted); font-size: 11px;">${p.mainPosition || 'Jugador'}</small>
+                              ${timeStr ? `
+                                <span style="display: inline-flex; align-items: center; gap: 3px; font-size: 10px; font-weight: 700; color: #fca5a5; background: rgba(239, 68, 68, 0.2); padding: 1px 6px; border-radius: 4px; border: 1px solid rgba(239, 68, 68, 0.4);">
+                                  🕒 ${escapeHtml(timeStr)}
+                                </span>
+                              ` : ''}
+                            </div>
                             ${reason ? `
                               <div style="font-size: 11px; color: #fca5a5; margin-top: 3px; font-style: italic; background: rgba(239, 68, 68, 0.15); padding: 2px 6px; border-radius: 6px; border-left: 2px solid #ef4444; word-break: break-word;">
                                 💬 <b>${t('reason', 'Motivo')}:</b> "${escapeHtml(reason)}"
@@ -12625,7 +12653,7 @@
           b.onclick = () => {
             const pid = b.getAttribute('data-quick-confirm');
             conv.responses = conv.responses || {};
-            conv.responses[pid] = { status: 'attending', time: Date.now() };
+            conv.responses[pid] = { status: 'attending', time: Date.now(), timestamp: Date.now() };
             conv.list = conv.list || {};
             conv.list[pid] = 'called';
             Store.save();
@@ -12638,7 +12666,7 @@
           b.onclick = () => {
             const pid = b.getAttribute('data-quick-decline');
             conv.responses = conv.responses || {};
-            conv.responses[pid] = { status: 'absent', time: Date.now() };
+            conv.responses[pid] = { status: 'absent', time: Date.now(), timestamp: Date.now() };
             conv.list = conv.list || {};
             conv.list[pid] = 'absent';
             Store.save();
@@ -12653,7 +12681,7 @@
             conv.responses = conv.responses || {};
             const cur = conv.responses[pid] ? conv.responses[pid].status : 'attending';
             const next = cur === 'attending' ? 'absent' : 'attending';
-            conv.responses[pid] = { status: next, time: Date.now() };
+            conv.responses[pid] = { status: next, time: Date.now(), timestamp: Date.now() };
             conv.list = conv.list || {};
             conv.list[pid] = next === 'attending' ? 'called' : 'absent';
             Store.save();

@@ -312,6 +312,14 @@
      ------------------------------------------------------------- */
   const DICT = {
     en: {
+      "coachAngryTitle": "⚠️ VOTING DEADLINE CLOSED!",
+      "coachAngryText": "You haven't marked your attendance. The coach is VERY angry. Get your muscles ready for push-ups.",
+      "coachAngryForgivePhrase": "I'm sorry, it won't happen again",
+      "typeToUnlockPrompt": "Type the following phrase to unlock:",
+      "typeExactPhrasePlaceholder": "Type the exact phrase here...",
+      "votingTimeRemaining": "⏳ Voting deadline: {time} remaining",
+      "votingLastHour": "⚠️ Last hour! {time} remaining to vote",
+      "votingClosedDeadline": "🔒 Voting deadline closed (2h before start)",
       "appName": "Player stats (Player)",
       "convocations": "Call-ups",
       "myProfile": "My Profile",
@@ -1146,6 +1154,14 @@
       "vote": "hääl"
     },
     es: {
+      "coachAngryTitle": "⚠️ ¡PLAZO DE VOTACIÓN CERRADO!",
+      "coachAngryText": "No has indicado tu participación. El entrenador está MUY enfadado. Prepara tus músculos para hacer flexiones.",
+      "coachAngryForgivePhrase": "Lo siento, no volverá a ocurrir",
+      "typeToUnlockPrompt": "Escribe la siguiente frase para desbloquear:",
+      "typeExactPhrasePlaceholder": "Escribe aquí la frase exacta...",
+      "votingTimeRemaining": "⏳ Plazo para votar: {time} restantes",
+      "votingLastHour": "⚠️ ¡Última hora! Quedan {time} para votar",
+      "votingClosedDeadline": "🔒 Plazo de votación cerrado (2h antes del inicio)",
       "appName": "Player stats (Player)",
       "convocations": "Convocatorias",
       "myProfile": "Mi Ficha",
@@ -1563,6 +1579,14 @@
       "vote": "voto"
     },
     ru: {
+      "coachAngryTitle": "⚠️ СРОК ГОЛОСОВАНИЯ ИСТЁК!",
+      "coachAngryText": "Ты не отметил своё участие. Тренер ОЧЕНЬ зол. Готовь мышцы к отжиманиям.",
+      "coachAngryForgivePhrase": "Простите, больше такого не повторится",
+      "typeToUnlockPrompt": "Напиши следующую фразу для разблокировки:",
+      "typeExactPhrasePlaceholder": "Напиши здесь точную фразу...",
+      "votingTimeRemaining": "⏳ Время на голосование: осталось {time}",
+      "votingLastHour": "⚠️ Последний час! Осталось {time} для голосования",
+      "votingClosedDeadline": "🔒 Голосование закрыто (за 2ч до начала)",
       "appName": "Player stats (Coach)",
       "convocations": "Заявки",
       "myProfile": "Мой профиль",
@@ -3679,7 +3703,15 @@
     const axesLabels = {
       en: { pas: 'PASS', tir: 'SHOT', reg: 'DRIB', fis: 'PHYS', def: 'DEF' },
       ee: { pas: 'SÖÖT', tir: 'LÖÖK', reg: 'TRIB', fis: 'FÜÜS', def: 'KAIT' },
-      et: { pas: 'SÖÖT', tir: 'LÖÖK', reg: 'TRIB', fis: 'FÜÜS', def: 'KAIT' },
+      et: {
+      "coachAngryTitle": "⚠️ HÄÄLETAMISE TÄHTAEG ON MÖÖDAS!",
+      "coachAngryText": "Sa ei märkinud oma osalemist. Treener on VÄGA vihane. Valmista oma lihased ette kätekõverdusteks.",
+      "coachAngryForgivePhrase": "Vabandan, seda enam ei kordu",
+      "typeToUnlockPrompt": "Kirjuta avamiseks järgmine lause:",
+      "typeExactPhrasePlaceholder": "Kirjuta siia täpne lause...",
+      "votingTimeRemaining": "⏳ Hääletamise tähtaeg: {time} jäänud",
+      "votingLastHour": "⚠️ Viimane tund! {time} jäänud hääletamiseks",
+      "votingClosedDeadline": "🔒 Hääletamine suletud (2h enne algust)", pas: 'SÖÖT', tir: 'LÖÖK', reg: 'TRIB', fis: 'FÜÜS', def: 'KAIT' },
       es: { pas: 'PASE', tir: 'TIRO', reg: 'REG',  fis: 'FÍS',  def: 'DEF' },
       ru: { pas: 'ПАС',  tir: 'УДАР', reg: 'ДРИБ', fis: 'ФИЗ',  def: 'ЗАЩ' }
     };
@@ -6112,6 +6144,234 @@
     upcomingThisWeekConvs.sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.time || '').localeCompare(b.time || ''));
     pastConvs.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.time || '').localeCompare(a.time || ''));
 
+
+  /* =============================================================
+     CONTROL DE PLAZO DE VOTACIÓN (MÁXIMO 2H ANTES DEL INICIO)
+     ============================================================= */
+  function getConvocationStartTimestamp(c) {
+    if (!c || !c.date) return null;
+    const timePart = c.time || '10:00';
+    const dateParts = String(c.date).trim().split('-');
+    if (dateParts.length !== 3) return null;
+    const timeParts = timePart.split(':');
+    const y = parseInt(dateParts[0], 10);
+    const m = parseInt(dateParts[1], 10) - 1;
+    const d = parseInt(dateParts[2], 10);
+    const hh = parseInt(timeParts[0] || '10', 10);
+    const mm = parseInt(timeParts[1] || '0', 10);
+    const dt = new Date(y, m, d, hh, mm, 0, 0);
+    const timeMs = dt.getTime();
+    return isNaN(timeMs) ? null : timeMs;
+  }
+
+  function getVotingDeadlineInfo(c) {
+    const startMs = getConvocationStartTimestamp(c);
+    if (!startMs) return { deadlineMs: null, msRemaining: null, isExpired: false, isLastHour: false, text: '' };
+    // Límite estricto: 2 horas antes de la hora fijada para el entrenamiento/partido
+    const deadlineMs = startMs - (2 * 60 * 60 * 1000);
+    const now = Date.now();
+    const msRemaining = deadlineMs - now;
+    const isExpired = msRemaining <= 0;
+    const isLastHour = (!isExpired && msRemaining <= (60 * 60 * 1000));
+
+    let text = '';
+    if (isExpired) {
+      text = t('votingClosedDeadline', '🔒 Plazo de votación cerrado (2h antes del inicio)');
+    } else {
+      const totalMin = Math.max(1, Math.floor(msRemaining / 60000));
+      const hours = Math.floor(totalMin / 60);
+      const mins = totalMin % 60;
+      let timeFmt = '';
+      if (hours > 0) {
+        timeFmt = hours + 'h ' + (mins > 0 ? (mins + 'm') : '');
+      } else {
+        timeFmt = mins + 'm';
+      }
+
+      if (isLastHour) {
+        text = t('votingLastHour', '⚠️ ¡Última hora! Quedan {time} para votar').replace('{time}', timeFmt);
+      } else {
+        text = t('votingTimeRemaining', '⏳ Plazo para votar: {time} restantes').replace('{time}', timeFmt);
+      }
+    }
+
+    return { deadlineMs, msRemaining, isExpired, isLastHour, text };
+  }
+
+  function normalizeForgivePhrase(str) {
+    return (str || '')
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()'"’]/g, '')
+      .replace(/\s+/g, ' ');
+  }
+
+  function showCoachAngryPunishmentModal(conv) {
+    if (document.getElementById('dlg-coach-angry-punishment')) return;
+
+    try { localStorage.setItem('ps_coach_punishment_pending', '1'); } catch (e) {}
+    haptic(50);
+
+    const requiredPhrase = t('coachAngryForgivePhrase', 'Lo siento, no volverá a ocurrir');
+    const normRequired = normalizeForgivePhrase(requiredPhrase);
+
+    // Evitar que el botón atrás de Android o del navegador cierre esta ventana
+    const prevBackHandler = window.__handleAppBack;
+    window.__handleAppBack = function () {
+      return true; // handled / bloqueado
+    };
+
+    const pushStateLock = function () {
+      try { history.pushState({ modal: 'angry_punishment' }, ''); } catch (e) {}
+    };
+    pushStateLock();
+
+    const onPopStateLock = function () {
+      pushStateLock();
+    };
+    window.addEventListener('popstate', onPopStateLock);
+
+    const overlay = document.createElement('div');
+    overlay.id = 'dlg-coach-angry-punishment';
+    overlay.style.cssText = `
+      position: fixed; inset: 0; z-index: 999999;
+      background: rgba(0, 0, 0, 0.92);
+      backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+      display: flex; align-items: center; justify-content: center;
+      padding: 16px; animation: fadeIn 0.3s ease-out;
+    `;
+
+    overlay.innerHTML = `
+      <div style="background: linear-gradient(180deg, #1e1b1e 0%, #170f12 100%); border: 2.5px solid #ef4444; border-radius: 22px; padding: 24px 20px; max-width: 440px; width: 100%; box-shadow: 0 0 35px rgba(239, 68, 68, 0.45); text-align: center; max-height: 94vh; overflow-y: auto;">
+        <!-- Título de alerta -->
+        <div style="font-size: 13px; font-weight: 900; color: #fca5a5; letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 8px;">
+          ${t('coachAngryTitle', '⚠️ ¡PLAZO DE VOTACIÓN CERRADO!')}
+        </div>
+
+        <!-- Imagen Angry Emoji muy grande -->
+        <div style="margin: 6px auto 14px; position: relative;">
+          <img src="assets/angry_emoji.png" onerror="this.onerror=null; this.src='assets/angry emoji.png';" alt="Angry Coach Emoji" style="width: 175px; height: 175px; max-width: 60vw; max-height: 26vh; object-fit: contain; margin: 0 auto; display: block; filter: drop-shadow(0 0 20px rgba(239, 68, 68, 0.75)); animation: angryRumble 0.5s ease-in-out infinite alternate;" />
+        </div>
+
+        <!-- Mensaje principal del entrenador -->
+        <div style="font-size: 14.5px; font-weight: 800; color: #fee2e2; line-height: 1.45; margin-bottom: 16px; background: rgba(239, 68, 68, 0.15); border: 1.5px solid rgba(239, 68, 68, 0.4); border-radius: 12px; padding: 12px 14px; text-shadow: 0 1px 3px rgba(0,0,0,0.8);">
+          ${t('coachAngryText', 'No has indicado tu participación. El entrenador está MUY enfadado. Prepara tus músculos para hacer flexiones.')}
+        </div>
+
+        <!-- Instrucción de desbloqueo -->
+        <div style="font-size: 11.5px; color: #cbd5e1; margin-bottom: 6px; font-weight: 700;">
+          ${t('typeToUnlockPrompt', 'Escribe la siguiente frase para desbloquear:')}
+        </div>
+        <div style="font-size: 13px; font-weight: 900; color: #fef08a; background: rgba(0,0,0,0.5); border: 1px dashed rgba(254, 240, 138, 0.5); border-radius: 8px; padding: 7px 10px; margin-bottom: 12px; user-select: none;">
+          "${escapeHtml(requiredPhrase)}"
+        </div>
+
+        <!-- Campo para escribir la frase -->
+        <input type="text" id="inp-angry-forgive" placeholder="${t('typeExactPhrasePlaceholder', 'Escribe aquí la frase exacta...')}" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" style="width: 100%; box-sizing: border-box; font-size: 13.5px; font-weight: 700; padding: 11px 12px; border-radius: 10px; background: rgba(0,0,0,0.6); border: 1.5px solid #64748b; color: #fff; text-align: center; margin-bottom: 14px; outline: none; transition: all 0.25s;" />
+
+        <!-- Botón Cerrar (bloqueado hasta escribir la frase) -->
+        <button type="button" id="btn-angry-forgive-close" disabled style="width: 100%; height: 42px; font-size: 13.5px; font-weight: 900; border-radius: 10px; border: none; opacity: 0.35; cursor: not-allowed; background: var(--surface2); color: var(--muted); transition: all 0.3s; text-transform: uppercase; letter-spacing: 0.5px;">
+          ${t('close', 'Cerrar')}
+        </button>
+      </div>
+    `;
+
+    overlay.onclick = function (e) {
+      e.stopPropagation();
+    };
+
+    document.body.appendChild(overlay);
+
+    const inp = overlay.querySelector('#inp-angry-forgive');
+    const btnClose = overlay.querySelector('#btn-angry-forgive-close');
+
+    if (inp) {
+      inp.focus();
+      inp.oninput = function () {
+        const val = normalizeForgivePhrase(inp.value);
+        if (val === normRequired) {
+          inp.style.borderColor = '#22c55e';
+          inp.style.boxShadow = '0 0 10px rgba(34, 197, 94, 0.4)';
+          btnClose.disabled = false;
+          btnClose.style.opacity = '1';
+          btnClose.style.cursor = 'pointer';
+          btnClose.style.background = 'linear-gradient(135deg, #22c55e, #16a34a)';
+          btnClose.style.boxShadow = '0 0 18px rgba(34, 197, 94, 0.65)';
+          btnClose.style.color = '#fff';
+          haptic(35);
+        } else {
+          inp.style.borderColor = '#64748b';
+          inp.style.boxShadow = 'none';
+          btnClose.disabled = true;
+          btnClose.style.opacity = '0.35';
+          btnClose.style.cursor = 'not-allowed';
+          btnClose.style.background = 'var(--surface2)';
+          btnClose.style.boxShadow = 'none';
+          btnClose.style.color = 'var(--muted)';
+        }
+      };
+    }
+
+    if (btnClose) {
+      btnClose.onclick = function () {
+        if (btnClose.disabled) return;
+        try { localStorage.removeItem('ps_coach_punishment_pending'); } catch (e) {}
+        window.removeEventListener('popstate', onPopStateLock);
+        window.__handleAppBack = prevBackHandler;
+        overlay.remove();
+        haptic(25);
+      };
+    }
+  }
+
+  // Intervalo en vivo para actualizar las cuentas atrás de votación cada 15 segundos
+  if (!window._votingCountdownInterval) {
+    window._votingCountdownInterval = setInterval(() => {
+      const chips = document.querySelectorAll('.vote-countdown-chip[data-deadline]');
+      if (!chips || chips.length === 0) return;
+      chips.forEach(chip => {
+        const dl = parseInt(chip.getAttribute('data-deadline'), 10);
+        if (!dl) return;
+        const now = Date.now();
+        const diff = dl - now;
+        const box = chip.closest('.portal-vote-box');
+        if (diff <= 0) {
+          chip.textContent = t('votingClosedDeadline', '🔒 Plazo de votación cerrado (2h antes del inicio)');
+          chip.style.color = '#fca5a5';
+          chip.style.borderColor = 'rgba(239,68,68,0.4)';
+          if (box) {
+            box.classList.remove('vote-box-urgent');
+            box.classList.add('vote-box-expired');
+          }
+        } else {
+          const totalMin = Math.max(1, Math.floor(diff / 60000));
+          const h = Math.floor(totalMin / 60);
+          const m = totalMin % 60;
+          const timeFmt = h > 0 ? (h + 'h ' + (m > 0 ? (m + 'm') : '')) : (m + 'm');
+          if (diff <= (60 * 60 * 1000)) {
+            chip.textContent = t('votingLastHour', '⚠️ ¡Última hora! Quedan {time} para votar').replace('{time}', timeFmt);
+            chip.style.color = '#fca5a5';
+            chip.style.borderColor = 'rgba(239,68,68,0.5)';
+            if (box) {
+              box.classList.add('vote-box-urgent');
+              box.classList.remove('vote-box-expired');
+            }
+          } else {
+            chip.textContent = t('votingTimeRemaining', '⏳ Plazo para votar: {time} restantes').replace('{time}', timeFmt);
+            chip.style.color = '#cbd5e1';
+            chip.style.borderColor = 'rgba(255,255,255,0.08)';
+            if (box) {
+              box.classList.remove('vote-box-urgent');
+              box.classList.remove('vote-box-expired');
+            }
+          }
+        }
+      });
+    }, 15000);
+  }
+
     function renderSingleConvCard(c, isToday, isPast) {
       const isMatch = c.type === 'match';
       const linkedSession = (clubData && clubData.sessions)
@@ -6155,6 +6415,7 @@
       // Voto del usuario actual
       const myVoteObj = myPlayerId ? (responses[myPlayerId] || (c.responses && c.responses[myPlayerId])) : null;
       const mySt = myVoteObj ? myVoteObj.status : null;
+      const myVoteTime = myVoteObj ? (myVoteObj.timestamp || myVoteObj.time) : null;
       const isAttending = mySt && (mySt === 'called' || mySt === 'attending' || mySt === 'yes');
       const isAbsent = mySt && (mySt === 'absent' || mySt === 'no');
 
@@ -6350,44 +6611,66 @@
               </div>
             </div>
           ` : `
-            <div class="portal-vote-box" style="margin-top: 10px;">
-              ${(hasApprovedProfile() && myPlayerId) ? (
-                isCalled ? `
-                  <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span style="font-size: 12px; font-weight: 800; color: #fff;">${t('willYouAttend')}</span>
-                    <span id="vote-badge-${c.id}" class="badge" style="${isAttending ? 'background: rgba(34,197,94,0.2); color: #86efac;' : (isAbsent ? 'background: rgba(239,68,68,0.2); color: #fca5a5;' : 'background: var(--surface); color: var(--muted);')}">
-                      ${isAttending ? t('attendanceConfirmed') : (isAbsent ? t('absenceReported') : t('pendingResponse'))}
-                    </span>
-                  </div>
+            ${(() => {
+              const dlInfo = getVotingDeadlineInfo(c);
+              const isDeadlineExpired = dlInfo.isExpired;
+              const isLastHour = dlInfo.isLastHour;
+              return `
+                <div class="portal-vote-box ${isLastHour ? 'vote-box-urgent' : ''} ${isDeadlineExpired ? 'vote-box-expired' : ''}" style="margin-top: 10px;">
+                  ${(hasApprovedProfile() && myPlayerId) ? (
+                    isCalled ? `
+                      <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-size: 12px; font-weight: 800; color: #fff;">${t('willYouAttend')}</span>
+                        <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px;">
+                          <span id="vote-badge-${c.id}" class="badge" style="${isAttending ? 'background: rgba(34,197,94,0.2); color: #86efac;' : (isAbsent ? 'background: rgba(239,68,68,0.2); color: #fca5a5;' : 'background: var(--surface); color: var(--muted);')}">
+                            ${isAttending ? t('attendanceConfirmed') : (isAbsent ? t('absenceReported') : t('pendingResponse'))}
+                          </span>
+                          <span id="vote-time-${c.id}" style="${(isAttending || isAbsent) && myVoteTime ? 'display: inline-block;' : 'display: none;'} font-size: 10px; color: var(--muted); opacity: 0.9; font-weight: 600;">
+                            🕒 ${myVoteTime && window.formatAttendanceDateTime ? escapeHtml(window.formatAttendanceDateTime(myVoteTime)) : ''}
+                          </span>
+                        </div>
+                      </div>
 
-                  <div class="portal-vote-btns">
-                    <button class="btn-vote yes ${isAttending ? 'active' : ''}" data-cid="${c.id}" data-vote="called">
-                      ${t('iWillAttend')}
-                    </button>
-                    <button class="btn-vote no ${isAbsent ? 'active' : ''}" data-cid="${c.id}" data-vote="absent">
-                      ${t('iCannotAttend')}
-                    </button>
-                  </div>
-                ` : `
-                  <div style="text-align: center; padding: 6px 0; color: var(--muted); font-size: 12.5px;">
-                    ${t('notCalledUp')}
-                  </div>
-                `
-              ) : `
-                <div style="text-align: center; padding: 6px 0;">
-                  <button type="button" class="btn sm primary btn-select-id-for-conv" style="font-weight: 800; font-size: 12px; padding: 7px 16px; border-radius: 10px; width: 100%;">
-                    ⚽ ${t('selectIdentityToVote', 'Seleccionar mi perfil para confirmar asistencia')}
-                  </button>
-                </div>
-              `}
+                      <!-- Contador de tiempo límite para votar -->
+                      <div class="vote-countdown-chip" id="vote-countdown-${c.id}" data-deadline="${dlInfo.deadlineMs || ''}" style="margin: 6px 0 8px; font-size: 10.5px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 4px; padding: 4px 8px; border-radius: 8px; text-align: center; background: ${isLastHour ? 'rgba(239, 68, 68, 0.25)' : (isDeadlineExpired ? 'rgba(239, 68, 68, 0.15)' : 'rgba(255, 255, 255, 0.05)')}; color: ${isLastHour || isDeadlineExpired ? '#fca5a5' : '#cbd5e1'}; border: 1px solid ${isLastHour ? 'rgba(239,68,68,0.5)' : (isDeadlineExpired ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.08)')};">
+                        ${dlInfo.text}
+                      </div>
 
-              <!-- RECUENTO EN VIVO Y MODAL DE COMPAÑEROS QUE ASISTEN -->
-              <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; font-size: 12px;">
-                <div style="display: flex; gap: 8px;">
-                  <span style="color: #86efac; font-weight: 800;">🟢 ${nAttending}</span>
-                  <span style="color: #fca5a5; font-weight: 800;">❌ ${nAbsent}</span>
-                  <span style="color: #fde047; font-weight: 800;">⏳ ${nPending}</span>
+                      <div class="portal-vote-btns">
+                        <button class="btn-vote yes ${isAttending ? 'active' : ''}" data-cid="${c.id}" data-vote="called" style="${isDeadlineExpired ? 'opacity: 0.7; cursor: pointer;' : ''}">
+                          ${t('iWillAttend')}
+                        </button>
+                        <button class="btn-vote no ${isAbsent ? 'active' : ''}" data-cid="${c.id}" data-vote="absent" style="${isDeadlineExpired ? 'opacity: 0.7; cursor: pointer;' : ''}">
+                          ${t('iCannotAttend')}
+                        </button>
+                      </div>
+                    ` : `
+                      <div style="text-align: center; padding: 6px 0; color: var(--muted); font-size: 12.5px;">
+                        ${t('notCalledUp')}
+                      </div>
+                    `
+                  ) : `
+                    <div style="text-align: center; padding: 6px 0;">
+                      <button type="button" class="btn sm primary btn-select-id-for-conv" style="font-weight: 800; font-size: 12px; padding: 7px 16px; border-radius: 10px; width: 100%;">
+                        ⚽ ${t('selectIdentityToVote', 'Seleccionar mi perfil para confirmar asistencia')}
+                      </button>
+                    </div>
+                  `}
+
+                  <!-- RECUENTO EN VIVO Y MODAL DE COMPAÑEROS QUE ASISTEN -->
+                  <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; font-size: 12px;">
+                    <div style="display: flex; gap: 8px;">
+                      <span style="color: #86efac; font-weight: 800;">🟢 ${nAttending}</span>
+                      <span style="color: #fca5a5; font-weight: 800;">❌ ${nAbsent}</span>
+                      <span style="color: #fde047; font-weight: 800;">⏳ ${nPending}</span>
+                    </div>
+                    <button type="button" class="btn sm ghost" data-open-squad-status="${c.id}" style="color: var(--cyan); font-weight: 800; font-size: 11.5px; padding: 4px 8px;">
+                      ${t('viewAttendees')}
+                    </button>
+                  </div>
                 </div>
+              `;
+            })()}
                 <button type="button" class="btn sm ghost" data-open-squad-status="${c.id}" style="color: var(--cyan); font-weight: 800; font-size: 11.5px; padding: 4px 8px;">
                   ${t('viewAttendees')}
                 </button>
@@ -6549,6 +6832,13 @@
 
         const cid = btn.getAttribute('data-cid');
         const vote = btn.getAttribute('data-vote');
+
+        const convTarget = (convs && convs.find(x => x.id === cid)) || (clubData && clubData.convocations && clubData.convocations.find(x => x.id === cid));
+        const dlCheck = getVotingDeadlineInfo(convTarget);
+        if (dlCheck.isExpired) {
+          showCoachAngryPunishmentModal(convTarget);
+          return;
+        }
         const myP = getMyPlayer();
         const pName = myP ? `${myP.name || ''} ${myP.lastName || ''}`.trim() : 'Player';
 
@@ -6585,6 +6875,7 @@
               btn.classList.add('active');
             }
             const badge = document.getElementById(`vote-badge-${cid}`);
+            const timeEl = document.getElementById(`vote-time-${cid}`);
             if (badge) {
               if (nextVote === 'called') {
                 badge.textContent = t('attendanceConfirmed');
@@ -6598,6 +6889,15 @@
                 badge.textContent = t('pendingResponse');
                 badge.style.background = 'var(--surface)';
                 badge.style.color = 'var(--muted)';
+              }
+            }
+            if (timeEl) {
+              if (nextVote !== 'pending') {
+                const nowFmt = window.formatAttendanceDateTime ? window.formatAttendanceDateTime(Date.now()) : '';
+                timeEl.textContent = '🕒 ' + nowFmt;
+                timeEl.style.display = 'inline-block';
+              } else {
+                timeEl.style.display = 'none';
               }
             }
           }
@@ -6641,6 +6941,14 @@
         if (conv) showAttendeesBreakdownModal(conv);
       };
     });
+
+    try {
+      if (localStorage.getItem('ps_coach_punishment_pending') === '1') {
+        setTimeout(() => {
+          showCoachAngryPunishmentModal();
+        }, 400);
+      }
+    } catch (e) {}
 
     const btnSelFromBanner = view.querySelector('#btn-select-id-from-convs');
     if (btnSelFromBanner) btnSelFromBanner.onclick = showSelectIdentityModal;
@@ -6889,11 +7197,18 @@
                 const isAtt = (st === 'called' || st === 'attending' || st === 'yes');
                 const isAbs = (st === 'absent' || st === 'no');
                 const statusIcon = isAtt ? '🟢' : (isAbs ? '❌' : '⏳');
+                const rTime = r ? (r.timestamp || r.time) : null;
+                const timeStr = rTime && window.formatAttendanceDateTime ? window.formatAttendanceDateTime(rTime) : '';
                 return `
-                  <div style="display: flex; align-items: center; gap: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; font-size: 11.5px; overflow: hidden;">
+                  <div style="display: flex; align-items: center; gap: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; font-size: 11.5px; overflow: hidden;" title="${timeStr ? (isAtt ? 'Confirmado: ' : 'Baja: ') + timeStr : ''}">
                     <span>${statusIcon}</span>
                     <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;">
-                      <b style="color: #fff;">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(formatPlayerShortName(p))}</b>
+                      <b style="color: #fff; display: block; overflow: hidden; text-overflow: ellipsis;">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(formatPlayerShortName(p))}</b>
+                      ${timeStr ? `
+                        <small style="display: block; font-size: 9.5px; color: ${isAtt ? '#86efac' : '#fca5a5'}; opacity: 0.9; line-height: 1.1; margin-top: 1px; font-weight: 600;">
+                          ${escapeHtml(timeStr)}
+                        </small>
+                      ` : ''}
                     </div>
                   </div>
                 `;
@@ -6984,6 +7299,12 @@
       btn.onclick = async () => {
         if (!myPlayerId) {
           showSelectIdentityModal();
+          return;
+        }
+
+        const dlCheck = getVotingDeadlineInfo(conv);
+        if (dlCheck.isExpired) {
+          showCoachAngryPunishmentModal(conv);
           return;
         }
         const vote = btn.getAttribute('data-vote');
@@ -7191,11 +7512,18 @@
                 const isAtt = (st === 'called' || st === 'attending' || st === 'yes');
                 const isAbs = (st === 'absent' || st === 'no');
                 const statusIcon = isAtt ? '🟢' : (isAbs ? '❌' : '⏳');
+                const rTime = r ? (r.timestamp || r.time) : null;
+                const timeStr = rTime && window.formatAttendanceDateTime ? window.formatAttendanceDateTime(rTime) : '';
                 return `
-                  <div style="display: flex; align-items: center; gap: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; font-size: 11.5px; overflow: hidden;">
+                  <div style="display: flex; align-items: center; gap: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; font-size: 11.5px; overflow: hidden;" title="${timeStr ? (isAtt ? 'Confirmado: ' : 'Baja: ') + timeStr : ''}">
                     <span>${statusIcon}</span>
                     <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;">
-                      <b style="color: #fff;">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(formatPlayerShortName(p))}</b>
+                      <b style="color: #fff; display: block; overflow: hidden; text-overflow: ellipsis;">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(formatPlayerShortName(p))}</b>
+                      ${timeStr ? `
+                        <small style="display: block; font-size: 9.5px; color: ${isAtt ? '#86efac' : '#fca5a5'}; opacity: 0.9; line-height: 1.1; margin-top: 1px; font-weight: 600;">
+                          ${escapeHtml(timeStr)}
+                        </small>
+                      ` : ''}
                     </div>
                   </div>
                 `;
@@ -7241,6 +7569,12 @@
       btn.onclick = async () => {
         if (!myPlayerId) {
           showSelectIdentityModal();
+          return;
+        }
+
+        const dlCheck = getVotingDeadlineInfo(conv);
+        if (dlCheck.isExpired) {
+          showCoachAngryPunishmentModal(conv);
           return;
         }
         const vote = btn.getAttribute('data-vote');
@@ -7335,10 +7669,11 @@
       const p = allPlayersMap[pid] || { id: pid, name: pid.replace(/^manual_/, ''), mainPosition: 'Jugador' };
       const r = responses[pid] || (conv.responses && conv.responses[pid]);
       const st = r ? r.status : null;
+      const time = r ? (r.timestamp || r.time) : null;
 
-      if (st === 'called' || st === 'attending' || st === 'yes') attending.push(p);
-      else if (st === 'absent' || st === 'no') absent.push(p);
-      else pending.push(p);
+      if (st === 'called' || st === 'attending' || st === 'yes') attending.push({ player: p, time });
+      else if (st === 'absent' || st === 'no') absent.push({ player: p, time });
+      else pending.push({ player: p });
     });
 
     const overlay = document.createElement('div');
@@ -7358,12 +7693,23 @@
             </div>
             ${attending.length === 0 ? `<div style="font-size: 12px; color: var(--muted);">${t('noAttendeesYet')}</div>` : `
               <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px;">
-                ${attending.map(p => `
-                  <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; background: var(--surface2); border: 1px solid var(--border); padding: 8px 10px; border-radius: 10px; overflow: hidden;">
-                    ${renderAvatar(p, 'sm')}
-                    <b style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(p.name || '')} ${escapeHtml(p.lastName || '')}</b>
-                  </div>
-                `).join('')}
+                ${attending.map(item => {
+                  const p = item.player;
+                  const timeStr = item.time && window.formatAttendanceDateTime ? window.formatAttendanceDateTime(item.time) : '';
+                  return `
+                    <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; background: var(--surface2); border: 1px solid var(--border); padding: 8px 10px; border-radius: 10px; overflow: hidden;">
+                      ${renderAvatar(p, 'sm')}
+                      <div style="flex: 1; min-width: 0;">
+                        <b style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block;">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(p.name || '')} ${escapeHtml(p.lastName || '')}</b>
+                        ${timeStr ? `
+                          <small style="display: block; font-size: 10px; color: #86efac; opacity: 0.9; margin-top: 1px; font-weight: 600;">
+                            🕒 ${escapeHtml(timeStr)}
+                          </small>
+                        ` : ''}
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
               </div>
             `}
           </div>
@@ -7375,12 +7721,23 @@
             </div>
             ${absent.length === 0 ? `<div style="font-size: 12px; color: var(--muted);">${t('noAbsentYet')}</div>` : `
               <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px;">
-                ${absent.map(p => `
-                  <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; background: var(--surface2); border: 1px solid var(--border); padding: 8px 10px; border-radius: 10px; overflow: hidden;">
-                    ${renderAvatar(p, 'sm')}
-                    <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(p.name || '')} ${escapeHtml(p.lastName || '')}</span>
-                  </div>
-                `).join('')}
+                ${absent.map(item => {
+                  const p = item.player;
+                  const timeStr = item.time && window.formatAttendanceDateTime ? window.formatAttendanceDateTime(item.time) : '';
+                  return `
+                    <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; background: var(--surface2); border: 1px solid var(--border); padding: 8px 10px; border-radius: 10px; overflow: hidden;">
+                      ${renderAvatar(p, 'sm')}
+                      <div style="flex: 1; min-width: 0;">
+                        <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; font-weight: 700;">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(p.name || '')} ${escapeHtml(p.lastName || '')}</span>
+                        ${timeStr ? `
+                          <small style="display: block; font-size: 10px; color: #fca5a5; opacity: 0.9; margin-top: 1px; font-weight: 600;">
+                            🕒 ${escapeHtml(timeStr)}
+                          </small>
+                        ` : ''}
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
               </div>
             `}
           </div>
@@ -7392,12 +7749,15 @@
             </div>
             ${pending.length === 0 ? `<div style="font-size: 12px; color: var(--muted);">${t('allAnswered')}</div>` : `
               <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px;">
-                ${pending.map(p => `
-                  <div style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); background: var(--surface2); border: 1px solid var(--border); padding: 8px 10px; border-radius: 10px; overflow: hidden;">
-                    ${renderAvatar(p, 'sm')}
-                    <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(p.name || '')} ${escapeHtml(p.lastName || '')}</span>
-                  </div>
-                `).join('')}
+                ${pending.map(item => {
+                  const p = item.player;
+                  return `
+                    <div style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); background: var(--surface2); border: 1px solid var(--border); padding: 8px 10px; border-radius: 10px; overflow: hidden;">
+                      ${renderAvatar(p, 'sm')}
+                      <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(p.name || '')} ${escapeHtml(p.lastName || '')}</span>
+                    </div>
+                  `;
+                }).join('')}
               </div>
             `}
           </div>

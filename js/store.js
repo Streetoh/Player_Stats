@@ -344,11 +344,13 @@
         } else {
           const isAttending = (resp.status === 'called' || resp.status === 'attending' || resp.status === 'yes');
           const statusKey = isAttending ? 'attending' : 'absent';
+          const rTime = resp.timestamp || resp.time || Date.now();
           conv.responses[resp.playerId] = {
             status: statusKey,
             playerName: resp.playerName || '',
             notes: resp.notes || '',
-            time: resp.timestamp || Date.now()
+            time: rTime,
+            timestamp: rTime
           };
         }
         this.save();
