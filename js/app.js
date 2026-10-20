@@ -96,6 +96,10 @@
 
     const sheet = document.createElement('div');
     sheet.className = 'sheet';
+    // Altura inicial generosa y cómoda para la hoja inferior
+    const defaultSheetH = Math.min(window.innerHeight * 0.70, 560);
+    sheet.style.height = `${defaultSheetH}px`;
+    sheet.style.maxHeight = '96vh';
 
     sheet.innerHTML = `
       <div class="sheet-handle"></div>
@@ -128,50 +132,88 @@
 
     const expandBtn = sheet.querySelector('#sheet-expand-btn');
     function toggleExpand() {
-      const isExpanded = sheet.classList.toggle('expanded');
-      if (expandBtn) expandBtn.textContent = isExpanded ? '⤡' : '⤢';
+      const currentH = sheet.getBoundingClientRect().height;
+      const maxH = window.innerHeight * 0.95;
+      const isExpanded = currentH >= maxH * 0.9;
+      sheet.style.transition = 'height 0.25s cubic-bezier(0.2, 0.9, 0.3, 1), max-height 0.25s cubic-bezier(0.2, 0.9, 0.3, 1)';
+      sheet.classList.remove('expanded');
+      if (isExpanded) {
+        const resetH = Math.min(window.innerHeight * 0.68, 540);
+        sheet.style.height = `${resetH}px`;
+        sheet.style.maxHeight = '96vh';
+        if (expandBtn) expandBtn.textContent = '⤢';
+      } else {
+        sheet.style.height = `${maxH}px`;
+        sheet.style.maxHeight = '96vh';
+        if (expandBtn) expandBtn.textContent = '⤡';
+      }
       haptic(20);
     }
 
     if (expandBtn) expandBtn.onclick = toggleExpand;
 
-    // Arrastrar / deslizar hacia arriba para expandir la ventana
+    // Arrastrar / deslizar para redimensionar dinámicamente y mantenerse exactamente en la altura soltada
     const handleEl = sheet.querySelector('.sheet-handle');
     const headEl = sheet.querySelector('.sheet-head');
+    let isDragging = false;
     let touchStartY = 0;
-    let touchMoveY = 0;
+    let initialSheetHeight = 0;
+    let currentDragHeight = 0;
+
+    function startDrag(e) {
+      if (!e.touches || !e.touches[0]) return;
+      if (e.target.closest('#sheet-close-btn') || e.target.closest('#sheet-expand-btn')) return;
+      isDragging = true;
+      touchStartY = e.touches[0].clientY;
+      initialSheetHeight = sheet.getBoundingClientRect().height;
+      currentDragHeight = initialSheetHeight;
+      sheet.classList.remove('expanded');
+      sheet.style.transition = 'none';
+    }
+
+    function moveDrag(e) {
+      if (!isDragging || !e.touches || !e.touches[0]) return;
+      const currentY = e.touches[0].clientY;
+      const deltaY = touchStartY - currentY; // Arriba positivo, abajo negativo
+      const minH = 180;
+      const maxH = window.innerHeight * 0.96;
+      currentDragHeight = Math.max(minH, Math.min(initialSheetHeight + deltaY, maxH));
+      sheet.style.height = `${currentDragHeight}px`;
+      sheet.style.maxHeight = `${currentDragHeight}px`;
+      if (e.cancelable) e.preventDefault();
+    }
+
+    function endDrag(e) {
+      if (!isDragging) return;
+      isDragging = false;
+      sheet.style.transition = 'height 0.22s cubic-bezier(0.2, 0.9, 0.3, 1), max-height 0.22s cubic-bezier(0.2, 0.9, 0.3, 1)';
+
+      const touchEndY = (e.changedTouches && e.changedTouches[0]) ? e.changedTouches[0].clientY : touchStartY;
+      const deltaY = touchStartY - touchEndY;
+
+      // Si se arrastra hacia abajo con fuerza o la altura final queda muy reducida, cerrar
+      if (deltaY < -130 || currentDragHeight < 210) {
+        handleClose();
+        return;
+      }
+
+      // Mantener con total precisión la altura exacta a la que el usuario la ha dejado
+      sheet.style.height = `${currentDragHeight}px`;
+      sheet.style.maxHeight = '96vh';
+
+      if (expandBtn) {
+        const isNearMax = currentDragHeight >= window.innerHeight * 0.88;
+        expandBtn.textContent = isNearMax ? '⤡' : '⤢';
+      }
+      haptic(15);
+    }
 
     [handleEl, headEl].forEach(target => {
       if (!target) return;
-      target.addEventListener('touchstart', (e) => {
-        if (e.touches && e.touches[0]) {
-          touchStartY = e.touches[0].clientY;
-          touchMoveY = touchStartY;
-        }
-      }, { passive: true });
-
-      target.addEventListener('touchmove', (e) => {
-        if (e.touches && e.touches[0]) {
-          touchMoveY = e.touches[0].clientY;
-        }
-      }, { passive: true });
-
-      target.addEventListener('touchend', () => {
-        const diff = touchStartY - touchMoveY;
-        if (diff > 45) {
-          // Deslizado hacia arriba -> expandir ventana al máximo
-          if (!sheet.classList.contains('expanded')) {
-            toggleExpand();
-          }
-        } else if (diff < -65) {
-          // Deslizado hacia abajo -> contraer si estaba expandida, o cerrar si no
-          if (sheet.classList.contains('expanded')) {
-            toggleExpand();
-          } else {
-            handleClose();
-          }
-        }
-      }, { passive: true });
+      target.addEventListener('touchstart', startDrag, { passive: true });
+      target.addEventListener('touchmove', moveDrag, { passive: false });
+      target.addEventListener('touchend', endDrag, { passive: true });
+      target.addEventListener('touchcancel', endDrag, { passive: true });
     });
 
     backdrop.addEventListener('click', (e) => {
@@ -989,7 +1031,7 @@
     remove(id) {
       if (id) DismissedNotifs.add(id);
       let list = this.getAll();
-      list = list.filter(n => n.id !== id && n.targetId !== id);
+      list = list.filter(n => n.id !== id);
       this.save(list);
     },
     removeByTarget(targetId) {
@@ -1043,8 +1085,8 @@
         if (!status || status === 'pending') return;
 
         const rTime = (typeof r === 'object' && (r.timestamp || r.time)) ? Number(r.timestamp || r.time) : 0;
-        // Solo considerar respuestas emitidas en las últimas 24 horas
-        if (rTime && (now - rTime > recentCutoff)) return;
+        // Solo considerar respuestas con timestamp válido emitidas en las últimas 24 horas
+        if (!rTime || (now - rTime > recentCutoff)) return;
 
         const notifId = 'att_' + (conv.id || 'c') + '_' + pid;
         if (DismissedNotifs.has(notifId)) return;
@@ -1669,7 +1711,7 @@
   }
 
   function showNotificationsCenterModal() {
-    openSheet(t('notificationCenter', 'Centro de Notificaciones'), (body) => {
+    const backdrop = openSheet(t('notificationCenter', 'Centro de Notificaciones'), (body) => {
       function renderNotifs() {
         const notifs = NotifManager.getAll();
         const pendingReqs = (pendingProfileRequests || []).length + (pendingPlayerCreationRequests || []).length;
@@ -1740,6 +1782,8 @@
         if (btnMarkAll) {
           btnMarkAll.onclick = () => {
             NotifManager.markAllAsRead();
+            updateRequestsBadge();
+            refreshHomeNotifications(true);
             renderNotifs();
           };
         }
@@ -1748,6 +1792,8 @@
         if (btnClearAll) {
           btnClearAll.onclick = () => {
             NotifManager.clearAll();
+            updateRequestsBadge();
+            refreshHomeNotifications(true);
             renderNotifs();
           };
         }
@@ -1765,6 +1811,8 @@
             e.stopPropagation();
             const nid = btn.getAttribute('data-delete-nid');
             NotifManager.remove(nid);
+            updateRequestsBadge();
+            refreshHomeNotifications(true);
             renderNotifs();
           };
         });
@@ -1775,6 +1823,8 @@
             const targetId = card.getAttribute('data-target');
             const type = card.getAttribute('data-type');
             NotifManager.markAsRead(nid);
+            updateRequestsBadge();
+            refreshHomeNotifications(true);
 
             closeSheet();
 
@@ -1794,7 +1844,17 @@
       }
 
       renderNotifs();
+    }, null, () => {
+      refreshHomeNotifications(true);
     });
+    if (backdrop) {
+      const sheet = backdrop.querySelector('.sheet');
+      if (sheet) {
+        const initH = Math.min(window.innerHeight * 0.72, 580);
+        sheet.style.height = `${initH}px`;
+        sheet.style.maxHeight = '96vh';
+      }
+    }
   }
 
   function renderLangButton() {
@@ -1865,7 +1925,17 @@
       ? `${pName} • ${convTitle}${timeFormatted ? ' (' + timeFormatted + ')' : ''}${resp.notes ? ' - ' + resp.notes : ''}`
       : `${pName} (${isAttending ? 'Asistirá' : 'No asistirá'}${timeFormatted ? ' • ' + timeFormatted : ''}${resp.notes ? ' - ' + resp.notes : ''})`;
 
-    DismissedNotifs.remove(notifId);
+    if (DismissedNotifs.has(notifId)) {
+      if (isInitialSync) return;
+      // Si el usuario ya descartó esta notificación, no la resucitamos a menos que sea un voto NUEVO
+      const existingList = NotifManager.getAll();
+      const existing = existingList.find(n => n.id === notifId);
+      if (existing && existing.time && rTimestamp <= existing.time) {
+        return;
+      }
+      DismissedNotifs.remove(notifId);
+    }
+
     NotifManager.add({
       id: notifId,
       type: 'attendance',
@@ -2097,7 +2167,7 @@
     const notifs = NotifManager.getAll();
     const unreadNotifs = notifs.filter(n => !n.read);
 
-    // Recopilar solicitudes pendientes en vivo para que NUNCA quede una caja vacía
+    // Recopilar solicitudes pendientes en vivo
     const pendingItems = [];
     (pendingProfileRequests || []).forEach(r => {
       pendingItems.push({
@@ -2137,12 +2207,32 @@
     const allActiveItems = [...pendingItems, ...unreadNotifs];
     const totalCount = Math.max(unreadNotifs.length, pendingReqsCount);
 
-    // Si no hay nada pendiente ni sin leer, mantener Inicio 100% limpio y despejado
-    if (totalCount === 0 || allActiveItems.length === 0) {
-      return '';
+    // Si no hay notificaciones activas, la ventana permanece visible mostrando estado limpio
+    if (allActiveItems.length === 0) {
+      return `
+        <div class="card" style="margin-bottom: 14px; border: 1.5px solid rgba(148, 163, 184, 0.25); background: rgba(15, 23, 42, 0.92); box-shadow: 0 4px 20px rgba(0,0,0,0.4); padding: 12px 14px; border-radius: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 17px; line-height: 1;">🔔</span>
+              <b style="font-size: 13.5px; color: #ffffff; font-weight: 800;">${t('notificationCenter', 'Centro de Notificaciones')}</b>
+              <span class="badge" style="background: rgba(148, 163, 184, 0.25); color: #94a3b8; font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 999px;">0</span>
+            </div>
+            <button type="button" class="btn sm ghost" id="btn-home-open-modal-center" style="font-size: 11px; padding: 3px 8px; font-weight: 800; color: #94a3b8;" title="Ver todas">
+              Ver todas ➔
+            </button>
+          </div>
+          <div style="padding: 16px 8px; text-align: center; color: #94a3b8; font-size: 12.5px; display: flex; flex-direction: column; align-items: center; gap: 4px;">
+            <span style="font-size: 22px;">🎉</span>
+            <b style="color: #cbd5e1; font-size: 13px;">${t('allCaughtUp', '¡Todo al día!')}</b>
+            <span style="font-size: 11.5px; color: #64748b;">${t('noNotifications', 'No tienes notificaciones pendientes')}</span>
+          </div>
+        </div>
+      `;
     }
 
-    const displayedItems = allActiveItems.slice(0, 2);
+    const maxDisplay = 8;
+    const displayedItems = allActiveItems.slice(0, maxDisplay);
+    const remainingCount = allActiveItems.length - displayedItems.length;
 
     return `
       <div class="card" style="margin-bottom: 14px; border: 1.5px solid rgba(34, 211, 238, 0.45); background: rgba(15, 23, 42, 0.92); box-shadow: 0 4px 20px rgba(0,0,0,0.4); padding: 12px 14px; border-radius: 16px;">
@@ -2169,7 +2259,7 @@
           </div>
         </div>
 
-        <div style="display: flex; flex-direction: column; gap: 8px;">
+        <div style="display: flex; flex-direction: column; gap: 8px; max-height: 290px; overflow-y: auto; padding-right: 2px;">
           ${displayedItems.map(n => {
             let ic = '🔔';
             if (n.type === 'profile_req') ic = '🔄';
@@ -2203,10 +2293,10 @@
           }).join('')}
         </div>
 
-        ${allActiveItems.length > 2 ? `
+        ${remainingCount > 0 ? `
           <div style="text-align: center; margin-top: 8px;">
             <button type="button" class="btn sm ghost" id="btn-home-see-more-notifs" style="font-size: 11.5px; font-weight: 800; color: #38bdf8;">
-              ${t('showMoreNotifs', 'Ver {count} notificaciones más').replace('{count}', allActiveItems.length - 2)}
+              ${t('showMoreNotifs', 'Ver {count} notificaciones más').replace('{count}', remainingCount)}
             </button>
           </div>
         ` : ''}
@@ -2231,7 +2321,7 @@
       btnHomeMarkAll.onclick = () => {
         NotifManager.markAllAsRead();
         updateRequestsBadge();
-        refreshHomeNotifications();
+        refreshHomeNotifications(true);
       };
     }
 
@@ -2241,7 +2331,7 @@
         const nid = b.getAttribute('data-home-delete-nid');
         NotifManager.remove(nid);
         updateRequestsBadge();
-        refreshHomeNotifications();
+        refreshHomeNotifications(true);
       };
     });
 
@@ -2258,7 +2348,7 @@
         } else if (type === 'attendance' && targetId) {
           const conv = Store.convocation(targetId);
           if (conv) showConvocationDetailsModal(conv);
-          else refreshHomeNotifications();
+          else refreshHomeNotifications(true);
         } else if (type === 'chat' && targetId) {
           if (typeof window.openChatModal === 'function') {
             window.openChatModal(targetId);
@@ -2266,17 +2356,17 @@
             navigate('chat');
           }
         } else {
-          refreshHomeNotifications();
+          refreshHomeNotifications(true);
         }
       };
     });
   }
 
   let _refreshHomeNotifTimer = null;
-  function refreshHomeNotifications() {
+  function refreshHomeNotifications(immediate = false) {
     if (currentTab !== 'home') return;
     if (_refreshHomeNotifTimer) clearTimeout(_refreshHomeNotifTimer);
-    _refreshHomeNotifTimer = setTimeout(() => {
+    const doRefresh = () => {
       const container = document.getElementById('home-notifications-container');
       if (!container) return;
       const newHtml = renderHomeNotificationsHtml();
@@ -2285,7 +2375,12 @@
         container.innerHTML = newHtml;
         bindHomeNotificationsEvents(container);
       }
-    }, 60);
+    };
+    if (immediate) {
+      doRefresh();
+    } else {
+      _refreshHomeNotifTimer = setTimeout(doRefresh, 60);
+    }
   }
   window.refreshHomeNotifications = refreshHomeNotifications;
 
