@@ -6438,8 +6438,8 @@
 
       calledPlayerIds.forEach(pid => {
         const r = responses[pid] || (c.responses && c.responses[pid]);
-        const st = r ? r.status : null;
-        if (st === 'called' || st === 'attending' || st === 'yes') nAttending++;
+        const st = r ? ((typeof r === 'object') ? r.status : r) : null;
+        if (st === 'attending' || st === 'yes') nAttending++;
         else if (st === 'absent' || st === 'no') nAbsent++;
         else nPending++;
       });
@@ -7042,7 +7042,7 @@
       const p = allPlayersMap[pid] || { id: pid, name: pid.replace(/^manual_/, ''), mainPosition: t('player', 'Player') };
       const r = responses[pid];
       const st = r ? r.status : null;
-      if (st === 'called' || st === 'attending' || st === 'yes') attendingPlayers.push(p);
+      if (st === 'attending' || st === 'yes') attendingPlayers.push(p);
       else if (st === 'absent' || st === 'no') absentPlayers.push(p);
       else pendingPlayers.push(p);
     });
@@ -7452,7 +7452,7 @@
       const p = allPlayersMap[pid] || { id: pid, name: pid.replace(/^manual_/, ''), mainPosition: t('player', 'Player') };
       const r = responses[pid];
       const st = r ? r.status : null;
-      if (st === 'called' || st === 'attending' || st === 'yes') attendingPlayers.push(p);
+      if (st === 'attending' || st === 'yes') attendingPlayers.push(p);
       else if (st === 'absent' || st === 'no') absentPlayers.push(p);
       else pendingPlayers.push(p);
     });
@@ -7719,7 +7719,7 @@
       const st = r ? r.status : null;
       const time = r ? (r.timestamp || r.time) : null;
 
-      if (st === 'called' || st === 'attending' || st === 'yes') attending.push({ player: p, time });
+      if (st === 'attending' || st === 'yes') attending.push({ player: p, time });
       else if (st === 'absent' || st === 'no') absent.push({ player: p, time });
       else pending.push({ player: p });
     });

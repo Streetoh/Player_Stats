@@ -14967,10 +14967,12 @@
 
         calledPids.forEach(pid => {
           const r = responses[pid];
-          const st = (r && typeof r === 'object') ? r.status : (r || cList[pid]);
-          if (st === 'called' || st === 'attending' || st === 'yes') {
+          const respStatus = (r && typeof r === 'object') ? r.status : r;
+          const listStatus = cList[pid];
+
+          if (respStatus === 'attending' || respStatus === 'yes') {
             nAccepted++;
-          } else if (st === 'absent' || st === 'no') {
+          } else if (respStatus === 'absent' || respStatus === 'no' || (!respStatus && listStatus === 'absent')) {
             nRejected++;
           } else {
             nPending++;
