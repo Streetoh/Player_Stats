@@ -4096,10 +4096,126 @@
       allSessionPlayers = Store.sortedPlayers('all');
     }
 
-    let mode = 'pair'; // 'pair' (2) | 'trio' (3)
+    let mode = 'pair'; // 'pair' (2) | 'trio' (3) | 'adaptive' (adaptable por nivel)
     let selectedPlayerIds = [];
 
+    function getPlayerSkillRating(p) {
+      if (!p) return 70;
+      if (p.ovr) return Number(p.ovr);
+      if (window.FutCard && FutCard.computeOvr && window.SkillsEngine && SkillsEngine.computePlayerSkills) {
+        try {
+          const skills = SkillsEngine.computePlayerSkills(p, Store.state.sessions, Store.state.players, null);
+          if (skills && skills.radar) {
+            return FutCard.computeOvr(skills.radar, p.mainPosition);
+          }
+        } catch (e) {}
+      }
+      if (Store.calculatePlayerOverallRating) {
+        try {
+          const r = Store.calculatePlayerOverallRating(p.id, p.mainPosition);
+          if (r && r.rating) return Math.round(r.rating * 10);
+        } catch (e) {}
+      }
+      return 70;
+    }
+
     openSheet('⚔️ ' + t('setup1v1Pairs', 'Configurar Parejas y Tríos 1v1'), (body) => {
+      function runAdaptivePairing() {
+        const pairedIdSet = new Set();
+        pairs.forEach(pr => {
+          (pr.playerIds || []).forEach(pid => pairedIdSet.add(pid));
+        });
+        let avail = allSessionPlayers.filter(p => !pairedIdSet.has(p.id));
+        if (avail.length < 2) {
+          if (pairs.length > 0 && avail.length === 0) {
+            pairs = [];
+            avail = allSessionPlayers.slice();
+          } else {
+            toast(t('notEnoughPlayersToPair', 'No hay suficientes jugadores disponibles para emparejar'), 'warning');
+            return;
+          }
+        }
+
+        // Ordenar por nivel de habilidad (de mayor a menor)
+        const sorted = avail.slice().sort((a, b) => getPlayerSkillRating(b) - getPlayerSkillRating(a));
+        const n = sorted.length;
+        const newPairs = [];
+
+        if (n % 2 === 0) {
+          // Número par: todas parejas equilibradas por nivel
+          for (let i = 0; i < n; i += 2) {
+            const letter = String.fromCharCode(65 + pairs.length + newPairs.length);
+            newPairs.push({
+              id: 'p_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+              name: 'Pareja ' + letter,
+              type: 'pair',
+              playerIds: [sorted[i].id, sorted[i + 1].id],
+              trioRotation: 0
+            });
+          }
+        } else {
+          // Número impar: se hace 1 trío y el resto parejas según nivel de habilidad
+          let bestI = 0;
+          let minDiff = Infinity;
+          for (let i = 0; i <= n - 3; i += 2) {
+            let diff = Math.abs(getPlayerSkillRating(sorted[i]) - getPlayerSkillRating(sorted[i + 2]));
+            let pairDiffs = 0;
+            for (let j = 0; j < n; j += 2) {
+              if (j === i) {
+                j += 1; // saltar los 3 del trío
+                continue;
+              }
+              if (j + 1 < n) {
+                pairDiffs += Math.abs(getPlayerSkillRating(sorted[j]) - getPlayerSkillRating(sorted[j + 1]));
+              }
+            }
+            const totalDiff = diff + pairDiffs;
+            if (totalDiff < minDiff) {
+              minDiff = totalDiff;
+              bestI = i;
+            }
+          }
+
+          // Parejas antes del trío
+          for (let j = 0; j < bestI; j += 2) {
+            const letter = String.fromCharCode(65 + pairs.length + newPairs.length);
+            newPairs.push({
+              id: 'p_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+              name: 'Pareja ' + letter,
+              type: 'pair',
+              playerIds: [sorted[j].id, sorted[j + 1].id],
+              trioRotation: 0
+            });
+          }
+          // El Trío (con jugadores homogéneos)
+          const trioLetter = String.fromCharCode(65 + pairs.length + newPairs.length);
+          newPairs.push({
+            id: 'p_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+            name: 'Trío ' + trioLetter,
+            type: 'trio',
+            playerIds: [sorted[bestI].id, sorted[bestI + 1].id, sorted[bestI + 2].id],
+            trioRotation: 0
+          });
+          // Parejas después del trío
+          for (let j = bestI + 3; j < n; j += 2) {
+            const letter = String.fromCharCode(65 + pairs.length + newPairs.length);
+            newPairs.push({
+              id: 'p_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+              name: 'Pareja ' + letter,
+              type: 'pair',
+              playerIds: [sorted[j].id, sorted[j + 1].id],
+              trioRotation: 0
+            });
+          }
+        }
+
+        pairs = pairs.concat(newPairs);
+        selectedPlayerIds = [];
+        haptic(40);
+        toast(t('adaptiveBalancedSuccess', 'Emparejamiento adaptable completado por nivel'), 'success');
+        renderWizard();
+      }
+
       function renderWizard() {
         const pairedIdSet = new Set();
         pairs.forEach(pr => {
@@ -4109,18 +4225,21 @@
         const available = allSessionPlayers.filter(p => !pairedIdSet.has(p.id));
 
         body.innerHTML = `
-          <!-- Selector de Modo: Parejas vs Tríos -->
-          <div style="display: flex; gap: 8px; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-            <div class="segmented" style="margin: 0; flex: 1;">
-              <button type="button" class="${mode === 'pair' ? 'active' : ''}" id="wizard-mode-pair">
-                👥 ${t('modePair', 'Parejas (2)')}
+          <!-- Selector de Modo: Parejas vs Tríos vs Adaptable -->
+          <div style="margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px;">
+            <div class="segmented" style="margin: 0; width: 100%; display: grid; grid-template-columns: repeat(3, 1fr); padding: 3px; gap: 4px;">
+              <button type="button" class="${mode === 'pair' ? 'active' : ''}" id="wizard-mode-pair" style="font-size: 12px; padding: 0 4px; height: 36px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; justify-content: center;">
+                👥 ${t('modePair', 'Parejas')}
               </button>
-              <button type="button" class="${mode === 'trio' ? 'active' : ''}" id="wizard-mode-trio">
-                🔺 ${t('modeTrio', 'Tríos (3)')}
+              <button type="button" class="${mode === 'trio' ? 'active' : ''}" id="wizard-mode-trio" style="font-size: 12px; padding: 0 4px; height: 36px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; justify-content: center;">
+                🔺 ${t('modeTrio', 'Tríos')}
+              </button>
+              <button type="button" class="${mode === 'adaptive' ? 'active' : ''}" id="wizard-mode-adaptive" style="font-size: 12px; padding: 0 4px; height: 36px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; justify-content: center;">
+                🔄 ${t('modeAdaptive', 'Adaptable')}
               </button>
             </div>
-            <button type="button" class="btn sm ghost" id="wizard-btn-auto-pair" style="font-size: 11px; font-weight: 800; border-color: rgba(34, 211, 238, 0.4); color: var(--cyan); white-space: nowrap;">
-              ⚡ ${t('autoPair', 'Emparejar al azar')}
+            <button type="button" class="btn sm ghost" id="wizard-btn-auto-pair" style="width: 100%; font-size: 12px; font-weight: 800; border-color: rgba(34, 211, 238, 0.4); color: var(--cyan); justify-content: center; height: 34px;">
+              ⚡ ${t('autoPairBySkill', 'Auto-Emparejar por Nivel de Habilidad')}
             </button>
           </div>
 
@@ -4128,10 +4247,10 @@
           ${selectedPlayerIds.length > 0 ? `
             <div style="background: rgba(34, 211, 238, 0.12); border: 1.5px solid var(--cyan); border-radius: 12px; padding: 8px 12px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
               <div style="font-size: 12px; font-weight: 800; color: var(--cyan);">
-                Seleccionando para ${mode === 'pair' ? 'Pareja' : 'Trío'}: ${selectedPlayerIds.map(pid => {
+                Seleccionando para ${mode === 'pair' ? 'Pareja' : (mode === 'trio' ? 'Trío' : 'Duelo')}: ${selectedPlayerIds.map(pid => {
                   const pl = Store.player(pid);
                   return pl ? `#${pl.mainDorsal || ''} ${escapeHtml(Store.playerName(pl))}` : pid;
-                }).join(' + ')} (${selectedPlayerIds.length}/${mode === 'pair' ? 2 : 3})
+                }).join(' + ')} (${selectedPlayerIds.length}/${mode === 'trio' ? 3 : 2})
               </div>
               <button type="button" class="btn sm ghost" id="wizard-btn-cancel-sel" style="font-size: 11px; padding: 2px 6px;">✕</button>
             </div>
@@ -4216,6 +4335,12 @@
         if (btnPair) btnPair.onclick = () => { mode = 'pair'; selectedPlayerIds = []; renderWizard(); };
         const btnTrio = body.querySelector('#wizard-mode-trio');
         if (btnTrio) btnTrio.onclick = () => { mode = 'trio'; selectedPlayerIds = []; renderWizard(); };
+        const btnAdaptive = body.querySelector('#wizard-mode-adaptive');
+        if (btnAdaptive) btnAdaptive.onclick = () => {
+          mode = 'adaptive';
+          selectedPlayerIds = [];
+          runAdaptivePairing();
+        };
 
         const btnCancelSel = body.querySelector('#wizard-btn-cancel-sel');
         if (btnCancelSel) btnCancelSel.onclick = () => { selectedPlayerIds = []; renderWizard(); };
@@ -4232,21 +4357,27 @@
         const btnAutoPair = body.querySelector('#wizard-btn-auto-pair');
         if (btnAutoPair) {
           btnAutoPair.onclick = () => {
+            if (mode === 'adaptive') {
+              runAdaptivePairing();
+              return;
+            }
             const avail = allSessionPlayers.filter(p => !pairedIdSet.has(p.id));
             if (avail.length < 2) {
               toast('No hay suficientes jugadores disponibles para emparejar', 'warning');
               return;
             }
-            const shuffled = avail.slice().sort(() => Math.random() - 0.5);
+            // Para modo pair y trio, ordenar también por habilidad para mejor experiencia
+            const sortedBySkill = avail.slice().sort((a, b) => getPlayerSkillRating(b) - getPlayerSkillRating(a));
+            const shuffled = sortedBySkill.slice();
             while (shuffled.length >= 2) {
               if (shuffled.length === 3 && mode === 'trio') {
-                const trioPlayers = [shuffled.pop().id, shuffled.pop().id, shuffled.pop().id];
+                const trioPlayers = [shuffled.shift().id, shuffled.shift().id, shuffled.shift().id];
                 const letter = String.fromCharCode(65 + pairs.length);
                 pairs.push({ id: 'p_' + Date.now() + '_' + Math.random().toString(36).substr(2,4), name: 'Trío ' + letter, type: 'trio', playerIds: trioPlayers, trioRotation: 0 });
                 break;
               }
-              const p1 = shuffled.pop().id;
-              const p2 = shuffled.pop().id;
+              const p1 = shuffled.shift().id;
+              const p2 = shuffled.shift().id;
               const letter = String.fromCharCode(65 + pairs.length);
               pairs.push({ id: 'p_' + Date.now() + '_' + Math.random().toString(36).substr(2,4), name: 'Pareja ' + letter, type: 'pair', playerIds: [p1, p2], trioRotation: 0 });
             }
@@ -4536,16 +4667,45 @@
           </button>
         </div>
 
-        <!-- PANEL EXCLUSIVO 1-TAP DUELOS 1v1 (SIN OTRAS ACCIONES) -->
-        <div style="display: flex; flex-direction: column; gap: 10px; margin: 12px 0 6px; flex: 1; justify-content: space-evenly;">
-          <button type="button" class="duel-1tap-btn duel-btn-goal" data-duel-action="${isSlotA ? 'goal_A' : 'goal_B'}" data-p-a="${session.slots[0] || ''}" data-p-b="${session.slots[1] || ''}" style="flex: 1; max-height: 115px; min-height: 72px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border-radius: 14px; font-size: 15px; font-weight: 900; background: linear-gradient(135deg, rgba(34, 197, 94, 0.28) 0%, rgba(22, 163, 74, 0.45) 100%); border: 2px solid #22c55e; color: #86efac; box-shadow: 0 4px 14px rgba(34, 197, 94, 0.22); cursor: pointer;">
-            <span style="font-size: 24px;">⚽</span>
-            <span>1v1 Gol (+1)</span>
-          </button>
-          <button type="button" class="duel-1tap-btn duel-btn-steal" data-duel-action="${isSlotA ? 'steal_goal_A' : 'steal_goal_B'}" data-p-a="${session.slots[0] || ''}" data-p-b="${session.slots[1] || ''}" style="flex: 1; max-height: 115px; min-height: 72px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border-radius: 14px; font-size: 15px; font-weight: 900; background: linear-gradient(135deg, rgba(245, 158, 11, 0.25) 0%, rgba(217, 119, 6, 0.42) 100%); border: 2px solid #f59e0b; color: #fde047; box-shadow: 0 4px 14px rgba(245, 158, 11, 0.22); cursor: pointer;">
-            <span style="font-size: 24px;">⚡</span>
-            <span>Robo y Gol</span>
-          </button>
+        <!-- PANEL EXCLUSIVO 1-TAP DUELOS 1v1 (CON SOPORTE DE PIE IZQ / DER) -->
+        <div style="display: flex; flex-direction: column; gap: 8px; margin: 10px 0 6px; flex: 1; justify-content: space-evenly;">
+          <!-- 1v1 Gol (+1) DIVIDIDO VERTICALMENTE (IZQUIERDA = PIE IZQ | DERECHA = PIE DER) -->
+          <div class="duel-split-container" style="display: flex; flex-direction: column; background: rgba(34, 197, 94, 0.16); border: 2px solid #22c55e; border-radius: 14px; overflow: hidden; box-shadow: 0 4px 14px rgba(34, 197, 94, 0.22); flex: 1; min-height: 72px; max-height: 115px;">
+            <div style="background: rgba(34, 197, 94, 0.35); text-align: center; padding: 3px 4px; font-size: 11.5px; font-weight: 900; color: #86efac; border-bottom: 1px solid rgba(34, 197, 94, 0.35); display: flex; align-items: center; justify-content: center; gap: 5px;">
+              <span>⚽</span>
+              <span>1v1 Gol (+1)</span>
+            </div>
+            <div style="display: flex; flex: 1; min-height: 0;">
+              <button type="button" class="duel-1tap-btn duel-split-half" data-duel-action="${isSlotA ? 'goal_A' : 'goal_B'}" data-foot="left" data-p-a="${session.slots[0] || ''}" data-p-b="${session.slots[1] || ''}" style="flex: 1; border: none; background: transparent; color: #fff; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; border-right: 1px solid rgba(34, 197, 94, 0.35); padding: 4px;">
+                <span style="font-size: 16px;">🦶</span>
+                <span style="font-size: 11.5px; font-weight: 900; color: #86efac;">Izq</span>
+              </button>
+              <button type="button" class="duel-1tap-btn duel-split-half" data-duel-action="${isSlotA ? 'goal_A' : 'goal_B'}" data-foot="right" data-p-a="${session.slots[0] || ''}" data-p-b="${session.slots[1] || ''}" style="flex: 1; border: none; background: transparent; color: #fff; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4px;">
+                <span style="font-size: 16px;">🦶</span>
+                <span style="font-size: 11.5px; font-weight: 900; color: #86efac;">Der</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Robo y Gol DIVIDIDO VERTICALMENTE (IZQUIERDA = PIE IZQ | DERECHA = PIE DER) -->
+          <div class="duel-split-container" style="display: flex; flex-direction: column; background: rgba(245, 158, 11, 0.16); border: 2px solid #f59e0b; border-radius: 14px; overflow: hidden; box-shadow: 0 4px 14px rgba(245, 158, 11, 0.22); flex: 1; min-height: 72px; max-height: 115px;">
+            <div style="background: rgba(245, 158, 11, 0.35); text-align: center; padding: 3px 4px; font-size: 11.5px; font-weight: 900; color: #fde047; border-bottom: 1px solid rgba(245, 158, 11, 0.35); display: flex; align-items: center; justify-content: center; gap: 5px;">
+              <span>⚡</span>
+              <span>Robo y Gol</span>
+            </div>
+            <div style="display: flex; flex: 1; min-height: 0;">
+              <button type="button" class="duel-1tap-btn duel-split-half" data-duel-action="${isSlotA ? 'steal_goal_A' : 'steal_goal_B'}" data-foot="left" data-p-a="${session.slots[0] || ''}" data-p-b="${session.slots[1] || ''}" style="flex: 1; border: none; background: transparent; color: #fff; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; border-right: 1px solid rgba(245, 158, 11, 0.35); padding: 4px;">
+                <span style="font-size: 16px;">🦶</span>
+                <span style="font-size: 11.5px; font-weight: 900; color: #fde047;">Izq</span>
+              </button>
+              <button type="button" class="duel-1tap-btn duel-split-half" data-duel-action="${isSlotA ? 'steal_goal_A' : 'steal_goal_B'}" data-foot="right" data-p-a="${session.slots[0] || ''}" data-p-b="${session.slots[1] || ''}" style="flex: 1; border: none; background: transparent; color: #fff; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4px;">
+                <span style="font-size: 16px;">🦶</span>
+                <span style="font-size: 11.5px; font-weight: 900; color: #fde047;">Der</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Fuera / Pérdida (NO dividido) -->
           <button type="button" class="duel-1tap-btn duel-btn-out" data-duel-action="${isSlotA ? 'out_loss_A' : 'out_loss_B'}" data-p-a="${session.slots[0] || ''}" data-p-b="${session.slots[1] || ''}" style="flex: 1; max-height: 115px; min-height: 72px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border-radius: 14px; font-size: 15px; font-weight: 900; background: linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(220, 38, 38, 0.42) 100%); border: 2px solid #ef4444; color: #fca5a5; box-shadow: 0 4px 14px rgba(239, 68, 68, 0.22); cursor: pointer;">
             <span style="font-size: 24px;">❌</span>
             <span>Fuera / Pérdida</span>
@@ -4578,13 +4738,22 @@
     container.querySelector('#tracker-btn-finish').onclick = () => {
       const isMatch = session.type === 'match';
       confirmDialog(t('finishSession', 'Finalizar Sesión'), isMatch ? '¿Deseas finalizar el partido?' : '¿Deseas finalizar el entrenamiento?', () => {
-        if (session._liveTrackerCode && window.Cloud) {
-          window.Cloud.closeLiveTrackerSession(session._liveTrackerCode);
-          session._liveTrackerActive = false;
-          session._liveTrackerCode = null;
-          session._connectedAssistants = [];
-          session._lastNotifiedAssistant = null;
+        if (activeLiveTrackerUnsub) {
+          try { activeLiveTrackerUnsub(); } catch (e) {}
+          activeLiveTrackerUnsub = null;
         }
+        if (session._liveTrackerCode || session.id) {
+          if (window.Cloud && window.Cloud.closeLiveTrackerForSession) {
+            window.Cloud.closeLiveTrackerForSession(session._liveTrackerCode || session.id);
+          } else if (session._liveTrackerCode && window.Cloud) {
+            window.Cloud.closeLiveTrackerSession(session._liveTrackerCode);
+          }
+        }
+        session._liveTrackerActive = false;
+        session._liveTrackerConnected = false;
+        session._liveTrackerCode = null;
+        session._connectedAssistants = [];
+        session._lastNotifiedAssistant = null;
         Store.finishSession(session.id);
         closeTracker();
         Store.evaluateAutoWeeklyMissions(Object.keys(session.stats || {}));
@@ -4704,7 +4873,8 @@
           session.duels1v1._scrollLeft = ribbonEl.scrollLeft;
         }
 
-        const logEntry = Store.recordDuel1v1Outcome(session.id, action, pA, pB);
+        const foot = btn.getAttribute('data-foot') || null;
+        const logEntry = Store.recordDuel1v1Outcome(session.id, action, pA, pB, 'coach', null, foot);
         haptic(35);
 
         const pScored = (action === 'goal_A' || action === 'steal_goal_A' || action === 'out_loss_B') ? pA : pB;
@@ -4937,7 +5107,56 @@
         <div class="counters ${sizeCls}" style="grid-template-columns: repeat(${cols}, 1fr);">
           ${statsList.map(item => {
             const count = st[item.key] || 0;
-            const isGoal = item.key === 'goal';
+            const isGoal = item.key === 'goal' || item.baseKey === 'goal';
+
+            if (item.isSplit) {
+              const baseK = item.baseKey;
+              const totalBase = st[baseK] || 0;
+              const countLeft = st[baseK + '_left'] || 0;
+              const countRight = st[baseK + '_right'] || 0;
+              return `
+                <div class="counter counter-split ${isGoal ? 'goal' : ''}"
+                     style="--c: ${item.color}; padding: 0; display: flex; flex-direction: column;"
+                     data-key="${item.key}"
+                     data-base-key="${baseK}"
+                     data-player="${player.id}">
+                  <div class="split-header" style="width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 2px 6px; background: rgba(0,0,0,0.32); border-bottom: 1px solid color-mix(in srgb, var(--c) 30%, transparent); font-size: 9.5px; font-weight: 800; color: #fff; line-height: 1.2;">
+                    <span style="display: flex; align-items: center; gap: 3px; min-width: 0; overflow: hidden;">
+                      <span class="c-emoji" style="font-size: 11px;">${item.emoji}</span>
+                      <span class="c-lbl ellipsis" style="padding: 0; font-size: 8.5px; max-width: 58px;">${item.short}</span>
+                    </span>
+                    <span class="num" id="val-${player.id}-${baseK}" style="font-size: 11px; font-weight: 900; color: var(--c);">${totalBase}</span>
+                  </div>
+                  <div class="split-halves" style="display: flex; flex: 1; width: 100%; min-height: 0;">
+                    <button type="button" class="split-half split-left"
+                            data-key="${item.key}"
+                            data-base-key="${baseK}"
+                            data-foot="left"
+                            data-player="${player.id}"
+                            title="${item.short} (Pie Izquierdo)"
+                            style="flex: 1; border: none; background: transparent; display: flex; flex-direction: column; align-items: center; justify-content: center; border-right: 1px solid color-mix(in srgb, var(--c) 30%, transparent); padding: 2px; cursor: pointer; color: #fff; touch-action: manipulation;">
+                      <span style="font-size: 8.5px; font-weight: 800; color: color-mix(in srgb, var(--c) 80%, #fff); display: flex; align-items: center; gap: 2px;">
+                        <span>🦶</span><span>Izq</span>
+                      </span>
+                      <span class="c-val num" id="val-${player.id}-${baseK}-left" style="font-size: 15px; font-weight: 900; line-height: 1.1;">${countLeft}</span>
+                    </button>
+                    <button type="button" class="split-half split-right"
+                            data-key="${item.key}"
+                            data-base-key="${baseK}"
+                            data-foot="right"
+                            data-player="${player.id}"
+                            title="${item.short} (Pie Derecho)"
+                            style="flex: 1; border: none; background: transparent; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2px; cursor: pointer; color: #fff; touch-action: manipulation;">
+                      <span style="font-size: 8.5px; font-weight: 800; color: color-mix(in srgb, var(--c) 80%, #fff); display: flex; align-items: center; gap: 2px;">
+                        <span>Der</span><span>🦶</span>
+                      </span>
+                      <span class="c-val num" id="val-${player.id}-${baseK}-right" style="font-size: 15px; font-weight: 900; line-height: 1.1;">${countRight}</span>
+                    </button>
+                  </div>
+                </div>
+              `;
+            }
+
             return `
               <button class="counter ${isGoal ? 'goal' : ''}"
                       style="--c: ${item.color};"
@@ -5076,19 +5295,29 @@
         '¿Deseas dar por terminada esta sesión? Los datos se encuentran guardados automáticamente.',
         () => {
           if (session.timerStartedAt) Store.toggleTimer(session);
+          if (activeLiveTrackerUnsub) {
+            try { activeLiveTrackerUnsub(); } catch (e) {}
+            activeLiveTrackerUnsub = null;
+          }
+          if (session._liveTrackerCode || session.id) {
+            if (window.Cloud && window.Cloud.closeLiveTrackerForSession) {
+              window.Cloud.closeLiveTrackerForSession(session._liveTrackerCode || session.id);
+            } else if (session._liveTrackerCode && window.Cloud) {
+              window.Cloud.closeLiveTrackerSession(session._liveTrackerCode);
+            }
+          }
+          session._liveTrackerActive = false;
+          session._liveTrackerConnected = false;
+          session._liveTrackerCode = null;
+          session._connectedAssistants = [];
+          session._lastNotifiedAssistant = null;
+
           session.status = 'finished';
           session.finished = true;
           session.isFinished = true;
           session.endedAt = session.endedAt || Date.now();
           session.finishedAt = session.finishedAt || Date.now();
-          Store.save();
-          if (session._liveTrackerCode && window.Cloud) {
-            window.Cloud.closeLiveTrackerSession(session._liveTrackerCode);
-            session._liveTrackerActive = false;
-            session._liveTrackerCode = null;
-            session._connectedAssistants = [];
-            session._lastNotifiedAssistant = null;
-          }
+          Store.finishSession(session.id);
           if (window.SyncEngine && SyncEngine.isLive()) {
             SyncEngine.broadcastSessionFinished(session);
           }
@@ -5125,7 +5354,7 @@
       }
     });
 
-    container.querySelectorAll('.counter').forEach(btn => {
+    container.querySelectorAll('.counter:not(.counter-split)').forEach(btn => {
       const playerId = btn.getAttribute('data-player');
       const statKey = btn.getAttribute('data-key');
 
@@ -5196,6 +5425,98 @@
             if (valEl) valEl.textContent = (session.stats[playerId] || {})[statKey] || 0;
             createFloater(btn, '-1', true);
             updateHeaderRatios(session, playerId);
+          }
+        }, 650);
+      });
+      const cancelLongPress = () => { if (pressTimer) clearTimeout(pressTimer); };
+      btn.addEventListener('pointerup', cancelLongPress);
+      btn.addEventListener('pointercancel', cancelLongPress);
+      btn.addEventListener('pointerleave', cancelLongPress);
+    });
+
+    // Bindeo de botones divididos (Pie Izquierdo / Pie Derecho)
+    container.querySelectorAll('.split-half').forEach(btn => {
+      const playerId = btn.getAttribute('data-player');
+      const statKey = btn.getAttribute('data-key');
+      const baseKey = btn.getAttribute('data-base-key');
+      const foot = btn.getAttribute('data-foot');
+
+      btn.addEventListener('pointerdown', (e) => {
+        btn.classList.add('pressed');
+        createRipple(btn, e);
+      });
+
+      const clearPressed = () => btn.classList.remove('pressed');
+      btn.addEventListener('pointerup', clearPressed);
+      btn.addEventListener('pointercancel', clearPressed);
+      btn.addEventListener('pointerleave', clearPressed);
+
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        haptic(35);
+
+        const entry = Store.record(session.id, playerId, statKey, 1, 'coach', null, foot);
+        if (entry) {
+          if (window.SyncEngine && SyncEngine.isLive()) {
+            SyncEngine.sendAction(session.id, playerId, statKey, 1, { foot });
+          }
+
+          // Actualizar valor total de la baseKey
+          const valEl = document.getElementById(`val-${playerId}-${baseKey}`);
+          if (valEl) {
+            const current = (session.stats[playerId] || {})[baseKey] || 0;
+            valEl.textContent = current;
+          }
+
+          // Actualizar valor específico del pie
+          const valFootEl = document.getElementById(`val-${playerId}-${baseKey}-${foot}`);
+          if (valFootEl) {
+            const curFoot = (session.stats[playerId] || {})[`${baseKey}_${foot}`] || 0;
+            valFootEl.textContent = curFoot;
+            valFootEl.classList.add('bump');
+            setTimeout(() => valFootEl.classList.remove('bump'), 300);
+          }
+
+          // Si se anotó un gol en un partido, actualizar también el marcador en vivo
+          if (baseKey === 'goal' && session.type === 'match') {
+            const hEl = document.getElementById('score-home-val');
+            if (hEl) hEl.textContent = (session.score && session.score.home) || 0;
+            if (window.SyncEngine && SyncEngine.isLive()) {
+              SyncEngine.sendScore(session.id, session.score.home, session.score.away);
+            }
+          }
+
+          createFloater(btn, '+1', false);
+          updateHeaderRatios(session, playerId);
+          syncActiveLiveTracker(session);
+
+          // Prompt de zonas del campo táctico para tiros y goles
+          if (['shotOn', 'shotOff', 'goal'].includes(baseKey) && Store.state.settings.askZoneOnShots !== false) {
+            setTimeout(() => {
+              showPitchZoneSelectorModal(session, playerId, baseKey);
+            }, 100);
+          }
+        }
+      });
+
+      // Pulsación larga para restar (-1) en el pie correspondiente
+      let pressTimer = null;
+      btn.addEventListener('pointerdown', () => {
+        pressTimer = setTimeout(() => {
+          haptic(70);
+          const currentFootVal = (session.stats[playerId] || {})[`${baseKey}_${foot}`] || 0;
+          if (currentFootVal > 0) {
+            Store.record(session.id, playerId, statKey, -1, 'coach', null, foot);
+            if (window.SyncEngine && SyncEngine.isLive()) {
+              SyncEngine.sendAction(session.id, playerId, statKey, -1, { foot });
+            }
+            const valEl = document.getElementById(`val-${playerId}-${baseKey}`);
+            if (valEl) valEl.textContent = (session.stats[playerId] || {})[baseKey] || 0;
+            const valFootEl = document.getElementById(`val-${playerId}-${baseKey}-${foot}`);
+            if (valFootEl) valFootEl.textContent = (session.stats[playerId] || {})[`${baseKey}_${foot}`] || 0;
+            createFloater(btn, '-1', true);
+            updateHeaderRatios(session, playerId);
+            syncActiveLiveTracker(session);
           }
         }, 650);
       });
@@ -5985,7 +6306,7 @@
       } else {
         const delta = actionData.delta || 1;
         const asstAuthorName = actionData.assistantName || 'Asistente';
-        const entry = Store.record(session.id, actionData.playerId, actionData.statKey, delta, 'assistant', asstAuthorName);
+        const entry = Store.record(session.id, actionData.playerId, actionData.statKey, delta, 'assistant', asstAuthorName, actionData.foot || null);
         if (entry) {
           haptic(35);
           const p = Store.player(actionData.playerId);
@@ -6090,6 +6411,8 @@
 
     const statsList = Store.getSessionStats(session).map(st => ({
       key: st.key,
+      baseKey: st.baseKey || st.key,
+      isSplit: !!st.isSplit,
       short: st.short || st.key,
       name: st.label || st.key,
       emoji: st.emoji,
@@ -15694,21 +16017,23 @@
         </div>
 
         <!-- Selector visual de jugador para Métricas -->
-        <div class="metrics-player-selector">
-          <div class="metrics-player-card" id="btn-metrics-open-picker">
+        <div class="metrics-player-selector" style="max-width: 100%; box-sizing: border-box; overflow-x: hidden;">
+          <div class="metrics-player-card" id="btn-metrics-open-picker" style="max-width: 100%; box-sizing: border-box;">
             ${statsSelectedPlayerId === 'all' ? `
               <div class="all-icon">👥</div>
-              <div class="p-info">
+              <div class="p-info" style="min-width: 0;">
                 <div class="p-name">${t('allPlayersAverage')}</div>
                 <div class="p-meta"><span>${allPlayers.length} ${t('playerSquad').toLowerCase()}</span></div>
               </div>
-              <button class="btn sm ghost" type="button" style="pointer-events: none;">${icon('search', 16)} ${t('changePlayer')}</button>
+              <button class="btn sm ghost" type="button" style="pointer-events: none; white-space: nowrap; font-size: 11px; font-weight: 800; border-color: rgba(34, 211, 238, 0.4); color: var(--cyan);">
+                ${icon('search', 15)} ${t('changePlayer')}
+              </button>
             ` : (() => {
               const sp = Store.player(statsSelectedPlayerId);
               const sTeam = sp ? Store.team(sp.teamId) : null;
               return `
                 ${sp ? renderAvatar(sp, 'sm') : ''}
-                <div class="p-info">
+                <div class="p-info" style="min-width: 0;">
                   <div class="p-name">${escapeHtml(Store.playerName(sp))}</div>
                   <div class="p-meta">
                     <span class="pos-tag">${sp ? sp.mainPosition || 'Jugador' : ''}</span>
@@ -15716,7 +16041,7 @@
                     ${sTeam ? `<b style="color: ${sTeam.color};">${escapeHtml(sTeam.name)}</b>` : ''}
                   </div>
                 </div>
-                <div style="display: flex; align-items: center; gap: 4px;">
+                <div style="display: flex; align-items: center; gap: 4px; flex-shrink: 0;">
                   <button class="btn sm primary clickable-p-profile" data-pid="${sp ? sp.id : ''}" type="button" style="font-size: 11px; padding: 4px 8px; font-weight: 800;">
                     👤 Perfil
                   </button>
@@ -15725,57 +16050,43 @@
               `;
             })()}
           </div>
-
-          <!-- Carrusel horizontal visual con avatares -->
-          <div class="metrics-player-carousel">
-            <div class="metrics-p-chip ${statsSelectedPlayerId === 'all' ? 'active' : ''}" data-pid="all">
-              <div class="all-icon">👥</div>
-              <span class="chip-name">${t('all')}</span>
-            </div>
-            ${allPlayers.map(p => `
-              <div class="metrics-p-chip ${statsSelectedPlayerId === p.id ? 'active' : ''}" data-pid="${p.id}">
-                ${renderAvatar(p, 'sm')}
-                <span class="chip-name">#${p.mainDorsal != null ? p.mainDorsal : ''} ${escapeHtml(Store.playerName(p, true))}</span>
-              </div>
-            `).join('')}
-          </div>
         </div>
 
         <!-- Anillos de Progreso y Métricas Principales (incluyendo 1v1) -->
-        <div class="rings" style="margin-bottom: 12px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;">
-          <div class="ring-card" style="padding: 10px 4px;">
-            <div class="ring">
+        <div class="rings" style="margin-bottom: 12px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; max-width: 100%; box-sizing: border-box; overflow-x: hidden;">
+          <div class="ring-card" style="padding: 10px 2px; min-width: 0; box-sizing: border-box;">
+            <div class="ring" style="width: 100%; max-width: 58px; height: auto; aspect-ratio: 1; margin: 0 auto;">
               ${renderProgressRing(passPct, '#22c55e')}
-              <span class="r-val" style="color: #22c55e;">${passPct}%</span>
+              <span class="r-val" style="color: #22c55e; font-size: 15px;">${passPct}%</span>
             </div>
-            <span style="font-size: 11px;">${t('passAccuracy')}</span>
+            <span style="font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">${t('passAccuracy')}</span>
             <small>${totalPassOk}/${totalPass}</small>
           </div>
 
-          <div class="ring-card" style="padding: 10px 4px;">
-            <div class="ring">
+          <div class="ring-card" style="padding: 10px 2px; min-width: 0; box-sizing: border-box;">
+            <div class="ring" style="width: 100%; max-width: 58px; height: auto; aspect-ratio: 1; margin: 0 auto;">
               ${renderProgressRing(shotPct, '#06b6d4')}
-              <span class="r-val" style="color: #06b6d4;">${shotPct}%</span>
+              <span class="r-val" style="color: #06b6d4; font-size: 15px;">${shotPct}%</span>
             </div>
-            <span style="font-size: 11px;">${t('shotAccuracy')}</span>
+            <span style="font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">${t('shotAccuracy')}</span>
             <small>${totalShotOn}/${totalShots}</small>
           </div>
 
-          <div class="ring-card" style="padding: 10px 4px;">
-            <div class="ring">
+          <div class="ring-card" style="padding: 10px 2px; min-width: 0; box-sizing: border-box;">
+            <div class="ring" style="width: 100%; max-width: 58px; height: auto; aspect-ratio: 1; margin: 0 auto;">
               ${renderProgressRing(Math.min(100, totalGoals * 20), '#facc15')}
-              <span class="r-val" style="color: #facc15;">${totalGoals}</span>
+              <span class="r-val" style="color: #facc15; font-size: 15px;">${totalGoals}</span>
             </div>
-            <span style="font-size: 11px;">${t('totalGoals')}</span>
+            <span style="font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">${t('totalGoals')}</span>
             <small>${sessions.length} ses.</small>
           </div>
 
-          <div class="ring-card" style="padding: 10px 4px;">
-            <div class="ring">
+          <div class="ring-card" style="padding: 10px 2px; min-width: 0; box-sizing: border-box;">
+            <div class="ring" style="width: 100%; max-width: 58px; height: auto; aspect-ratio: 1; margin: 0 auto;">
               ${renderProgressRing(duelWinRate, '#f97316')}
-              <span class="r-val" style="color: #f97316;">${duelWinRate}%</span>
+              <span class="r-val" style="color: #f97316; font-size: 15px;">${duelWinRate}%</span>
             </div>
-            <span style="font-size: 11px;">${t('duels1v1WinRate', '% Victoria 1v1')}</span>
+            <span style="font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">${t('duels1v1WinRate', '% Victoria 1v1')}</span>
             <small>${totalDuelWon}/${totalDuels} 1v1</small>
           </div>
         </div>
@@ -15873,14 +16184,6 @@
               statsSelectedPlayerId = 'all';
             }
           }
-          build();
-        };
-      });
-
-      // Eventos del carrusel de jugadores
-      view.querySelectorAll('.metrics-p-chip').forEach(chip => {
-        chip.onclick = () => {
-          statsSelectedPlayerId = chip.getAttribute('data-pid');
           build();
         };
       });

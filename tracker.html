@@ -2105,9 +2105,38 @@
         }
 
         root.innerHTML = statsList.map(st => {
-          const count = playerStats[st.key] || 0;
-          const isGoal = st.key === 'goal';
+          const isSplit = !!st.isSplit;
+          const baseK = st.baseKey || st.key;
+          const count = playerStats[baseK] || playerStats[st.key] || 0;
+          const isGoal = st.key === 'goal' || baseK === 'goal';
           const label = TStat(st.key, st.short || st.name);
+
+          if (isSplit) {
+            const countL = playerStats[baseK + '_left'] || 0;
+            const countR = playerStats[baseK + '_right'] || 0;
+            return `
+              <div class="stat-btn ${isGoal ? 'btn-goal' : ''}" style="border-color: ${st.color || 'var(--border)'}; padding: 0; display: flex; flex-direction: column; overflow: hidden;">
+                <div style="width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 2px 6px; background: rgba(0,0,0,0.35); border-bottom: 1px solid rgba(255,255,255,0.08); font-size: 10px; font-weight: 800; color: #fff;">
+                  <span style="display: flex; align-items: center; gap: 3px;">
+                    <span>${st.emoji || '⚡'}</span>
+                    <span class="stat-lbl">${label}</span>
+                  </span>
+                  <span class="stat-val" id="cnt-${baseK}">${count}</span>
+                </div>
+                <div style="display: flex; flex: 1; width: 100%; min-height: 0;">
+                  <button type="button" class="stat-split-half" data-key="${st.key}" data-base-key="${baseK}" data-foot="left" style="flex: 1; border: none; background: transparent; color: #fff; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; border-right: 1px solid rgba(255,255,255,0.08); padding: 4px;">
+                    <span style="font-size: 9px; font-weight: 800; color: #94a3b8;">🦶 Izq</span>
+                    <span class="stat-val" id="cnt-${baseK}-left" style="font-size: 14px; font-weight: 900;">${countL}</span>
+                  </button>
+                  <button type="button" class="stat-split-half" data-key="${st.key}" data-base-key="${baseK}" data-foot="right" style="flex: 1; border: none; background: transparent; color: #fff; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4px;">
+                    <span style="font-size: 9px; font-weight: 800; color: #94a3b8;">Der 🦶</span>
+                    <span class="stat-val" id="cnt-${baseK}-right" style="font-size: 14px; font-weight: 900;">${countR}</span>
+                  </button>
+                </div>
+              </div>
+            `;
+          }
+
           return `
             <button type="button" class="stat-btn ${isGoal ? 'btn-goal' : ''}" data-key="${st.key}" style="border-color: ${st.color || 'var(--border)'};">
               <span class="stat-emoji">${st.emoji || '⚡'}</span>
@@ -2117,12 +2146,23 @@
           `;
         }).join('');
 
-        // Bindeo de pulsación táctil inmediata
-        root.querySelectorAll('.stat-btn[data-key]').forEach(btn => {
+        // Bindeo de pulsación táctil inmediata (botones normales)
+        root.querySelectorAll('.stat-btn:not(:has(.stat-split-half))').forEach(btn => {
           btn.addEventListener('click', (e) => {
             e.preventDefault();
             const statKey = btn.getAttribute('data-key');
             onButtonTapped(btn, statKey);
+          });
+        });
+
+        // Bindeo de pulsación táctil para botones divididos
+        root.querySelectorAll('.stat-split-half').forEach(halfBtn => {
+          halfBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const statKey = halfBtn.getAttribute('data-key');
+            const baseKey = halfBtn.getAttribute('data-base-key');
+            const foot = halfBtn.getAttribute('data-foot');
+            onButtonTapped(halfBtn, statKey, foot, baseKey);
           });
         });
       }
@@ -2130,7 +2170,7 @@
       /* ---------------------------------------------------------
          PULSACIÓN DE ACCIÓN Y EMISIÓN EN TIEMPO REAL
          --------------------------------------------------------- */
-      function onButtonTapped(btn, statKey) {
+      function onButtonTapped(btn, statKey, foot = null, baseKey = null) {
         if (!isSessionActive || !currentCode) {
           handleSessionTerminated();
           return;
@@ -2143,18 +2183,30 @@
         // Efecto visual +1 flotante
         createFloater(btn, '+1', false);
 
+        const bKey = baseKey || statKey;
+
         // Incremento visual local inmediato (0 latencia)
         const valEl = btn.querySelector('.stat-val');
         if (valEl) {
           const curVal = parseInt(valEl.textContent, 10) || 0;
           valEl.textContent = curVal + 1;
         }
+        if (foot && bKey) {
+          const totalEl = document.getElementById(`cnt-${bKey}`);
+          if (totalEl) {
+            const curTot = parseInt(totalEl.textContent, 10) || 0;
+            totalEl.textContent = curTot + 1;
+          }
+        }
 
         // Actualizar estadísticas locales en memoria
         if (currentSessionData) {
           currentSessionData.stats = currentSessionData.stats || {};
           currentSessionData.stats[activePid] = currentSessionData.stats[activePid] || {};
-          currentSessionData.stats[activePid][statKey] = (currentSessionData.stats[activePid][statKey] || 0) + 1;
+          currentSessionData.stats[activePid][bKey] = (currentSessionData.stats[activePid][bKey] || 0) + 1;
+          if (foot) {
+            currentSessionData.stats[activePid][`${bKey}_${foot}`] = (currentSessionData.stats[activePid][`${bKey}_${foot}`] || 0) + 1;
+          }
           updatePlayersUI(currentSessionData);
         }
 
@@ -2163,6 +2215,7 @@
           playerId: activePid,
           statKey: statKey,
           delta: 1,
+          foot: foot || null,
           assistantId: assistantId,
           assistantName: currentAssistantName || 'Asistente'
         });

@@ -6303,9 +6303,9 @@
     haptic(50);
 
     const PUNISHMENT_PHRASES = {
-      es: { langKey: 'langSpanish', defaultName: 'español', phrase: 'Lo siento, entrenador.' },
-      en: { langKey: 'langEnglish', defaultName: 'inglés', phrase: "I'm sorry, coach." },
-      et: { langKey: 'langEstonian', defaultName: 'estonio', phrase: 'Vabandust, treener.' }
+      es: { langKey: 'langSpanish', defaultName: 'español', phrase: 'Lo siento entrenador' },
+      en: { langKey: 'langEnglish', defaultName: 'inglés', phrase: "I'm sorry coach, it won't happen again" },
+      et: { langKey: 'langEstonian', defaultName: 'estonio', phrase: 'Vabandust, treener, ma ei jää enam hiljaks' }
     };
     const PUNISHMENT_LANGS = ['es', 'en', 'et'];
 

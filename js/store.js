@@ -14,10 +14,15 @@
   const STATS = [
     { key: 'touches',   labelKey: 'stat_touches',   shortKey: 'short_touches',   emoji: '⚽', color: '#94a3b8', def: true },
     { key: 'passOk',    labelKey: 'stat_passOk',    shortKey: 'short_passOk',    emoji: '✅', color: '#22c55e', def: true },
+    { key: 'passOk_split', baseKey: 'passOk', isSplit: true, labelKey: 'stat_passOk_split', shortKey: 'short_passOk_split', emoji: '✅', color: '#22c55e', def: false },
     { key: 'passKo',    labelKey: 'stat_passKo',    shortKey: 'short_passKo',    emoji: '❌', color: '#ef4444', def: true },
+    { key: 'passKo_split', baseKey: 'passKo', isSplit: true, labelKey: 'stat_passKo_split', shortKey: 'short_passKo_split', emoji: '❌', color: '#ef4444', def: false },
     { key: 'shotOn',    labelKey: 'stat_shotOn',    shortKey: 'short_shotOn',    emoji: '🎯', color: '#06b6d4', def: true },
+    { key: 'shotOn_split', baseKey: 'shotOn', isSplit: true, labelKey: 'stat_shotOn_split', shortKey: 'short_shotOn_split', emoji: '🎯', color: '#06b6d4', def: false },
     { key: 'shotOff',   labelKey: 'stat_shotOff',   shortKey: 'short_shotOff',   emoji: '↗️', color: '#f97316', def: true },
+    { key: 'shotOff_split', baseKey: 'shotOff', isSplit: true, labelKey: 'stat_shotOff_split', shortKey: 'short_shotOff_split', emoji: '↗️', color: '#f97316', def: false },
     { key: 'goal',      labelKey: 'stat_goal',      shortKey: 'short_goal',      emoji: '🥅', color: '#facc15', def: true, linked: ['shotOn'] },
+    { key: 'goal_split', baseKey: 'goal', isSplit: true, labelKey: 'stat_goal_split', shortKey: 'short_goal_split', emoji: '🥅', color: '#facc15', def: false, linked: ['shotOn'] },
     { key: 'assist',    labelKey: 'stat_assist',    shortKey: 'short_assist',    emoji: '🅰️', color: '#a855f7', def: true },
     { key: 'dribbleOk', labelKey: 'stat_dribbleOk', shortKey: 'short_dribbleOk', emoji: '💨', color: '#14b8a6', def: true },
     { key: 'dribbleKo', labelKey: 'stat_dribbleKo', shortKey: 'short_dribbleKo', emoji: '🚫', color: '#be123c', def: false },
@@ -650,6 +655,21 @@
       s.endedAt = s.endedAt || Date.now();
       s.finishedAt = s.finishedAt || Date.now();
       if (s.timerStartedAt) this.toggleTimer(s);
+
+      // Desconectar asistente remoto si estaba activo para esta sesión
+      if (s._liveTrackerCode || sId) {
+        if (window.Cloud && window.Cloud.closeLiveTrackerForSession) {
+          window.Cloud.closeLiveTrackerForSession(s._liveTrackerCode || sId);
+        } else if (s._liveTrackerCode && window.Cloud && window.Cloud.closeLiveTrackerSession) {
+          window.Cloud.closeLiveTrackerSession(s._liveTrackerCode);
+        }
+      }
+      s._liveTrackerActive = false;
+      s._liveTrackerConnected = false;
+      s._liveTrackerCode = null;
+      s._connectedAssistants = [];
+      s._lastNotifiedAssistant = null;
+
       this.save();
       if (window.Cloud && window.Cloud.pushCoachState) {
         window.Cloud.pushCoachState(this.state, true);
@@ -1160,18 +1180,35 @@
       this.save();
     },
 
-    /* Registro de acciones (+1 / -1) */
-    record(sessionId, playerId, key, delta, author = 'coach', authorName = null) {
+    /* Determina si la acción se realizó con el pie no dominante del jugador */
+    isNonDominantFoot(player, foot) {
+      if (!player || !foot) return false;
+      const f = String(player.foot || 'Diestro').toLowerCase();
+      if (f.includes('ambi') || f.includes('both')) return false;
+      if (f.includes('zurdo') || f.includes('left')) return foot === 'right';
+      return foot === 'left';
+    },
+
+    /* Registro de acciones (+1 / -1) con soporte para pie dominante / no dominante */
+    record(sessionId, playerId, key, delta, author = 'coach', authorName = null, foot = null) {
       const s = this.session(sessionId);
       if (!s || !playerId || !STAT_MAP[key]) return null;
       s.type = s.type === 'match' ? 'match' : 'training';
-      const keys = [key];
-      if (delta > 0 && this.state.settings.linkGoalShot && STAT_MAP[key].linked) {
-        keys.push.apply(keys, STAT_MAP[key].linked);
+      
+      const statDef = STAT_MAP[key];
+      const baseKey = statDef.baseKey || key;
+      const isSplit = !!statDef.isSplit;
+
+      const keys = [baseKey];
+      if (isSplit && !keys.includes(key)) {
+        keys.push(key);
+      }
+      if (delta > 0 && this.state.settings.linkGoalShot && statDef.linked) {
+        keys.push.apply(keys, statDef.linked);
       }
       // Acciones con balón que suman automáticamente +1 toque
       const TOUCH_KEYS = ['passOk', 'passKo', 'shotOn', 'shotOff', 'goal', 'assist', 'dribbleOk', 'dribbleKo', 'recovery', 'cross', 'keyPass', 'header', 'save'];
-      if (delta > 0 && TOUCH_KEYS.includes(key) && !keys.includes('touches')) {
+      if (delta > 0 && (TOUCH_KEYS.includes(key) || TOUCH_KEYS.includes(baseKey)) && !keys.includes('touches')) {
         keys.push('touches');
       }
 
@@ -1182,11 +1219,36 @@
         const next = Math.max(0, cur + delta);
         if (next !== cur) { st[k] = next; applied.push(k); }
       });
-      if (!applied.length) return null;
+
+      const appliedFootKeys = [];
+      let isNonDominant = false;
+      const playerObj = this.player(playerId);
+
+      if (foot) {
+        const footKeysToTrack = [baseKey + '_' + foot];
+        if (isSplit) footKeysToTrack.push(key + '_' + foot);
+
+        isNonDominant = this.isNonDominantFoot(playerObj, foot);
+        if (isNonDominant) {
+          footKeysToTrack.push(baseKey + '_nonDominant');
+          footKeysToTrack.push('nonDominantActions');
+        }
+
+        footKeysToTrack.forEach(fk => {
+          const cur = st[fk] || 0;
+          const next = Math.max(0, cur + delta);
+          if (next !== cur) {
+            st[fk] = next;
+            appliedFootKeys.push(fk);
+          }
+        });
+      }
+
+      if (!applied.length && !appliedFootKeys.length) return null;
 
       // Incrementar marcador local automáticamente cuando se marca un gol
       let goalDeltaHome = 0;
-      if (key === 'goal' && delta > 0 && s.type === 'match') {
+      if ((key === 'goal' || baseKey === 'goal') && delta > 0 && s.type === 'match') {
         s.score = s.score || { home: 0, away: 0 };
         s.score.home = (s.score.home || 0) + delta;
         goalDeltaHome = delta;
@@ -1202,6 +1264,11 @@
         p: playerId,
         k: applied,
         d: delta,
+        appliedFootKeys,
+        foot: foot || null,
+        isNonDominant,
+        baseKey,
+        key,
         type: s.type,
         author: author || 'coach',
         authorName: (authorName && authorName.trim()) ? authorName.trim() : defaultAuthorName
@@ -1214,8 +1281,8 @@
       return entry;
     },
 
-    /* Registro atómico de duelo 1v1 (1-Tap para ambos jugadores) */
-    recordDuel1v1Outcome(sessionId, outcomeType, pAId, pBId, author = 'coach', authorName = null) {
+    /* Registro atómico de duelo 1v1 (1-Tap para ambos jugadores con soporte de pie y pie no dominante) */
+    recordDuel1v1Outcome(sessionId, outcomeType, pAId, pBId, author = 'coach', authorName = null, foot = null) {
       const s = this.session(sessionId);
       if (!s || !pAId || !pBId) return null;
       s.type = s.type === 'match' ? 'match' : 'training';
@@ -1267,6 +1334,38 @@
         changesA.duel1v1WonStop = 1;
       }
 
+      // Registro de pie y pie no dominante para goles de 1v1
+      let scorerId = null;
+      let scorerChanges = null;
+      let scorerStats = null;
+      if (outcomeType === 'goal_A' || outcomeType === 'steal_goal_A') {
+        scorerId = pAId;
+        scorerChanges = changesA;
+        scorerStats = stA;
+      } else if (outcomeType === 'goal_B' || outcomeType === 'steal_goal_B') {
+        scorerId = pBId;
+        scorerChanges = changesB;
+        scorerStats = stB;
+      }
+
+      let isNonDominant = false;
+      if (scorerId && foot) {
+        const scorerObj = this.player(scorerId);
+        const footKey = 'duel1v1WonGoal_' + foot;
+        scorerStats[footKey] = (scorerStats[footKey] || 0) + 1;
+        scorerChanges[footKey] = 1;
+
+        if (this.isNonDominantFoot(scorerObj, foot)) {
+          isNonDominant = true;
+          scorerStats.duel1v1WonGoal_nonDominant = (scorerStats.duel1v1WonGoal_nonDominant || 0) + 1;
+          scorerChanges.duel1v1WonGoal_nonDominant = 1;
+          scorerStats.goal_nonDominant = (scorerStats.goal_nonDominant || 0) + 1;
+          scorerChanges.goal_nonDominant = 1;
+          scorerStats.nonDominantActions = (scorerStats.nonDominantActions || 0) + 1;
+          scorerChanges.nonDominantActions = 1;
+        }
+      }
+
       const defaultAuthorName = (author === 'coach') 
         ? ((this.state && this.state.settings && this.state.settings.coachName) || 'Entrenador')
         : 'Asistente';
@@ -1278,6 +1377,8 @@
         outcomeType,
         pA: pAId,
         pB: pBId,
+        foot: foot || null,
+        isNonDominant,
         changesA,
         changesB,
         type: s.type,
@@ -1316,6 +1417,9 @@
         } else if (e.p === playerId) {
           const st = s.stats[playerId] || {};
           e.k.forEach(k => { st[k] = Math.max(0, (st[k] || 0) - e.d); });
+          if (Array.isArray(e.appliedFootKeys)) {
+            e.appliedFootKeys.forEach(k => { st[k] = Math.max(0, (st[k] || 0) - e.d); });
+          }
           if (e.goalScoreHome && s.type === 'match' && s.score) {
             s.score.home = Math.max(0, (s.score.home || 0) - e.goalScoreHome);
           }
@@ -1658,16 +1762,20 @@
       const d1v1Turnover = stats.duel1v1LostTurnover || 0;
       const d1v1LostGoal = stats.duel1v1LostGoal || 0;
 
-      const totalActions = passes + shotOn + shotOff + goal + assist + keyPass + dribbleOk + dribbleKo + recovery + loss + duelWon + duelLost + save + foul + yellow + red + d1v1Goal + d1v1Stop + d1v1Turnover + d1v1LostGoal;
+      const goalBonus = goal + (stats.goal_nonDominant || 0);
+      const d1v1GoalBonus = d1v1Goal + (stats.duel1v1WonGoal_nonDominant || 0);
+
+      const totalActions = passes + shotOn + shotOff + goalBonus + assist + keyPass + dribbleOk + dribbleKo + recovery + loss + duelWon + duelLost + save + foul + yellow + red + d1v1GoalBonus + d1v1Stop + d1v1Turnover + d1v1LostGoal;
       if (totalActions === 0 && touches === 0) return 6.0;
 
-      // Acciones positivas puras
+      // Acciones positivas puras (el gol con pie no dominante pesa el doble)
       let posScore = 0;
       if (passes > 0) {
         const passAcc = passOk / passes;
         posScore += (passOk * 0.05) + Math.max(0, (passAcc - 0.70) * 1.2);
       }
-      posScore += goal * 0.95;
+
+      posScore += goalBonus * 0.95;
       posScore += assist * 0.65;
       posScore += shotOn * 0.20;
       posScore += keyPass * 0.35;
@@ -1675,14 +1783,14 @@
       posScore += recovery * 0.28;
       posScore += duelWon * 0.20;
       posScore += save * 0.45;
-      posScore += d1v1Goal * 0.35;
+      posScore += d1v1GoalBonus * 0.35;
       posScore += d1v1Stop * 0.25;
 
       // Bonus posicional específico
       if (p.includes('POR') || p.includes('GK')) {
         posScore += save * 0.30;
       } else if (p.includes('DC') || p.includes('DEL') || p.includes('ST') || p.includes('EXT')) {
-        posScore += (goal * 0.20) + (shotOn * 0.15);
+        posScore += (goalBonus * 0.20) + (shotOn * 0.15);
       } else if (p.includes('DFC') || p.includes('DEF') || p.includes('MCD')) {
         posScore += (recovery * 0.20) + (duelWon * 0.15);
       }

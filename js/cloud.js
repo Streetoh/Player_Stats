@@ -2775,6 +2775,37 @@
       }
     },
 
+    closeLiveTrackerForSession: async function (sessionIdOrCode) {
+      if (!this.init() || !sessionIdOrCode) return false;
+      try {
+        const sTarget = String(sessionIdOrCode).trim();
+        if (sTarget.length === 6 && /^\d+$/.test(sTarget)) {
+          await this.closeLiveTrackerSession(sTarget);
+        }
+        const snaps = await db.collection('clubs')
+          .doc(CLUB_ID)
+          .collection('live_trackers')
+          .where('sessionId', '==', sTarget)
+          .where('active', '==', true)
+          .get();
+        if (snaps && !snaps.empty) {
+          const promises = [];
+          snaps.forEach((doc) => {
+            promises.push(doc.ref.set({
+              active: false,
+              disconnectedByCoach: true,
+              closedAt: Date.now()
+            }, { merge: true }));
+          });
+          await Promise.all(promises);
+        }
+        return true;
+      } catch (err) {
+        console.warn('[Cloud] Error cerrando live tracker para sesión:', err);
+        return false;
+      }
+    },
+
     joinLiveTrackerSession: async function (code, assistantNameOrOnUpdate, onUpdateOrOnClosed, maybeOnClosed) {
       if (!this.init() || !code) return null;
       let assistantName = 'Asistente';
@@ -2843,6 +2874,7 @@
           playerId: action.playerId,
           statKey: action.statKey || '',
           delta: action.delta || 1,
+          foot: action.foot || null,
           author: 'assistant',
           assistantId: action.assistantId || 'asst_default',
           assistantName: action.assistantName || 'Asistente',

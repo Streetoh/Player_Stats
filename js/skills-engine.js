@@ -165,8 +165,8 @@
   function derive(t) {
     const g = k => Number(t[k]) || 0;
     const passOk = g('passOk'), passKo = g('passKo');
-    const goals = g('goal');
-    const d1v1Goal = g('duel1v1WonGoal');
+    const goals = g('goal') + g('goal_nonDominant');
+    const d1v1Goal = g('duel1v1WonGoal') + g('duel1v1WonGoal_nonDominant');
     const d1v1Stop = g('duel1v1WonStop');
     const d1v1LostTurnover = g('duel1v1LostTurnover');
     const d1v1LostGoal = g('duel1v1LostGoal');
@@ -371,7 +371,10 @@
     const d1v1Turnover = Number(stats.duel1v1LostTurnover) || 0;
     const d1v1LostGoal = Number(stats.duel1v1LostGoal) || 0;
 
-    const totalActions = passes + shotOn + shotOff + goal + assist + keyPass + dribbleOk + dribbleKo + recovery + loss + duelWon + duelLost + save + foul + yellow + red + d1v1Goal + d1v1Stop + d1v1Turnover + d1v1LostGoal;
+    const goalBonus = goal + (Number(stats.goal_nonDominant) || 0);
+    const d1v1GoalBonus = d1v1Goal + (Number(stats.duel1v1WonGoal_nonDominant) || 0);
+
+    const totalActions = passes + shotOn + shotOff + goalBonus + assist + keyPass + dribbleOk + dribbleKo + recovery + loss + duelWon + duelLost + save + foul + yellow + red + d1v1GoalBonus + d1v1Stop + d1v1Turnover + d1v1LostGoal;
     if (totalActions === 0 && touches === 0) return 6.0;
 
     let posScore = 0;
@@ -379,7 +382,8 @@
       const passAcc = passOk / passes;
       posScore += (passOk * 0.05) + Math.max(0, (passAcc - 0.70) * 1.2);
     }
-    posScore += goal * 0.95;
+
+    posScore += goalBonus * 0.95;
     posScore += assist * 0.65;
     posScore += shotOn * 0.20;
     posScore += keyPass * 0.35;
@@ -387,13 +391,13 @@
     posScore += recovery * 0.28;
     posScore += duelWon * 0.20;
     posScore += save * 0.45;
-    posScore += d1v1Goal * 0.35;
+    posScore += d1v1GoalBonus * 0.35;
     posScore += d1v1Stop * 0.25;
 
     if (p.includes('POR') || p.includes('GK')) {
       posScore += save * 0.30;
     } else if (p.includes('DC') || p.includes('DEL') || p.includes('ST') || p.includes('EXT')) {
-      posScore += (goal * 0.20) + (shotOn * 0.15);
+      posScore += (goalBonus * 0.20) + (shotOn * 0.15);
     } else if (p.includes('DFC') || p.includes('DEF') || p.includes('MCD')) {
       posScore += (recovery * 0.20) + (duelWon * 0.15);
     }
@@ -482,8 +486,8 @@
       }
 
       const shots = (Number(st.shotOn) || 0) + (Number(st.shotOff) || 0);
-      const goals = Number(st.goal) || 0;
-      const d1v1Goal = Number(st.duel1v1WonGoal) || 0;
+      const goals = (Number(st.goal) || 0) + (Number(st.goal_nonDominant) || 0);
+      const d1v1Goal = (Number(st.duel1v1WonGoal) || 0) + (Number(st.duel1v1WonGoal_nonDominant) || 0);
       if (shots > 0 || goals > 0 || d1v1Goal > 0) {
         const shotAcc = shots > 0 ? (Number(st.shotOn) || 0) / shots : 0.5;
         const tirScore = Math.round(50 + (shotAcc - 0.5) * 30 + Math.min(35, goals * 10 + (Number(st.shotOn) || 0) * 3 + d1v1Goal * 4));
