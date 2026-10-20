@@ -3838,9 +3838,14 @@
           </button>
 
           <!-- Compartir Tracker con Asistente Remoto (Standalone) -->
-          <button class="icon-btn ${s._liveTrackerConnected ? 'accent' : ''}" id="tracker-btn-share-assistant" title="Compartir con Asistente Remoto" style="${s._liveTrackerConnected ? 'background: rgba(34, 197, 94, 0.2); border-color: #22c55e; color: #86efac;' : ''}">
+          <button class="icon-btn ${s._liveTrackerConnected ? 'accent' : ''}" id="tracker-btn-share-assistant" title="${(s._connectedAssistants && s._connectedAssistants.length > 0) ? 'Asistentes conectados: ' + s._connectedAssistants.join(', ') : 'Compartir con Asistente Remoto'}" style="${s._liveTrackerConnected ? 'background: rgba(34, 197, 94, 0.2); border-color: #22c55e; color: #86efac; min-width: 38px;' : ''}">
             ${s._liveTrackerConnected ? '<span class="live-dot" style="margin-right:2px; background:#22c55e;"></span>' : ''}
             ${icon('share', 16)}
+            ${(s._connectedAssistants && s._connectedAssistants.length > 0) ? `
+              <span style="font-size: 10px; font-weight: 900; margin-left: 2px; max-width: 60px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                ${escapeHtml(s._connectedAssistants[s._connectedAssistants.length - 1])}
+              </span>
+            ` : ''}
           </button>
 
           <button class="icon-btn" id="tracker-btn-filter-buttons" title="${t('customizeButtons')}">
@@ -3998,6 +4003,9 @@
         if (session._liveTrackerCode && window.Cloud) {
           window.Cloud.closeLiveTrackerSession(session._liveTrackerCode);
           session._liveTrackerActive = false;
+          session._liveTrackerCode = null;
+          session._connectedAssistants = [];
+          session._lastNotifiedAssistant = null;
         }
         Store.finishSession(session.id);
         closeTracker();
@@ -4212,15 +4220,20 @@
             📋${hasAttendance ? `<span style="font-size: 10px; font-weight: 900; margin-left: 1px;">${attPresentCount}</span>` : ''}
           </button>
 
-          <!-- Compartir Tracker con Asistente Remoto (Standalone) -->
-          <!-- Auditoría de Acciones y Asistentes 1v1 -->
-          <button class="icon-btn" id="tracker-btn-audit-actions-1v1" title="${t('auditActionsTitle', 'Auditoría de Acciones y Asistentes')}" style="position: relative;">
+          <!-- Auditoría de Acciones y Asistentes -->
+          <button class="icon-btn" id="tracker-btn-audit-actions" title="${t('auditActionsTitle', 'Auditoría de Acciones y Asistentes')}" style="position: relative;">
             👥${(s.log && s.log.length > 0) ? `<span style="position: absolute; top: -3px; right: -3px; background: var(--cyan); color: #0f172a; font-size: 9px; font-weight: 900; padding: 1px 4px; border-radius: 8px; line-height: 1;">${s.log.length > 99 ? '99+' : s.log.length}</span>` : ''}
           </button>
 
-          <button class="icon-btn ${s._liveTrackerConnected ? 'accent' : ''}" id="tracker-btn-share-assistant" title="Compartir con Asistente Remoto" style="${s._liveTrackerConnected ? 'background: rgba(34, 197, 94, 0.2); border-color: #22c55e; color: #86efac;' : ''}">
+          <!-- Compartir Tracker con Asistente Remoto (Standalone) -->
+          <button class="icon-btn ${s._liveTrackerConnected ? 'accent' : ''}" id="tracker-btn-share-assistant" title="${(s._connectedAssistants && s._connectedAssistants.length > 0) ? 'Asistentes conectados: ' + s._connectedAssistants.join(', ') : 'Compartir con Asistente Remoto'}" style="${s._liveTrackerConnected ? 'background: rgba(34, 197, 94, 0.2); border-color: #22c55e; color: #86efac; min-width: 38px;' : ''}">
             ${s._liveTrackerConnected ? '<span class="live-dot" style="margin-right:2px; background:#22c55e;"></span>' : ''}
             ${icon('share', 16)}
+            ${(s._connectedAssistants && s._connectedAssistants.length > 0) ? `
+              <span style="font-size: 10px; font-weight: 900; margin-left: 2px; max-width: 60px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                ${escapeHtml(s._connectedAssistants[s._connectedAssistants.length - 1])}
+              </span>
+            ` : ''}
           </button>
 
           <!-- Sincronización en vivo Dual QR -->
@@ -4490,6 +4503,9 @@
           if (session._liveTrackerCode && window.Cloud) {
             window.Cloud.closeLiveTrackerSession(session._liveTrackerCode);
             session._liveTrackerActive = false;
+            session._liveTrackerCode = null;
+            session._connectedAssistants = [];
+            session._lastNotifiedAssistant = null;
           }
           if (window.SyncEngine && SyncEngine.isLive()) {
             SyncEngine.broadcastSessionFinished(session);
@@ -5425,17 +5441,47 @@
       if (statusDoc) {
         const wasConnected = session._liveTrackerConnected;
         session._liveTrackerConnected = !!statusDoc.assistantConnected;
-        if (!wasConnected && session._liveTrackerConnected) {
+
+        const newAsstName = statusDoc.lastAssistantName || '';
+        const list = Array.isArray(statusDoc.connectedAssistants) ? statusDoc.connectedAssistants : (newAsstName ? [newAsstName] : []);
+        session._connectedAssistants = list;
+
+        // Notificar en la app coach cuando se conecta un asistente con su nombre
+        if (newAsstName && session._lastNotifiedAssistant !== newAsstName) {
+          session._lastNotifiedAssistant = newAsstName;
           haptic(60);
-          toast('🟢 ¡Asistente remoto conectado a la sesión!', 'success');
+          toast(`🟢 ¡Asistente conectado: ${newAsstName}!`, 'success');
+          renderTracker();
+        } else if (!wasConnected && session._liveTrackerConnected) {
+          haptic(60);
+          toast(newAsstName ? `🟢 ¡Asistente conectado: ${newAsstName}!` : '🟢 ¡Asistente remoto conectado a la sesión!', 'success');
           renderTracker();
         }
+
+        // Actualizar el badge y la lista de asistentes en el modal si está abierto
         const badgeEl = document.getElementById('live-tracker-status-badge');
         if (badgeEl) {
+          const namesStr = list.join(', ');
           badgeEl.innerHTML = `
             <span class="live-dot" style="background: ${session._liveTrackerConnected ? '#22c55e' : '#22d3ee'};"></span>
-            <span>${session._liveTrackerConnected ? '🟢 ASISTENTE CONECTADO' : '⏳ ESPERANDO ASISTENTE'}</span>
+            <span>${session._liveTrackerConnected ? (namesStr ? `🟢 CONECTADO: ${escapeHtml(namesStr)}` : '🟢 ASISTENTE CONECTADO') : '⏳ ESPERANDO ASISTENTE'}</span>
           `;
+        }
+
+        const asstsBox = document.getElementById('live-connected-assts-box');
+        if (asstsBox) {
+          if (list.length > 0) {
+            asstsBox.innerHTML = `
+              <span style="font-size: 11.5px; color: var(--muted); font-weight: 700;">Conectados ahora:</span>
+              ${list.map(name => `
+                <span class="badge" style="background: rgba(34, 197, 94, 0.2); border: 1.5px solid #22c55e; color: #86efac; font-weight: 800; font-size: 11px; padding: 2px 8px; border-radius: 12px; display: inline-flex; align-items: center; gap: 4px;">
+                  👤 ${escapeHtml(name)}
+                </span>
+              `).join('')}
+            `;
+          } else {
+            asstsBox.innerHTML = `<span style="color: var(--muted); font-style: italic; font-size: 11.5px;">Esperando que el asistente introduzca el PIN...</span>`;
+          }
         }
       }
     });
@@ -5481,7 +5527,7 @@
 
     let baseUrl = window.location.href.split('?')[0].replace(/[^/]*$/, '');
     const isLocalhostOrFile = location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.protocol === 'file:';
-    const finalShareUrl = isLocalhostOrFile 
+    let finalShareUrl = isLocalhostOrFile 
       ? 'https://streetoh.github.io/Player_Stats/tracker.html?c=' + code 
       : baseUrl + 'tracker.html?c=' + code;
 
@@ -5496,12 +5542,26 @@
 
         const slotAPlayer = (session.slots && session.slots[0]) ? Store.player(session.slots[0]) : null;
         const slotBPlayer = (session.slots && session.slots[1]) ? Store.player(session.slots[1]) : null;
+        const asstsList = session._connectedAssistants || [];
+        const asstsNames = asstsList.join(', ');
 
         body.innerHTML = `
           <div style="text-align: center; margin-bottom: 14px;">
             <div id="live-tracker-status-badge" style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 800; background: rgba(34, 211, 238, 0.15); color: var(--cyan); border: 1px solid rgba(34, 211, 238, 0.3);">
               <span class="live-dot" style="background: ${session._liveTrackerConnected ? '#22c55e' : '#22d3ee'};"></span>
-              <span>${session._liveTrackerConnected ? '🟢 ASISTENTE CONECTADO' : '⏳ ESPERANDO ASISTENTE'}</span>
+              <span>${session._liveTrackerConnected ? (asstsNames ? `🟢 CONECTADO: ${escapeHtml(asstsNames)}` : '🟢 ASISTENTE CONECTADO') : '⏳ ESPERANDO ASISTENTE'}</span>
+            </div>
+            <div id="live-connected-assts-box" style="margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: wrap;">
+              ${asstsList.length > 0 ? `
+                <span style="font-size: 11.5px; color: var(--muted); font-weight: 700;">Conectados ahora:</span>
+                ${asstsList.map(name => `
+                  <span class="badge" style="background: rgba(34, 197, 94, 0.2); border: 1.5px solid #22c55e; color: #86efac; font-weight: 800; font-size: 11px; padding: 2px 8px; border-radius: 12px; display: inline-flex; align-items: center; gap: 4px;">
+                    👤 ${escapeHtml(name)}
+                  </span>
+                `).join('')}
+              ` : `
+                <span style="color: var(--muted); font-style: italic; font-size: 11.5px;">Esperando que el asistente introduzca el PIN...</span>
+              `}
             </div>
             <p style="font-size: 12.5px; color: var(--muted); margin-top: 8px; line-height: 1.4;">
               Cualquier persona puede trackear en directo desde su teléfono <b>sin instalar ninguna aplicación</b>.
@@ -5510,8 +5570,13 @@
 
           <!-- TARJETA DEL CÓDIGO PIN DE 6 DÍGITOS -->
           <div style="background: linear-gradient(135deg, rgba(34, 211, 238, 0.12), rgba(15, 23, 42, 0.7)); border: 2px solid var(--cyan); border-radius: 18px; padding: 16px; text-align: center; margin-bottom: 16px; box-shadow: 0 8px 24px rgba(34, 211, 238, 0.18);">
-            <div style="font-size: 11px; font-weight: 800; color: var(--cyan); letter-spacing: 1px; text-transform: uppercase;">
-              CÓDIGO DE ACCESO (6 DÍGITOS)
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+              <span style="font-size: 11px; font-weight: 800; color: var(--cyan); letter-spacing: 1px; text-transform: uppercase;">
+                CÓDIGO DE ACCESO (6 DÍGITOS)
+              </span>
+              <button type="button" class="btn sm ghost" id="btn-regen-tracker-code" title="Generar un código nuevo" style="padding: 2px 8px; font-size: 11px; font-weight: 800; color: var(--cyan); border: 1px solid rgba(34, 211, 238, 0.4); border-radius: 8px;">
+                🔄 Nuevo código
+              </button>
             </div>
             <div style="font-size: 42px; font-weight: 900; letter-spacing: 10px; color: #fff; margin: 8px 0; font-family: monospace; text-shadow: 0 0 20px rgba(34, 211, 238, 0.4);">
               ${code.slice(0, 3)} ${code.slice(3)}
@@ -5621,6 +5686,28 @@
           fallbackQR();
         }
 
+        const btnRegenCode = body.querySelector('#btn-regen-tracker-code');
+        if (btnRegenCode) {
+          btnRegenCode.onclick = () => {
+            confirmDialog('Generar nuevo código', '¿Deseas generar un código de acceso nuevo? El código anterior dejará de ser válido.', async () => {
+              const newCode = await Cloud.startLiveTrackerSession(session, currentTarget, playersList, statsList, true);
+              if (newCode) {
+                code = newCode;
+                session._liveTrackerCode = newCode;
+                session._connectedAssistants = [];
+                session._lastNotifiedAssistant = null;
+                finalShareUrl = isLocalhostOrFile 
+                  ? 'https://streetoh.github.io/Player_Stats/tracker.html?c=' + newCode 
+                  : baseUrl + 'tracker.html?c=' + newCode;
+                setupLiveTrackerListener(session, newCode);
+                renderTracker();
+                toast('¡Nuevo código generado: ' + newCode + '!', 'success');
+                renderModal();
+              }
+            });
+          };
+        }
+
         const btnOpenFullAudit = body.querySelector('#btn-open-full-audit');
         if (btnOpenFullAudit) {
           btnOpenFullAudit.onclick = () => {
@@ -5695,6 +5782,8 @@
           session._liveTrackerActive = false;
           session._liveTrackerConnected = false;
           session._liveTrackerCode = null;
+          session._connectedAssistants = [];
+          session._lastNotifiedAssistant = null;
           closeSheet();
           renderTracker();
           toast('Tracker compartido finalizado y asistentes desconectados', 'info');

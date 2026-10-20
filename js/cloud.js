@@ -2576,11 +2576,11 @@
       return Math.floor(100000 + Math.random() * 900000).toString();
     },
 
-    startLiveTrackerSession: async function (session, targetSlotOrPlayerId, playersList, statsList) {
+    startLiveTrackerSession: async function (session, targetSlotOrPlayerId, playersList, statsList, forceNewCode = false) {
       if (!this.init()) return null;
       try {
         let code = session._liveTrackerCode;
-        if (!code) {
+        if (forceNewCode || !code) {
           code = this.generateLiveTrackerCode();
           session._liveTrackerCode = code;
         }
@@ -2600,6 +2600,8 @@
           code: code,
           sessionId: session.id,
           active: true,
+          disconnectedByCoach: false,
+          closedAt: null,
           title: session.title || (session.type === 'match' ? 'Partido' : 'Entrenamiento'),
           type: session.type || 'training',
           rival: session.rival || '',
@@ -2614,6 +2616,7 @@
           statsList: statsList || [],
           stats: session.stats || {},
           assistantConnected: false,
+          connectedAssistants: [],
           updatedAt: Date.now(),
           createdAt: Date.now()
         };
@@ -2733,9 +2736,15 @@
           throw new Error('INACTIVE');
         }
 
+        const currentList = Array.isArray(data.connectedAssistants) ? data.connectedAssistants.slice() : [];
+        if (!currentList.includes(assistantName)) {
+          currentList.push(assistantName);
+        }
+
         await trackerRef.set({
           assistantConnected: true,
           lastAssistantName: assistantName,
+          connectedAssistants: currentList,
           assistantConnectedAt: Date.now()
         }, { merge: true });
 
