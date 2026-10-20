@@ -729,7 +729,15 @@
       "bestMatchPlayerMvp": "MEJOR JUGADOR DEL PARTIDO • MVP",
       "viewPlayerProfile": "Ver ficha >",
       "votes": "votos",
-      "vote": "voto"
+      "vote": "voto",
+      "auditActionsTitle": "Auditoría de Acciones",
+      "auditByPlayer": "Por Jugador",
+      "auditTimeline": "Línea de Tiempo",
+      "auditSearchPlaceholder": "Buscar jugador, asistente o acción...",
+      "auditAllAuthors": "Todos",
+      "auditNoActions": "No hay acciones registradas en esta sesión.",
+      "auditNoFilterResults": "No se encontraron acciones con los filtros seleccionados.",
+      "viewFullAudit": "Ver Auditoría Completa de Acciones"
     },
     en: {
       "appName": "Player stats (Coach)",
@@ -1455,7 +1463,15 @@
       "bestMatchPlayerMvp": "MATCH BEST PLAYER • MVP",
       "viewPlayerProfile": "View profile >",
       "votes": "votes",
-      "vote": "vote"
+      "vote": "vote",
+      "auditActionsTitle": "Actions Audit",
+      "auditByPlayer": "By Player",
+      "auditTimeline": "Timeline",
+      "auditSearchPlaceholder": "Search player, assistant or action...",
+      "auditAllAuthors": "All",
+      "auditNoActions": "No actions recorded in this session.",
+      "auditNoFilterResults": "No actions found with the selected filters.",
+      "viewFullAudit": "View Full Actions Audit"
     },
     et: {
       "appName": "Player stats (Coach)",
@@ -2181,7 +2197,15 @@
       "bestMatchPlayerMvp": "MÄNGU PARIM MÄNGIJA • MVP",
       "viewPlayerProfile": "Vaata profiili >",
       "votes": "häält",
-      "vote": "hääl"
+      "vote": "hääl",
+      "auditActionsTitle": "Tegevuste audit",
+      "auditByPlayer": "Mängija kaupa",
+      "auditTimeline": "Ajajoon",
+      "auditSearchPlaceholder": "Otsi mängijat, abilist või tegevust...",
+      "auditAllAuthors": "Kõik",
+      "auditNoActions": "Selles sessioonis pole tegevusi registreeritud.",
+      "auditNoFilterResults": "Valitud filtritega tegevusi ei leitud.",
+      "viewFullAudit": "Vaata täielikku tegevuste auditit"
     },
     ru: {
       "appName": "Player stats (Coach)",
@@ -2907,7 +2931,15 @@
       "bestMatchPlayerMvp": "ЛУЧШИЙ ИГРОК МАТЧА • MVP",
       "viewPlayerProfile": "Профиль >",
       "votes": "голосов",
-      "vote": "голос"
+      "vote": "голос",
+      "auditActionsTitle": "Аудит действий",
+      "auditByPlayer": "По игрокам",
+      "auditTimeline": "Хронология",
+      "auditSearchPlaceholder": "Поиск игрока, ассистента или действия...",
+      "auditAllAuthors": "Все",
+      "auditNoActions": "В этой сессии еще нет зарегистрированных действий.",
+      "auditNoFilterResults": "Действия по выбранным фильтрам не найдены.",
+      "viewFullAudit": "Просмотреть полный аудит действий"
     }
   };
 

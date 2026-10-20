@@ -1129,7 +1129,7 @@
     },
 
     /* Registro de acciones (+1 / -1) */
-    record(sessionId, playerId, key, delta, author = 'coach') {
+    record(sessionId, playerId, key, delta, author = 'coach', authorName = null) {
       const s = this.session(sessionId);
       if (!s || !playerId || !STAT_MAP[key]) return null;
       s.type = s.type === 'match' ? 'match' : 'training';
@@ -1160,6 +1160,10 @@
         goalDeltaHome = delta;
       }
 
+      const defaultAuthorName = (author === 'coach') 
+        ? ((this.state && this.state.settings && this.state.settings.coachName) || 'Entrenador')
+        : 'Asistente';
+
       const entry = {
         t: Date.now(),
         m: this.elapsed(s),
@@ -1167,7 +1171,8 @@
         k: applied,
         d: delta,
         type: s.type,
-        author: author || 'coach'
+        author: author || 'coach',
+        authorName: (authorName && authorName.trim()) ? authorName.trim() : defaultAuthorName
       };
       if (goalDeltaHome > 0) {
         entry.goalScoreHome = goalDeltaHome;
@@ -1178,7 +1183,7 @@
     },
 
     /* Registro atómico de duelo 1v1 (1-Tap para ambos jugadores) */
-    recordDuel1v1Outcome(sessionId, outcomeType, pAId, pBId, author = 'coach') {
+    recordDuel1v1Outcome(sessionId, outcomeType, pAId, pBId, author = 'coach', authorName = null) {
       const s = this.session(sessionId);
       if (!s || !pAId || !pBId) return null;
       s.type = s.type === 'match' ? 'match' : 'training';
@@ -1230,6 +1235,10 @@
         changesA.duel1v1WonStop = 1;
       }
 
+      const defaultAuthorName = (author === 'coach') 
+        ? ((this.state && this.state.settings && this.state.settings.coachName) || 'Entrenador')
+        : 'Asistente';
+
       const logEntry = {
         t: Date.now(),
         m: this.elapsed(s),
@@ -1240,7 +1249,8 @@
         changesA,
         changesB,
         type: s.type,
-        author: author || 'coach'
+        author: author || 'coach',
+        authorName: (authorName && authorName.trim()) ? authorName.trim() : defaultAuthorName
       };
       s.log.push(logEntry);
       this.save();

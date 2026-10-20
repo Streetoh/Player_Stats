@@ -3832,6 +3832,11 @@
             📋${hasAttendance ? `<span style="font-size: 10px; font-weight: 900; margin-left: 1px;">${attPresentCount}</span>` : ''}
           </button>
 
+          <!-- Auditoría de Acciones y Asistentes -->
+          <button class="icon-btn" id="tracker-btn-audit-actions" title="${t('auditActionsTitle', 'Auditoría de Acciones y Asistentes')}" style="position: relative;">
+            👥${(s.log && s.log.length > 0) ? `<span style="position: absolute; top: -3px; right: -3px; background: var(--cyan); color: #0f172a; font-size: 9px; font-weight: 900; padding: 1px 4px; border-radius: 8px; line-height: 1;">${s.log.length > 99 ? '99+' : s.log.length}</span>` : ''}
+          </button>
+
           <!-- Compartir Tracker con Asistente Remoto (Standalone) -->
           <button class="icon-btn ${s._liveTrackerConnected ? 'accent' : ''}" id="tracker-btn-share-assistant" title="Compartir con Asistente Remoto" style="${s._liveTrackerConnected ? 'background: rgba(34, 197, 94, 0.2); border-color: #22c55e; color: #86efac;' : ''}">
             ${s._liveTrackerConnected ? '<span class="live-dot" style="margin-right:2px; background:#22c55e;"></span>' : ''}
@@ -4016,6 +4021,9 @@
 
     const btnShareAssistant1v1 = container.querySelector('#tracker-btn-share-assistant');
     if (btnShareAssistant1v1) btnShareAssistant1v1.onclick = () => showLiveTrackerShareModal(session);
+
+    const btnAuditActions1v1 = container.querySelector('#tracker-btn-audit-actions-1v1');
+    if (btnAuditActions1v1) btnAuditActions1v1.onclick = () => showSessionActionsAuditModal(session);
 
     container.querySelector('#tracker-btn-filter-buttons').onclick = () => {
       showCustomizeSessionButtonsModal(session);
@@ -4205,6 +4213,11 @@
           </button>
 
           <!-- Compartir Tracker con Asistente Remoto (Standalone) -->
+          <!-- Auditoría de Acciones y Asistentes 1v1 -->
+          <button class="icon-btn" id="tracker-btn-audit-actions-1v1" title="${t('auditActionsTitle', 'Auditoría de Acciones y Asistentes')}" style="position: relative;">
+            👥${(s.log && s.log.length > 0) ? `<span style="position: absolute; top: -3px; right: -3px; background: var(--cyan); color: #0f172a; font-size: 9px; font-weight: 900; padding: 1px 4px; border-radius: 8px; line-height: 1;">${s.log.length > 99 ? '99+' : s.log.length}</span>` : ''}
+          </button>
+
           <button class="icon-btn ${s._liveTrackerConnected ? 'accent' : ''}" id="tracker-btn-share-assistant" title="Compartir con Asistente Remoto" style="${s._liveTrackerConnected ? 'background: rgba(34, 197, 94, 0.2); border-color: #22c55e; color: #86efac;' : ''}">
             ${s._liveTrackerConnected ? '<span class="live-dot" style="margin-right:2px; background:#22c55e;"></span>' : ''}
             ${icon('share', 16)}
@@ -4448,6 +4461,10 @@
     // Compartir Tracker con Asistente Remoto (Standalone)
     const btnShareAssistant = container.querySelector('#tracker-btn-share-assistant');
     if (btnShareAssistant) btnShareAssistant.onclick = () => showLiveTrackerShareModal(session);
+
+    // Auditoría de Acciones y Asistentes
+    const btnAuditActions = container.querySelector('#tracker-btn-audit-actions');
+    if (btnAuditActions) btnAuditActions.onclick = () => showSessionActionsAuditModal(session);
 
     // Sincronización en vivo Dual QR
     const btnSyncQr = container.querySelector('#tracker-btn-sync-qr');
@@ -5369,7 +5386,8 @@
         Cloud.updateLiveTrackerSession(code, { stats: session.stats || {} });
       } else {
         const delta = actionData.delta || 1;
-        const entry = Store.record(session.id, actionData.playerId, actionData.statKey, delta, 'assistant');
+        const asstAuthorName = actionData.assistantName || 'Asistente';
+        const entry = Store.record(session.id, actionData.playerId, actionData.statKey, delta, 'assistant', asstAuthorName);
         if (entry) {
           haptic(35);
           const p = Store.player(actionData.playerId);
@@ -5562,6 +5580,11 @@
                 : `<span style="color: var(--muted); font-style: italic;">Esperando primeras pulsaciones del asistente...</span>`
               }
             </div>
+            <div style="margin-top: 10px; text-align: center;">
+              <button type="button" class="btn sm secondary" id="btn-open-full-audit" style="width: 100%; font-size: 12px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 7px 12px; border-radius: 8px; border: 1.5px solid var(--border);">
+                👥 ${t('viewFullAudit', 'Ver Auditoría Completa de Acciones')}
+              </button>
+            </div>
           </div>
         `;
 
@@ -5596,6 +5619,13 @@
           }
         } else {
           fallbackQR();
+        }
+
+        const btnOpenFullAudit = body.querySelector('#btn-open-full-audit');
+        if (btnOpenFullAudit) {
+          btnOpenFullAudit.onclick = () => {
+            showSessionActionsAuditModal(session);
+          };
         }
 
         const copyBtn = body.querySelector('#btn-copy-live-link');
@@ -5672,6 +5702,440 @@
       };
     });
   }
+
+  /* =========================================================
+     MODAL DE AUDITORÍA DE ACCIONES Y ASISTENTES
+     Muestra quién ha trackeado a qué jugador, qué botones ha pulsado,
+     con colores vivos y diferenciados para cada asistente y el entrenador.
+     ========================================================= */
+  const AUDIT_AUTHOR_PALETTE = [
+    { bg: 'rgba(34, 197, 94, 0.16)', border: '#22c55e', text: '#86efac', solid: '#22c55e' }, // Verde esmeralda
+    { bg: 'rgba(245, 158, 11, 0.16)', border: '#f59e0b', text: '#fbbf24', solid: '#f59e0b' }, // Ámbar
+    { bg: 'rgba(168, 85, 247, 0.16)', border: '#a855f7', text: '#d8b4fe', solid: '#a855f7' }, // Púrpura
+    { bg: 'rgba(14, 165, 233, 0.16)', border: '#0ea5e9', text: '#7dd3fc', solid: '#0ea5e9' }, // Azul cielo
+    { bg: 'rgba(244, 63, 94, 0.16)', border: '#f43f5e', text: '#fda4af', solid: '#f43f5e' }, // Rosa / Rose
+    { bg: 'rgba(20, 184, 166, 0.16)', border: '#14b8a6', text: '#5eead4', solid: '#14b8a6' }, // Turquesa
+    { bg: 'rgba(249, 115, 22, 0.16)', border: '#f97316', text: '#fdba74', solid: '#f97316' }, // Naranja
+    { bg: 'rgba(99, 102, 241, 0.16)', border: '#6366f1', text: '#a5b4fc', solid: '#6366f1' }, // Índigo
+    { bg: 'rgba(236, 72, 153, 0.16)', border: '#ec4899', text: '#f472b6', solid: '#ec4899' }  // Magenta
+  ];
+
+  const AUDIT_COACH_COLOR = {
+    bg: 'rgba(6, 182, 212, 0.16)',
+    border: '#06b6d4',
+    text: '#67e8f9',
+    solid: '#06b6d4'
+  };
+
+  function showSessionActionsAuditModal(sessionOrId) {
+    const s = (typeof sessionOrId === 'object' && sessionOrId) ? sessionOrId : Store.session(sessionOrId);
+    if (!s) return;
+
+    let activeView = 'player'; // 'player' | 'timeline'
+    let activeAuthorFilter = 'all';
+    let searchQuery = '';
+
+    openSheet(t('auditActionsTitle', 'Auditoría de Acciones'), (body) => {
+      function renderAuditContent() {
+        const rawLogs = s.log || [];
+        const coachDefaultName = (Store.state && Store.state.settings && Store.state.settings.coachName) || 'Entrenador';
+
+        // 1. Mapeo dinámico y consistente de autores con asignación garantizada de colores
+        const authorMetaMap = {
+          coach: {
+            id: 'coach',
+            name: coachDefaultName,
+            isCoach: true,
+            icon: '👑',
+            color: AUDIT_COACH_COLOR,
+            count: 0
+          }
+        };
+
+        let asstPaletteIdx = 0;
+        const getOrRegisterAuthor = (authorType, rawAuthorName) => {
+          const isCoach = (authorType === 'coach' || !authorType);
+          if (isCoach) {
+            if (rawAuthorName && rawAuthorName.trim() && rawAuthorName.trim() !== 'Entrenador') {
+              authorMetaMap.coach.name = rawAuthorName.trim();
+            }
+            return authorMetaMap.coach;
+          }
+          const cleanName = (rawAuthorName && rawAuthorName.trim()) ? rawAuthorName.trim() : 'Asistente';
+          const authorKey = 'asst_' + cleanName.toLowerCase();
+          if (!authorMetaMap[authorKey]) {
+            const paletteColor = AUDIT_AUTHOR_PALETTE[asstPaletteIdx % AUDIT_AUTHOR_PALETTE.length];
+            asstPaletteIdx++;
+            authorMetaMap[authorKey] = {
+              id: authorKey,
+              name: cleanName,
+              isCoach: false,
+              icon: '👤',
+              color: paletteColor,
+              count: 0
+            };
+          }
+          return authorMetaMap[authorKey];
+        };
+
+        // Primera pasada: registrar autores y contar acciones totales por autor
+        rawLogs.forEach(entry => {
+          const meta = getOrRegisterAuthor(entry.author, entry.authorName);
+          meta.count++;
+        });
+
+        const allAuthors = Object.values(authorMetaMap).filter(a => a.count > 0);
+        if (allAuthors.length === 0) {
+          allAuthors.push(authorMetaMap.coach);
+        }
+
+        // 2. Filtrado de logs según autor activo y término de búsqueda
+        const q = searchQuery.toLowerCase().trim();
+
+        const filteredLogs = rawLogs.filter(entry => {
+          const authorMeta = getOrRegisterAuthor(entry.author, entry.authorName);
+          if (activeAuthorFilter !== 'all' && authorMeta.id !== activeAuthorFilter) {
+            return false;
+          }
+          if (q) {
+            const authorMatch = authorMeta.name.toLowerCase().includes(q);
+            let playerMatch = false;
+            let actionMatch = false;
+
+            if (entry.isDuel1v1) {
+              const pA = Store.player(entry.pA);
+              const pB = Store.player(entry.pB);
+              const pAName = pA ? Store.playerName(pA).toLowerCase() : '';
+              const pBName = pB ? Store.playerName(pB).toLowerCase() : '';
+              if (pAName.includes(q) || pBName.includes(q)) playerMatch = true;
+              if ('1v1 duelo'.includes(q)) actionMatch = true;
+            } else {
+              const p = Store.player(entry.p);
+              const pName = p ? Store.playerName(p).toLowerCase() : '';
+              const dorsal = p && p.mainDorsal != null ? String(p.mainDorsal) : '';
+              if (pName.includes(q) || dorsal === q) playerMatch = true;
+
+              const keys = Array.isArray(entry.k) ? entry.k : [entry.k];
+              for (const k of keys) {
+                const statObj = Store.STATS.find(st => st.key === k);
+                const statLbl = statObj ? statObj.label.toLowerCase() : k.toLowerCase();
+                if (statLbl.includes(q)) { actionMatch = true; break; }
+              }
+            }
+
+            if (!authorMatch && !playerMatch && !actionMatch) return false;
+          }
+          return true;
+        });
+
+        // 3. Estructuración por Jugador -> Autor -> Botones pulsados
+        const playerStatsMap = {};
+
+        filteredLogs.forEach(entry => {
+          const authorMeta = getOrRegisterAuthor(entry.author, entry.authorName);
+
+          if (entry.isDuel1v1) {
+            [entry.pA, entry.pB].forEach(pid => {
+              if (!pid) return;
+              if (!playerStatsMap[pid]) {
+                playerStatsMap[pid] = {
+                  player: Store.player(pid) || { id: pid, name: pid },
+                  totalActions: 0,
+                  authors: {}
+                };
+              }
+              const pEntry = playerStatsMap[pid];
+              pEntry.totalActions++;
+              if (!pEntry.authors[authorMeta.id]) {
+                pEntry.authors[authorMeta.id] = {
+                  meta: authorMeta,
+                  count: 0,
+                  stats: {},
+                  duels1v1: []
+                };
+              }
+              const aEntry = pEntry.authors[authorMeta.id];
+              aEntry.count++;
+              aEntry.duels1v1.push(entry);
+            });
+          } else {
+            const pid = entry.p;
+            if (!pid) return;
+            if (!playerStatsMap[pid]) {
+              playerStatsMap[pid] = {
+                player: Store.player(pid) || { id: pid, name: pid },
+                totalActions: 0,
+                authors: {}
+              };
+            }
+            const pEntry = playerStatsMap[pid];
+            pEntry.totalActions++;
+            if (!pEntry.authors[authorMeta.id]) {
+              pEntry.authors[authorMeta.id] = {
+                meta: authorMeta,
+                count: 0,
+                stats: {},
+                duels1v1: []
+              };
+            }
+            const aEntry = pEntry.authors[authorMeta.id];
+            aEntry.count++;
+
+            const primaryKey = Array.isArray(entry.k) ? entry.k[0] : entry.k;
+            if (primaryKey) {
+              const delta = entry.d != null ? entry.d : 1;
+              aEntry.stats[primaryKey] = (aEntry.stats[primaryKey] || 0) + delta;
+            }
+          }
+        });
+
+        const playerList = Object.values(playerStatsMap).sort((a, b) => b.totalActions - a.totalActions);
+
+        // Renderizado del HTML principal
+        body.innerHTML = `
+          <!-- Resumen cabecera de la sesión -->
+          <div style="background: rgba(15, 23, 42, 0.7); border: 1.5px solid var(--border); border-radius: 14px; padding: 12px 14px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="font-size: 16px;">${s.type === 'match' ? '🏆' : '⚽'}</span>
+                <b style="font-size: 14px; color: #fff;">${escapeHtml(Store.sessionTitle(s))}</b>
+              </div>
+              <small style="color: var(--muted); font-size: 11px; display: block; margin-top: 2px;">
+                📅 ${formatDateDDMMAAAA(s.date)} • ⏱️ ${Store.fmtTime(Store.elapsed(s), s)}
+              </small>
+            </div>
+            <div style="text-align: right; flex-shrink: 0;">
+              <span class="badge" style="background: rgba(34, 211, 238, 0.15); border: 1px solid rgba(34, 211, 238, 0.4); color: var(--cyan); font-weight: 900; font-size: 12px; padding: 4px 10px; border-radius: 8px;">
+                ⚡ ${rawLogs.length} ${t('actions', 'acciones')}
+              </span>
+            </div>
+          </div>
+
+          <!-- Selector de Modo de Vista (Por Jugador vs Línea de Tiempo) -->
+          <div class="segmented" style="display: flex; gap: 4px; margin-bottom: 12px; background: var(--surface2); padding: 4px; border-radius: 10px;">
+            <button type="button" class="btn sm ${activeView === 'player' ? 'primary' : 'ghost'}" id="btn-audit-tab-player" style="flex: 1; height: 32px; font-size: 11.5px; font-weight: 800; border-radius: 8px;">
+              👤 ${t('auditByPlayer', 'Por Jugador')}
+            </button>
+            <button type="button" class="btn sm ${activeView === 'timeline' ? 'primary' : 'ghost'}" id="btn-audit-tab-timeline" style="flex: 1; height: 32px; font-size: 11.5px; font-weight: 800; border-radius: 8px;">
+              ⏱️ ${t('auditTimeline', 'Línea de Tiempo')}
+            </button>
+          </div>
+
+          <!-- Barra de Filtro de Autores (Chips con sus colores distintivos) -->
+          <div style="display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 10px; -webkit-overflow-scrolling: touch;" class="no-scrollbar">
+            <button type="button" class="btn sm audit-chip-author ${activeAuthorFilter === 'all' ? 'active' : ''}" data-author-id="all" style="flex-shrink: 0; font-size: 11px; font-weight: 800; padding: 4px 10px; border-radius: 20px; border: 1.5px solid ${activeAuthorFilter === 'all' ? 'var(--cyan)' : 'var(--border)'}; background: ${activeAuthorFilter === 'all' ? 'var(--cyan)' : 'var(--surface2)'}; color: ${activeAuthorFilter === 'all' ? '#0f172a' : '#cbd5e1'};">
+              🌐 ${t('auditAllAuthors', 'Todos')} (${rawLogs.length})
+            </button>
+            ${allAuthors.map(author => {
+              const isSelected = activeAuthorFilter === author.id;
+              const col = author.color;
+              return `
+                <button type="button" class="btn sm audit-chip-author ${isSelected ? 'active' : ''}" data-author-id="${author.id}" style="flex-shrink: 0; font-size: 11px; font-weight: 800; padding: 4px 10px; border-radius: 20px; border: 1.5px solid ${col.border}; background: ${isSelected ? col.solid : col.bg}; color: ${isSelected ? '#0f172a' : col.text}; box-shadow: ${isSelected ? '0 0 10px ' + col.solid + '80' : 'none'};">
+                  ${author.icon} ${escapeHtml(author.name)} (${author.count})
+                </button>
+              `;
+            }).join('')}
+          </div>
+
+          <!-- Barra de Búsqueda Rápida en Vivo -->
+          <div style="position: relative; margin-bottom: 12px;">
+            <input type="text" id="inp-audit-search" value="${escapeHtml(searchQuery)}" placeholder="${t('auditSearchPlaceholder', 'Buscar jugador, asistente o acción...')}" style="width: 100%; padding: 8px 32px 8px 12px; font-size: 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg2); color: #fff;" />
+            ${searchQuery ? `<button type="button" id="btn-clear-audit-search" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px;">✕</button>` : ''}
+          </div>
+
+          <!-- Contenido según la vista seleccionada -->
+          <div id="audit-main-content-scroll" style="max-height: 52vh; overflow-y: auto; padding-right: 2px;">
+            ${rawLogs.length === 0 ? `
+              <div style="padding: 30px 16px; text-align: center; color: var(--muted); font-size: 12.5px; background: rgba(15, 23, 42, 0.4); border: 1px dashed var(--border); border-radius: 12px;">
+                <span style="font-size: 28px; display: block; margin-bottom: 6px;">📂</span>
+                ${t('auditNoActions', 'No hay acciones registradas en esta sesión.')}
+              </div>
+            ` : (filteredLogs.length === 0 ? `
+              <div style="padding: 24px 16px; text-align: center; color: var(--muted); font-size: 12px; background: rgba(15, 23, 42, 0.4); border: 1px dashed var(--border); border-radius: 12px;">
+                🔍 ${t('auditNoFilterResults', 'No se encontraron acciones con los filtros seleccionados.')}
+              </div>
+            ` : (activeView === 'player' ? `
+              <!-- VISTA 1: AGRUPADO POR JUGADOR -->
+              <div style="display: flex; flex-direction: column; gap: 10px;">
+                ${playerList.map(item => {
+                  const p = item.player;
+                  const pAuthors = Object.values(item.authors);
+                  return `
+                    <div class="card" style="padding: 12px; border-radius: 12px; border: 1.5px solid var(--border); background: var(--surface2);">
+                      <!-- Cabecera del jugador -->
+                      <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 8px; margin-bottom: 10px;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                          ${renderAvatar(p, 'sm')}
+                          <div>
+                            <b style="font-size: 13.5px; color: #fff;">#${p.mainDorsal != null ? p.mainDorsal : '-'} ${escapeHtml(Store.playerName(p))}</b>
+                            <small style="display: block; color: var(--muted); font-size: 11px;">${p.mainPosition || 'Jugador'}</small>
+                          </div>
+                        </div>
+                        <span class="badge" style="background: rgba(34, 211, 238, 0.15); border: 1px solid rgba(34, 211, 238, 0.35); color: var(--cyan); font-size: 11px; font-weight: 800;">
+                          ${item.totalActions} ${t('actions', 'acciones')}
+                        </span>
+                      </div>
+
+                      <!-- Sub-bloques por cada Asistente / Entrenador que ha trackeado a este jugador -->
+                      <div style="display: flex; flex-direction: column; gap: 8px;">
+                        ${pAuthors.map(aData => {
+                          const col = aData.meta.color;
+                          const statEntries = Object.entries(aData.stats).filter(([k, v]) => v !== 0);
+                          return `
+                            <div style="background: ${col.bg}; border: 1.5px solid ${col.border}; border-radius: 10px; padding: 8px 10px;">
+                              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                <span style="font-weight: 800; font-size: 12px; color: ${col.text}; display: flex; align-items: center; gap: 4px;">
+                                  <span>${aData.meta.icon}</span>
+                                  <span>${escapeHtml(aData.meta.name)}</span>
+                                </span>
+                                <span class="badge" style="background: ${col.solid}33; color: ${col.text}; border: 1px solid ${col.border}; font-size: 10.5px; font-weight: 800;">
+                                  ${aData.count} ${t('actions', 'acciones')}
+                                </span>
+                              </div>
+
+                              <div style="display: flex; flex-wrap: wrap; gap: 5px;">
+                                ${statEntries.map(([statKey, count]) => {
+                                  const statMeta = Store.STATS.find(s => s.key === statKey) || { emoji: '⚽', label: statKey, color: col.text };
+                                  return `
+                                    <span style="display: inline-flex; align-items: center; gap: 4px; background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(255,255,255,0.12); padding: 3px 8px; border-radius: 6px; font-size: 11px; color: #fff;">
+                                      <span>${statMeta.emoji}</span>
+                                      <span style="color: #cbd5e1;">${statMeta.label}:</span>
+                                      <b style="color: ${statMeta.color || col.text}; font-weight: 900;">${count > 0 ? '+' + count : count}</b>
+                                    </span>
+                                  `;
+                                }).join('')}
+
+                                ${(aData.duels1v1 && aData.duels1v1.length > 0) ? `
+                                  <span style="display: inline-flex; align-items: center; gap: 4px; background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(255,255,255,0.12); padding: 3px 8px; border-radius: 6px; font-size: 11px; color: #fff;">
+                                    <span>⚔️</span>
+                                    <span style="color: #cbd5e1;">Duelos 1v1:</span>
+                                    <b style="color: #facc15; font-weight: 900;">${aData.duels1v1.length}</b>
+                                  </span>
+                                ` : ''}
+                              </div>
+                            </div>
+                          `;
+                        }).join('')}
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            ` : `
+              <!-- VISTA 2: LÍNEA DE TIEMPO CRONOLÓGICA (FEED DE EVENTOS) -->
+              <div style="display: flex; flex-direction: column; gap: 6px;">
+                ${filteredLogs.slice().reverse().map(entry => {
+                  const authorMeta = getOrRegisterAuthor(entry.author, entry.authorName);
+                  const col = authorMeta.color;
+                  const timeStr = entry.m != null ? (entry.m + "'") : (entry.t ? new Date(entry.t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '');
+
+                  if (entry.isDuel1v1) {
+                    const pA = Store.player(entry.pA);
+                    const pB = Store.player(entry.pB);
+                    const pAName = pA ? Store.playerName(pA).split(' ')[0] : 'J1';
+                    const pBName = pB ? Store.playerName(pB).split(' ')[0] : 'J2';
+                    return `
+                      <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.08); border-left: 3.5px solid ${col.border}; border-radius: 8px; gap: 8px;">
+                        <div style="display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1;">
+                          <span style="font-size: 10.5px; font-weight: 800; color: var(--muted); min-width: 26px;">⏱️ ${timeStr}</span>
+                          <span class="badge" style="background: ${col.bg}; color: ${col.text}; border: 1px solid ${col.border}; font-size: 10px; font-weight: 800; white-space: nowrap;">
+                            ${authorMeta.icon} ${escapeHtml(authorMeta.name)}
+                          </span>
+                          <span style="font-size: 12px; color: #fff; font-weight: 700;" class="ellipsis">
+                            ⚔️ 1v1: ${escapeHtml(pAName)} vs ${escapeHtml(pBName)}
+                          </span>
+                        </div>
+                        <span class="badge" style="background: rgba(245, 158, 11, 0.2); border: 1px solid #f59e0b; color: #fbbf24; font-size: 10.5px; font-weight: 800; flex-shrink: 0;">
+                          ${entry.outcomeType || 'Duelo'}
+                        </span>
+                      </div>
+                    `;
+                  }
+
+                  const p = Store.player(entry.p);
+                  const pName = p ? Store.playerName(p) : 'Jugador';
+                  const primaryKey = Array.isArray(entry.k) ? entry.k[0] : entry.k;
+                  const statMeta = Store.STATS.find(s => s.key === primaryKey) || { emoji: '⚽', label: primaryKey, color: '#fff' };
+                  const isPlus = (entry.d == null || entry.d > 0);
+
+                  return `
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 7px 10px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.08); border-left: 3.5px solid ${col.border}; border-radius: 8px; gap: 8px;">
+                      <div style="display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1;">
+                        <span style="font-size: 10.5px; font-weight: 800; color: var(--muted); min-width: 26px;">⏱️ ${timeStr}</span>
+                        <span class="badge" style="background: ${col.bg}; color: ${col.text}; border: 1px solid ${col.border}; font-size: 10px; font-weight: 800; white-space: nowrap;">
+                          ${authorMeta.icon} ${escapeHtml(authorMeta.name)}
+                        </span>
+                        <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+                          ${p ? renderAvatar(p, 'sm') : ''}
+                          <b class="ellipsis" style="font-size: 12px; color: #fff;">${escapeHtml(pName)}</b>
+                        </div>
+                      </div>
+                      <span class="badge" style="background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.12); font-size: 11px; font-weight: 800; color: ${statMeta.color || '#fff'}; flex-shrink: 0;">
+                        ${statMeta.emoji} ${statMeta.label} <b style="color: ${isPlus ? '#4ade80' : '#f87171'};">${isPlus ? '+1' : '-1'}</b>
+                      </span>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            `))}
+          </div>
+        `;
+
+        // Event Listeners
+        const btnTabPlayer = body.querySelector('#btn-audit-tab-player');
+        if (btnTabPlayer) {
+          btnTabPlayer.onclick = () => {
+            activeView = 'player';
+            renderAuditContent();
+          };
+        }
+
+        const btnTabTimeline = body.querySelector('#btn-audit-tab-timeline');
+        if (btnTabTimeline) {
+          btnTabTimeline.onclick = () => {
+            activeView = 'timeline';
+            renderAuditContent();
+          };
+        }
+
+        body.querySelectorAll('.audit-chip-author').forEach(chip => {
+          chip.onclick = () => {
+            activeAuthorFilter = chip.getAttribute('data-author-id');
+            renderAuditContent();
+          };
+        });
+
+        const inpSearch = body.querySelector('#inp-audit-search');
+        if (inpSearch) {
+          inpSearch.oninput = () => {
+            searchQuery = inpSearch.value;
+            renderAuditContent();
+            const newInp = body.querySelector('#inp-audit-search');
+            if (newInp) {
+              newInp.focus();
+              newInp.setSelectionRange(newInp.value.length, newInp.value.length);
+            }
+          };
+        }
+
+        const btnClearSearch = body.querySelector('#btn-clear-audit-search');
+        if (btnClearSearch) {
+          btnClearSearch.onclick = () => {
+            searchQuery = '';
+            renderAuditContent();
+          };
+        }
+      }
+
+      renderAuditContent();
+    }, (foot) => {
+      foot.innerHTML = `
+        <button class="btn block primary" id="btn-close-audit-sheet">${t('close', 'Cerrar')}</button>
+      `;
+      foot.querySelector('#btn-close-audit-sheet').onclick = closeSheet;
+    });
+  }
+
 
   /* =========================================================
      MODAL DE SINCRONIZACIÓN EN VIVO (DUAL NUBE + RED LOCAL QR)
@@ -11740,6 +12204,27 @@
 
         body.innerHTML = `
           <!-- Cabecera del evento -->
+          ${(() => {
+            const linkedSess = conv.sessionId ? Store.session(conv.sessionId) : (Store.state.sessions || []).find(sess => sess.convocationId === conv.id || (sess.date === conv.date && sess.type === conv.type));
+            if (linkedSess && linkedSess.log && linkedSess.log.length > 0) {
+              return `
+                <div style="background: rgba(15, 23, 42, 0.75); border: 1.5px solid rgba(34, 211, 238, 0.45); border-radius: 12px; padding: 10px 14px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px; box-shadow: 0 2px 10px rgba(34, 211, 238, 0.1);">
+                  <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+                    <span style="font-size: 20px;">👥</span>
+                    <div style="min-width: 0;">
+                      <b style="font-size: 13px; color: #fff; display: block;" class="ellipsis">${t('auditActionsTitle', 'Auditoría de Acciones')}</b>
+                      <small style="font-size: 11px; color: var(--muted); display: block;">${linkedSess.log.length} ${t('actions', 'acciones')} registradas</small>
+                    </div>
+                  </div>
+                  <button type="button" class="btn sm" id="btn-conv-audit-actions" style="background: rgba(34, 211, 238, 0.2); border: 1px solid var(--cyan); color: var(--cyan); font-weight: 800; font-size: 11.5px; padding: 5px 10px; border-radius: 8px; white-space: nowrap; flex-shrink: 0;">
+                    Ver detalle
+                  </button>
+                </div>
+              `;
+            }
+            return '';
+          })()}
+
           <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 10px; flex-wrap: wrap;">
             <span class="badge ${conv.type}">
               ${conv.type === 'match' ? '🏆 ' + t('match') : '⚽ ' + t('training')}
@@ -11932,6 +12417,14 @@
         `;
 
         // Eventos en el cuerpo
+        const btnConvAudit = body.querySelector('#btn-conv-audit-actions');
+        if (btnConvAudit) {
+          btnConvAudit.onclick = () => {
+            const linkedSess = conv.sessionId ? Store.session(conv.sessionId) : (Store.state.sessions || []).find(sess => sess.convocationId === conv.id || (sess.date === conv.date && sess.type === conv.type));
+            if (linkedSess) showSessionActionsAuditModal(linkedSess);
+          };
+        }
+
         const btnQuickTime = body.querySelector('#btn-quick-change-time');
         if (btnQuickTime) {
           btnQuickTime.onclick = () => {

@@ -1,10 +1,10 @@
 /* Service Worker para Tracker Independiente • Player Stats */
-const CACHE_NAME = 'playerstats-tracker-v1';
+const CACHE_NAME = 'playerstats-tracker-v2';
 const ASSETS_TO_CACHE = [
   './tracker.html',
   './manifest_tracker.json',
-  './icons/icon-192.png',
-  './icons/icon-512.png',
+  './icons/icon-tracker-192.png',
+  './icons/icon-tracker-512.png',
   './js/icons.js',
   './js/firebase-app-compat.js',
   './js/firebase-firestore-compat.js',
