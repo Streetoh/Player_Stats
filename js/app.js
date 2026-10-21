@@ -4684,8 +4684,8 @@
     const dWonStop = st.duel1v1WonStop || 0;
     const dLostTurnover = st.duel1v1LostTurnover || 0;
     const dLostGoal = st.duel1v1LostGoal || 0;
-    const dWon = dWonGoal + dWonStop;
-    const dLost = dLostGoal + dLostTurnover;
+    const dWon = dWonGoal;
+    const dLost = dLostGoal;
     const dTotal = dWon + dLost;
     const dWinRate = dTotal > 0 ? Math.round((dWon / dTotal) * 100) : 0;
 
@@ -4700,7 +4700,7 @@
                 #${player.mainDorsal != null ? player.mainDorsal : '-'} ${escapeHtml(Store.playerName(player))}
               </h4>
               <div style="font-size: 11px; font-weight: 800; color: ${dWinRate >= 50 ? '#4ade80' : (dTotal > 0 ? '#f87171' : 'var(--muted)')};">
-                🏆 ${dWon}G / ${dLost}P (${dWinRate}%)
+                🏆 ${dWon}G / ${dLost}P (${dWinRate}%) ${dWonStop > 0 ? `· 🛡️ ${dWonStop}` : ''}
               </div>
             </div>
           </div>
@@ -11357,8 +11357,8 @@
             const dWonStop = agg.totals.duel1v1WonStop || 0;
             const dLostTurnover = agg.totals.duel1v1LostTurnover || 0;
             const dLostGoal = agg.totals.duel1v1LostGoal || 0;
-            const dWon = dWonGoal + dWonStop;
-            const dLost = dLostGoal + dLostTurnover;
+            const dWon = dWonGoal;
+            const dLost = dLostGoal;
             const dTotal = dWon + dLost;
             const dWinRate = dTotal > 0 ? Math.round((dWon / dTotal) * 100) : 0;
             return `
@@ -11378,7 +11378,7 @@
                     <div style="width: ${dWinRate}%; background: #22c55e; height: 100%;"></div>
                   </div>
                   <div style="font-size: 11px; color: var(--muted);">
-                    (${dWonGoal} ${t('stat_goal', 'goles')} · ${dWonStop} ${t('stops', 'cierres defensivos')})
+                    (${dWonGoal} ${t('stat_goal', 'goles')} a favor · ${dLostGoal} goles en contra${dWonStop > 0 ? ` · ${dWonStop} ${t('stops', 'cierres defensivos')}` : ''})
                   </div>
                 </div>
               </div>
@@ -11418,11 +11418,13 @@
                 `;
               }).join('')}
               ${(() => {
-                const dWon = (agg.totals.duel1v1WonGoal || 0) + (agg.totals.duel1v1WonStop || 0);
-                const dLost = (agg.totals.duel1v1LostGoal || 0) + (agg.totals.duel1v1LostTurnover || 0);
+                const dWon = agg.totals.duel1v1WonGoal || 0;
+                const dLost = agg.totals.duel1v1LostGoal || 0;
+                const dWonStop = agg.totals.duel1v1WonStop || 0;
+                const dLostTurnover = agg.totals.duel1v1LostTurnover || 0;
                 const dTotal = dWon + dLost;
                 const dWinRate = dTotal > 0 ? Math.round((dWon / dTotal) * 100) : 0;
-                if (dTotal === 0) return '';
+                if (dTotal === 0 && dWonStop === 0) return '';
                 return `
                   <tr style="background: rgba(34, 197, 94, 0.05);">
                     <td><span class="e">⚔️</span>${t('duels1v1Won', '1v1 Won')}</td>
@@ -11436,6 +11438,12 @@
                     <td><span class="e">🏆</span>${t('duels1v1WinRate', '1v1 Win %')}</td>
                     <td class="${isMatch ? 'mt' : 'tr'}"><b style="color: #22d3ee;">${dWinRate}%</b></td>
                   </tr>
+                  ${dWonStop > 0 ? `
+                    <tr style="background: rgba(59, 130, 246, 0.05);">
+                      <td><span class="e">🛡️</span>${t('duel1v1Stops', 'Robos / Cierres')}</td>
+                      <td class="${isMatch ? 'mt' : 'tr'}"><b style="color: #60a5fa;">${dWonStop}</b></td>
+                    </tr>
+                  ` : ''}
                 `;
               })()}
             </tbody>
@@ -16065,8 +16073,8 @@
       const totalShots = totalShotOn + totalShotOff;
       const shotPct = totalShots ? Math.round((totalShotOn / totalShots) * 100) : 0;
 
-      const totalDuelWon = totalDuelWonGoal + totalDuelWonStop;
-      const totalDuelLost = totalDuelLostTurnover + totalDuelLostGoal;
+      const totalDuelWon = totalDuelWonGoal;
+      const totalDuelLost = totalDuelLostGoal;
       const totalDuels = totalDuelWon + totalDuelLost;
       const duelWinRate = totalDuels ? Math.round((totalDuelWon / totalDuels) * 100) : 0;
 
@@ -16343,7 +16351,7 @@
       sessions.forEach(s => {
         const st = (s && s.stats && s.stats[p.id]) || {};
         if (key === 'duel1v1Won') {
-          sum += (st.duel1v1WonGoal || 0) + (st.duel1v1WonStop || 0);
+          sum += (st.duel1v1WonGoal || 0);
         } else {
           sum += (st[key] || 0);
         }

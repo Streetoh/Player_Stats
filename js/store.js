@@ -276,6 +276,30 @@
         });
         p.mvpCount = count;
       }
+      // Reajuste de duelos 1v1: sin perder datos de robos/cierres, sólo los duelos con gol cuentan como victoria/derrota
+      let dWonGoal = 0, dWonStop = 0, dLostTurnover = 0, dLostGoal = 0;
+      const pIdStr = String(p.id);
+      s.sessions.forEach(sess => {
+        const st = (sess && sess.stats && sess.stats[pIdStr]) ? sess.stats[pIdStr] : {};
+        dWonGoal += st.duel1v1WonGoal || 0;
+        dWonStop += st.duel1v1WonStop || 0;
+        dLostTurnover += st.duel1v1LostTurnover || 0;
+        dLostGoal += st.duel1v1LostGoal || 0;
+      });
+      const dWon = dWonGoal;
+      const dLost = dLostGoal;
+      const dTotal = dWon + dLost;
+      const dWinRate = dTotal > 0 ? Math.round((dWon / dTotal) * 100) : 0;
+      p.duel1v1 = {
+        won: dWon,
+        lost: dLost,
+        total: dTotal,
+        winRate: dWinRate,
+        wonGoal: dWonGoal,
+        wonStop: dWonStop,
+        lostTurnover: dLostTurnover,
+        lostGoal: dLostGoal
+      };
     });
     s.app = d.app;
     s.version = d.version;
@@ -1386,6 +1410,10 @@
         authorName: (authorName && authorName.trim()) ? authorName.trim() : defaultAuthorName
       };
       s.log.push(logEntry);
+      const pA = this.player(pAId);
+      const pB = this.player(pBId);
+      if (pA) pA.duel1v1 = this.getPlayer1v1Stats(pAId);
+      if (pB) pB.duel1v1 = this.getPlayer1v1Stats(pBId);
       this.save();
       return logEntry;
     },
@@ -1412,6 +1440,10 @@
             stB[k] = Math.max(0, (stB[k] || 0) - e.changesB[k]);
           });
           s.log.splice(i, 1);
+          const pA = this.player(e.pA);
+          const pB = this.player(e.pB);
+          if (pA) pA.duel1v1 = this.getPlayer1v1Stats(e.pA);
+          if (pB) pB.duel1v1 = this.getPlayer1v1Stats(e.pB);
           this.save();
           return e;
         } else if (e.p === playerId) {
@@ -2027,7 +2059,7 @@
       return currentSkills;
     },
 
-    /* Estadísticas de Duelos 1v1 */
+    /* Estadísticas de Duelos 1v1 (Sólo duelos con gol cuentan como victoria/derrota; robos y pérdidas se preservan intactos) */
     getPlayer1v1Stats(pid, sessions) {
       const sessList = sessions || this.state.sessions || [];
       let wonGoal = 0, wonStop = 0, lostTurnover = 0, lostGoal = 0;
@@ -2038,11 +2070,23 @@
         lostTurnover += st.duel1v1LostTurnover || 0;
         lostGoal += st.duel1v1LostGoal || 0;
       });
-      const won = wonGoal + wonStop;
-      const lost = lostTurnover + lostGoal;
+      const won = wonGoal;
+      const lost = lostGoal;
       const total = won + lost;
       const winRate = total > 0 ? Math.round((won / total) * 100) : 0;
       return { won, lost, total, winRate, wonGoal, wonStop, lostTurnover, lostGoal };
+    },
+
+    /* Reajustar y recalcular el estado histórico 1v1 de todos los jugadores */
+    recalculateAllPlayer1v1Stats() {
+      if (!this.state || !Array.isArray(this.state.players)) return;
+      this.state.players.forEach(p => {
+        p.duel1v1 = this.getPlayer1v1Stats(p.id);
+      });
+      this.save();
+      if (window.Cloud && window.Cloud.pushCoachState) {
+        window.Cloud.pushCoachState(this.state, true);
+      }
     },
 
     /* Algoritmo predictivo de probabilidad de victoria en 1v1 */

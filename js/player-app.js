@@ -510,6 +510,8 @@
       "duels1v1WinRate": "1v1 Win Rate %",
       "duels1v1Won": "1v1 Duels Won",
       "duels1v1Lost": "1v1 Duels Lost",
+      "duel1v1Goals": "1v1 Goals",
+      "duel1v1Stops": "Steals / Stops",
       "h2h_pedagogical_title": "1v1 Tactical Advice",
       "h2h_your_advantage": "You have an edge in {stat} (+{diff}). Use it to your advantage!",
       "h2h_watch_out": "Watch out for their {stat} (-{diff}). Play fast and anticipate.",
@@ -954,6 +956,8 @@
       "duels1v1WinRate": "1v1 Võiduprotsent",
       "duels1v1Won": "Võidetud Duellid",
       "duels1v1Lost": "Kaotatud Duellid",
+      "duel1v1Goals": "1v1 Väravad",
+      "duel1v1Stops": "Vaheltlõiked / Tõrjed",
       "h2h_pedagogical_title": "1v1 Taktikalised nõuanded",
       "h2h_your_advantage": "Sul on eelis näitajas {stat} (+{diff}). Kasuta seda ära!",
       "h2h_watch_out": "Ole tähelepanelik vastase {stat} suhtes (-{diff}). Mängi kiirelt!",
@@ -1398,6 +1402,8 @@
       "duels1v1WinRate": "% Victorias 1v1",
       "duels1v1Won": "Duelos Ganados",
       "duels1v1Lost": "Duelos Perdidos",
+      "duel1v1Goals": "Goles en 1v1",
+      "duel1v1Stops": "Robos / Cierres",
       "h2h_pedagogical_title": "Consejos Tácticos 1v1",
       "h2h_your_advantage": "Tienes ventaja en {stat} (+{diff}). ¡Úsalo a tu favor!",
       "h2h_watch_out": "Cuidado con su {stat} (-{diff}). Juega rápido y anticipa.",
@@ -1842,6 +1848,8 @@
       "duels1v1WinRate": "% побед 1 на 1",
       "duels1v1Won": "Выиграно дуэлей",
       "duels1v1Lost": "Проиграно дуэлей",
+      "duel1v1Goals": "Голы 1 на 1",
+      "duel1v1Stops": "Отборы / Блоки",
       "h2h_pedagogical_title": "Тактические советы 1 на 1",
       "h2h_your_advantage": "У тебя преимущество в {stat} (+{diff}). Используй это!",
       "h2h_watch_out": "Остерегайся его {stat} (-{diff}). Играй быстро и на опережение.",
@@ -8648,8 +8656,8 @@
           const dWonStop = curAgg.totals.duel1v1WonStop || 0;
           const dLostTurnover = curAgg.totals.duel1v1LostTurnover || 0;
           const dLostGoal = curAgg.totals.duel1v1LostGoal || 0;
-          const dWon = dWonGoal + dWonStop;
-          const dLost = dLostGoal + dLostTurnover;
+          const dWon = dWonGoal;
+          const dLost = dLostGoal;
           const dTotal = dWon + dLost;
           const dWinRate = dTotal > 0 ? Math.round((dWon / dTotal) * 100) : 0;
           return `
@@ -8669,7 +8677,7 @@
                   <div style="width: ${dWinRate}%; background: #22c55e; height: 100%;"></div>
                 </div>
                 <div style="font-size: 11px; color: var(--muted);">
-                  (${dWonGoal} ${t('goals', 'goles')} · ${dWonStop} ${t('stops', 'cierres defensivos')})
+                  (${dWonGoal} ${t('goals', 'goles')} a favor · ${dLostGoal} goles en contra${dWonStop > 0 ? ` · ${dWonStop} ${t('stops', 'cierres defensivos')}` : ''})
                 </div>
               </div>
             </div>
@@ -9360,7 +9368,7 @@
               </div>
               <div style="background: var(--bg2); padding: 5px; border-radius: 6px; border: 1px solid var(--border);">
                 <div style="color: var(--muted); font-size: 9px;">Duelos</div>
-                <div style="font-weight: 800; color: #fff;">${(myStats.duel1v1WonGoal || 0) + (myStats.duel1v1WonStop || 0)}</div>
+                <div style="font-weight: 800; color: #fff;">${myStats.duel1v1WonGoal || 0}</div>
               </div>
             </div>
           </div>
@@ -9893,8 +9901,8 @@
           const dWonStop = curAgg.totals.duel1v1WonStop || 0;
           const dLostTurnover = curAgg.totals.duel1v1LostTurnover || 0;
           const dLostGoal = curAgg.totals.duel1v1LostGoal || 0;
-          const dWon = dWonGoal + dWonStop;
-          const dLost = dLostGoal + dLostTurnover;
+          const dWon = dWonGoal;
+          const dLost = dLostGoal;
           const dTotal = dWon + dLost;
           const dWinRate = dTotal > 0 ? Math.round((dWon / dTotal) * 100) : 0;
           return `
@@ -9914,7 +9922,7 @@
                   <div style="width: ${dWinRate}%; background: #22c55e; height: 100%;"></div>
                 </div>
                 <div style="font-size: 11px; color: var(--muted);">
-                  (${dWonGoal} ${t('goals', 'goles')} · ${dWonStop} ${t('stops', 'cierres defensivos')})
+                  (${dWonGoal} ${t('goals', 'goles')} a favor · ${dLostGoal} goles en contra${dWonStop > 0 ? ` · ${dWonStop} ${t('stops', 'cierres defensivos')}` : ''})
                 </div>
               </div>
             </div>
@@ -10099,7 +10107,15 @@
     const hasDetailedSessions = sessList.some(s => s && s.stats && Object.keys(s.stats).length > 0);
 
     if (!hasDetailedSessions && p && p.duel1v1) {
-      return Object.assign({}, p.duel1v1);
+      const wonGoal = p.duel1v1.wonGoal || 0;
+      const lostGoal = p.duel1v1.lostGoal || 0;
+      const wonStop = p.duel1v1.wonStop || 0;
+      const lostTurnover = p.duel1v1.lostTurnover || 0;
+      const won = wonGoal;
+      const lost = lostGoal;
+      const total = won + lost;
+      const winRate = total > 0 ? Math.round((won / total) * 100) : 0;
+      return { won, lost, total, winRate, wonGoal, wonStop, lostTurnover, lostGoal };
     }
 
     let wonGoal = 0, wonStop = 0, lostTurnover = 0, lostGoal = 0;
@@ -10110,8 +10126,8 @@
       lostTurnover += st.duel1v1LostTurnover || 0;
       lostGoal += st.duel1v1LostGoal || 0;
     });
-    const won = wonGoal + wonStop;
-    const lost = lostTurnover + lostGoal;
+    const won = wonGoal;
+    const lost = lostGoal;
     const total = won + lost;
     const winRate = total > 0 ? Math.round((won / total) * 100) : 0;
     return { won, lost, total, winRate, wonGoal, wonStop, lostTurnover, lostGoal };
