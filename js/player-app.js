@@ -6584,19 +6584,25 @@
       let nAbsent = 0;
       let nPending = 0;
 
-      calledPlayerIds.forEach(pid => {
-        const r = responses[pid] || (c.responses && c.responses[pid]);
+      const allCardPidsSet = new Set(calledPlayerIds);
+      const registeredCardResp = Object.assign({}, c.responses || {}, liveVotes[c.id] || {});
+      Object.keys(registeredCardResp).forEach(pid => allCardPidsSet.add(pid));
+
+      allCardPidsSet.forEach(pid => {
+        const r = (liveVotes[c.id] && liveVotes[c.id][pid]) || (c.responses && c.responses[pid]);
         const st = r ? ((typeof r === 'object') ? r.status : r) : null;
-        if (st === 'attending' || st === 'yes') nAttending++;
-        else if (st === 'absent' || st === 'no') nAbsent++;
+        const isAtt = (st === 'called' || st === 'attending' || st === 'yes' || st === 'confirmed');
+        const isAbs = (st === 'absent' || st === 'no');
+        if (isAtt) nAttending++;
+        else if (isAbs) nAbsent++;
         else nPending++;
       });
 
       // Voto del usuario actual
-      const myVoteObj = myPlayerId ? (responses[myPlayerId] || (c.responses && c.responses[myPlayerId])) : null;
-      const mySt = myVoteObj ? myVoteObj.status : null;
+      const myVoteObj = myPlayerId ? ((liveVotes[c.id] && liveVotes[c.id][myPlayerId]) || (c.responses && c.responses[myPlayerId])) : null;
+      const mySt = myVoteObj ? ((typeof myVoteObj === 'object') ? myVoteObj.status : myVoteObj) : null;
       const myVoteTime = myVoteObj ? (myVoteObj.timestamp || myVoteObj.time) : null;
-      const isAttending = mySt && (mySt === 'called' || mySt === 'attending' || mySt === 'yes');
+      const isAttending = mySt && (mySt === 'called' || mySt === 'attending' || mySt === 'yes' || mySt === 'confirmed');
       const isAbsent = mySt && (mySt === 'absent' || mySt === 'no');
 
       const isUnopened = isConvUnopened(c, myPlayerId);
@@ -6851,11 +6857,6 @@
                 </div>
               `;
             })()}
-                <button type="button" class="btn sm ghost" data-open-squad-status="${c.id}" style="color: var(--cyan); font-weight: 800; font-size: 11.5px; padding: 4px 8px;">
-                  ${t('viewAttendees')}
-                </button>
-              </div>
-            </div>
           `}
         </div>
       `;
@@ -7194,16 +7195,18 @@
 
     calledPlayerIds.forEach(pid => {
       const p = allPlayersMap[pid] || { id: pid, name: pid.replace(/^manual_/, ''), mainPosition: t('player', 'Player') };
-      const r = responses[pid];
-      const st = r ? r.status : null;
-      if (st === 'attending' || st === 'yes') attendingPlayers.push(p);
-      else if (st === 'absent' || st === 'no') absentPlayers.push(p);
+      const r = (liveVotes[conv.id] && liveVotes[conv.id][pid]) || (conv.responses && conv.responses[pid]);
+      const st = r ? ((typeof r === 'object') ? r.status : r) : null;
+      const isAtt = (st === 'called' || st === 'attending' || st === 'yes' || st === 'confirmed');
+      const isAbs = (st === 'absent' || st === 'no');
+      if (isAtt) attendingPlayers.push(p);
+      else if (isAbs) absentPlayers.push(p);
       else pendingPlayers.push(p);
     });
 
-    const myVoteObj = myPlayerId ? (responses[myPlayerId] || (conv.responses && conv.responses[myPlayerId])) : null;
-    let currentVoteStatus = myVoteObj ? myVoteObj.status : null;
-    let isAttending = currentVoteStatus && (currentVoteStatus === 'called' || currentVoteStatus === 'attending' || currentVoteStatus === 'yes');
+    const myVoteObj = myPlayerId ? ((liveVotes[conv.id] && liveVotes[conv.id][myPlayerId]) || (conv.responses && conv.responses[myPlayerId])) : null;
+    let currentVoteStatus = myVoteObj ? ((typeof myVoteObj === 'object') ? myVoteObj.status : myVoteObj) : null;
+    let isAttending = currentVoteStatus && (currentVoteStatus === 'called' || currentVoteStatus === 'attending' || currentVoteStatus === 'yes' || currentVoteStatus === 'confirmed');
     let isAbsent = currentVoteStatus && (currentVoteStatus === 'absent' || currentVoteStatus === 'no');
 
     // Calculate meeting time
@@ -7378,9 +7381,9 @@
             <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; max-height: 170px; overflow-y: auto;">
               ${calledPlayerIds.map(pid => {
                 const p = allPlayersMap[pid] || { id: pid, name: pid.replace(/^manual_/, '') };
-                const r = responses[pid];
-                const st = r ? r.status : null;
-                const isAtt = (st === 'called' || st === 'attending' || st === 'yes');
+                const r = (liveVotes[conv.id] && liveVotes[conv.id][pid]) || (conv.responses && conv.responses[pid]);
+                const st = r ? ((typeof r === 'object') ? r.status : r) : null;
+                const isAtt = (st === 'called' || st === 'attending' || st === 'yes' || st === 'confirmed');
                 const isAbs = (st === 'absent' || st === 'no');
                 const statusIcon = isAtt ? '🟢' : (isAbs ? '❌' : '⏳');
                 const rTime = r ? (r.timestamp || r.time) : null;
@@ -7610,16 +7613,18 @@
 
     calledPlayerIds.forEach(pid => {
       const p = allPlayersMap[pid] || { id: pid, name: pid.replace(/^manual_/, ''), mainPosition: t('player', 'Player') };
-      const r = responses[pid];
-      const st = r ? r.status : null;
-      if (st === 'attending' || st === 'yes') attendingPlayers.push(p);
-      else if (st === 'absent' || st === 'no') absentPlayers.push(p);
+      const r = (liveVotes[conv.id] && liveVotes[conv.id][pid]) || (conv.responses && conv.responses[pid]);
+      const st = r ? ((typeof r === 'object') ? r.status : r) : null;
+      const isAtt = (st === 'called' || st === 'attending' || st === 'yes' || st === 'confirmed');
+      const isAbs = (st === 'absent' || st === 'no');
+      if (isAtt) attendingPlayers.push(p);
+      else if (isAbs) absentPlayers.push(p);
       else pendingPlayers.push(p);
     });
 
-    const myVoteObj = myPlayerId ? (responses[myPlayerId] || (conv.responses && conv.responses[myPlayerId])) : null;
-    let currentVoteStatus = myVoteObj ? myVoteObj.status : null;
-    let isAttending = currentVoteStatus && (currentVoteStatus === 'called' || currentVoteStatus === 'attending' || currentVoteStatus === 'yes');
+    const myVoteObj = myPlayerId ? ((liveVotes[conv.id] && liveVotes[conv.id][myPlayerId]) || (conv.responses && conv.responses[myPlayerId])) : null;
+    let currentVoteStatus = myVoteObj ? ((typeof myVoteObj === 'object') ? myVoteObj.status : myVoteObj) : null;
+    let isAttending = currentVoteStatus && (currentVoteStatus === 'called' || currentVoteStatus === 'attending' || currentVoteStatus === 'yes' || currentVoteStatus === 'confirmed');
     let isAbsent = currentVoteStatus && (currentVoteStatus === 'absent' || currentVoteStatus === 'no');
 
     const nowD = new Date();
@@ -7715,9 +7720,9 @@
             <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; max-height: 170px; overflow-y: auto;">
               ${calledPlayerIds.map(pid => {
                 const p = allPlayersMap[pid] || { id: pid, name: pid.replace(/^manual_/, '') };
-                const r = responses[pid];
-                const st = r ? r.status : null;
-                const isAtt = (st === 'called' || st === 'attending' || st === 'yes');
+                const r = (liveVotes[conv.id] && liveVotes[conv.id][pid]) || (conv.responses && conv.responses[pid]);
+                const st = r ? ((typeof r === 'object') ? r.status : r) : null;
+                const isAtt = (st === 'called' || st === 'attending' || st === 'yes' || st === 'confirmed');
                 const isAbs = (st === 'absent' || st === 'no');
                 const statusIcon = isAtt ? '🟢' : (isAbs ? '❌' : '⏳');
                 const rTime = r ? (r.timestamp || r.time) : null;
@@ -7875,18 +7880,25 @@
     // Jugadores convocados (con soporte para convocatorias de equipo completas)
     const calledPids = getEffectiveCalledPlayerIds(conv);
 
+    const allPidsSet = new Set(calledPids);
+    const registeredResp = Object.assign({}, conv.responses || {}, liveVotes[conv.id] || {});
+    Object.keys(registeredResp).forEach(pid => allPidsSet.add(pid));
+
     const attending = [];
     const absent = [];
     const pending = [];
 
-    calledPids.forEach(pid => {
+    allPidsSet.forEach(pid => {
       const p = allPlayersMap[pid] || { id: pid, name: pid.replace(/^manual_/, ''), mainPosition: 'Jugador' };
-      const r = responses[pid] || (conv.responses && conv.responses[pid]);
-      const st = r ? r.status : null;
+      const r = (liveVotes[conv.id] && liveVotes[conv.id][pid]) || (conv.responses && conv.responses[pid]);
+      const st = r ? ((typeof r === 'object') ? r.status : r) : null;
       const time = r ? (r.timestamp || r.time) : null;
 
-      if (st === 'attending' || st === 'yes') attending.push({ player: p, time });
-      else if (st === 'absent' || st === 'no') absent.push({ player: p, time });
+      const isAtt = (st === 'called' || st === 'attending' || st === 'yes' || st === 'confirmed');
+      const isAbs = (st === 'absent' || st === 'no');
+
+      if (isAtt) attending.push({ player: p, time });
+      else if (isAbs) absent.push({ player: p, time });
       else pending.push({ player: p });
     });
 

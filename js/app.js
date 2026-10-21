@@ -13065,7 +13065,7 @@
     calledPlayerIds.forEach(pid => {
       const resp = responses[pid];
       const st = conv.list[pid];
-      if (resp && (resp.status === 'attending' || resp.status === 'yes' || resp.status === 'absent' || resp.status === 'no')) return;
+      if (resp && (resp.status === 'called' || resp.status === 'confirmed' || resp.status === 'attending' || resp.status === 'yes' || resp.status === 'absent' || resp.status === 'no')) return;
       if (st === 'absent') return;
       const p = allPlayersMap[pid] || { id: pid, name: pid.replace(/^manual_/, '') };
       pendingPlayers.push(p);
@@ -13239,7 +13239,7 @@
           const st = conv.list[pid];
 
           if (resp) {
-            if (resp.status === 'attending' || resp.status === 'yes') {
+            if (resp.status === 'called' || resp.status === 'confirmed' || resp.status === 'attending' || resp.status === 'yes') {
               respondedYes.push({ player: p, resp, st });
             } else if (resp.status === 'absent' || resp.status === 'no') {
               respondedNo.push({ player: p, resp, st });
