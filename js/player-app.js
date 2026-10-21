@@ -5900,7 +5900,7 @@
      PESTAÑA 1: CONVOCATORIAS (PUNTOS 2, 3, 4)
      ------------------------------------------------------------- */
   function renderConvocationsView() {
-    const convs = (clubData && clubData.convocations) ? clubData.convocations : [];
+    let convs = (clubData && clubData.convocations) ? clubData.convocations : [];
     const myP = getMyPlayer();
     const isTestUser = !!(myP && (myP.isTestPlayer || myP.isTest || myP.id === 'test_player_profile'));
     const pendingReqId = localStorage.getItem('portal_pending_req_id');
@@ -6079,6 +6079,7 @@
 
     // 1. Unir convocatorias oficiales con partidos recientes o finalizados de sessions / latestMatchMvp
     const allConvsAndMatches = (clubData && clubData.convocations) ? clubData.convocations.slice() : [];
+    convs = allConvsAndMatches;
     const existingMatchIds = new Set(allConvsAndMatches.map(c => c.sessionId || c.id));
 
     const candidateMatches = [];
@@ -6292,20 +6293,61 @@
   /* =============================================================
      CONTROL DE PLAZO DE VOTACIÓN (MÁXIMO 2H ANTES DEL INICIO)
      ============================================================= */
+  function parseDateAndTimeToTimestamp(dateVal, timeVal) {
+    if (!dateVal) return null;
+    if (typeof dateVal === 'number') return dateVal;
+    if (dateVal instanceof Date) return dateVal.getTime();
+    let dStr = String(dateVal).trim().replace(/\//g, '-');
+    if (dStr.includes('T')) {
+      const tSplit = dStr.split('T');
+      dStr = tSplit[0];
+      if (!timeVal && tSplit[1]) {
+        timeVal = tSplit[1];
+      }
+    }
+    const parts = dStr.split('-');
+    if (parts.length < 3) return null;
+
+    let y, m, d;
+    if (parts[0].length === 4) {
+      y = parseInt(parts[0], 10);
+      m = parseInt(parts[1], 10) - 1;
+      d = parseInt(parts[2], 10);
+    } else if (parts[2].length >= 4) {
+      d = parseInt(parts[0], 10);
+      m = parseInt(parts[1], 10) - 1;
+      y = parseInt(parts[2].slice(0, 4), 10);
+    } else {
+      y = parseInt(parts[0], 10);
+      m = parseInt(parts[1], 10) - 1;
+      d = parseInt(parts[2], 10);
+    }
+    if (isNaN(y) || isNaN(m) || isNaN(d)) return null;
+
+    let timeStr = String(timeVal || '').trim();
+    if (!timeStr) timeStr = '20:00';
+    timeStr = timeStr.replace('.', ':');
+    const rangeMatch = timeStr.match(/(\d{1,2}):(\d{2})/);
+    let hh = 20, mm = 0;
+    if (rangeMatch) {
+      hh = parseInt(rangeMatch[1], 10);
+      mm = parseInt(rangeMatch[2], 10);
+    } else {
+      const numOnly = parseInt(timeStr, 10);
+      if (!isNaN(numOnly) && numOnly >= 0 && numOnly <= 23) {
+        hh = numOnly;
+        mm = 0;
+      }
+    }
+
+    const dt = new Date(y, m, d, hh, mm, 0, 0);
+    const ms = dt.getTime();
+    return isNaN(ms) ? null : ms;
+  }
+
   function getConvocationStartTimestamp(c) {
     if (!c || !c.date) return null;
-    const timePart = c.time || '10:00';
-    const dateParts = String(c.date).trim().split('-');
-    if (dateParts.length !== 3) return null;
-    const timeParts = timePart.split(':');
-    const y = parseInt(dateParts[0], 10);
-    const m = parseInt(dateParts[1], 10) - 1;
-    const d = parseInt(dateParts[2], 10);
-    const hh = parseInt(timeParts[0] || '10', 10);
-    const mm = parseInt(timeParts[1] || '0', 10);
-    const dt = new Date(y, m, d, hh, mm, 0, 0);
-    const timeMs = dt.getTime();
-    return isNaN(timeMs) ? null : timeMs;
+    return parseDateAndTimeToTimestamp(c.date, c.time);
   }
 
   function getVotingDeadlineInfo(c) {
@@ -6342,6 +6384,24 @@
     return { deadlineMs, msRemaining, isExpired, isLastHour, text };
   }
 
+  function getSeenAngryPunishmentConvs() {
+    try {
+      const raw = localStorage.getItem('ps_coach_angry_seen_convs');
+      return raw ? new Set(JSON.parse(raw)) : new Set();
+    } catch (e) {
+      return new Set();
+    }
+  }
+
+  function markAngryPunishmentConvAsSeen(convId) {
+    if (!convId) return;
+    try {
+      const s = getSeenAngryPunishmentConvs();
+      s.add(String(convId));
+      localStorage.setItem('ps_coach_angry_seen_convs', JSON.stringify(Array.from(s).slice(-100)));
+    } catch (e) {}
+  }
+
   function normalizeForgivePhrase(str) {
     return (str || '')
       .trim()
@@ -6355,7 +6415,11 @@
   function showCoachAngryPunishmentModal(conv) {
     if (document.getElementById('dlg-coach-angry-punishment')) return;
 
-    try { localStorage.setItem('ps_coach_punishment_pending', '1'); } catch (e) {}
+    try { localStorage.removeItem('ps_coach_punishment_pending'); } catch (e) {}
+    const targetConvId = conv ? (conv.id || conv.sessionId) : null;
+    if (targetConvId) {
+      markAngryPunishmentConvAsSeen(targetConvId);
+    }
     haptic(50);
 
     const PUNISHMENT_PHRASES = {
@@ -6497,6 +6561,9 @@
         try {
           localStorage.removeItem('ps_coach_punishment_pending');
           localStorage.removeItem('ps_coach_punishment_active_lang');
+          if (targetConvId) {
+            markAngryPunishmentConvAsSeen(targetConvId);
+          }
         } catch (e) {}
         window.removeEventListener('popstate', onPopStateLock);
         window.__handleAppBack = prevBackHandler;
@@ -7023,6 +7090,13 @@
           if (window.Cloud && window.Cloud.recordLateVoteAttempt && convTarget && convTarget.id) {
             window.Cloud.recordLateVoteAttempt(convTarget.id, myPlayerId, pName, vote, convTitle).catch(() => {});
           }
+          const targetId = convTarget ? (convTarget.id || convTarget.sessionId || cid) : cid;
+          const seenSet = getSeenAngryPunishmentConvs();
+          if (targetId && seenSet.has(String(targetId))) {
+            toast(t('votingClosedDeadline', '🔒 Plazo de votación cerrado (2h antes del inicio)'), 'warning');
+            return;
+          }
+          if (targetId) markAngryPunishmentConvAsSeen(targetId);
           showCoachAngryPunishmentModal(convTarget);
           return;
         }
@@ -7130,11 +7204,7 @@
     });
 
     try {
-      if (localStorage.getItem('ps_coach_punishment_pending') === '1') {
-        setTimeout(() => {
-          showCoachAngryPunishmentModal();
-        }, 400);
-      }
+      localStorage.removeItem('ps_coach_punishment_pending');
     } catch (e) {}
 
     const btnSelFromBanner = view.querySelector('#btn-select-id-from-convs');
@@ -7516,6 +7586,13 @@
           if (window.Cloud && window.Cloud.recordLateVoteAttempt && conv && conv.id) {
             window.Cloud.recordLateVoteAttempt(conv.id, myPlayerId, pName, vote, convTitle).catch(() => {});
           }
+          const targetId = conv ? (conv.id || conv.sessionId) : null;
+          const seenSet = getSeenAngryPunishmentConvs();
+          if (targetId && seenSet.has(String(targetId))) {
+            toast(t('votingClosedDeadline', '🔒 Plazo de votación cerrado (2h antes del inicio)'), 'warning');
+            return;
+          }
+          if (targetId) markAngryPunishmentConvAsSeen(targetId);
           showCoachAngryPunishmentModal(conv);
           return;
         }
@@ -7794,6 +7871,13 @@
           if (window.Cloud && window.Cloud.recordLateVoteAttempt && conv && conv.id) {
             window.Cloud.recordLateVoteAttempt(conv.id, myPlayerId, pName, vote, convTitle).catch(() => {});
           }
+          const targetId = conv ? (conv.id || conv.sessionId) : null;
+          const seenSet = getSeenAngryPunishmentConvs();
+          if (targetId && seenSet.has(String(targetId))) {
+            toast(t('votingClosedDeadline', '🔒 Plazo de votación cerrado (2h antes del inicio)'), 'warning');
+            return;
+          }
+          if (targetId) markAngryPunishmentConvAsSeen(targetId);
           showCoachAngryPunishmentModal(conv);
           return;
         }
