@@ -606,6 +606,8 @@
       "codeCopied": "✅ Code copied to clipboard!",
       "sendViaViber": "📱 Send via Viber",
       "cancelSelectOther": "✕ Cancel and select another player",
+      "wrongProfileTip": "Wrong player profile? You can cancel the request and select your real profile.",
+      "claimCancelledToast": "Request cancelled. Select your profile.",
       "claimLockedNotice": "Active request locked to this profile. You cannot change profile or send a new code until your coach authorizes or denies the request.",
       "viberShareMsg": "Hi Coach, my verification security code is {code} to access my profile ({name}) on Player Stats app.",
       "player": "Player",
@@ -1052,6 +1054,8 @@
       "codeCopied": "✅ Kood kopeeritud lõikelauale!",
       "sendViaViber": "📱 Saada Viberi kaudu",
       "cancelSelectOther": "✕ Tühista ja vali teine mängija",
+      "wrongProfileTip": "Vale mängijaprofiil? Sa saad taotluse tühistada ja valida oma õige profiili.",
+      "claimCancelledToast": "Taotlus tühistatud. Vali oma profiil.",
       "claimLockedNotice": "Aktiivne taotlus on selle profiiliga lukustatud. Te ei saa profiili vahetada ega uut koodi saata enne, kui treener on taotluse kinnitanud või tagasi lükanud.",
       "viberShareMsg": "Tere treener, minu turvakood on {code}, et pääseda ligi profiilile ({name}) rakenduses Player Stats.",
       "player": "Mängija",
@@ -1498,6 +1502,8 @@
       "codeCopied": "✅ ¡Código copiado al portapapeles!",
       "sendViaViber": "📱 Enviar por Viber",
       "cancelSelectOther": "✕ Cancelar y elegir otro jugador",
+      "wrongProfileTip": "¿Perfil de jugador erróneo? Puedes cancelar la solicitud y elegir tu perfil real.",
+      "claimCancelledToast": "Solicitud cancelada. Selecciona tu perfil.",
       "claimLockedNotice": "Solicitud activa vinculada a este perfil. No puedes cambiar de perfil ni solicitar otro código hasta que el entrenador responda.",
       "viberShareMsg": "Hola míster, mi código de seguridad es {code} para acceder a mi perfil ({name}) en la app Player Stats.",
       "player": "Jugador",
@@ -1944,6 +1950,8 @@
       "codeCopied": "✅ Код скопирован в буфер обмена!",
       "sendViaViber": "Отправить через Viber",
       "cancelSelectOther": "✕ Отмена и выбор другого игрока",
+      "wrongProfileTip": "Ошиблись профилем игрока? Вы можете отменить заявку и выбрать свой реальный профиль.",
+      "claimCancelledToast": "Запрос отменен. Выберите свой профиль.",
       "claimLockedNotice": "Запрос на привязку отправлен. Ты не можешь выбрать другой профиль, пока тренер не ответит.",
       "viberShareMsg": "Здравствуйте! Мой проверочный код: {code} для входа в профиль ({name}) в приложении Player Stats.",
       "player": "Игрок",
@@ -5056,7 +5064,8 @@
     overlay.id = 'dialog-confirm-claim-overlay';
 
     overlay.innerHTML = `
-      <div class="dialog-box" style="max-height: 88vh; width: 92%; max-width: 440px; padding: 22px 18px; text-align: center;">
+      <div class="dialog-box" style="position: relative; max-height: 88vh; width: 92%; max-width: 440px; padding: 22px 18px; text-align: center;">
+        <button type="button" class="icon-btn ghost" id="btn-close-claim-modal" style="position: absolute; top: 10px; right: 10px; width: 32px; height: 32px; font-size: 16px; font-weight: 700; color: var(--muted); border-radius: 50%;" title="${t('close', 'Close')}">✕</button>
         <div style="font-size: 40px; margin-bottom: 8px;">🔐</div>
         
         <h3 style="margin: 0 0 4px; font-size: 18px; font-weight: 900; color: #fff;">
@@ -5105,13 +5114,23 @@
         </div>
 
         <!-- Indicador de espera -->
-        <div style="display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 20px; background: rgba(250, 204, 21, 0.15); border: 1px solid rgba(250, 204, 21, 0.4); font-size: 12px; color: #fde047; font-weight: 800; margin-bottom: 16px;">
+        <div style="display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 20px; background: rgba(250, 204, 21, 0.15); border: 1px solid rgba(250, 204, 21, 0.4); font-size: 12px; color: #fde047; font-weight: 800; margin-bottom: 14px;">
           <span>⏳</span>
           <span>${t('waitingCoachApproval', 'Waiting for your coach to authorize the code...')}</span>
         </div>
 
-        <div style="margin-top: 8px; padding: 10px 14px; border-radius: 12px; background: rgba(148, 163, 184, 0.08); border: 1px dashed rgba(148, 163, 184, 0.25); font-size: 11.5px; color: #94a3b8; line-height: 1.45; text-align: center;">
-          🔒 ${t('claimLockedNotice', 'Active request locked to this profile. You cannot change profile or send a new code until your coach authorizes or denies the request.')}
+        <!-- Botones para cambiar de perfil o cerrar -->
+        <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 4px;">
+          <button type="button" class="btn sm secondary" id="btn-change-profile-claim" style="width: 100%; height: 40px; font-weight: 800; font-size: 12.5px; display: flex; align-items: center; justify-content: center; gap: 6px; border-color: rgba(239, 68, 68, 0.45); color: #f87171;">
+            ${t('cancelSelectOther', '✕ Cancel and select another player')}
+          </button>
+          <button type="button" class="btn sm secondary" id="btn-close-claim-bottom" style="width: 100%; height: 36px; font-weight: 700; font-size: 12px; color: var(--muted);">
+            ${t('close', 'Close')}
+          </button>
+        </div>
+
+        <div style="margin-top: 10px; font-size: 11px; color: var(--muted); line-height: 1.4; text-align: center;">
+          ${t('wrongProfileTip', 'Wrong player profile? You can cancel the request and select your real profile.')}
         </div>
       </div>
     `;
@@ -5140,6 +5159,52 @@
         toast('Code: ' + text, 'info');
       }
     }
+
+    const btnCloseTop = overlay.querySelector('#btn-close-claim-modal');
+    if (btnCloseTop) {
+      btnCloseTop.onclick = () => {
+        haptic(20);
+        close();
+      };
+    }
+
+    const btnCloseBottom = overlay.querySelector('#btn-close-claim-bottom');
+    if (btnCloseBottom) {
+      btnCloseBottom.onclick = () => {
+        haptic(20);
+        close();
+      };
+    }
+
+    const btnChangeProfile = overlay.querySelector('#btn-change-profile-claim');
+    if (btnChangeProfile) {
+      btnChangeProfile.onclick = async () => {
+        haptic(30);
+        try {
+          localStorage.removeItem('portal_pending_claim');
+          localStorage.removeItem('portal_last_claim_pid');
+          localStorage.removeItem('portal_last_claim_timestamp');
+        } catch (e) {}
+
+        if (window.Cloud && window.Cloud.deleteProfileClaimRequest) {
+          try {
+            await window.Cloud.deleteProfileClaimRequest(claimReqId);
+          } catch (e) {
+            console.error('Error deleting claim request:', e);
+          }
+        }
+
+        close();
+        toast(t('claimCancelledToast', 'Solicitud cancelada. Selecciona tu perfil.'), 'info');
+        showSelectIdentityModal();
+      };
+    }
+
+    overlay.onclick = (e) => {
+      if (e.target === overlay) {
+        close();
+      }
+    };
 
     const btnCopy = overlay.querySelector('#btn-copy-claim-code');
     if (btnCopy) {
@@ -5405,7 +5470,8 @@
     const team = clubData.teams ? clubData.teams.find(t => t.id === player.teamId) : null;
 
     overlay.innerHTML = `
-      <div class="dialog-box" style="max-height: 88vh; width: 92%; max-width: 440px; padding: 22px 18px; text-align: center;">
+      <div class="dialog-box" style="position: relative; max-height: 88vh; width: 92%; max-width: 440px; padding: 22px 18px; text-align: center;">
+        <button type="button" class="icon-btn ghost" id="btn-close-change-req-top" style="position: absolute; top: 10px; right: 10px; width: 32px; height: 32px; font-size: 16px; font-weight: 700; color: var(--muted); border-radius: 50%;" title="${t('close', 'Close')}">✕</button>
         <div style="font-size: 40px; margin-bottom: 8px;">🔐</div>
         
         <h3 style="margin: 0 0 4px; font-size: 18px; font-weight: 900; color: #fff;">
@@ -5472,7 +5538,26 @@
       overlay.remove();
     }
 
-    overlay.querySelector('#btn-cancel-change-req').onclick = close;
+    const btnCloseChangeTop = overlay.querySelector('#btn-close-change-req-top');
+    if (btnCloseChangeTop) {
+      btnCloseChangeTop.onclick = () => {
+        haptic(20);
+        close();
+      };
+    }
+
+    overlay.onclick = (e) => {
+      if (e.target === overlay) {
+        close();
+      }
+    };
+
+    overlay.querySelector('#btn-cancel-change-req').onclick = () => {
+      try {
+        localStorage.removeItem('portal_pending_req_id');
+      } catch (e) {}
+      close();
+    };
 
     // Copiar código
     overlay.querySelector('#btn-copy-change-code').onclick = async () => {
