@@ -181,7 +181,28 @@
       }
       return true;
     });
+    s.dismissedNotifs = Array.isArray(s.dismissedNotifs) ? s.dismissedNotifs : [];
     s.lateVoteAttempts = (s.lateVoteAttempts && typeof s.lateVoteAttempts === 'object') ? s.lateVoteAttempts : {};
+    if (s.dismissedNotifs.length > 0) {
+      const disSet = new Set(s.dismissedNotifs);
+      Object.keys(s.lateVoteAttempts).forEach(k => {
+        const att = s.lateVoteAttempts[k];
+        if (!att) return;
+        if (disSet.has(`late_vote_${att.convId}_${att.playerId}`) || disSet.has(k)) {
+          delete s.lateVoteAttempts[k];
+        }
+      });
+      if (Array.isArray(s.convocations)) {
+        s.convocations.forEach(c => {
+          if (!c || !c.lateAttempts) return;
+          Object.keys(c.lateAttempts).forEach(pid => {
+            if (disSet.has(`late_vote_${c.id}_${pid}`) || (c.sessionId && disSet.has(`late_vote_${c.sessionId}_${pid}`))) {
+              delete c.lateAttempts[pid];
+            }
+          });
+        });
+      }
+    }
     s.recurringSchedules = Array.isArray(s.recurringSchedules) ? s.recurringSchedules : [];
     const validScheduleIds = new Set(s.recurringSchedules.map(r => r.id));
     const nowNorm = new Date();
@@ -394,6 +415,35 @@
 
     handleIncomingLateVoteAttempt(attempt) {
       if (!attempt || !attempt.convId || !attempt.playerId) return;
+      const notifId = `late_vote_${attempt.convId}_${attempt.playerId}`;
+      const dismissed = Array.isArray(this.state && this.state.dismissedNotifs) ? this.state.dismissedNotifs : [];
+      let isDismissed = dismissed.includes(notifId) || dismissed.includes(`${attempt.convId}_${attempt.playerId}`);
+      if (!isDismissed) {
+        try {
+          const raw = localStorage.getItem('coach_dismissed_notifs_v1');
+          if (raw && (JSON.parse(raw).includes(notifId) || JSON.parse(raw).includes(`${attempt.convId}_${attempt.playerId}`))) {
+            isDismissed = true;
+          }
+        } catch (e) {}
+      }
+      if (isDismissed) {
+        if (this.state && this.state.lateVoteAttempts) {
+          delete this.state.lateVoteAttempts[`${attempt.convId}_${attempt.playerId}`];
+        }
+        let conv = this.convocation(attempt.convId);
+        if (!conv && this.state && this.state.convocations) {
+          conv = this.state.convocations.find(c => c && (c.sessionId === attempt.convId || c.id === attempt.convId || (c.scheduleId && c.scheduleId === attempt.convId)));
+        }
+        if (conv && conv.lateAttempts) {
+          delete conv.lateAttempts[attempt.playerId];
+        }
+        if (window.Cloud && window.Cloud.deleteLateVoteAttempt) {
+          window.Cloud.deleteLateVoteAttempt(attempt.convId, attempt.playerId);
+        }
+        this.save();
+        return;
+      }
+
       this.state.lateVoteAttempts = this.state.lateVoteAttempts || {};
       const key = `${attempt.convId}_${attempt.playerId}`;
       this.state.lateVoteAttempts[key] = attempt;

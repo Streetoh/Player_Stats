@@ -2348,6 +2348,25 @@
       }
     },
 
+    deleteLateVoteAttempt: async function (convIdOrDocId, playerId = null) {
+      if (!this.init() || !convIdOrDocId) return false;
+      try {
+        let docId = convIdOrDocId;
+        if (playerId) {
+          docId = `${convIdOrDocId}_${playerId}`;
+        }
+        await db.collection('clubs')
+          .doc(CLUB_ID)
+          .collection('late_vote_attempts')
+          .doc(docId)
+          .delete();
+        return true;
+      } catch (err) {
+        console.warn('[Cloud] Error eliminando intento fuera de plazo:', err);
+        return false;
+      }
+    },
+
     listenToLateVoteAttempts: function (callback) {
       if (!this.init()) return null;
       let isFirst = true;

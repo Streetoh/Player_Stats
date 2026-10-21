@@ -943,35 +943,59 @@
 
   const DismissedNotifs = {
     getAll() {
+      const set = new Set();
+      try {
+        if (window.Store && Store.state && Array.isArray(Store.state.dismissedNotifs)) {
+          Store.state.dismissedNotifs.forEach(id => { if (id) set.add(String(id)); });
+        }
+      } catch (e) {}
       try {
         const raw = localStorage.getItem('coach_dismissed_notifs_v1');
-        return raw ? new Set(JSON.parse(raw)) : new Set();
-      } catch (e) {
-        return new Set();
-      }
+        if (raw) {
+          JSON.parse(raw).forEach(id => { if (id) set.add(String(id)); });
+        }
+      } catch (e) {}
+      return set;
     },
     add(id) {
       if (!id) return;
+      const strId = String(id);
       const set = this.getAll();
-      set.add(id);
+      set.add(strId);
+      const arr = Array.from(set).slice(-500);
       try {
-        localStorage.setItem('coach_dismissed_notifs_v1', JSON.stringify(Array.from(set).slice(-200)));
+        localStorage.setItem('coach_dismissed_notifs_v1', JSON.stringify(arr));
+      } catch (e) {}
+      try {
+        if (window.Store && Store.state) {
+          Store.state.dismissedNotifs = arr;
+          Store.save();
+        }
       } catch (e) {}
     },
     remove(id) {
       if (!id) return;
+      const strId = String(id);
       const set = this.getAll();
-      set.delete(id);
+      set.delete(strId);
+      const arr = Array.from(set).slice(-500);
       try {
-        localStorage.setItem('coach_dismissed_notifs_v1', JSON.stringify(Array.from(set).slice(-200)));
+        localStorage.setItem('coach_dismissed_notifs_v1', JSON.stringify(arr));
+      } catch (e) {}
+      try {
+        if (window.Store && Store.state) {
+          Store.state.dismissedNotifs = arr;
+          Store.save();
+        }
       } catch (e) {}
     },
     has(id) {
-      return this.getAll().has(id);
+      if (!id) return false;
+      return this.getAll().has(String(id));
     }
   };
 
-  // Purga inmediata de notificaciones antiguas (más de 36 horas o de convocatorias pasadas)
+  // Purga inmediata de notificaciones antiguas (más de 36 horas, de convocatorias pasadas o ya descartadas)
   function purgeOldNotifications() {
     try {
       const raw = localStorage.getItem('coach_notifications_v2');
@@ -982,15 +1006,19 @@
       const now = Date.now();
       const todayIso = (typeof getTodayIso === 'function') ? getTodayIso() : new Date().toISOString().slice(0, 10);
       const maxAgeMs = 36 * 3600 * 1000; // 36 horas
+      const dismissed = DismissedNotifs.getAll();
 
       const cleaned = list.filter(n => {
-        if (!n) return false;
+        if (!n || !n.id) return false;
+        // Si el entrenador ya eliminó/descartó esta notificación, purgarla siempre
+        if (dismissed.has(String(n.id))) return false;
+
         // Solicitudes pendientes de perfil se mantienen vivas hasta ser gestionadas
         if (n.type === 'profile_req' || n.type === 'creation_req' || n.type === 'claim_req') {
           return true;
         }
-        // Notificaciones de asistencia: descartar si la fecha del evento ya pasó (< hoy) o si tienen >36h
-        if (n.type === 'attendance') {
+        // Notificaciones de asistencia o intento fuera de plazo: descartar si el evento ya pasó (< hoy) o si tienen >36h
+        if (n.type === 'attendance' || n.type === 'late_vote') {
           if (n.targetId && window.Store && typeof Store.convocation === 'function') {
             const conv = Store.convocation(n.targetId);
             if (conv && conv.date && conv.date < todayIso) return false;
@@ -1035,6 +1063,8 @@
       if (!notif) return;
       const notifTime = parseTimeMs(notif.time);
       const notifId = notif.id || ('notif_' + notifTime + '_' + Math.floor(Math.random() * 1000));
+      if (DismissedNotifs.has(notifId)) return;
+
       let list = this.getAll();
 
       // Buscamos si ya existe por ID exacto. NO emparejar por (targetId && type) para no colisionar respuestas de distintos jugadores
@@ -1062,11 +1092,78 @@
       }
       this.save(list);
     },
+    clearLateVoteAttemptEverywhere(notifId, targetNotif) {
+      if (!notifId) return;
+      let convId = (targetNotif && targetNotif.targetId) ? targetNotif.targetId : null;
+      let playerId = null;
+
+      if (notifId.startsWith('late_vote_')) {
+        const parts = notifId.replace('late_vote_', '').split('_');
+        if (parts.length >= 2) {
+          playerId = parts[parts.length - 1];
+          if (!convId) convId = parts.slice(0, parts.length - 1).join('_');
+        }
+      }
+
+      if (window.Store && Store.state) {
+        // 1. Limpiar de Store.state.lateVoteAttempts
+        if (Store.state.lateVoteAttempts) {
+          Object.keys(Store.state.lateVoteAttempts).forEach(k => {
+            const att = Store.state.lateVoteAttempts[k];
+            if (!att) return;
+            const matchesPlayer = (playerId && att.playerId === playerId);
+            const matchesConv = (!convId || att.convId === convId || k.startsWith(convId + '_'));
+            if (matchesPlayer && matchesConv) {
+              delete Store.state.lateVoteAttempts[k];
+            }
+          });
+        }
+
+        // 2. Limpiar de conv.lateAttempts en todas las convocatorias
+        if (Array.isArray(Store.state.convocations)) {
+          Store.state.convocations.forEach(c => {
+            if (!c) return;
+            const matchesConv = (!convId || c.id === convId || c.sessionId === convId || c.scheduleId === convId);
+            if (matchesConv && c.lateAttempts && playerId && c.lateAttempts[playerId]) {
+              delete c.lateAttempts[playerId];
+              DismissedNotifs.add(`late_vote_${c.id}_${playerId}`);
+              if (c.sessionId) DismissedNotifs.add(`late_vote_${c.sessionId}_${playerId}`);
+              if (c.scheduleId) DismissedNotifs.add(`late_vote_${c.scheduleId}_${playerId}`);
+            }
+          });
+        }
+        Store.save();
+      }
+
+      DismissedNotifs.add(notifId);
+      if (convId && playerId) {
+        DismissedNotifs.add(`late_vote_${convId}_${playerId}`);
+      }
+
+      // 3. Eliminar de Firestore para que no vuelva jamás al recargar o reconectar
+      if (window.Cloud && window.Cloud.deleteLateVoteAttempt) {
+        if (convId && playerId) {
+          window.Cloud.deleteLateVoteAttempt(convId, playerId);
+        }
+        if (notifId.startsWith('late_vote_')) {
+          const rawDocId = notifId.replace('late_vote_', '');
+          window.Cloud.deleteLateVoteAttempt(rawDocId);
+        }
+      }
+    },
     remove(id) {
-      if (id) DismissedNotifs.add(id);
+      if (!id) return;
+      const notifId = String(id);
+      DismissedNotifs.add(notifId);
       let list = this.getAll();
-      list = list.filter(n => n.id !== id);
+      const targetNotif = list.find(n => n && n.id === notifId);
+      list = list.filter(n => n && n.id !== notifId);
       this.save(list);
+
+      // Si es intento fuera de plazo (late_vote), limpiar en profundidad en Store y Firestore
+      if (notifId.startsWith('late_vote_') || (targetNotif && targetNotif.type === 'late_vote')) {
+        this.clearLateVoteAttemptEverywhere(notifId, targetNotif);
+      }
     },
     removeByTarget(targetId) {
       if (!targetId) return;
@@ -1088,7 +1185,13 @@
     },
     clearAll() {
       const list = this.getAll();
-      list.forEach(n => { if (n.id) DismissedNotifs.add(n.id); });
+      list.forEach(n => {
+        if (!n || !n.id) return;
+        DismissedNotifs.add(n.id);
+        if (n.id.startsWith('late_vote_') || n.type === 'late_vote') {
+          this.clearLateVoteAttemptEverywhere(n.id, n);
+        }
+      });
       this.save([]);
     },
     getUnreadCount() {
@@ -1124,6 +1227,8 @@
 
         const notifId = 'att_' + (conv.id || 'c') + '_' + pid;
         if (DismissedNotifs.has(notifId)) return;
+        if (conv.sessionId && DismissedNotifs.has('att_' + conv.sessionId + '_' + pid)) return;
+        if (conv.scheduleId && DismissedNotifs.has('att_' + conv.scheduleId + '_' + pid)) return;
 
         const isAttending = (status === 'called' || status === 'attending' || status === 'yes');
         const p = Store.player(pid);
@@ -1162,6 +1267,9 @@
         if (!late) return;
         const notifId = `late_vote_${conv.id}_${pid}`;
         if (DismissedNotifs.has(notifId)) return;
+        if (conv.sessionId && DismissedNotifs.has(`late_vote_${conv.sessionId}_${pid}`)) return;
+        if (conv.scheduleId && DismissedNotifs.has(`late_vote_${conv.scheduleId}_${pid}`)) return;
+        if (DismissedNotifs.has(`${conv.id}_${pid}`)) return;
         const p = Store.player(pid);
         const pName = late.playerName || (p ? Store.playerName(p) : 'Jugador');
         const isYes = (late.attemptedStatus === 'called' || late.attemptedStatus === 'attending' || late.attemptedStatus === 'yes');
@@ -2025,6 +2133,16 @@
   window.onLateVoteAttempt = function(attempt) {
     if (!attempt || !attempt.convId || !attempt.playerId) return;
     const notifId = `late_vote_${attempt.convId}_${attempt.playerId}`;
+    if (DismissedNotifs.has(notifId)) return;
+    if (DismissedNotifs.has(`${attempt.convId}_${attempt.playerId}`)) return;
+    if (window.Store && Store.convocation) {
+      const convObj = Store.convocation(attempt.convId);
+      if (convObj) {
+        if (DismissedNotifs.has(`late_vote_${convObj.id}_${attempt.playerId}`)) return;
+        if (convObj.sessionId && DismissedNotifs.has(`late_vote_${convObj.sessionId}_${attempt.playerId}`)) return;
+        if (convObj.scheduleId && DismissedNotifs.has(`late_vote_${convObj.scheduleId}_${attempt.playerId}`)) return;
+      }
+    }
     const p = (window.Store && window.Store.player) ? window.Store.player(attempt.playerId) : null;
     const pName = attempt.playerName || (p ? (window.Store.playerName ? window.Store.playerName(p) : (p.name || 'Jugador')) : 'Jugador');
     const isYes = (attempt.attemptedStatus === 'called' || attempt.attemptedStatus === 'attending' || attempt.attemptedStatus === 'yes');
