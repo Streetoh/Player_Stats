@@ -932,6 +932,15 @@
     });
   }
 
+  function parseTimeMs(val) {
+    if (!val) return Date.now();
+    if (typeof val === 'number') return val;
+    if (typeof val.toMillis === 'function') return val.toMillis();
+    if (val.seconds) return val.seconds * 1000 + (val.nanoseconds ? Math.floor(val.nanoseconds / 1000000) : 0);
+    const n = Number(val);
+    return isNaN(n) ? Date.now() : n;
+  }
+
   const DismissedNotifs = {
     getAll() {
       try {
@@ -986,10 +995,12 @@
             const conv = Store.convocation(n.targetId);
             if (conv && conv.date && conv.date < todayIso) return false;
           }
-          if (n.time && (now - n.time > maxAgeMs)) return false;
+          const tMs = parseTimeMs(n.time);
+          if (tMs && (now - tMs > maxAgeMs)) return false;
         }
         // Cualquier otra notificación con más de 48 horas se elimina
-        if (n.time && (now - n.time > 48 * 3600 * 1000)) return false;
+        const tMs = parseTimeMs(n.time);
+        if (tMs && (now - tMs > 48 * 3600 * 1000)) return false;
         return true;
       });
 
@@ -1004,30 +1015,47 @@
       try {
         purgeOldNotifications();
         const raw = localStorage.getItem('coach_notifications_v2');
-        return raw ? JSON.parse(raw) : [];
+        const list = raw ? JSON.parse(raw) : [];
+        if (!Array.isArray(list)) return [];
+        // Ordenar SIEMPRE por fecha/hora descendente (lo más nuevo arriba)
+        return list.sort((a, b) => parseTimeMs(b && b.time) - parseTimeMs(a && a.time));
       } catch (e) {
         return [];
       }
     },
     save(list) {
       try {
-        localStorage.setItem('coach_notifications_v2', JSON.stringify((list || []).slice(0, 80)));
+        const sorted = (list || []).slice().sort((a, b) => parseTimeMs(b && b.time) - parseTimeMs(a && a.time));
+        localStorage.setItem('coach_notifications_v2', JSON.stringify(sorted.slice(0, 80)));
       } catch (e) {}
       // Actualizar badges en DOM sin invocar ciclo recursivo de re-render
       updateBadgeCountersOnly();
     },
     add(notif) {
-      const list = this.getAll();
-      const existingIdx = list.findIndex(n => n.id === notif.id || (notif.targetId && n.targetId === notif.targetId && n.type === notif.type));
+      if (!notif) return;
+      const notifTime = parseTimeMs(notif.time);
+      const notifId = notif.id || ('notif_' + notifTime + '_' + Math.floor(Math.random() * 1000));
+      let list = this.getAll();
+
+      // Buscamos si ya existe por ID exacto. NO emparejar por (targetId && type) para no colisionar respuestas de distintos jugadores
+      const existingIdx = list.findIndex(n => n.id === notifId);
       if (existingIdx >= 0) {
-        list[existingIdx] = { ...list[existingIdx], ...notif, time: notif.time || list[existingIdx].time };
+        const prev = list[existingIdx];
+        list.splice(existingIdx, 1);
+        list.unshift({
+          ...prev,
+          ...notif,
+          id: notifId,
+          time: notifTime,
+          read: false
+        });
       } else {
         list.unshift({
-          id: notif.id || 'notif_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+          id: notifId,
           type: notif.type || 'info',
           title: notif.title || '',
           body: notif.body || '',
-          time: notif.time || Date.now(),
+          time: notifTime,
           read: false,
           targetId: notif.targetId || null
         });
@@ -1044,7 +1072,7 @@
       if (!targetId) return;
       DismissedNotifs.add(targetId);
       let list = this.getAll();
-      list = list.filter(n => n.targetId !== targetId && n.id !== targetId && n.id !== ('create_' + targetId) && n.id !== ('req_' + targetId) && n.id !== ('chat_' + targetId));
+      list = list.filter(n => n.targetId !== targetId && n.id !== targetId && n.id !== ('create_' + targetId) && n.id !== ('req_' + targetId) && n.id !== ('claim_' + targetId) && n.id !== ('chat_' + targetId));
       this.save(list);
     },
     markAsRead(id) {
@@ -1090,7 +1118,7 @@
         const status = (typeof r === 'object') ? r.status : r;
         if (!status || status === 'pending') return;
 
-        const rTime = (typeof r === 'object' && (r.timestamp || r.time)) ? Number(r.timestamp || r.time) : 0;
+        const rTime = (typeof r === 'object' && (r.timestamp || r.time)) ? parseTimeMs(r.timestamp || r.time) : 0;
         // Solo considerar respuestas con timestamp válido emitidas en las últimas 24 horas
         if (!rTime || (now - rTime > recentCutoff)) return;
 
@@ -1117,12 +1145,12 @@
             time: rTime || now,
             read: false
           });
-        } else if (existing.title !== notifTitle || existing.body !== notifBody) {
+        } else if (existing.title !== notifTitle || existing.body !== notifBody || (rTime && rTime > (parseTimeMs(existing.time) || 0))) {
           NotifManager.add({
             ...existing,
             title: notifTitle,
             body: notifBody,
-            time: rTime || now
+            time: rTime || existing.time || now
           });
         }
       });
@@ -1250,7 +1278,7 @@
         title: t('profileRequests', 'Solicitud de cambio de perfil'),
         body: `${r.fromPlayerName || 'Jugador'} ➔ ${r.toPlayerName || 'Nuevo perfil'}`,
         targetId: r.id,
-        time: r.createdAt || Date.now()
+        time: parseTimeMs(r.createdAt)
       });
     });
 
@@ -1311,7 +1339,7 @@
         title: t('requestCoachProfileTitle', 'Solicitud de alta de jugador'),
         body: `${cr.name || 'Nuevo jugador'} (${cr.dorsal ? '#' + cr.dorsal + ' - ' : ''}${cr.position || 'Jugador'})`,
         targetId: cr.id,
-        time: cr.createdAt || Date.now()
+        time: parseTimeMs(cr.createdAt)
       });
     });
 
@@ -1373,9 +1401,7 @@
     NotifManager.save(stored);
 
     dedupedRequests.forEach(cl => {
-      const timeMs = (cl.createdAt && typeof cl.createdAt.toMillis === 'function')
-        ? cl.createdAt.toMillis()
-        : (cl.createdAt && cl.createdAt.seconds ? cl.createdAt.seconds * 1000 : (Number(cl.createdAt) || Date.now()));
+      const timeMs = parseTimeMs(cl.createdAt);
       const timeDisplay = formatRequestTime(timeMs);
       NotifManager.add({
         id: 'claim_' + cl.id,
@@ -1850,10 +1876,13 @@
                 let ic = '🔔';
                 if (n.type === 'profile_req') ic = '🔄';
                 else if (n.type === 'creation_req') ic = '➕';
+                else if (n.type === 'claim_req') ic = '🔑';
+                else if (n.type === 'late_vote') ic = '⚠️';
                 else if (n.type === 'attendance') ic = (n.title && n.title.includes('🟢')) ? '🟢' : '❌';
                 else if (n.type === 'chat') ic = '💬';
 
-                const dateStr = n.time ? new Date(n.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+                const nTimeMs = parseTimeMs(n.time);
+                const dateStr = nTimeMs ? (window.formatAttendanceDateTime ? window.formatAttendanceDateTime(nTimeMs) : new Date(nTimeMs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })) : '';
                 return `
                   <div class="notif-card" data-nid="${n.id}" data-target="${n.targetId || ''}" data-type="${n.type}" style="background: ${n.read ? 'rgba(15, 23, 42, 0.7)' : 'rgba(30, 41, 59, 0.85)'}; border: 1.5px solid ${n.read ? 'rgba(148, 163, 184, 0.2)' : 'rgba(34, 211, 238, 0.4)'}; border-radius: 12px; padding: 10px 12px; display: flex; align-items: flex-start; gap: 10px; cursor: pointer; position: relative;">
                     <span style="font-size: 20px; line-height: 1; flex-shrink: 0; margin-top: 2px;">${ic}</span>
@@ -2331,7 +2360,7 @@
         type: 'profile_req',
         title: t('profileRequests', 'Solicitud de cambio de perfil'),
         body: `${r.fromPlayerName || 'Jugador'} ➔ ${r.toPlayerName || 'Nuevo perfil'}`,
-        time: r.createdAt || Date.now(),
+        time: parseTimeMs(r.createdAt),
         isPendingReq: true
       });
     });
@@ -2342,7 +2371,7 @@
         type: 'creation_req',
         title: t('requestCoachProfileTitle', 'Solicitud de alta de jugador'),
         body: `${cr.name || 'Nuevo jugador'} (${cr.dorsal ? '#' + cr.dorsal + ' - ' : ''}${cr.position || 'Jugador'})`,
-        time: cr.createdAt || Date.now(),
+        time: parseTimeMs(cr.createdAt),
         isPendingReq: true
       });
     });
@@ -2351,16 +2380,28 @@
         id: 'claim_' + cl.id,
         targetId: cl.id,
         type: 'claim_req',
-        title: 'Solicitud de acceso a perfil',
-        body: `${cl.playerName || 'Jugador'} (Código ${cl.securityCode || '—'})`,
-        time: cl.createdAt || Date.now(),
+        title: t('profileClaimRequestTitle', 'Solicitud de acceso a perfil'),
+        body: `${cl.playerName || cl.targetPlayerName || 'Jugador'} (Código ${cl.securityCode || '—'})`,
+        time: parseTimeMs(cl.createdAt),
         isPendingReq: true
       });
     });
 
     const pendingReqsCount = pendingItems.length;
-    const allActiveItems = [...pendingItems, ...unreadNotifs];
-    const totalCount = Math.max(unreadNotifs.length, pendingReqsCount);
+
+    // Deduplicar para que solicitudes pendientes no se repitan si ya están en unreadNotifs
+    const seenIds = new Set();
+    const allActiveItems = [];
+    [...pendingItems, ...unreadNotifs].forEach(item => {
+      if (!item || !item.id || seenIds.has(item.id)) return;
+      seenIds.add(item.id);
+      allActiveItems.push(item);
+    });
+
+    // Ordenar SIEMPRE por fecha y hora descendente (lo más nuevo arriba)
+    allActiveItems.sort((a, b) => parseTimeMs(b.time) - parseTimeMs(a.time));
+
+    const totalCount = allActiveItems.length;
 
     // Si no hay notificaciones activas, la ventana permanece visible mostrando estado limpio
     if (allActiveItems.length === 0) {
@@ -2424,7 +2465,8 @@
             else if (n.type === 'attendance') ic = (n.title && n.title.includes('🟢')) ? '🟢' : '❌';
             else if (n.type === 'chat') ic = '💬';
 
-            const dateStr = n.time ? new Date(n.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+            const nTimeMs = parseTimeMs(n.time);
+            const dateStr = nTimeMs ? (window.formatAttendanceDateTime ? window.formatAttendanceDateTime(nTimeMs) : new Date(nTimeMs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })) : '';
             return `
               <div class="home-notif-item" data-nid="${n.id}" data-target="${n.targetId || ''}" data-type="${n.type}" style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 12px; padding: 9px 12px; display: flex; align-items: flex-start; gap: 10px; cursor: pointer; position: relative;">
                 <span style="font-size: 18px; line-height: 1; flex-shrink: 0; margin-top: 1px;">${ic}</span>
