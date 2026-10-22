@@ -2179,10 +2179,30 @@
       try { new Notification('Player Stats', { body: `${pName}: ${statusLabel} fuera de plazo`, icon: 'icons/icon-192.png', tag: notifId }); } catch (e) {}
     }
 
-    if (currentTab === 'convocations') renderConvocationsView();
-    else if (currentTab === 'home') renderHomeView();
-    if (typeof window.activeConvocationModalRefresh === 'function') window.activeConvocationModalRefresh();
+    scheduleAttendanceUIRefresh();
   };
+
+  let _attendanceUIRefreshTimer = null;
+  function scheduleAttendanceUIRefresh() {
+    if (_attendanceUIRefreshTimer) clearTimeout(_attendanceUIRefreshTimer);
+    _attendanceUIRefreshTimer = setTimeout(() => {
+      _attendanceUIRefreshTimer = null;
+      const view = document.getElementById('view');
+      if (view) {
+        if (currentTab === 'home') {
+          renderHomeView(view);
+        } else if (currentTab === 'convocations') {
+          renderConvocationsView(view);
+        } else if (currentTab === 'sessions') {
+          renderSessionsView(view);
+        }
+      }
+      if (typeof window.activeConvocationModalRefresh === 'function') {
+        try { window.activeConvocationModalRefresh(); } catch (e) {}
+      }
+    }, 60);
+  }
+  window.scheduleAttendanceUIRefresh = scheduleAttendanceUIRefresh;
 
   window.onPlayerAttendanceResponse = function (resp, isInitialSync = false) {
     if (!resp || !resp.convId || !resp.playerId) return;
@@ -2194,8 +2214,7 @@
       NotifManager.remove(notifId);
       DismissedNotifs.add(notifId);
       updateRequestsBadge();
-      if (currentTab === 'convocations') navigate('convocations');
-      if (typeof window.activeConvocationModalRefresh === 'function') window.activeConvocationModalRefresh();
+      scheduleAttendanceUIRefresh();
       return;
     }
 
@@ -2279,13 +2298,7 @@
       }
     }
 
-    if (currentTab === 'convocations') {
-      navigate('convocations');
-    }
-
-    if (typeof window.activeConvocationModalRefresh === 'function') {
-      window.activeConvocationModalRefresh();
-    }
+    scheduleAttendanceUIRefresh();
   };
 
   /* =========================================================
@@ -2341,6 +2354,20 @@
         }
       }, 2500);
     }
+
+    // Actualización inmediata al volver a primer plano (focus / visibilitychange)
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        if (typeof scheduleAttendanceUIRefresh === 'function') {
+          scheduleAttendanceUIRefresh();
+        }
+      }
+    });
+    window.addEventListener('focus', () => {
+      if (typeof scheduleAttendanceUIRefresh === 'function') {
+        scheduleAttendanceUIRefresh();
+      }
+    });
 
     // Escucha reactiva de eventos remotos en tiempo real (QR / WebSocket / WebRTC)
     if (window.SyncEngine) {
@@ -2717,6 +2744,7 @@
   function renderHomeView(view) {
     if (!view) view = document.getElementById('view');
     if (!view) return;
+    const prevScroll = view.scrollTop;
 
     syncAttendanceNotificationsFromConvocations();
     updateRequestsBadge();
@@ -2889,6 +2917,9 @@
     `;
 
     view.innerHTML = html;
+    if (prevScroll > 0) {
+      try { view.scrollTop = prevScroll; } catch (e) {}
+    }
     updateRequestsBadge();
 
     const btnLang = view.querySelector('#btn-toggle-lang');
@@ -3301,7 +3332,7 @@
       const respStatus = (r && typeof r === 'object') ? r.status : r;
       const listStatus = cList[pid];
 
-      if (respStatus === 'attending' || respStatus === 'yes') {
+      if (respStatus === 'attending' || respStatus === 'yes' || respStatus === 'called' || respStatus === 'confirmed') {
         nAccepted++;
       } else if (respStatus === 'absent' || respStatus === 'no' || (!respStatus && listStatus === 'absent')) {
         nRejected++;

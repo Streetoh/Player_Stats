@@ -955,6 +955,9 @@
                 }
               });
               isFirstSnapshot = false;
+              if (typeof window !== 'undefined' && typeof window.scheduleAttendanceUIRefresh === 'function') {
+                window.scheduleAttendanceUIRefresh();
+              }
               return;
             }
 

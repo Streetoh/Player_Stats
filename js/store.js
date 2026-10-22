@@ -387,29 +387,58 @@
         conv = this.state.convocations.find(c => c && (c.sessionId === resp.convId || c.id === resp.convId || (c.scheduleId && c.scheduleId === resp.convId)));
       }
 
+      let sess = this.session(resp.convId) || (this.state.sessions || []).find(s => s && (s.id === resp.convId || (conv && (s.convocationId === conv.id || s.id === conv.sessionId || (s.date === conv.date && s.type === conv.type)))));
+
+      if (!conv && sess) {
+        if (sess.convocationId) conv = this.convocation(sess.convocationId);
+        if (!conv && this.state.convocations) {
+          conv = this.state.convocations.find(c => c && (c.sessionId === sess.id || (c.date === sess.date && c.type === sess.type)));
+        }
+      }
+
+      const isPending = (resp.status === 'pending' || !resp.status);
+      const isAttending = (resp.status === 'called' || resp.status === 'attending' || resp.status === 'yes');
+      const statusKey = isAttending ? 'attending' : 'absent';
+      const rTime = resp.timestamp || resp.time || Date.now();
+      const respObj = isPending ? null : {
+        status: statusKey,
+        playerName: resp.playerName || '',
+        notes: resp.notes || '',
+        time: rTime,
+        timestamp: rTime
+      };
+
       if (conv) {
         conv.list = conv.list || {};
         conv.responses = conv.responses || {};
 
-        if (resp.status === 'pending' || !resp.status) {
+        if (isPending) {
           delete conv.responses[resp.playerId];
         } else {
-          const isAttending = (resp.status === 'called' || resp.status === 'attending' || resp.status === 'yes');
-          const statusKey = isAttending ? 'attending' : 'absent';
-          const rTime = resp.timestamp || resp.time || Date.now();
-          conv.responses[resp.playerId] = {
-            status: statusKey,
-            playerName: resp.playerName || '',
-            notes: resp.notes || '',
-            time: rTime,
-            timestamp: rTime
-          };
+          conv.responses[resp.playerId] = respObj;
+        }
+
+        if (sess) {
+          sess.responses = Object.assign({}, conv.responses);
+          if (!sess.convocationId) sess.convocationId = conv.id;
+          if (!conv.sessionId) conv.sessionId = sess.id;
+        }
+        this.save();
+      } else if (sess) {
+        sess.responses = sess.responses || {};
+        if (isPending) {
+          delete sess.responses[resp.playerId];
+        } else {
+          sess.responses[resp.playerId] = respObj;
         }
         this.save();
       }
 
       if (typeof window.onPlayerAttendanceResponse === 'function') {
         window.onPlayerAttendanceResponse(resp, isInitialSync);
+      }
+      if (typeof window.scheduleAttendanceUIRefresh === 'function') {
+        window.scheduleAttendanceUIRefresh();
       }
     },
 
